@@ -110,7 +110,7 @@ export default function AttendanceAutomation() {
                     {/* Stats & Master Action */}
                     <div className="grid md:grid-cols-3 gap-6">
                         <Card className="md:col-span-2 border-none shadow-md bg-gradient-to-br from-violet-600 to-purple-700 text-white relative overflow-hidden">
-                            <div className="absolute inset-0 bg-[url('/noise.png')] opacity-10 mix-blend-overlay"></div>
+                            <div className="absolute inset-0 bg-[url('/noise.webp')] opacity-10 mix-blend-overlay"></div>
                             <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
                             <CardContent className="p-8 flex flex-col items-center justify-center h-full relative z-10 text-center">
                                 <Users className="w-10 h-10 text-white/60 mb-3" />

@@ -11,14 +11,14 @@ import { ArrowLeft, ArrowRight, Mail, Lock, AlertCircle, Shield, GraduationCap, 
 import { useTranslations, useLocale } from 'next-intl';
 
 const roleMapping: Record<string, { label: string; color: string; emailPrefix: string; gradient: string; icon: any; features: string[]; welcomeEmoji: string; bgImage: string }> = {
-    student: { label: 'طالب', color: '#00D1B2', emailPrefix: 'student', gradient: 'from-teal-900/80 via-emerald-900/80 to-cyan-900/80', icon: GraduationCap, features: ['تتبع الدرجات والواجبات', 'تعلم ذكي بالـ AI', 'ترتيبك في لوحة المتصدرين'], welcomeEmoji: '🎓', bgImage: '/images/auth/student.png' },
-    teacher: { label: 'معلم', color: '#3B82F6', emailPrefix: 'teacher', gradient: 'from-blue-900/80 via-indigo-900/80 to-blue-950/80', icon: BookOpen, features: ['أتمتة التحضير والرصد', 'تحليل أداء الطلاب', 'أدوات تعليمية متقدمة'], welcomeEmoji: '📚', bgImage: '/images/auth/teacher.png' },
-    parent: { label: 'ولي أمر', color: '#F59E0B', emailPrefix: 'parent', gradient: 'from-amber-900/80 via-orange-900/80 to-amber-950/80', icon: Users, features: ['متابعة تقدم الأبناء', 'تقارير فورية ودقيقة', 'تواصل مباشر مع المدرسة'], welcomeEmoji: '👨‍👩‍👧', bgImage: '/images/auth/parent.png' },
-    principal: { label: 'مدير المدرسة', color: '#8B5CF6', emailPrefix: 'principal', gradient: 'from-purple-900/80 via-violet-900/80 to-purple-950/80', icon: Shield, features: ['لوحة قيادة شاملة', 'تقارير أداء المعلمين', 'إحصائيات المدرسة الكاملة'], welcomeEmoji: '🏫', bgImage: '/images/auth/principal.png' },
-    vice_principal: { label: 'الوكيل', color: '#EC4899', emailPrefix: 'vp', gradient: 'from-pink-900/80 via-rose-900/80 to-pink-950/80', icon: UserCheck, features: ['متابعة الحضور اليومي', 'شئون الطلاب', 'التقارير السلوكية'], welcomeEmoji: '📋', bgImage: '/images/auth/vice_principal.png' },
-    counselor: { label: 'الموجه الطلابي', color: '#14B8A6', emailPrefix: 'counselor', gradient: 'from-teal-900/80 via-cyan-900/80 to-teal-950/80', icon: Eye, features: ['متابعة الحالات النفسية', 'خطط الإرشاد الطلابي', 'تحليلات الرفاهية'], welcomeEmoji: '🤝', bgImage: '/images/auth/counselor.png' },
-    supervisor: { label: 'المشرف التربوي', color: '#6366F1', emailPrefix: 'supervisor', gradient: 'from-indigo-900/80 via-violet-900/80 to-indigo-950/80', icon: Eye, features: ['الزيارات الإشرافية', 'تقييم أداء المعلمين', 'خطط التحسين والتطوير'], welcomeEmoji: '👁️', bgImage: '/images/auth/supervisor.png' },
-    admin: { label: 'الشئون الإدارية والمالية', color: '#F43F5E', emailPrefix: 'admin', gradient: 'from-rose-900/80 via-red-900/80 to-rose-950/80', icon: Settings, features: ['إدارة الحسابات المالية', 'شئون الموظفين', 'التقارير الإدارية'], welcomeEmoji: '💼', bgImage: '/images/auth/admin.png' },
+    student: { label: 'طالب', color: '#00D1B2', emailPrefix: 'student', gradient: 'from-teal-900/80 via-emerald-900/80 to-cyan-900/80', icon: GraduationCap, features: ['تتبع الدرجات والواجبات', 'تعلم ذكي بالـ AI', 'ترتيبك في لوحة المتصدرين'], welcomeEmoji: '🎓', bgImage: '/images/auth/student.webp' },
+    teacher: { label: 'معلم', color: '#3B82F6', emailPrefix: 'teacher', gradient: 'from-blue-900/80 via-indigo-900/80 to-blue-950/80', icon: BookOpen, features: ['أتمتة التحضير والرصد', 'تحليل أداء الطلاب', 'أدوات تعليمية متقدمة'], welcomeEmoji: '📚', bgImage: '/images/auth/teacher.webp' },
+    parent: { label: 'ولي أمر', color: '#F59E0B', emailPrefix: 'parent', gradient: 'from-amber-900/80 via-orange-900/80 to-amber-950/80', icon: Users, features: ['متابعة تقدم الأبناء', 'تقارير فورية ودقيقة', 'تواصل مباشر مع المدرسة'], welcomeEmoji: '👨‍👩‍👧', bgImage: '/images/auth/parent.webp' },
+    principal: { label: 'مدير المدرسة', color: '#8B5CF6', emailPrefix: 'principal', gradient: 'from-purple-900/80 via-violet-900/80 to-purple-950/80', icon: Shield, features: ['لوحة قيادة شاملة', 'تقارير أداء المعلمين', 'إحصائيات المدرسة الكاملة'], welcomeEmoji: '🏫', bgImage: '/images/auth/principal.webp' },
+    vice_principal: { label: 'الوكيل', color: '#EC4899', emailPrefix: 'vp', gradient: 'from-pink-900/80 via-rose-900/80 to-pink-950/80', icon: UserCheck, features: ['متابعة الحضور اليومي', 'شئون الطلاب', 'التقارير السلوكية'], welcomeEmoji: '📋', bgImage: '/images/auth/vice_principal.webp' },
+    counselor: { label: 'الموجه الطلابي', color: '#14B8A6', emailPrefix: 'counselor', gradient: 'from-teal-900/80 via-cyan-900/80 to-teal-950/80', icon: Eye, features: ['متابعة الحالات النفسية', 'خطط الإرشاد الطلابي', 'تحليلات الرفاهية'], welcomeEmoji: '🤝', bgImage: '/images/auth/counselor.webp' },
+    supervisor: { label: 'المشرف التربوي', color: '#6366F1', emailPrefix: 'supervisor', gradient: 'from-indigo-900/80 via-violet-900/80 to-indigo-950/80', icon: Eye, features: ['الزيارات الإشرافية', 'تقييم أداء المعلمين', 'خطط التحسين والتطوير'], welcomeEmoji: '👁️', bgImage: '/images/auth/supervisor.webp' },
+    admin: { label: 'الشئون الإدارية والمالية', color: '#F43F5E', emailPrefix: 'admin', gradient: 'from-rose-900/80 via-red-900/80 to-rose-950/80', icon: Settings, features: ['إدارة الحسابات المالية', 'شئون الموظفين', 'التقارير الإدارية'], welcomeEmoji: '💼', bgImage: '/images/auth/admin.webp' },
 };
 
 export default function RoleLoginPage() {
@@ -150,8 +150,8 @@ export default function RoleLoginPage() {
                 >
                     <div className="flex items-center gap-3 mb-2">
                         <div className="flex items-center gap-2">
-                            <img src="/logo_new.jpeg" alt="Nexus EDU" className="w-12 h-12 rounded-2xl object-cover shadow-lg border-2 border-white/20" />
-                            <img src="/second_logo.png" alt="Partner Logo" className="w-12 h-12 rounded-2xl object-cover shadow-lg border-2 border-white/20 bg-white" />
+                            <img src="/logo_new.webp" alt="Nexus EDU" className="w-12 h-12 rounded-2xl object-cover shadow-lg border-2 border-white/20" />
+                            <img src="/second_logo.webp" alt="Partner Logo" className="w-12 h-12 rounded-2xl object-cover shadow-lg border-2 border-white/20 bg-white" />
                         </div>
                         <div>
                             <span className="text-2xl font-bold text-white">نِكْسُس</span>

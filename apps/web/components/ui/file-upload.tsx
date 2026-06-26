@@ -30,7 +30,7 @@ export function FileUpload({
     maxFiles = 5,
     maxSize = 10485760, // 10MB
     accept = {
-        'image/*': ['.png', '.jpg', '.jpeg', '.gif'],
+        'image/*': ['.webp', '.webp', '.webp', '.gif'],
         'application/pdf': ['.pdf'],
         'application/msword': ['.doc', '.docx'],
         'application/vnd.ms-powerpoint': ['.ppt', '.pptx'],

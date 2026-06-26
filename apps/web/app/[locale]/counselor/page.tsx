@@ -56,8 +56,8 @@ export default function CounselorDashboard() {
                         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-card w-full max-w-md p-8 rounded-[2rem] shadow-2xl border border-border" onClick={e => e.stopPropagation()}>
                             <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
                                 <div className="flex gap-2">
-                                    <img src="/logo_new.jpeg" alt="Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
-                                    <img src="/second_logo.png" alt="School Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
+                                    <img src="/logo_new.webp" alt="Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
+                                    <img src="/second_logo.webp" alt="School Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
                                 </div>
                                 <h2 className="text-xl font-black text-foreground">تصدير تقرير الحالات</h2>
                             </div>
@@ -132,8 +132,8 @@ export default function CounselorDashboard() {
                     {/* Print Header */}
                     <div className="hidden print-only mt-8 text-center bg-white p-6 rounded-2xl w-full">
                         <div className="flex justify-center gap-4 mb-4">
-                            <img src="/logo_new.jpeg" alt="Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
-                            <img src="/second_logo.png" alt="School Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
+                            <img src="/logo_new.webp" alt="Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
+                            <img src="/second_logo.webp" alt="School Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
                         </div>
                         <h2 className="text-3xl font-black mb-2 text-black">تقرير الموجه الطلابي العام</h2>
                         <p className="text-gray-600 font-medium">نظام Nexus EDU - الرفاهية المدرسية ومتابعة الحالات</p>

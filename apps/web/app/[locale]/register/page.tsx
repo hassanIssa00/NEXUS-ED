@@ -107,7 +107,7 @@ export default function RegisterPage() {
                         {/* Logo + Header */}
                         <div className="text-center mb-8">
                             <div className="flex justify-center mb-4">
-                                <img src="/logo_new.jpeg" alt="Nexus EDU" className="w-14 h-14 rounded-[14px] shadow-sm object-cover" />
+                                <img src="/logo_new.webp" alt="Nexus EDU" className="w-14 h-14 rounded-[14px] shadow-sm object-cover" />
                             </div>
                             <h1 className="hero-title text-3xl mb-2">
                                 إنشاء <span>حساب جديد</span>

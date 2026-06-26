@@ -136,8 +136,8 @@ function AdminDashboardInner() {
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-card w-full max-w-md p-8 rounded-[2rem] shadow-2xl border border-border" onClick={e => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
                 <div className="flex gap-2">
-                  <img src="/logo_new.jpeg" alt="Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
-                  <img src="/second_logo.png" alt="School Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
+                  <img src="/logo_new.webp" alt="Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
+                  <img src="/second_logo.webp" alt="School Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
                 </div>
                 <h2 className="text-xl font-black text-foreground">تصدير التقرير الإداري</h2>
               </div>
@@ -200,7 +200,7 @@ function AdminDashboardInner() {
             className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-br from-rose-500/20 to-purple-500/20 rounded-full blur-3xl" />
           <motion.div animate={{ rotate: -360 }} transition={{ duration: 70, repeat: Infinity, ease: 'linear' }}
             className="absolute -bottom-40 -left-20 w-80 h-80 bg-gradient-to-tr from-blue-500/20 to-emerald-500/20 rounded-full blur-3xl" />
-          <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay" />
+          <div className="absolute inset-0 bg-[url('/noise.webp')] opacity-[0.03] mix-blend-overlay" />
         </div>
 
         <div className="relative z-10 flex flex-col md:flex-row items-start justify-between gap-8">
@@ -270,8 +270,8 @@ function AdminDashboardInner() {
       {/* Print Header */}
       <div className="hidden print-only text-center bg-white p-6 rounded-2xl w-full border-b border-gray-100 mb-8">
           <div className="flex justify-center gap-4 mb-4">
-              <img src="/logo_new.jpeg" alt="Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
-              <img src="/second_logo.png" alt="School Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
+              <img src="/logo_new.webp" alt="Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
+              <img src="/second_logo.webp" alt="School Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
           </div>
           <h2 className="text-3xl font-black mb-2 text-black">تقرير منصة الإدارة المركزية (System Admin)</h2>
           <p className="text-gray-600 font-medium">نظام Nexus EDU - ملخص الأداء والإحصائيات الحيوية</p>

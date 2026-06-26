@@ -126,7 +126,7 @@ export function OnboardingIntro({ onComplete }: OnboardingIntroProps) {
                                     <video 
                                         controls 
                                         className="w-full h-full object-cover"
-                                        poster="/intro-poster.jpg"
+                                        poster="/intro-poster.webp"
                                     >
                                         <source src="/intro-video.mp4" type="video/mp4" />
                                         متصفحك لا يدعم تشغيل الفيديو

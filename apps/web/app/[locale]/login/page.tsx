@@ -159,8 +159,8 @@ export default function GlobalLoginSelectorPage() {
                             className="flex items-center gap-3 mb-10"
                         >
                             <div className="relative flex items-center gap-2">
-                                <img src="/logo_new.jpeg" alt="Nexus EDU" className="w-12 h-12 rounded-[14px] object-cover shadow-md bg-white border border-border" />
-                                <img src="/second_logo.png" alt="Partner Logo" className="w-12 h-12 rounded-[14px] object-cover shadow-md bg-white border border-border" />
+                                <img src="/logo_new.webp" alt="Nexus EDU" className="w-12 h-12 rounded-[14px] object-cover shadow-md bg-white border border-border" />
+                                <img src="/second_logo.webp" alt="Partner Logo" className="w-12 h-12 rounded-[14px] object-cover shadow-md bg-white border border-border" />
                                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
                             </div>
                             <div>
@@ -238,7 +238,7 @@ export default function GlobalLoginSelectorPage() {
                     {/* Mobile Header */}
                     <div className="w-full max-w-3xl flex justify-between items-center mb-8 lg:mb-10">
                         <div className="flex items-center gap-3 lg:hidden">
-                            <img src="/logo_new.jpeg" alt="Nexus EDU" className="w-10 h-10 rounded-[12px] object-cover bg-white border border-border" />
+                            <img src="/logo_new.webp" alt="Nexus EDU" className="w-10 h-10 rounded-[12px] object-cover bg-white border border-border" />
                             <span className="text-lg font-black text-slate-900">نكسس</span>
                         </div>
                         <div className="lg:mr-auto">

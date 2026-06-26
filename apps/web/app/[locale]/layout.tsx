@@ -12,8 +12,8 @@ export const metadata: Metadata = {
     title: 'NEXUS EDU | نكسس التعليمية',
     description: 'School Management Platform',
     icons: {
-        icon: '/logo_new.jpeg',
-        apple: '/logo_new.jpeg',
+        icon: '/logo_new.webp',
+        apple: '/logo_new.webp',
     },
 };
 

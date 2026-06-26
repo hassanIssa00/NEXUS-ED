@@ -173,8 +173,8 @@ function PrincipalDashboardInner() {
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-[#1e1e2d] w-[450px] p-8 rounded-[2rem] shadow-2xl border border-gray-100 dark:border-white/5" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6 border-b border-gray-100 dark:border-white/5 pb-4">
                     <div className="flex gap-2">
-                        <img src="/logo_new.jpeg" alt="Logo" className="w-10 h-10 rounded-lg shadow-sm" />
-                        <img src="/second_logo.png" alt="School Logo" className="w-10 h-10 rounded-lg shadow-sm" />
+                        <img src="/logo_new.webp" alt="Logo" className="w-10 h-10 rounded-lg shadow-sm" />
+                        <img src="/second_logo.webp" alt="School Logo" className="w-10 h-10 rounded-lg shadow-sm" />
                     </div>
                     <h2 className="text-xl font-black text-gray-900 dark:text-white">تصدير تقرير المدرسة</h2>
                 </div>
@@ -268,8 +268,8 @@ function PrincipalDashboardInner() {
             {/* Print Header */}
             <div className="hidden print-only mt-8 text-center bg-white p-6 rounded-2xl w-full">
                 <div className="flex justify-center gap-4 mb-4">
-                    <img src="/logo_new.jpeg" alt="Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
-                    <img src="/second_logo.png" alt="School Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
+                    <img src="/logo_new.webp" alt="Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
+                    <img src="/second_logo.webp" alt="School Logo" className="w-20 h-20 rounded-xl border border-gray-200" />
                 </div>
                 <h2 className="text-3xl font-black mb-2 text-black">التقرير الإداري الشامل للمدرسة</h2>
                 <p className="text-gray-600 font-medium">نظام Nexus EDU - الإحصائيات والأداء المدرسي</p>

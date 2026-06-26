@@ -145,7 +145,7 @@ export function VideoModal({ isOpen, onClose, videoSrc = '/videos/intro.mp4', ti
                             <video
                                 ref={videoRef}
                                 src={videoSrc}
-                                poster={poster || '/images/hero-banner.png'}
+                                poster={poster || '/images/hero-banner.webp'}
                                 onTimeUpdate={handleTimeUpdate}
                                 onLoadedMetadata={handleLoadedMetadata}
                                 onEnded={() => setIsPlaying(false)}

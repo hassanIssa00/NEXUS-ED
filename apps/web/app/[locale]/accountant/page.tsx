@@ -68,8 +68,8 @@ export default function AccountantDashboard() {
                     <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-card w-[450px] p-8 rounded-[2rem] shadow-2xl border border-border" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
                             <div className="flex gap-2">
-                                <img src="/logo_new.jpeg" alt="Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
-                                <img src="/second_logo.png" alt="School Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
+                                <img src="/logo_new.webp" alt="Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
+                                <img src="/second_logo.webp" alt="School Logo" className="w-10 h-10 rounded-lg shadow-sm border border-border" />
                             </div>
                             <h2 className="text-xl font-black text-foreground">تصدير التقرير المالي</h2>
                         </div>

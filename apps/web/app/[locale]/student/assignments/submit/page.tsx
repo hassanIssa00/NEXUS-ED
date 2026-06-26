@@ -236,7 +236,7 @@ export default function SubmitAssignmentPage() {
                                 className="hidden"
                                 ref={fileInputRef}
                                 onChange={handleFileChange}
-                                accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.mp4,.webm,.doc,.docx"
+                                accept=".pdf,.webp,.webp,.webp,.gif,.webp,.mp4,.webm,.doc,.docx"
                                 multiple
                                 disabled={submitting}
                             />

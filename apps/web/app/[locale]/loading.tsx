@@ -25,7 +25,7 @@ export default function Loading() {
                         {activeLogo === 'nexus' && (
                             <motion.img
                                 key="nexus"
-                                src="/logo_new.jpeg"
+                                src="/logo_new.webp"
                                 alt="Nexus EDU"
                                 initial={{ opacity: 0, scale: 0.5, filter: 'blur(10px)' }}
                                 animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
@@ -37,7 +37,7 @@ export default function Loading() {
                         {activeLogo === 'school' && (
                             <motion.img
                                 key="school"
-                                src="/second_logo.png"
+                                src="/second_logo.webp"
                                 alt="School Logo"
                                 initial={{ opacity: 0, scale: 0.5, filter: 'blur(10px)' }}
                                 animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}

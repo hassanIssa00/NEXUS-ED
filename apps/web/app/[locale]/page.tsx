@@ -17,10 +17,10 @@ import { AnimatedCounter } from '@/components/ui/animated-counter'
 
 // Hero Images for Carousel
 const heroImages = [
-    { src: '/images/hero-1.png', alt: 'Nexus EDU - Vision' },
-    { src: '/images/hero-2.png', alt: 'Nexus EDU - Smart Education' },
-    { src: '/images/hero-3.png', alt: 'Performance Analytics' },
-    { src: '/images/hero-4.png', alt: 'Admin Overview' },
+    { src: '/images/hero-1.webp', alt: 'Nexus EDU - Vision' },
+    { src: '/images/hero-2.webp', alt: 'Nexus EDU - Smart Education' },
+    { src: '/images/hero-3.webp', alt: 'Performance Analytics' },
+    { src: '/images/hero-4.webp', alt: 'Admin Overview' },
 ]
 
 // School partner logos (text-based for now)
@@ -86,8 +86,8 @@ export default function LandingPage() {
                 <div className="container mx-auto px-6 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="flex items-center gap-1.5">
-                            <img src="/logo_new.jpeg" alt="Nexus EDU" className="w-10 h-10 rounded-[12px] object-cover" />
-                            <img src="/second_logo.png" alt="Partner Logo" className="w-10 h-10 rounded-[12px] object-cover bg-white" />
+                            <img src="/logo_new.webp" alt="Nexus EDU" className="w-10 h-10 rounded-[12px] object-cover" />
+                            <img src="/second_logo.webp" alt="Partner Logo" className="w-10 h-10 rounded-[12px] object-cover bg-white" />
                         </div>
                         <div className="flex flex-col">
                             <span className="text-2xl font-bold nexus-gradient-text">نِكْسُس</span>
@@ -150,8 +150,8 @@ export default function LandingPage() {
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-2">
                                     <div className="flex items-center gap-1.5">
-                                        <img src="/logo_new.jpeg" alt="Nexus EDU" className="w-9 h-9 rounded-xl" />
-                                        <img src="/second_logo.png" alt="Partner Logo" className="w-9 h-9 rounded-xl bg-white" />
+                                        <img src="/logo_new.webp" alt="Nexus EDU" className="w-9 h-9 rounded-xl" />
+                                        <img src="/second_logo.webp" alt="Partner Logo" className="w-9 h-9 rounded-xl bg-white" />
                                     </div>
                                     <span className="font-bold text-lg nexus-gradient-text">نِكْسُس</span>
                                 </div>
@@ -263,7 +263,7 @@ export default function LandingPage() {
                             <div className="flex items-center gap-6 mt-10 pt-10 border-t border-slate-200">
                                 <div className="flex -space-x-3 space-x-reverse">
                                     {[1, 2, 3, 4].map(i => (
-                                        <img key={i} src={`/images/avatar-${i}.png`} alt="طالب" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm" />
+                                        <img key={i} src={`/images/avatar-${i}.webp`} alt="طالب" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm" />
                                     ))}
                                 </div>
                                 <div>
@@ -340,7 +340,7 @@ export default function LandingPage() {
                                 <div className="flex items-center gap-3">
                                     <div className="flex -space-x-2 space-x-reverse">
                                         {[1, 2, 3].map(i => (
-                                            <img key={i} src={`/images/avatar-${i}.png`} alt="طالب" className="w-8 h-8 rounded-full border-2 border-nexus-card object-cover" />
+                                            <img key={i} src={`/images/avatar-${i}.webp`} alt="طالب" className="w-8 h-8 rounded-full border-2 border-nexus-card object-cover" />
                                         ))}
                                     </div>
                                     <div>
@@ -496,9 +496,9 @@ export default function LandingPage() {
                         >
                             <div className="rounded-[20px] overflow-hidden h-[400px] relative border border-white/10 parallax-img shadow-2xl">
                                 <div className="absolute inset-0">
-                                    <img src="/images/ai-learning-new.png" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
+                                    <img src="/images/ai-learning-new.webp" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
                                 </div>
-                                <img src="/images/ai-learning-new.png" alt="AI-Personalized Learning" className="relative z-10 w-full h-full object-contain" />
+                                <img src="/images/ai-learning-new.webp" alt="AI-Personalized Learning" className="relative z-10 w-full h-full object-contain" />
                             </div>
                         </motion.div>
                         <motion.div
@@ -578,9 +578,9 @@ export default function LandingPage() {
                         >
                             <div className="rounded-[20px] overflow-hidden h-[400px] relative border border-white/10 parallax-img shadow-2xl">
                                 <div className="absolute inset-0">
-                                    <img src="/images/stats-comparison-new.png" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
+                                    <img src="/images/stats-comparison-new.webp" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
                                 </div>
-                                <img src="/images/stats-comparison-new.png" alt="Performance Statistics" className="relative z-10 w-full h-full object-contain" />
+                                <img src="/images/stats-comparison-new.webp" alt="Performance Statistics" className="relative z-10 w-full h-full object-contain" />
                             </div>
                         </motion.div>
                     </div>
@@ -599,9 +599,9 @@ export default function LandingPage() {
                         >
                             <div className="rounded-[20px] overflow-hidden h-[400px] relative border border-white/10 parallax-img shadow-2xl">
                                 <div className="absolute inset-0">
-                                    <img src="/images/leaderboard-new.png" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
+                                    <img src="/images/leaderboard-new.webp" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
                                 </div>
-                                <img src="/images/leaderboard-new.png" alt="Leaderboard" className="relative z-10 w-full h-full object-contain" />
+                                <img src="/images/leaderboard-new.webp" alt="Leaderboard" className="relative z-10 w-full h-full object-contain" />
                             </div>
                         </motion.div>
                         <motion.div
@@ -670,9 +670,9 @@ export default function LandingPage() {
                         >
                             <div className="rounded-[20px] overflow-hidden h-[400px] relative border border-white/10 parallax-img shadow-2xl">
                                 <div className="absolute inset-0">
-                                    <img src="/images/parent-monitoring-new.png" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
+                                    <img src="/images/parent-monitoring-new.webp" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
                                 </div>
-                                <img src="/images/parent-monitoring-new.png" alt="Parent Monitoring" className="relative z-10 w-full h-full object-contain" />
+                                <img src="/images/parent-monitoring-new.webp" alt="Parent Monitoring" className="relative z-10 w-full h-full object-contain" />
                             </div>
                         </motion.div>
                     </div>
@@ -713,9 +713,9 @@ export default function LandingPage() {
                         >
                             <div className="rounded-[20px] overflow-hidden h-[400px] relative border border-white/10 parallax-img shadow-2xl">
                                 <div className="absolute inset-0">
-                                    <img src="/images/vision-2030-new.png" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
+                                    <img src="/images/vision-2030-new.webp" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
                                 </div>
-                                <img src="/images/vision-2030-new.png" alt="Saudi Vision 2030" className="relative z-10 w-full h-full object-contain" />
+                                <img src="/images/vision-2030-new.webp" alt="Saudi Vision 2030" className="relative z-10 w-full h-full object-contain" />
                             </div>
                         </motion.div>
                     </div>
@@ -857,8 +857,8 @@ export default function LandingPage() {
                         <div className="col-span-1 md:col-span-2">
                             <div className="flex items-center gap-3 mb-6">
                                 <div className="flex items-center gap-1.5">
-                                    <img src="/logo_new.jpeg" alt="Nexus EDU" className="w-10 h-10 rounded-[12px] object-cover" />
-                                    <img src="/second_logo.png" alt="Partner Logo" className="w-10 h-10 rounded-[12px] object-cover bg-white" />
+                                    <img src="/logo_new.webp" alt="Nexus EDU" className="w-10 h-10 rounded-[12px] object-cover" />
+                                    <img src="/second_logo.webp" alt="Partner Logo" className="w-10 h-10 rounded-[12px] object-cover bg-white" />
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="text-2xl font-bold nexus-gradient-text">نِكْسُس</span>
@@ -925,7 +925,7 @@ export default function LandingPage() {
                 onClose={() => setIsVideoOpen(false)}
                 videoSrc="/videos/intro.mp4"
                 title="الفيديو التعريفي لنِكْسُس EDU"
-                poster="/images/hero-banner.png"
+                poster="/images/hero-banner.webp"
             />
         </div>
     )

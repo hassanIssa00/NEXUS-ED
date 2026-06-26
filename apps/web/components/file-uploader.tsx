@@ -32,7 +32,7 @@ export function FileUploader({
     maxSize = 10,
     maxFiles = 5,
     acceptedFileTypes = {
-        'image/*': ['.png', '.jpg', '.jpeg', '.gif'],
+        'image/*': ['.webp', '.webp', '.webp', '.gif'],
         'application/pdf': ['.pdf'],
         'video/*': ['.mp4', '.webm', '.mov'],
     },
