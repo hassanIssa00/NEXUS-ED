@@ -28,6 +28,11 @@ export default function SupervisorDashboard() {
     const [aiLoading, setAiLoading] = useState(false);
     const [planModalOpen, setPlanModalOpen] = useState(false);
     const [exportModalOpen, setExportModalOpen] = useState(false);
+    const [supervisorTab, setSupervisorTab] = useState<'dashboard'|'visits'|'analytics'>('dashboard');
+    const [supervisorStudents, setSupervisorStudents] = useState<any[]>([]);
+    const [supervisorMetrics, setSupervisorMetrics] = useState<any>(null);
+    const [newVisitNote, setNewVisitNote] = useState('');
+    const [visitNotes, setVisitNotes] = useState<any[]>([]);
     const { signOut } = useAuth();
 
     useEffect(() => {
@@ -61,6 +66,9 @@ export default function SupervisorDashboard() {
                     { label: 'إدارة الصف والانضباط', value: Math.min(100, metrics.attendanceRate + 2) },
                     { label: 'التقويم المستمر والواجبات', value: hw.length > 0 ? 98 : 85 },
                 ]);
+                setSupervisorStudents(students);
+                setSupervisorMetrics(metrics);
+                try { const vn = localStorage.getItem('nexus_visit_notes'); if(vn) setVisitNotes(JSON.parse(vn)) } catch {}
             } catch (e) {
                 console.error('nexusBridge supervisor load error:', e);
             }
@@ -243,6 +251,22 @@ export default function SupervisorDashboard() {
                 </div>
             </motion.div>
 
+            {/* TAB BAR */}
+            <div className="flex gap-2 bg-gray-100/80 dark:bg-white/5 p-1.5 rounded-2xl overflow-x-auto">
+                {[
+                    { key: 'dashboard', label: '📊 لوحة التحكم' },
+                    { key: 'visits', label: '🏫 الزيارات الإشرافية' },
+                    { key: 'analytics', label: '📈 تحليلات الفصل' },
+                ].map(t => (
+                    <button key={t.key} onClick={() => setSupervisorTab(t.key as any)}
+                        className={`px-4 py-2 rounded-xl font-bold text-xs whitespace-nowrap transition-all ${
+                            supervisorTab === t.key ? 'bg-white dark:bg-[#1e1e2d] text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}>{t.label}</button>
+                ))}
+            </div>
+
+            {supervisorTab === 'dashboard' && (<>
+
             {/* STATS */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="المعلمين تحت الإشراف" value="24" icon={Users} color="#4f46e5" bg="bg-indigo-50 dark:bg-indigo-500/10" />
@@ -372,6 +396,99 @@ export default function SupervisorDashboard() {
                     </motion.div>
                 ))}
             </div>
+        </>)}
+
+            {supervisorTab === 'visits' && (
+                <motion.div key="sv-visits" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
+                    <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-[2rem] p-6 text-white">
+                        <h2 className="text-2xl font-black mb-1">🏫 الزيارات الإشرافية</h2>
+                        <p className="text-indigo-200 text-sm">تسجيل ومتابعة زيارات فصل د. إسماعيل عيسى</p>
+                    </div>
+                    <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
+                        <h3 className="font-black text-gray-900 dark:text-white mb-3">📝 إضافة ملاحظة زيارة جديدة</h3>
+                        <textarea value={newVisitNote} onChange={e=>setNewVisitNote(e.target.value)} rows={4}
+                            placeholder="ملاحظات الزيارة الإشرافية لفصل د. إسماعيل..."
+                            className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 mb-3" />
+                        <button onClick={() => {
+                            if (!newVisitNote.trim()) return;
+                            const entry = { id: Date.now().toString(), teacher: 'د. إسماعيل عيسى', date: new Date().toISOString(), note: newVisitNote, rating: 5 };
+                            const updated = [entry, ...visitNotes];
+                            setVisitNotes(updated);
+                            localStorage.setItem('nexus_visit_notes', JSON.stringify(updated));
+                            setNewVisitNote('');
+                        }} disabled={!newVisitNote.trim()}
+                            className="w-full py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-black text-sm hover:from-indigo-600 hover:to-violet-700 disabled:opacity-50 transition-all">
+                            💾 حفظ الزيارة
+                        </button>
+                    </div>
+                    <div className="space-y-3">
+                        {[...visitNotes, ...realVisitData].map((v: any, i: number) => (
+                            <motion.div key={v.id||i} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.05}}
+                                className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-2xl p-4 shadow-sm">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-500/10 flex items-center justify-center text-lg">🏫</div>
+                                    <div className="flex-1">
+                                        <div className="flex items-center justify-between">
+                                            <p className="font-black text-sm text-gray-900 dark:text-white">{v.teacher}</p>
+                                            <span className="text-[10px] text-gray-400">{new Date(v.date||v.createdAt||Date.now()).toLocaleDateString('ar-SA')}</span>
+                                        </div>
+                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{v.note || `${v.subject} — ${v.status}`}</p>
+                                        <div className="flex mt-1">{[1,2,3,4,5].map(s=><span key={s} className={`text-xs ${s<=(v.rating||5)?'text-amber-400':'text-gray-300'}`}>⭐</span>)}</div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </motion.div>
+            )}
+
+            {supervisorTab === 'analytics' && (
+                <motion.div key="sv-analytics" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
+                    <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-[2rem] p-6 text-white">
+                        <h2 className="text-2xl font-black mb-1">📈 تحليلات فصل د. إسماعيل</h2>
+                        <p className="text-emerald-100 text-sm">إحصاءات وتحليلات أداء الفصل</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        {[
+                            { label: 'إجمالي الطلاب', value: supervisorStudents.length || 8, icon: '👥', color: 'from-blue-500 to-indigo-600' },
+                            { label: 'المتفوقون', value: supervisorStudents.filter((s:any)=>s.status==='excellent').length || 3, icon: '⭐', color: 'from-amber-500 to-yellow-600' },
+                            { label: 'نسبة الحضور', value: `${supervisorMetrics?.attendanceRate||97}%`, icon: '📅', color: 'from-green-500 to-emerald-600' },
+                            { label: 'متوسط الدرجات', value: `${supervisorMetrics?.averageSchoolGrade||92}%`, icon: '📈', color: 'from-violet-500 to-purple-600' },
+                            { label: 'الواجبات المُسلَّمة', value: supervisorMetrics?.totalHomework || 6, icon: '📝', color: 'from-teal-500 to-cyan-600' },
+                            { label: 'الشهادات الممنوحة', value: supervisorMetrics?.awardedCertificates || 4, icon: '🏆', color: 'from-rose-500 to-pink-600' },
+                        ].map((s: any, i: number) => (
+                            <motion.div key={i} initial={{opacity:0,scale:0.9}} animate={{opacity:1,scale:1}} transition={{delay:i*0.07}}
+                                className={`bg-gradient-to-br ${s.color} rounded-3xl p-5 text-white`}>
+                                <div className="text-2xl mb-2">{s.icon}</div>
+                                <p className="text-xl font-black">{s.value}</p>
+                                <p className="text-xs opacity-80 font-bold">{s.label}</p>
+                            </motion.div>
+                        ))}
+                    </div>
+                    <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
+                        <h3 className="font-black text-gray-900 dark:text-white mb-4">توزيع الدرجات</h3>
+                        <div className="space-y-3">
+                            {[
+                                { label: 'ممتاز (90-100)', count: supervisorStudents.filter((s:any)=>s.averageGrade>=90).length||3, color: 'bg-emerald-500', pct: 38 },
+                                { label: 'جيد جداً (80-89)', count: supervisorStudents.filter((s:any)=>s.averageGrade>=80&&s.averageGrade<90).length||3, color: 'bg-blue-500', pct: 38 },
+                                { label: 'جيد (70-79)', count: supervisorStudents.filter((s:any)=>s.averageGrade>=70&&s.averageGrade<80).length||2, color: 'bg-amber-500', pct: 24 },
+                                { label: 'يحتاج دعم (<70)', count: supervisorStudents.filter((s:any)=>(s.averageGrade||90)<70).length||0, color: 'bg-rose-500', pct: 0 },
+                            ].map((d: any, i: number) => (
+                                <div key={i}>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-bold text-gray-600 dark:text-gray-400">{d.label}</span>
+                                        <span className="text-xs font-black text-gray-900 dark:text-white">{d.count} طالب</span>
+                                    </div>
+                                    <div className="h-2.5 bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                        <motion.div initial={{width:0}} animate={{width:`${d.pct}%`}} transition={{delay:0.3+i*0.1,duration:0.8}}
+                                            className={`h-full ${d.color} rounded-full`} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </motion.div>
+            )}
         </div>
     );
 }

@@ -8,7 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRealtimeAssignments, useRealtimeNotifications } from '@/lib/providers/socket-provider'
 import {
   BookOpen, Trophy, Sparkles, Target, Award,
-  TrendingUp, CheckCircle2, AlertCircle, Flame, Star, Zap, Bell, FileText
+  TrendingUp, CheckCircle2, AlertCircle, Flame, Star, Zap, Bell, FileText,
+  Calendar, Gamepad2, GraduationCap, LayoutDashboard, X, Clock
 } from 'lucide-react'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
@@ -65,6 +66,18 @@ export default function StudentDashboardPage() {
   const [usingFallback, setUsingFallback] = useState(false)
   const [liveAssignments, setLiveAssignments] = useState<any[]>([])
   const [liveNotif, setLiveNotif] = useState<string | null>(null)
+
+  const [activeStudentTab, setActiveStudentTab] = useState<'dashboard'|'schedule'|'homework'|'certificates'|'games'|'curriculum'>('dashboard')
+  const [scheduleData, setScheduleData] = useState<any[]>([])
+  const [SCHOOL_TIMETABLE_DATA, setSchoolTimetableData] = useState<any[]>([])
+  const [homeworkData, setHomeworkData] = useState<any[]>([])
+  const [hwSubmissionsData, setHwSubmissionsData] = useState<any[]>([])
+  const [certsData, setCertsData] = useState<any[]>([])
+  const [gamificationData, setGamificationData] = useState({ level: 1, totalXP: 0, streakDays: 0, achievementsUnlocked: 0 })
+  const [selectedHwId, setSelectedHwId] = useState<string|null>(null)
+  const [hwAnswer, setHwAnswer] = useState('')
+  const [hwSubmitting, setHwSubmitting] = useState(false)
+  const [studentLinkedId, setStudentLinkedId] = useState('cls-std-2')
 
   useEffect(() => {
     const load = async () => {
@@ -162,6 +175,28 @@ export default function StudentDashboardPage() {
 
         setData(realData)
         setUsingFallback(false)
+
+        // Load schedule
+        const { CLASS_SCHEDULE, SCHOOL_TIMETABLE } = await import('@/lib/nexusDataBridge')
+        setScheduleData(CLASS_SCHEDULE || [])
+        setSchoolTimetableData(SCHOOL_TIMETABLE || [])
+
+        // Get student ID
+        setStudentLinkedId(linkedStudentId)
+
+        // Load homework
+        const hw = nexusBridge.getHomework()
+        const allHwSubs = nexusBridge.getHomeworkSubmissions()
+        setHomeworkData(hw)
+        setHwSubmissionsData(allHwSubs)
+
+        // Load certs & gamification
+        const certs = nexusBridge.getCertificates(linkedStudentId)
+        setCertsData(certs)
+        const hwSubsMine = allHwSubs.filter(s => s.studentId === linkedStudentId)
+        const xp = (certs.length*500) + (hwSubsMine.length*150)
+        setGamificationData({ level: Math.min(10, Math.floor(xp/500)+1), totalXP: xp, streakDays: hwSubsMine.length>0?7:3, achievementsUnlocked: certs.length })
+        
       } catch (e) {
         console.error('nexusBridge student load error:', e)
         setData(FALLBACK_STUDENT_DATA)
@@ -186,6 +221,29 @@ export default function StudentDashboardPage() {
     setLiveNotif(n.title)
     setTimeout(() => setLiveNotif(null), 4000)
   }, []))
+
+  const handleHwSubmit = async () => {
+    if (!selectedHwId || !hwAnswer.trim()) return
+    setHwSubmitting(true)
+    try {
+      const { nexusBridge } = await import('@/lib/nexusDataBridge')
+      nexusBridge.submitHomework({
+        assignmentId: selectedHwId,
+        studentId: studentLinkedId,
+        studentName: data?.student?.name || 'الطالب',
+        assignmentTitle: homeworkData.find(h=>h.id===selectedHwId)?.title || '',
+        submissionText: hwAnswer,
+      })
+      const hw = nexusBridge.getHomework()
+      const hwSubs = nexusBridge.getHomeworkSubmissions()
+      setHomeworkData(hw)
+      setHwSubmissionsData(hwSubs)
+      setSelectedHwId(null)
+      setHwAnswer('')
+      window.dispatchEvent(new CustomEvent('nexus:data-changed'))
+    } catch (e) { console.error(e) }
+    finally { setHwSubmitting(false) }
+  }
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4">
@@ -317,6 +375,28 @@ export default function StudentDashboardPage() {
         </div>
       </motion.div>
 
+      {/* ── TAB BAR ── */}
+      <div className="flex gap-2 bg-gray-100/80 dark:bg-white/5 p-1.5 rounded-2xl overflow-x-auto">
+        {[
+          { key: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
+          { key: 'schedule', label: 'جدول الحصص', icon: Calendar },
+          { key: 'homework', label: 'الواجبات', icon: BookOpen },
+          { key: 'certificates', label: 'الإنجازات', icon: Trophy },
+          { key: 'games', label: 'الألعاب', icon: Gamepad2 },
+          { key: 'curriculum', label: 'المناهج', icon: GraduationCap },
+        ].map(t => (
+          <button key={t.key} onClick={() => setActiveStudentTab(t.key as any)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap transition-all flex-shrink-0 ${
+              activeStudentTab === t.key
+                ? 'bg-white dark:bg-[#1e1e2d] text-violet-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}>
+            <t.icon className="w-3.5 h-3.5" />{t.label}
+          </button>
+        ))}
+      </div>
+
+      {activeStudentTab === 'dashboard' && (<>
       {/* ─── STATS GRID ─── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
@@ -476,6 +556,254 @@ export default function StudentDashboardPage() {
                 </motion.div>
               )
             })}
+          </div>
+        </motion.div>
+      )}
+      </>)}
+
+      {activeStudentTab === 'schedule' && (
+        <motion.div key="schedule" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-6">
+          {/* Hero */}
+          <div className="bg-gradient-to-br from-violet-600 to-purple-700 rounded-[2rem] p-6 text-white">
+            <h2 className="text-2xl font-black mb-1">📅 جدول الحصص الأسبوعي</h2>
+            <p className="text-violet-200 text-sm">جدول فصل د. إسماعيل عيسى — الصف الأول الابتدائي</p>
+          </div>
+          {/* School timetable */}
+          <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
+            <h3 className="font-black text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Clock className="w-4 h-4 text-violet-500" />توقيت اليوم الدراسي</h3>
+            <div className="space-y-2">
+              {SCHOOL_TIMETABLE_DATA.map((slot, i) => (
+                <div key={i} className={`flex items-center gap-3 p-3 rounded-2xl text-sm ${
+                  slot.type==='break'?'bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20':
+                  slot.type==='prayer'?'bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20':
+                  slot.type==='dismissal'?'bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20':
+                  'bg-gray-50 dark:bg-white/5'
+                }`}>
+                  <span className="font-black text-gray-400 w-8 text-center text-xs">{slot.order}</span>
+                  <span className="font-bold text-gray-900 dark:text-white flex-1">{slot.name}</span>
+                  <span className="text-xs text-gray-500 font-mono">{slot.startTime} — {slot.endTime}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Weekly grid */}
+          {['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'].map((day, dayIdx) => {
+            const dayPeriods = scheduleData.filter(p => p.dayOfWeek === dayIdx)
+            return (
+              <div key={day} className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
+                <h4 className="font-black text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-violet-100 dark:bg-violet-500/10 flex items-center justify-center text-xs font-black text-violet-600">{dayIdx+1}</div>
+                  {day}
+                </h4>
+                <div className="space-y-2">
+                  {dayPeriods.length===0 ? <p className="text-gray-400 text-sm text-center py-4">لا توجد حصص</p> :
+                    dayPeriods.sort((a,b)=>a.periodNumber-b.periodNumber).map((period, pi) => {
+                      const subjectColors: Record<string,string> = {
+                        'اللغة العربية': 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-500/10 dark:border-blue-500/30 dark:text-blue-300',
+                        'القرآن الكريم': 'bg-green-50 border-green-200 text-green-800 dark:bg-green-500/10 dark:border-green-500/30 dark:text-green-300',
+                        'التربية الإسلامية': 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-500/10 dark:border-emerald-500/30 dark:text-emerald-300',
+                        'الرياضيات': 'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-300',
+                        'العلوم': 'bg-teal-50 border-teal-200 text-teal-800 dark:bg-teal-500/10 dark:border-teal-500/30 dark:text-teal-300',
+                        'فن': 'bg-pink-50 border-pink-200 text-pink-800 dark:bg-pink-500/10 dark:border-pink-500/30 dark:text-pink-300',
+                      };
+                      const color = subjectColors[period.subjectName] || 'bg-gray-50 border-gray-200 text-gray-800 dark:bg-gray-500/10 dark:border-gray-500/30 dark:text-gray-300';
+                      const subjectEmojis: Record<string,string> = {'اللغة العربية':'📖','القرآن الكريم':'📿','التربية الإسلامية':'🕌','الرياضيات':'🔢','العلوم':'🔬','فن':'🎨'};
+                      return (
+                        <div key={pi} className={`flex items-center gap-3 p-3 rounded-2xl border text-sm ${color}`}>
+                          <span className="text-lg">{subjectEmojis[period.subjectName]||'📚'}</span>
+                          <div className="flex-1">
+                            <p className="font-bold">{period.subjectName}</p>
+                            <p className="text-xs opacity-70">{period.startTime} — {period.endTime}</p>
+                          </div>
+                          <div className="text-xs font-bold opacity-60">حصة {period.periodNumber}</div>
+                        </div>
+                      )
+                    })
+                  }
+                </div>
+              </div>
+            )
+          })}
+        </motion.div>
+      )}
+
+      {activeStudentTab === 'homework' && (
+        <motion.div key="hw" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
+          <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-[2rem] p-6 text-white">
+            <h2 className="text-2xl font-black mb-1">📝 الواجبات المدرسية</h2>
+            <p className="text-amber-100 text-sm">واجباتك من د. إسماعيل عيسى</p>
+          </div>
+          {homeworkData.map((hw, i) => {
+            const submitted = hwSubmissionsData.find(s => s.assignmentId === hw.id && s.studentId === studentLinkedId)
+            return (
+              <motion.div key={hw.id} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.06}} whileHover={{y:-2}}
+                className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-6 shadow-sm">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-2xl flex-shrink-0">📚</div>
+                  <div className="flex-1">
+                    <h3 className="font-black text-gray-900 dark:text-white">{hw.title}</h3>
+                    <p className="text-sm text-gray-500 mt-0.5">{hw.subject} • تسليم: {hw.dueDate}</p>
+                    {hw.description && <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{hw.description}</p>}
+                  </div>
+                  <div>
+                    {submitted ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-black">
+                        <CheckCircle2 className="w-3.5 h-3.5" />مُسلَّم
+                      </span>
+                    ) : (
+                      <button onClick={() => setSelectedHwId(hw.id)}
+                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black transition-colors">
+                        تسليم الواجب
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {submitted && submitted.grade && (
+                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/5 flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-gray-500">الدرجة</span>
+                        <span className="text-sm font-black text-emerald-600">{submitted.grade}/100</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full" style={{width:`${submitted.grade}%`}} />
+                      </div>
+                    </div>
+                    {submitted.teacherComment && <p className="text-xs text-gray-500 italic">💬 {submitted.teacherComment}</p>}
+                  </div>
+                )}
+              </motion.div>
+            )
+          })}
+          {/* Submission Modal */}
+          {selectedHwId && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <motion.div initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}}
+                className="bg-white dark:bg-[#1e1e2d] rounded-3xl p-6 w-full max-w-md shadow-2xl">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-black text-gray-900 dark:text-white">تسليم الواجب</h3>
+                  <button onClick={() => {setSelectedHwId(null); setHwAnswer('')}} className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-white/5 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">{homeworkData.find(h=>h.id===selectedHwId)?.title}</p>
+                <textarea value={hwAnswer} onChange={e=>setHwAnswer(e.target.value)} rows={4} placeholder="اكتب إجابتك هنا..."
+                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+                <button onClick={handleHwSubmit} disabled={!hwAnswer.trim() || hwSubmitting}
+                  className="w-full mt-4 py-3 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-black text-sm hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 transition-all">
+                  {hwSubmitting ? '⏳ جارٍ التسليم...' : '✅ تسليم الواجب'}
+                </button>
+              </motion.div>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {activeStudentTab === 'certificates' && (
+        <motion.div key="certs" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
+          <div className="bg-gradient-to-br from-amber-400 to-yellow-500 rounded-[2rem] p-6 text-white">
+            <h2 className="text-2xl font-black mb-1">🏆 الإنجازات والشهادات</h2>
+            <p className="text-amber-100 text-sm">شهاداتك وأوسمة التميز</p>
+          </div>
+          {/* Gamification stats */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'المستوى', value: gamificationData.level, icon: '⭐', color: 'from-violet-500 to-purple-600' },
+              { label: 'النقاط الكلية', value: gamificationData.totalXP, icon: '💎', color: 'from-blue-500 to-indigo-600' },
+              { label: 'أيام متتالية', value: `${gamificationData.streakDays} يوم`, icon: '🔥', color: 'from-orange-500 to-red-500' },
+            ].map((s,i) => (
+              <div key={i} className={`bg-gradient-to-br ${s.color} rounded-2xl p-4 text-white`}>
+                <div className="text-xl mb-1">{s.icon}</div>
+                <p className="text-lg font-black">{s.value}</p>
+                <p className="text-[10px] opacity-80 font-bold">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          {/* Certificates */}
+          {certsData.length > 0 ? (
+            <div className="space-y-3">
+              {certsData.map((cert, i) => (
+                <motion.div key={cert.id} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.08}} whileHover={{y:-2}}
+                  className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-amber-200/50 dark:border-amber-500/20 rounded-3xl p-5 shadow-sm">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center text-2xl flex-shrink-0">🏆</div>
+                    <div className="flex-1">
+                      <h3 className="font-black text-gray-900 dark:text-white">{cert.programTitle || cert.title}</h3>
+                      <p className="text-sm text-gray-500 mt-0.5">{cert.achievementText || cert.description}</p>
+                      <p className="text-xs text-amber-600 font-bold mt-1">#{cert.serialNumber || cert.id}</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-amber-600">{cert.score}%</div>
+                      <p className="text-[10px] text-gray-500 font-bold">الدرجة</p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="text-6xl">🏅</div>
+              <p className="font-bold text-gray-500">لا توجد شهادات بعد — استمر في التميز!</p>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {activeStudentTab === 'games' && (
+        <motion.div key="games" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
+          <div className="bg-gradient-to-br from-fuchsia-600 to-pink-600 rounded-[2rem] p-6 text-white">
+            <h2 className="text-2xl font-black mb-1">🎮 الألعاب التعليمية</h2>
+            <p className="text-fuchsia-100 text-sm">تعلم وإستمتع بالألعاب التفاعلية</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[
+              { title: 'تحدي الإملاء', icon: '✏️', color: 'from-blue-500 to-indigo-600', desc: 'تدرب على الإملاء الصحيح', link: '/student/games' },
+              { title: 'حساب سريع', icon: '🔢', color: 'from-amber-500 to-orange-600', desc: 'تحدي العمليات الحسابية', link: '/student/games' },
+              { title: 'القرآن الكريم', icon: '📿', color: 'from-green-500 to-emerald-600', desc: 'حفظ وترتيل القرآن', link: '/student/games' },
+              { title: 'العلوم الممتعة', icon: '🔬', color: 'from-teal-500 to-cyan-600', desc: 'اكتشف عالم العلوم', link: '/student/games' },
+              { title: 'الكلمات المتقاطعة', icon: '🧩', color: 'from-violet-500 to-purple-600', desc: 'لغة عربية بطريقة ممتعة', link: '/student/games' },
+              { title: 'تحدي المليون', icon: '🏆', color: 'from-rose-500 to-pink-600', desc: 'مسابقة المعلومات الكبرى', link: '/student/million' },
+            ].map((g, i) => (
+              <motion.a key={i} href={g.link} whileHover={{y:-4,scale:1.02}} className={`bg-gradient-to-br ${g.color} rounded-3xl p-5 text-white text-center cursor-pointer block`}>
+                <div className="text-3xl mb-2">{g.icon}</div>
+                <h3 className="font-black text-sm mb-0.5">{g.title}</h3>
+                <p className="text-[10px] opacity-80">{g.desc}</p>
+              </motion.a>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {activeStudentTab === 'curriculum' && (
+        <motion.div key="curriculum" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
+          <div className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-[2rem] p-6 text-white">
+            <h2 className="text-2xl font-black mb-1">📚 المناهج الدراسية</h2>
+            <p className="text-teal-100 text-sm">مواد وكتب الصف الأول الابتدائي</p>
+          </div>
+          <div className="grid gap-4">
+            {[
+              { name: 'اللغة العربية', emoji: '📖', desc: 'قراءة وكتابة وقواعد اللغة العربية', lessons: 18, color: 'from-blue-50 to-indigo-50 dark:from-blue-500/10 dark:to-indigo-500/10', border: 'border-blue-200 dark:border-blue-500/30', text: 'text-blue-800 dark:text-blue-300' },
+              { name: 'القرآن الكريم', emoji: '📿', desc: 'حفظ وتجويد القرآن الكريم', lessons: 16, color: 'from-green-50 to-emerald-50 dark:from-green-500/10 dark:to-emerald-500/10', border: 'border-green-200 dark:border-green-500/30', text: 'text-green-800 dark:text-green-300' },
+              { name: 'الرياضيات', emoji: '🔢', desc: 'الأعداد والعمليات الحسابية', lessons: 20, color: 'from-amber-50 to-yellow-50 dark:from-amber-500/10 dark:to-yellow-500/10', border: 'border-amber-200 dark:border-amber-500/30', text: 'text-amber-800 dark:text-amber-300' },
+              { name: 'العلوم', emoji: '🔬', desc: 'علوم الطبيعة والبيئة', lessons: 14, color: 'from-teal-50 to-cyan-50 dark:from-teal-500/10 dark:to-cyan-500/10', border: 'border-teal-200 dark:border-teal-500/30', text: 'text-teal-800 dark:text-teal-300' },
+              { name: 'التربية الإسلامية', emoji: '🕌', desc: 'الفقه والعقيدة والسيرة', lessons: 12, color: 'from-emerald-50 to-green-50 dark:from-emerald-500/10 dark:to-green-500/10', border: 'border-emerald-200 dark:border-emerald-500/30', text: 'text-emerald-800 dark:text-emerald-300' },
+              { name: 'الفن والتربية البصرية', emoji: '🎨', desc: 'الرسم والألوان والإبداع', lessons: 8, color: 'from-pink-50 to-rose-50 dark:from-pink-500/10 dark:to-rose-500/10', border: 'border-pink-200 dark:border-pink-500/30', text: 'text-pink-800 dark:text-pink-300' },
+            ].map((subj, i) => (
+              <motion.div key={i} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.06}} whileHover={{y:-2}}
+                className={`bg-gradient-to-br ${subj.color} border ${subj.border} rounded-3xl p-5 shadow-sm`}>
+                <div className="flex items-center gap-4">
+                  <div className="text-3xl">{subj.emoji}</div>
+                  <div className="flex-1">
+                    <h3 className={`font-black ${subj.text}`}>{subj.name}</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{subj.desc}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-xl font-black ${subj.text}`}>{subj.lessons}</p>
+                    <p className="text-[10px] text-gray-500 font-bold">حصة</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
           </div>
         </motion.div>
       )}

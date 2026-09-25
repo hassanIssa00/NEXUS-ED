@@ -57,6 +57,9 @@ function AdminDashboardInner() {
   const [error, setError] = useState<string | null>(null)
   const [liveNotif, setLiveNotif] = useState<string | null>(null)
   const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [adminTab, setAdminTab] = useState<'dashboard' | 'accounts' | 'reports' | 'system'>('dashboard')
+  const [adminStudents, setAdminStudents] = useState<any[]>([])
+  const [adminMetrics, setAdminMetrics] = useState<any>(null)
   const { signOut } = useAuth()
 
   const load = useCallback(async () => {
@@ -68,6 +71,9 @@ function AdminDashboardInner() {
       const hw = nexusBridge.getHomework()
       const certs = nexusBridge.getCertificates()
       const obs = nexusBridge.getObservations()
+
+      setAdminStudents(students)
+      setAdminMetrics(metrics)
 
       const adminData: any = {
         kpis: {
@@ -329,6 +335,25 @@ function AdminDashboardInner() {
           </div>
         </div>
       </motion.div>
+
+      {/* TAB BAR */}
+      <div className="flex gap-2 bg-gray-100/80 dark:bg-white/5 p-1.5 rounded-2xl overflow-x-auto no-print">
+        {[
+          { key: 'dashboard', label: '📊 لوحة القيادة', icon: Activity },
+          { key: 'accounts', label: '👥 الحسابات الثمانية', icon: Users },
+          { key: 'reports', label: '📈 التقارير الشاملة', icon: FileText },
+          { key: 'system', label: '🏫 بيانات الفصل والمزامنة', icon: School },
+        ].map(t => (
+          <button key={t.key} onClick={() => setAdminTab(t.key as any)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all ${
+              adminTab === t.key ? 'bg-white dark:bg-[#1e1e2d] text-rose-600 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}>
+            <t.icon className="w-3.5 h-3.5" />{t.label}
+          </button>
+        ))}
+      </div>
+
+      {adminTab === 'dashboard' && (<>
 
       {/* Print Header */}
       <div className="hidden print-only text-center bg-white p-6 rounded-2xl w-full border-b border-gray-100 mb-8">
@@ -613,6 +638,173 @@ function AdminDashboardInner() {
           </div>
         </div>
       </div>
+      </>)}
+
+      {/* ── ACCOUNTS TAB ── */}
+      {adminTab === 'accounts' && (
+        <motion.div key="adm-acc" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          <div className="bg-gradient-to-br from-rose-600 via-pink-600 to-purple-600 rounded-[2rem] p-6 text-white shadow-lg">
+            <h2 className="text-2xl font-black mb-1">👥 الحسابات الثمانية المعتمدة للمنصة</h2>
+            <p className="text-rose-100 text-sm">إدارة وربط جميع بوابات الدخول الثمانية لنظام Nexus EDU ومطابقتها مع فصل د. إسماعيل</p>
+          </div>
+
+          <div className="grid gap-3">
+            {[
+              { role: 'المعلم', title: 'معلم الفصل والمشرف الأكاديمي', name: 'د. إسماعيل عيسى', email: 'arabic.teacher@nexusedu.sa', path: '/ar/teacher', color: 'from-orange-500 to-amber-600', badge: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400', icon: '👨‍🏫' },
+              { role: 'الطالب', title: 'طالب متميز — فصل د. إسماعيل', name: 'أحمد فيصل الغامدي', email: 'student1@nexusedu.sa', path: '/ar/student', color: 'from-violet-500 to-purple-600', badge: 'bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400', icon: '👦' },
+              { role: 'ولي الأمر', title: 'ولي أمر الطالب أحمد الغامدي', name: 'فيصل الغامدي', email: 'parent1@nexusedu.sa', path: '/ar/parent', color: 'from-emerald-500 to-teal-600', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400', icon: '👨‍👩‍👧' },
+              { role: 'مدير المدرسة', title: 'الإدارة العامة والمتابعة الشاملة', name: 'م. أحمد الشمري', email: 'principal@nexusedu.sa', path: '/ar/principal', color: 'from-blue-600 to-indigo-700', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400', icon: '🏫' },
+              { role: 'وكيل المدرسة', title: 'شؤون الطلاب والانضباط المدرسي', name: 'م. سارة الزهراني', email: 'vice.principal@nexusedu.sa', path: '/ar/vice_principal', color: 'from-pink-600 to-rose-600', badge: 'bg-pink-100 text-pink-700 dark:bg-pink-500/10 dark:text-pink-400', icon: '📋' },
+              { role: 'التوجيه الطلابي', title: 'الإرشاد النفسي والسلوكي والرفاهية', name: 'أ. خالد المطيري', email: 'counselor@nexusedu.sa', path: '/ar/counselor', color: 'from-teal-600 to-cyan-600', badge: 'bg-teal-100 text-teal-700 dark:bg-teal-500/10 dark:text-teal-400', icon: '💚' },
+              { role: 'الإشراف التربوي', title: 'تقييم المعلمين وجودة التدريس', name: 'د. فاطمة العتيبي', email: 'supervisor@nexusedu.sa', path: '/ar/supervisor', color: 'from-indigo-600 to-blue-600', badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400', icon: '🎯' },
+              { role: 'الشؤون الإدارية', title: 'الإدارة المركزية والصلاحيات والأنظمة', name: 'أ. محمد القحطاني', email: 'admin@nexusedu.sa', path: '/ar/admin', color: 'from-slate-700 to-gray-800', badge: 'bg-slate-100 text-slate-700 dark:bg-slate-500/10 dark:text-slate-400', icon: '⚙️' },
+            ].map((acc, i) => (
+              <motion.div key={i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                whileHover={{ y: -2 }}
+                className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${acc.color} flex items-center justify-center text-2xl shadow-sm flex-shrink-0 text-white`}>
+                    {acc.icon}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="font-black text-gray-900 dark:text-white text-base">{acc.name}</h3>
+                      <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black ${acc.badge}`}>{acc.role}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 font-medium">{acc.title}</p>
+                    <p className="text-xs text-gray-400 font-mono mt-0.5">{acc.email}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 text-xs font-bold border border-emerald-200/50">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> مفعّل ومرتبط
+                  </span>
+                  <Link href={acc.path}>
+                    <button className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-800 dark:text-white text-xs font-bold transition-colors">
+                      دخول البوابة ↗
+                    </button>
+                  </Link>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── REPORTS TAB ── */}
+      {adminTab === 'reports' && (
+        <motion.div key="adm-rep" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          <div className="bg-gradient-to-br from-indigo-700 via-blue-700 to-cyan-700 rounded-[2rem] p-6 text-white shadow-lg">
+            <h2 className="text-2xl font-black mb-1">📈 التقارير الشاملة وإحصاءات المدرسة</h2>
+            <p className="text-indigo-100 text-sm">ملخص شامل لأداء فصل د. إسماعيل عيسى ومؤشرات الجودة الأكاديمية</p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'إجمالي الطلاب', val: adminStudents.length || 8, icon: '👥', color: 'from-blue-500 to-indigo-600' },
+              { label: 'نسبة الحضور التراكمية', val: `${adminMetrics?.attendanceRate || 97}%`, icon: '📅', color: 'from-teal-500 to-emerald-600' },
+              { label: 'المعدل العام للفصل', val: `${adminMetrics?.averageSchoolGrade || 92}%`, icon: '⭐', color: 'from-amber-500 to-orange-600' },
+              { label: 'الشهادات الممنوحة', val: adminMetrics?.awardedCertificates || 4, icon: '🏆', color: 'from-purple-500 to-pink-600' },
+            ].map((stat, i) => (
+              <motion.div key={i} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}
+                className={`bg-gradient-to-br ${stat.color} rounded-3xl p-5 text-white shadow-sm`}>
+                <div className="text-2xl mb-2">{stat.icon}</div>
+                <p className="text-2xl font-black">{stat.val}</p>
+                <p className="text-xs opacity-90 font-medium">{stat.label}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-6 shadow-sm">
+            <h3 className="font-black text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-indigo-500" />
+              التقارير المتوفرة للتحميل والطباعة
+            </h3>
+            <div className="space-y-3">
+              {[
+                { title: 'تقرير الانضباط والحضور الشهري', desc: 'سجل غياب وحضور كامل بالفترات والحصص السبع', type: 'PDF' },
+                { title: 'سجل الدرجات والواجبات المدرسية', desc: 'رصد تفصيلي لدرجات واجبات لغتي، القرآن الكريم، والرياضيات', type: 'Excel' },
+                { title: 'تقرير الطلاب المتفوقين والمحتاجين لدعم', desc: 'تصنيف الطلاب حسب قائمة الشرف وخطط التحسين الفردية', type: 'PDF' },
+                { title: 'كشف الشهادات والأوسمة المعتمدة', desc: 'شهادات التميز الصادرة برقم تسلسلي معتمد من المنصة', type: 'PDF' },
+              ].map((rep, i) => (
+                <div key={i} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                  <div>
+                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">{rep.title}</h4>
+                    <p className="text-xs text-gray-500 mt-0.5">{rep.desc}</p>
+                  </div>
+                  <button onClick={() => window.print()} className="px-4 py-2 rounded-xl bg-white dark:bg-[#1e1e2d] border border-gray-200 dark:border-white/10 text-xs font-bold text-gray-800 dark:text-white hover:bg-gray-100 transition-colors shadow-sm">
+                    طباعة / تصدير
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── SYSTEM & DATA TAB ── */}
+      {adminTab === 'system' && (
+        <motion.div key="adm-sys" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          <div className="bg-gradient-to-br from-slate-800 via-gray-800 to-zinc-900 rounded-[2rem] p-6 text-white shadow-lg">
+            <h2 className="text-2xl font-black mb-1">🏫 فصل د. إسماعيل عيسى ومزامنة البيانات</h2>
+            <p className="text-gray-300 text-sm">حالة الربط المركزي، قاعدة البيانات المحلية، وسجلات الطلاب النشطة</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-6 shadow-sm">
+              <h3 className="font-black text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <School className="w-5 h-5 text-rose-500" />
+                معلومات الفصل الدراسي
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
+                  <span className="text-gray-500 font-medium">اسم الفصل</span>
+                  <span className="font-bold text-gray-900 dark:text-white">الصف الأول الابتدائي — فصل د. إسماعيل عيسى</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
+                  <span className="text-gray-500 font-medium">معلم الفصل</span>
+                  <span className="font-bold text-gray-900 dark:text-white">د. إسماعيل عيسى</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
+                  <span className="text-gray-500 font-medium">المواد المعتمدة</span>
+                  <span className="font-bold text-gray-900 dark:text-white">اللغة العربية، القرآن الكريم، الرياضيات، العلوم</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
+                  <span className="text-gray-500 font-medium">الحصص اليومية</span>
+                  <span className="font-bold text-gray-900 dark:text-white">7 حصص تفاعلية (من 06:45 إلى 12:40)</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-500 font-medium">حالة الربط والبيانات</span>
+                  <span className="inline-flex items-center gap-1 font-bold text-emerald-600">
+                    <CheckCircle2 className="w-4 h-4" /> Nexus Data Bridge نشط 100%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-6 shadow-sm">
+              <h3 className="font-black text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <Database className="w-5 h-5 text-indigo-500" />
+                قائمة طلاب الفصل الثمانية
+              </h3>
+              <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+                {adminStudents.map((s, idx) => (
+                  <div key={s.id || idx} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-white/5 rounded-xl text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 flex items-center justify-center font-bold">
+                        {idx + 1}
+                      </div>
+                      <span className="font-bold text-gray-900 dark:text-white">{s.fullName}</span>
+                    </div>
+                    <span className="font-black text-emerald-600">{s.averageGrade}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
     </div>
   )
 }

@@ -7,7 +7,7 @@ import { useRealtimeNotifications } from '@/lib/providers/socket-provider'
 import {
   Users, FileText, ClipboardList, Calendar, BookOpen, Zap,
   BrainCircuit, TrendingUp, AlertCircle, CheckCircle2, Clock,
-  Plus, BarChart3, Sparkles, Bell
+  Plus, BarChart3, Sparkles, Bell, Archive, HeartHandshake, Medal, LayoutDashboard
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, Cell } from 'recharts'
 import { LiveClassBanner } from './_components/LiveClassBanner'
@@ -68,6 +68,15 @@ export default function TeacherDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [usingFallback, setUsingFallback] = useState(false)
   const [liveNotif, setLiveNotif] = useState<string | null>(null)
+  const [teacherTab, setTeacherTab] = useState<'dashboard'|'students'|'parents'|'homework'|'badges'|'archive'|'reports'>('dashboard')
+  const [teacherStudents, setTeacherStudents] = useState<any[]>([])
+  const [teacherHw, setTeacherHw] = useState<any[]>([])
+  const [hwSubs, setHwSubs] = useState<any[]>([])
+  const [teacherObs, setTeacherObs] = useState<any[]>([])
+  const [badgeAward, setBadgeAward] = useState<{studentId:string,points:number,reason:string}|null>(null)
+  const [selectedArchiveDate, setSelectedArchiveDate] = useState(new Date().toISOString().split('T')[0])
+  const [archiveNote, setArchiveNote] = useState('')
+  const [archiveEntries, setArchiveEntries] = useState<any[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -116,6 +125,12 @@ export default function TeacherDashboardPage() {
       }
       setData(realData)
       setUsingFallback(false)
+
+      setTeacherStudents(students)
+      setTeacherHw(homework)
+      setHwSubs(submissions)
+      setTeacherObs(nexusBridge.getObservations())
+      try { const arc = localStorage.getItem('nexus_archive_entries'); if(arc) setArchiveEntries(JSON.parse(arc)) } catch {}
     } catch {
       setData(FALLBACK_DATA)
       setUsingFallback(true)
@@ -182,6 +197,28 @@ export default function TeacherDashboardPage() {
       {/* Live Banner */}
       <LiveClassBanner />
 
+      {/* Teacher Tab Bar */}
+      <div className="flex gap-2 bg-gray-100/80 dark:bg-white/5 p-1.5 rounded-2xl overflow-x-auto">
+        {[
+          { key: 'dashboard', label: 'نظرة عامة', icon: LayoutDashboard },
+          { key: 'students', label: 'الطلاب', icon: Users },
+          { key: 'parents', label: 'أولياء الأمور', icon: HeartHandshake },
+          { key: 'homework', label: 'الواجبات', icon: BookOpen },
+          { key: 'badges', label: 'الشارات والنقاط', icon: Medal },
+          { key: 'archive', label: 'الأرشيف اليومي', icon: Archive },
+          { key: 'reports', label: 'التقارير', icon: FileText },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTeacherTab(t.key as any)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap transition-all flex-shrink-0 ${
+              teacherTab === t.key ? 'bg-white dark:bg-[#1e1e2d] text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}>
+            <t.icon className="w-3.5 h-3.5" />{t.label}
+          </button>
+        ))}
+      </div>
+
+      {teacherTab === 'dashboard' && (
+        <>
       {/* HERO */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#0f766e] via-[#0369a1] to-[#1e3a8a] p-8 md:p-10 text-white shadow-2xl">
@@ -389,6 +426,220 @@ export default function TeacherDashboardPage() {
           )}
         </div>
       </div>
+      </>
+      )}
+
+      {teacherTab === 'students' && (
+        <motion.div key="t-students" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[2rem] p-6 text-white">
+            <h2 className="text-2xl font-black mb-1">👨🎓 قائمة الطلاب</h2>
+            <p className="text-blue-200 text-sm">{teacherStudents.length} طالب في فصل د. إسماعيل عيسى</p>
+          </div>
+          <div className="grid gap-3">
+            {teacherStudents.map((student, i) => (
+              <motion.div key={student.id} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.05}} whileHover={{y:-2}}
+                className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg flex-shrink-0">
+                    {student.fullName?.[0] || '؟'}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-black text-gray-900 dark:text-white">{student.fullName}</h3>
+                    <p className="text-sm text-gray-500">{student.grade || 'الصف الأول الابتدائي'}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-center">
+                      <p className={`text-lg font-black ${(student.averageGrade||90)>=90?'text-emerald-600':(student.averageGrade||90)>=75?'text-amber-600':'text-rose-600'}`}>
+                        {student.averageGrade || 90}%
+                      </p>
+                      <p className="text-[10px] text-gray-500 font-bold">المعدل</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-black text-blue-600">{student.attendanceRate || 95}%</p>
+                      <p className="text-[10px] text-gray-500 font-bold">الحضور</p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${
+                      student.status==='excellent'?'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400':
+                      student.status==='warning'?'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400':
+                      'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400'
+                    }`}>{student.status==='excellent'?'متميز':student.status==='warning'?'يحتاج دعم':'عادي'}</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {teacherTab === 'parents' && (
+        <motion.div key="t-parents" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
+          <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-[2rem] p-6 text-white">
+            <h2 className="text-2xl font-black mb-1">👨👩👧 أولياء الأمور</h2>
+            <p className="text-green-100 text-sm">تواصل مع أولياء أمور الطلاب</p>
+          </div>
+          <div className="grid gap-3">
+            {teacherStudents.map((student, i) => (
+              <motion.div key={student.id} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.05}} whileHover={{y:-2}}
+                className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-green-100 dark:bg-green-500/10 flex items-center justify-center text-xl flex-shrink-0">👨👩👧</div>
+                  <div className="flex-1">
+                    <h3 className="font-black text-gray-900 dark:text-white">{student.parentName || `ولي أمر ${student.fullName}`}</h3>
+                    <p className="text-sm text-gray-500">ولي أمر: {student.fullName}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={async () => {
+                      const { nexusBridge } = await import('@/lib/nexusDataBridge')
+                      nexusBridge.addObservation({ studentId: student.id, studentName: student.fullName, authorName: 'المعلم', authorRole: 'teacher', category: 'guidance', severity: 'neutral', text: `تم التواصل مع ولي أمر ${student.fullName}` })
+                    }} className="px-3 py-2 rounded-xl bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 text-xs font-black hover:bg-green-200 transition-colors">
+                      💬 تواصل
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {teacherTab === 'badges' && (
+        <motion.div key="t-badges" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
+          <div className="bg-gradient-to-br from-amber-500 to-yellow-500 rounded-[2rem] p-6 text-white">
+            <h2 className="text-2xl font-black mb-1">🏅 الشارات والنقاط</h2>
+            <p className="text-amber-100 text-sm">امنح الطلاب نقاطاً وشارات التميز</p>
+          </div>
+          <div className="grid gap-3">
+            {teacherStudents.map((student, i) => {
+              const studentObs = teacherObs.filter(o => o.studentId === student.id)
+              const points = studentObs.filter(o => o.severity === 'positive').length * 50
+              return (
+                <motion.div key={student.id} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.05}} whileHover={{y:-2}}
+                  className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-500/10 flex items-center justify-center text-2xl flex-shrink-0">⭐</div>
+                    <div className="flex-1">
+                      <h3 className="font-black text-gray-900 dark:text-white">{student.fullName}</h3>
+                      <p className="text-sm text-amber-600 font-bold">{points} نقطة</p>
+                    </div>
+                    <button onClick={async () => {
+                      const { nexusBridge } = await import('@/lib/nexusDataBridge')
+                      nexusBridge.addObservation({ studentId: student.id, studentName: student.fullName, authorName: 'المعلم', authorRole: 'teacher', category: 'academic', severity: 'positive', text: 'منح نقاط تميز من المعلم' })
+                      const newObs = nexusBridge.getObservations()
+                      setTeacherObs(newObs)
+                      window.dispatchEvent(new CustomEvent('nexus:data-changed'))
+                    }} className="px-3 py-2 rounded-xl bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-black hover:bg-amber-200 transition-colors">
+                      +50 ⭐ منح نقاط
+                    </button>
+                  </div>
+                </motion.div>
+              )
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {teacherTab === 'archive' && (
+        <motion.div key="t-archive" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
+          <div className="bg-gradient-to-br from-slate-600 to-gray-700 rounded-[2rem] p-6 text-white">
+            <h2 className="text-2xl font-black mb-1">📂 الأرشيف اليومي</h2>
+            <p className="text-gray-300 text-sm">سجل الأحداث والملاحظات اليومية</p>
+          </div>
+          {/* Add note form */}
+          <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <input type="date" value={selectedArchiveDate} onChange={e=>setSelectedArchiveDate(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white focus:outline-none" />
+              <span className="font-black text-gray-500 text-sm flex-1">إضافة ملاحظة للأرشيف</span>
+            </div>
+            <textarea value={archiveNote} onChange={e=>setArchiveNote(e.target.value)} rows={3} placeholder="سجّل ما حدث في الحصة اليوم..."
+              className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50 mb-3" />
+            <button onClick={() => {
+              if (!archiveNote.trim()) return
+              const entry = { id: Date.now().toString(), date: selectedArchiveDate, note: archiveNote, createdAt: new Date().toISOString() }
+              const newEntries = [entry, ...archiveEntries]
+              setArchiveEntries(newEntries)
+              localStorage.setItem('nexus_archive_entries', JSON.stringify(newEntries))
+              setArchiveNote('')
+            }} disabled={!archiveNote.trim()}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-sm hover:from-orange-600 hover:to-amber-600 disabled:opacity-50 transition-all">
+              💾 حفظ في الأرشيف
+            </button>
+          </div>
+          {/* Archive entries */}
+          <div className="space-y-3">
+            {archiveEntries.length === 0 && teacherObs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <div className="text-5xl">📂</div>
+                <p className="font-bold text-gray-500">الأرشيف فارغ — سجّل أول ملاحظة!</p>
+              </div>
+            ) : [
+              ...archiveEntries.map(e => ({ ...e, type: 'note', from: 'المعلم' })),
+              ...teacherObs.map(o => ({ id: o.id, date: o.createdAt?.split('T')[0], note: o.text, type: o.category, from: o.studentName }))
+            ].sort((a,b) => new Date(b.date||b.createdAt||0).getTime() - new Date(a.date||a.createdAt||0).getTime()).map((entry, i) => (
+              <motion.div key={entry.id||i} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.04}}
+                className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-white/5 flex items-center justify-center text-sm flex-shrink-0">
+                    {entry.type==='note'?'📝':entry.type==='behavior'?'🔔':entry.type==='academic'?'📚':'💬'}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-black text-gray-500">{entry.from}</span>
+                      <span className="text-[10px] text-gray-400">{entry.date}</span>
+                    </div>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">{entry.note}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {teacherTab === 'reports' && (
+        <motion.div key="t-reports" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
+          <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-[2rem] p-6 text-white">
+            <h2 className="text-2xl font-black mb-1">📊 تقارير الطلاب</h2>
+            <p className="text-indigo-200 text-sm">تقارير الأداء والملاحظات لكل طالب</p>
+          </div>
+          {teacherStudents.map((student, i) => {
+            const studentObs = teacherObs.filter(o => o.studentId === student.id)
+            const studentHwSubs = hwSubs.filter(s => s.studentId === student.id)
+            return (
+              <motion.div key={student.id} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.06}} whileHover={{y:-2}}
+                className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-500/10 flex items-center justify-center font-black text-indigo-600 text-lg flex-shrink-0">{student.fullName?.[0]}</div>
+                  <div className="flex-1">
+                    <h3 className="font-black text-gray-900 dark:text-white">{student.fullName}</h3>
+                    <div className="grid grid-cols-3 gap-3 mt-3">
+                      <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-3 text-center">
+                        <p className="text-lg font-black text-emerald-600">{student.averageGrade || 90}%</p>
+                        <p className="text-[10px] text-gray-500 font-bold">المعدل</p>
+                      </div>
+                      <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-3 text-center">
+                        <p className="text-lg font-black text-blue-600">{studentHwSubs.length}</p>
+                        <p className="text-[10px] text-gray-500 font-bold">واجبات مُسلَّمة</p>
+                      </div>
+                      <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-3 text-center">
+                        <p className="text-lg font-black text-violet-600">{studentObs.length}</p>
+                        <p className="text-[10px] text-gray-500 font-bold">ملاحظات</p>
+                      </div>
+                    </div>
+                    {studentObs.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {studentObs.slice(0,2).map((obs, oi) => (
+                          <p key={oi} className="text-xs text-gray-500 bg-gray-50 dark:bg-white/5 rounded-xl px-3 py-2">💬 {obs.text}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )
+          })}
+        </motion.div>
+      )}
     </div>
   )
 }

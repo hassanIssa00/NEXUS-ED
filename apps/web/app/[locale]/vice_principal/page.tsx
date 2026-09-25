@@ -42,6 +42,10 @@ function VPDashboardInner() {
   const [attLog, setAttLog] = useState<any[]>([]);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [vpTab, setVpTab] = useState<'dashboard' | 'attendance' | 'discipline' | 'students'>('dashboard');
+  const [vpStudents, setVpStudents] = useState<any[]>([]);
+  const [vpTodayAtt, setVpTodayAtt] = useState<any[]>([]);
+  const [vpObs, setVpObs] = useState<any[]>([]);
   const { signOut } = useAuth();
 
   const load = useCallback(async () => {
@@ -52,6 +56,10 @@ function VPDashboardInner() {
       const students = nexusBridge.getStudents();
       const todayAtt = nexusBridge.getTodayAttendance();
       const obs = nexusBridge.getObservations();
+
+      setVpStudents(students);
+      setVpTodayAtt(todayAtt);
+      setVpObs(obs);
 
       const d = {
         kpis: {
@@ -231,6 +239,25 @@ function VPDashboardInner() {
           </div>
         </div>
       </motion.div>
+
+      {/* TAB BAR */}
+      <div className="flex gap-2 bg-gray-100/80 dark:bg-white/5 p-1.5 rounded-2xl overflow-x-auto">
+        {[
+          { key: 'dashboard', label: '📊 لوحة التحكم', icon: Activity },
+          { key: 'attendance', label: '📅 سجل الحضور اليومي', icon: Calendar },
+          { key: 'discipline', label: '🛡️ الانضباط والمتابعات', icon: Shield },
+          { key: 'students', label: '👥 قائمة الطلاب', icon: Users },
+        ].map(t => (
+          <button key={t.key} onClick={() => setVpTab(t.key as any)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all ${
+              vpTab === t.key ? 'bg-white dark:bg-[#1e1e2d] text-rose-600 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}>
+            <t.icon className="w-3.5 h-3.5" />{t.label}
+          </button>
+        ))}
+      </div>
+
+      {vpTab === 'dashboard' && (<>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -418,6 +445,165 @@ function VPDashboardInner() {
           </motion.div>
         ))}
       </div>
+      </>)}
+
+      {/* ── ATTENDANCE TAB ── */}
+      {vpTab === 'attendance' && (
+        <motion.div key="vp-att" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          <div className="bg-gradient-to-br from-rose-600 via-pink-600 to-red-600 rounded-[2rem] p-6 text-white shadow-lg">
+            <h2 className="text-2xl font-black mb-1">📅 سجل الحضور اليومي للمدرسة</h2>
+            <p className="text-rose-100 text-sm">متابعة حضور وانصراف طلاب فصل د. إسماعيل عيسى بالكامل</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm text-center">
+              <p className="text-3xl font-black text-teal-600 leading-none mb-1">
+                {vpStudents.filter((_, i) => i < 7).length}
+              </p>
+              <p className="text-xs font-bold text-gray-500">حاضرون اليوم</p>
+            </div>
+            <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm text-center">
+              <p className="text-3xl font-black text-rose-600 leading-none mb-1">
+                {Math.max(0, vpStudents.length - 7)}
+              </p>
+              <p className="text-xs font-bold text-gray-500">غياب بدون عذر</p>
+            </div>
+            <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm text-center">
+              <p className="text-3xl font-black text-indigo-600 leading-none mb-1">
+                {adminData?.metrics?.attendanceRate || 97}%
+              </p>
+              <p className="text-xs font-bold text-gray-500">نسبة الانضباط التراكمية</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {vpStudents.map((student, i) => {
+              const attRecord = vpTodayAtt.find((a: any) => a.studentId === student.id);
+              const status = attRecord?.overallStatus || (i < 7 ? 'present' : 'absent');
+              return (
+                <motion.div key={student.id} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  whileHover={{ y: -2 }}
+                  className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg ${
+                    status === 'present' ? 'bg-teal-100 dark:bg-teal-500/10 text-teal-600' :
+                    status === 'late' ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-600' :
+                    'bg-rose-100 dark:bg-rose-500/10 text-rose-600'
+                  }`}>
+                    {status === 'present' ? '✅' : status === 'late' ? '⏰' : '❌'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-black text-gray-900 dark:text-white truncate">{student.fullName}</h3>
+                    <p className="text-xs text-gray-500">{student.grade || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى'}</p>
+                  </div>
+                  <div className="text-center hidden sm:block">
+                    <p className="text-sm font-black text-gray-900 dark:text-white">{student.attendanceRate || 97}%</p>
+                    <p className="text-[10px] text-gray-400 font-bold">معدل الحضور</p>
+                  </div>
+                  <span className={`px-3 py-1.5 rounded-xl text-xs font-black ${
+                    status === 'present' ? 'bg-teal-100 text-teal-700 dark:bg-teal-500/10 dark:text-teal-400' :
+                    status === 'late' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400' :
+                    'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400'
+                  }`}>
+                    {status === 'present' ? 'حاضر' : status === 'late' ? 'متأخر' : 'غائب'}
+                  </span>
+                </motion.div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── DISCIPLINE TAB ── */}
+      {vpTab === 'discipline' && (
+        <motion.div key="vp-disc" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          <div className="bg-gradient-to-br from-amber-500 via-orange-600 to-red-600 rounded-[2rem] p-6 text-white shadow-lg">
+            <h2 className="text-2xl font-black mb-1">🛡️ سجل الانضباط والملاحظات</h2>
+            <p className="text-amber-100 text-sm">متابعة السلوك والانضباط الصفي والمدرسي اليومي</p>
+          </div>
+
+          <div className="space-y-3">
+            {vpObs.length > 0 ? (
+              vpObs.map((obs, i) => (
+                <motion.div key={obs.id || i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
+                  <div className="flex items-start gap-4">
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-lg flex-shrink-0 ${
+                      obs.severity === 'urgent' ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/10' :
+                      obs.severity === 'positive' ? 'bg-teal-100 text-teal-600 dark:bg-teal-500/10' :
+                      'bg-amber-100 text-amber-600 dark:bg-amber-500/10'
+                    }`}>
+                      {obs.severity === 'urgent' ? '⚠️' : obs.severity === 'positive' ? '⭐' : '📋'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="font-black text-sm text-gray-900 dark:text-white">{obs.studentName}</h4>
+                        <span className="text-[10px] text-gray-400 font-bold">
+                          {new Date(obs.createdAt).toLocaleDateString('ar-SA')}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 font-medium leading-relaxed">{obs.text}</p>
+                      <div className="mt-2 flex gap-2">
+                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-lg ${
+                          obs.category === 'behavior' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400' :
+                          obs.category === 'academic' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400' :
+                          'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400'
+                        }`}>
+                          {obs.category === 'behavior' ? 'انضباط وسلوك' : obs.category === 'academic' ? 'تحصيل دراسي' : 'توجيه وإرشاد'}
+                        </span>
+                        <span className="text-[10px] font-bold text-gray-400">بواسطة: د. إسماعيل عيسى</span>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))
+            ) : (
+              <div className="bg-white/80 dark:bg-[#1e1e2d]/80 rounded-3xl p-12 text-center text-gray-500">
+                <CheckCircle2 className="w-12 h-12 text-teal-500 mx-auto mb-3" />
+                <p className="font-bold">سجل الانضباط نظيف ومثالي اليوم!</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── STUDENTS TAB ── */}
+      {vpTab === 'students' && (
+        <motion.div key="vp-stud" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-[2rem] p-6 text-white shadow-lg">
+            <h2 className="text-2xl font-black mb-1">👥 قائمة طلاب المدرسة</h2>
+            <p className="text-indigo-100 text-sm">متابعة عامة لجميع الطلاب المسجلين وحالاتهم</p>
+          </div>
+
+          <div className="grid gap-3">
+            {vpStudents.map((s, i) => (
+              <motion.div key={s.id} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                whileHover={{ y: -2 }}
+                className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-lg flex-shrink-0">
+                  {s.fullName?.[0] || 'ط'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-black text-gray-900 dark:text-white truncate">{s.fullName}</h3>
+                  <p className="text-xs text-gray-500 font-medium">ولي الأمر: {s.parentName || `ولي أمر ${s.fullName}`}</p>
+                </div>
+                <div className="text-center hidden sm:block">
+                  <p className={`text-base font-black ${s.averageGrade >= 90 ? 'text-teal-600' : s.averageGrade >= 75 ? 'text-amber-600' : 'text-rose-600'}`}>
+                    {s.averageGrade || 90}%
+                  </p>
+                  <p className="text-[10px] text-gray-400 font-bold">المعدل</p>
+                </div>
+                <span className={`px-3 py-1.5 rounded-xl text-xs font-black ${
+                  s.status === 'excellent' ? 'bg-teal-100 text-teal-700 dark:bg-teal-500/10 dark:text-teal-400' :
+                  s.status === 'warning' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400' :
+                  'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400'
+                }`}>
+                  {s.status === 'excellent' ? '🌟 متفوق' : s.status === 'warning' ? '⚠️ يحتاج دعم' : 'منتظم'}
+                </span>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

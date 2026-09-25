@@ -591,6 +591,53 @@ export const INITIAL_CERTIFICATES: AccreditedCertificate[] = [
   },
 ];
 
+// ── Student Schedule Data ───────────────────────────────────────────────────
+
+export type Period = {
+  dayOfWeek: number; // 0=Sunday ... 4=Thursday
+  periodNumber: number;
+  subjectName: string;
+  startTime: string;
+  endTime: string;
+  teacherName: string;
+}
+
+const PERIOD_TIMES: Record<number, { startTime: string; endTime: string }> = {
+  1: { startTime: '07:00', endTime: '07:45' },
+  2: { startTime: '07:45', endTime: '08:30' },
+  3: { startTime: '08:30', endTime: '09:15' },
+  4: { startTime: '09:30', endTime: '10:15' },
+  5: { startTime: '10:15', endTime: '11:00' },
+  6: { startTime: '11:00', endTime: '11:45' },
+  7: { startTime: '11:45', endTime: '12:30' },
+};
+
+function p(day: number, num: number, subject: string): Period {
+  return { dayOfWeek: day, periodNumber: num, subjectName: subject, ...PERIOD_TIMES[num], teacherName: 'د. إسماعيل عيسى' };
+}
+
+export const CLASS_SCHEDULE: Period[] = [
+  p(0,1,'اللغة العربية'), p(0,2,'القرآن الكريم'), p(0,4,'التربية الإسلامية'), p(0,5,'الرياضيات'), p(0,7,'العلوم'),
+  p(1,1,'اللغة العربية'), p(1,2,'اللغة العربية'), p(1,4,'القرآن الكريم'), p(1,5,'التربية الإسلامية'), p(1,6,'الرياضيات'),
+  p(2,1,'اللغة العربية'), p(2,2,'التربية الإسلامية'), p(2,4,'فن'), p(2,5,'اللغة العربية'), p(2,7,'فن'),
+  p(3,1,'اللغة العربية'), p(3,2,'اللغة العربية'), p(3,4,'القرآن الكريم'), p(3,5,'التربية الإسلامية'),
+  p(4,1,'القرآن الكريم'), p(4,2,'اللغة العربية'), p(4,4,'القرآن الكريم'), p(4,5,'الرياضيات'), p(4,6,'التربية الإسلامية'),
+];
+
+export const SCHOOL_TIMETABLE = [
+  { order: 1, name: 'طابور الصباح', startTime: '06:45', endTime: '07:00', type: 'assembly' },
+  { order: 2, name: 'الحصة الأولى', startTime: '07:00', endTime: '07:45', type: 'period', periodNumber: 1 },
+  { order: 3, name: 'الحصة الثانية', startTime: '07:45', endTime: '08:30', type: 'period', periodNumber: 2 },
+  { order: 4, name: 'الحصة الثالثة', startTime: '08:30', endTime: '09:15', type: 'period', periodNumber: 3 },
+  { order: 5, name: 'استراحة الشريحة', startTime: '09:15', endTime: '09:30', type: 'break' },
+  { order: 6, name: 'الحصة الرابعة', startTime: '09:30', endTime: '10:15', type: 'period', periodNumber: 4 },
+  { order: 7, name: 'الحصة الخامسة', startTime: '10:15', endTime: '11:00', type: 'period', periodNumber: 5 },
+  { order: 8, name: 'الحصة السادسة', startTime: '11:00', endTime: '11:45', type: 'period', periodNumber: 6 },
+  { order: 9, name: 'الحصة السابعة', startTime: '11:45', endTime: '12:30', type: 'period', periodNumber: 7 },
+  { order: 10, name: 'صلاة الظهر', startTime: '12:30', endTime: '12:40', type: 'prayer' },
+  { order: 11, name: 'الانصراف', startTime: '12:40', endTime: '12:40', type: 'dismissal' },
+];
+
 // ── Storage Keys ─────────────────────────────────────────────────────────────
 
 const KEYS = {
@@ -639,6 +686,9 @@ export const nexusBridge = {
   getAccounts(): NexusAccount[] {
     return NEXUS_CORE_ACCOUNTS;
   },
+
+  getClassSchedule(): Period[] { return CLASS_SCHEDULE; },
+  getSchoolTimetable() { return SCHOOL_TIMETABLE; },
 
   findAccountByEmail(email: string): NexusAccount | null {
     const clean = email.trim().toLowerCase();
