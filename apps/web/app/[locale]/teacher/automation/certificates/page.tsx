@@ -1,26 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Award, ArrowLeft, Printer, Download, CheckCircle2, UserCheck, Star } from 'lucide-react'
+import { Award, ArrowLeft, Printer, Download, CheckCircle2, UserCheck, Star, Sparkles } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import Link from 'next/link'
 
-// Mock Data
 const classes = [
-    { id: '10-a', name: 'الصف 10 - أ' },
-    { id: '11-a', name: 'الصف 11 - أ' },
-]
-
-const students = [
-    { id: 1, name: 'أحمد سعيد المولد', isSelected: true },
-    { id: 2, name: 'يوسف جمال العتيبي', isSelected: true },
-    { id: 3, name: 'سالم عبدالله الشهري', isSelected: true },
-    { id: 4, name: 'فهد محمد الدوسري', isSelected: false },
-    { id: 5, name: 'خالد عبدالعزيز الغامدي', isSelected: false },
+    { id: 'dr-ismail-1', name: 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى' },
 ]
 
 const templates = [
@@ -38,13 +28,32 @@ function getTemplateAccentColors(gradient: string) {
 }
 
 export default function CertificatesAutomation() {
-    const [selectedClass, setSelectedClass] = useState<string>('')
+    const [selectedClass, setSelectedClass] = useState<string>('dr-ismail-1')
     const [selectedTemplate, setSelectedTemplate] = useState<(typeof templates)[number]>(templates[0]!)
-    const [studentList, setStudentList] = useState(students)
+    const [studentList, setStudentList] = useState<any[]>([])
     const [isGenerating, setIsGenerating] = useState(false)
+    const [issuedAlert, setIssuedAlert] = useState<string | null>(null)
     const templateAccentColors = getTemplateAccentColors(selectedTemplate.colors)
 
-    const toggleStudent = (id: number) => {
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const { nexusBridge } = await import('@/lib/nexusDataBridge')
+                const students = nexusBridge.getStudents()
+                setStudentList(students.map((s, idx) => ({
+                    id: s.id,
+                    name: s.fullName,
+                    score: s.averageGrade,
+                    isSelected: idx < 3,
+                })))
+            } catch (e) {
+                console.error('load students for certs error:', e)
+            }
+        }
+        load()
+    }, [])
+
+    const toggleStudent = (id: string | number) => {
         setStudentList(studentList.map(s => s.id === id ? { ...s, isSelected: !s.isSelected } : s))
     }
 
@@ -58,9 +67,32 @@ export default function CertificatesAutomation() {
 
     const selectedCount = studentList.filter(s => s.isSelected).length
 
-    const handleGenerate = () => {
+    const handleGenerate = async () => {
         setIsGenerating(true)
-        setTimeout(() => setIsGenerating(false), 2000)
+        try {
+            const { nexusBridge } = await import('@/lib/nexusDataBridge')
+            const selectedStudents = studentList.filter(s => s.isSelected)
+            selectedStudents.forEach(st => {
+                nexusBridge.issueCertificate({
+                    studentId: String(st.id),
+                    studentName: st.name,
+                    programTitle: 'التميز الأكاديمي والانضباط الصفي',
+                    achievement: 'التفوق الاستثنائي في تطبيقات اللغة العربية والقرآن الكريم والحساب الذهني',
+                    score: st.score || 98,
+                    completionDate: new Date().toISOString().split('T')[0],
+                    doctorName: 'د. إسماعيل عيسى',
+                    doctorTitle: 'المشرف الأكاديمي ومعلم الفصل',
+                    badge: 'وسام الشرف والامتياز',
+                })
+            })
+            setIssuedAlert(`تم إصدار ${selectedStudents.length} شهادات معتمدة برقم تسلسلي وباركود توثيق بنجاح!`)
+            setTimeout(() => setIssuedAlert(null), 5000)
+            window.print()
+        } catch (e) {
+            console.error('issue cert error:', e)
+        } finally {
+            setIsGenerating(false)
+        }
     }
 
     return (
@@ -233,8 +265,8 @@ export default function CertificatesAutomation() {
                                                     </div>
                                                 </div>
                                                 <div className="text-center">
-                                                    <p className="text-gray-500 text-xs md:text-sm font-bold mb-1">توقيع المعلم</p>
-                                                    <p className="font-black text-gray-800 font-serif italic text-lg md:text-xl relative z-10">محمد عبدالله</p>
+                                                    <p className="text-gray-500 text-xs md:text-sm font-bold mb-1">توقيع المعلم والمشرف</p>
+                                                    <p className="font-black text-gray-800 font-serif italic text-lg md:text-xl relative z-10">د. إسماعيل عيسى</p>
                                                 </div>
                                             </div>
                                         </div>

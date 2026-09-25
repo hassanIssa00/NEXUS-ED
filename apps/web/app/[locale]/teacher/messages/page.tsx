@@ -54,7 +54,7 @@ export default function MessagesPage() {
       namespace: '/events',
       auth: { token },
       transports: ['websocket'],
-    });
+    } as any);
 
     socketRef.current.on('connect', () => {
       console.log('Connected to real-time messaging');

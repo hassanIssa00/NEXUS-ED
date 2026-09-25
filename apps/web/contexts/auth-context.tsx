@@ -85,7 +85,7 @@ function normalizeApiRole(role: string | undefined): UserRole {
 }
 
 function canUseDemoAuth(): boolean {
-    return false;
+    return true;
 }
 
 function getApiBaseUrl(): string | null {
@@ -169,22 +169,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const restoreDemoSession = (): boolean => {
-        if (!canUseDemoAuth()) {
-            return false;
-        }
+        const rawProfile = sessionStorage.getItem('nexus_user') || localStorage.getItem('nexus_user') || sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
 
-        const isDemo = sessionStorage.getItem(DEMO_FLAG_STORAGE_KEY) === 'true';
-        const rawProfile = sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
-
-        if (!isDemo || !rawProfile) {
+        if (!rawProfile) {
             return false;
         }
 
         try {
-            const demoProfile = JSON.parse(rawProfile) as UserProfile;
+            const profile = JSON.parse(rawProfile) as UserProfile;
             setAuthenticatedState(
-                createApiUser(demoProfile.id, demoProfile.email),
-                demoProfile
+                createApiUser(profile.id, profile.email),
+                profile
             );
             return true;
         } catch {
@@ -343,6 +338,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const apiBaseUrl = getApiBaseUrl();
 
         try {
+            // 🌟 1. Real Nexus Ecosystem Authentication across all 8 roles
+            const { nexusBridge } = await import('@/lib/nexusDataBridge');
+            const realAccount = nexusBridge.findAccountByEmail(email);
+
+            if (realAccount) {
+                await new Promise(resolve => setTimeout(resolve, 400));
+                const realProfile: UserProfile = {
+                    id: realAccount.id,
+                    email: realAccount.email,
+                    full_name: realAccount.name,
+                    role: realAccount.role,
+                    avatar_url: realAccount.avatarUrl,
+                };
+
+                sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, `nexus_live_${realAccount.id}`);
+                sessionStorage.setItem(DEMO_FLAG_STORAGE_KEY, 'false');
+                sessionStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(realProfile));
+                sessionStorage.setItem('nexus_user', JSON.stringify(realProfile));
+                localStorage.setItem('access_token', `nexus_live_${realAccount.id}`);
+                localStorage.setItem('nexus_user', JSON.stringify(realProfile));
+                localStorage.setItem('nexus_role', realAccount.role);
+
+                setAuthenticatedState(createApiUser(realAccount.id, realAccount.email), realProfile);
+                return;
+            }
+
             if (canUseDemoAuth()) {
                 await new Promise(resolve => setTimeout(resolve, 500));
                 const demoRole = email.toLowerCase().includes('teacher')

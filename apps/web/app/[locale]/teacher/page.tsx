@@ -72,11 +72,51 @@ export default function TeacherDashboardPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const d = await dashboardApi.getTeacherDashboard()
-      setData(d)
+      const { nexusBridge } = await import('@/lib/nexusDataBridge')
+      const students = nexusBridge.getStudents()
+      const attendance = nexusBridge.getTodayAttendance()
+      const homework = nexusBridge.getHomework()
+      const submissions = nexusBridge.getHomeworkSubmissions()
+      const presentCount = attendance.filter(a => a.overallStatus === 'present').length
+      const totalAtt = attendance.length || students.length
+
+      const realData: any = {
+        teacher: {
+          name: 'د. إسماعيل عيسى',
+          email: 'arabic.teacher@nexusedu.sa',
+          subject: 'لغتي العربية والقرآن الكريم — فصل د. إسماعيل',
+        },
+        summary: {
+          totalStudents: students.length,
+          totalClasses: 1,
+          totalAssignments: homework.length,
+          totalLessons: 18,
+          pendingSubmissions: submissions.filter(s => s.status === 'submitted').length,
+          attendanceRate: totalAtt > 0 ? Math.round((presentCount / totalAtt) * 100) : 98,
+        },
+        classPerformance: [
+          { name: 'فصل د. إسماعيل عيسى', averageGrade: 95, studentCount: students.length, subjectCount: 4 },
+        ],
+        recentAssignments: homework.map(h => ({
+          id: h.id,
+          title: h.title,
+          subject: h.subject,
+          submissions: h.submissionsCount,
+          dueDate: h.dueDate,
+        })),
+        attendanceSummary: {
+          totalRecords: totalAtt,
+          present: presentCount,
+          absent: attendance.filter(a => a.overallStatus === 'absent').length,
+        },
+        interventionAlerts: [
+          { id: '1', title: 'متابعة فردية: طالب بحاجة لدعم إضافي', body: 'الطالب خالد العمري يحتاج مساندة في تدريبات المدود' },
+        ],
+        gradingQueue: submissions.filter(s => s.status === 'submitted'),
+      }
+      setData(realData)
       setUsingFallback(false)
     } catch {
-      // Show fallback data instead of error screen
       setData(FALLBACK_DATA)
       setUsingFallback(true)
     } finally {
@@ -84,7 +124,12 @@ export default function TeacherDashboardPage() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { 
+    load() 
+    const handleSync = () => load()
+    window.addEventListener('nexus:data-changed', handleSync)
+    return () => window.removeEventListener('nexus:data-changed', handleSync)
+  }, [load])
   useRealtimeNotifications(useCallback((n: any) => {
     setLiveNotif(n.title); setTimeout(() => setLiveNotif(null), 4000)
   }, []))

@@ -32,6 +32,7 @@ interface StudentGamificationCardProps {
 }
 
 const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000, 8000, 12000, 20000];
+const LEVEL_NAMES = ['مبتدئ', 'مستكشف', 'مبادر', 'متميز', 'محترف', 'عبقري', 'أسطوري', 'بطل نكسس'];
 
 export function StudentGamificationCard({ studentId, data: propData }: StudentGamificationCardProps) {
     const [data, setData] = useState<StudentGamificationStats | null>(propData || null);

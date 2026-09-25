@@ -47,12 +47,47 @@ function VPDashboardInner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await dashboardApi.getAdminDashboard();
+      const { nexusBridge } = await import('@/lib/nexusDataBridge');
+      const metrics = nexusBridge.getSchoolMetrics();
+      const students = nexusBridge.getStudents();
+      const todayAtt = nexusBridge.getTodayAttendance();
+      const obs = nexusBridge.getObservations();
+
+      const d = {
+        kpis: {
+          totalStudents: metrics.totalStudents,
+          activeUsers: metrics.presentToday || metrics.totalStudents,
+          totalClasses: 1,
+          totalTeachers: 1,
+          attendanceRate: metrics.attendanceRate,
+          supportNeeded: metrics.supportNeededStudents,
+        },
+        recentActivity: [
+          { text: `تم تسجيل حضور ${metrics.presentToday} طلاب اليوم في فصل د. إسماعيل عيسى` },
+          { text: `نسبة الحضور التراكمية للفصل: ${metrics.attendanceRate}%` },
+          ...obs.map(o => ({ text: `${o.studentName}: ${o.text}` })),
+        ],
+        recentIssues: obs.filter(o => o.category === 'guidance' || o.severity === 'urgent').map(o => ({
+          student: o.studentName,
+          issue: o.text,
+          type: o.category === 'guidance' ? 'إرشاد' : 'انضباط',
+          severity: o.severity === 'urgent' ? 'high' : 'medium',
+        })),
+        metrics,
+      };
       setAdminData(d);
-    } catch { /* fallback */ } finally { setLoading(false); }
+    } catch (e) {
+      console.error('nexusBridge VP load error:', e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    window.addEventListener('nexus:data-changed', load as any);
+    return () => window.removeEventListener('nexus:data-changed', load as any);
+  }, [load]);
 
   useRealtimeNotifications(useCallback((n: any) => {
     setLiveNotif(n.title); setTimeout(() => setLiveNotif(null), 5000);

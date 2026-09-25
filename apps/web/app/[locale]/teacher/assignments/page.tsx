@@ -41,8 +41,19 @@ export default function AssignmentsPage() {
     const fetchAssignments = async () => {
         setLoading(true);
         try {
-            const data = await assignmentService.getMyAssignments();
-            setAssignments(data);
+            const { nexusBridge } = await import('@/lib/nexusDataBridge');
+            const realHw = nexusBridge.getHomework();
+            const mapped: any[] = realHw.map(h => ({
+                id: h.id,
+                title: h.title,
+                description: h.instructions,
+                dueDate: h.dueDate,
+                maxScore: h.totalScore,
+                subject: { id: 's1', name: h.subject },
+                _count: { submissions: h.submissionsCount },
+                createdAt: h.createdAt,
+            }));
+            setAssignments(mapped);
         } catch (error) {
             console.error('Failed to fetch assignments', error);
         } finally {
@@ -51,22 +62,29 @@ export default function AssignmentsPage() {
     };
 
     const fetchSubjects = async () => {
-        try {
-            const data = await subjectService.getAll();
-            setSubjects(data);
-        } catch (error) {
-            console.error('Failed to fetch subjects', error);
-        }
+        setSubjects([
+            { id: 'sub-1', name: 'لغتي العربية' },
+            { id: 'sub-2', name: 'القرآن الكريم' },
+            { id: 'sub-3', name: 'الرياضيات' },
+            { id: 'sub-4', name: 'العلوم' },
+        ]);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            if (selectedAssignment) {
-                await assignmentService.update(selectedAssignment.id, formData);
-            } else {
-                await assignmentService.create(formData);
-            }
+            const { nexusBridge } = await import('@/lib/nexusDataBridge');
+            nexusBridge.saveHomework({
+                id: selectedAssignment ? selectedAssignment.id : `hw-${Date.now()}`,
+                title: formData.title,
+                subject: subjects.find(s => s.id === formData.subjectId)?.name || 'لغتي العربية',
+                grade: 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
+                instructions: formData.description || 'حل التمارين المطلوبة بدقة وعناية.',
+                dueDate: formData.dueDate || new Date().toISOString().slice(0, 10),
+                totalScore: formData.maxScore || 10,
+                submissionsCount: selectedAssignment ? (selectedAssignment as any)._count?.submissions || 0 : 0,
+                createdAt: new Date().toISOString(),
+            });
             setIsModalOpen(false);
             resetForm();
             fetchAssignments();

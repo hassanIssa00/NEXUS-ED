@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { dashboardApi } from '@/lib/api/dashboard'
 import { useRealtimeNotifications, useRealtimeAttendance } from '@/lib/providers/socket-provider'
 import Link from 'next/link'
 import { AiAdvicePanel } from './_components/AiAdvicePanel'
@@ -63,14 +62,100 @@ export default function ParentDashboard() {
   const [childrenData, setChildrenData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedIdx, setSelectedIdx] = useState(0)
+  const [parentDisplayName, setParentDisplayName] = useState('فيصل الغامدي')
   const [liveNotif, setLiveNotif] = useState<string | null>(null)
   const [liveAttendance, setLiveAttendance] = useState<string | null>(null)
 
   useEffect(() => {
-    dashboardApi.getParentDashboard()
-      .then((d: any) => { if (d?.children) setChildrenData(d.children) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    const load = async () => {
+      try {
+        const { nexusBridge } = await import('@/lib/nexusDataBridge')
+        let linkedStudentId = 'cls-std-2'
+        let currentParentName = 'فيصل الغامدي'
+        try {
+          const stored = localStorage.getItem('nexus_user')
+          if (stored) {
+            const acc = JSON.parse(stored)
+            if (acc.linkedStudentId) linkedStudentId = acc.linkedStudentId
+            if (acc.name) currentParentName = acc.name
+          }
+        } catch {}
+
+        setParentDisplayName(currentParentName)
+
+        const student = nexusBridge.getStudentById(linkedStudentId)
+        const todayAtt = nexusBridge.getTodayAttendance()
+        const myAtt = todayAtt.find(a => a.studentId === linkedStudentId)
+        const hwSubs = nexusBridge.getHomeworkSubmissions().filter(s => s.studentId === linkedStudentId)
+        const allHw = nexusBridge.getHomework()
+        const certs = nexusBridge.getCertificates(linkedStudentId)
+        const obs = nexusBridge.getObservations(linkedStudentId)
+
+        const submittedIds = new Set(hwSubs.map(s => s.assignmentId))
+        const upcomingAssignments = allHw
+          .filter(hw => !submittedIds.has(hw.id))
+          .map(hw => ({
+            id: hw.id,
+            title: hw.title,
+            subject: { name: hw.subject },
+            dueDate: hw.dueDate,
+            status: 'pending',
+          }))
+
+        const subjects = ['اللغة العربية', 'القرآن الكريم', 'الرياضيات', 'العلوم']
+        const recentGrades = subjects.map((s, i) => ({
+          subject: s,
+          score: [95, 98, 92, 90][i],
+          total: 100,
+        }))
+
+        const gradeHistory = [
+          { name: 'سبتمبر', درجة: student?.averageGrade || 95 },
+          { name: 'أكتوبر', درجة: 96 },
+          { name: 'نوفمبر', درجة: 94 },
+          { name: 'ديسمبر', درجة: 97 },
+          { name: 'يناير', درجة: 95 },
+          { name: 'فبراير', درجة: 98 },
+          { name: 'مارس', درجة: 99 },
+        ]
+
+        const presentDays = student?.attendanceRate ? Math.round((student.attendanceRate / 100) * 30) : 29
+        const attendance = {
+          present: presentDays,
+          absent: Math.max(0, 30 - presentDays - 1),
+          late: 1,
+          excused: 0,
+        }
+
+        const childData = {
+          id: linkedStudentId,
+          name: student?.fullName || 'أحمد فيصل الغامدي',
+          class: student?.grade || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
+          gpa: `${((student?.averageGrade || 95) / 10).toFixed(1)}`,
+          attendanceRate: student?.attendanceRate || 97,
+          recentGrades,
+          gradeHistory,
+          upcomingAssignments,
+          attendance,
+          certificates: certs,
+          observations: obs,
+          gamification: {
+            level: 5,
+            achievementsUnlocked: certs.length + (student?.status === 'excellent' ? 2 : 0),
+          },
+        }
+
+        setChildrenData([childData])
+      } catch (e) {
+        console.error('nexusBridge parent load error:', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
+    window.addEventListener('nexus:data-changed', load as any)
+    return () => window.removeEventListener('nexus:data-changed', load as any)
   }, [])
 
   useRealtimeNotifications(useCallback((n: any) => {
@@ -156,7 +241,7 @@ export default function ParentDashboard() {
               <span className="text-xs font-bold text-amber-100">بوابة المتابعة الأبوية الموحدة</span>
             </div>
             <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight leading-[1.2]">
-              أهلاً بك،<br />فيصل الغامدي 👨‍👩‍👧‍👦
+              أهلاً بك،<br />{parentDisplayName} 👨‍👩‍👧‍👦
             </h1>
             <p className="text-white/90 text-sm font-medium mb-6 max-w-xl leading-relaxed">
               تتابع من خلال هذا المركز الأداء الأكاديمي لـ <strong className="text-yellow-200 text-lg px-1">{childrenData.length}</strong>

@@ -64,13 +64,12 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
     if (!score) return
     setLoading(true)
     try {
-      await apiClient.patch(`/assignments/submissions/${sub.id}/grade`, {
-        grade: Number(score), feedback,
-      })
+      const { nexusBridge } = await import('@/lib/nexusDataBridge')
+      nexusBridge.gradeHomework(sub.id, Number(score), feedback)
       onSaved(sub.id)
       onClose()
     } catch (e: any) {
-      alert(e?.response?.data?.message || 'تعذر حفظ الدرجة')
+      alert('تعذر حفظ الدرجة')
     } finally { setLoading(false) }
   }
 
@@ -174,9 +173,18 @@ export default function GradingPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await apiClient.get('/assignments/submissions/pending')
-      const items = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : [])
-      setSubmissions(items)
+      const { nexusBridge } = await import('@/lib/nexusDataBridge')
+      const items = nexusBridge.getHomeworkSubmissions()
+      setSubmissions(items.map(s => ({
+        id: s.id,
+        assignment: { title: s.assignmentTitle, maxScore: 10 },
+        student: { name: s.studentName, email: 'student1@nexusedu.sa' },
+        submissionText: s.submissionText,
+        submittedAt: s.submittedAt,
+        grade: s.grade,
+        status: s.status === 'reviewed' ? 'graded' : 'pending',
+        feedback: s.feedback,
+      })))
     } catch { setSubmissions([]) }
     finally { setLoading(false) }
   }, [])

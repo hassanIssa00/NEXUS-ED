@@ -33,6 +33,7 @@ import {
     BookMarked,
     Star,
     Brain,
+    Target,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -299,6 +300,7 @@ function getNavigationByRole(role: string) {
                 { href: '/teacher' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
                 { href: '/teacher/classes' as any, label: 'فصولي', icon: Users },
                 { href: '/teacher/assignments' as any, label: 'الواجبات', icon: FileText },
+                { href: '/teacher/quizzes' as any, label: 'الاختبارات', icon: Target },
                 { href: '/teacher/grading' as any, label: 'التصحيح', icon: ClipboardList },
                 { href: '/teacher/attendance' as any, label: 'الحضور والغياب', icon: Calendar },
                 { href: '/teacher/lessons' as any, label: 'الدروس', icon: BookOpen },

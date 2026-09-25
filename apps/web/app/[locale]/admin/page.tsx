@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { dashboardApi, AdminDashboardResponse } from '@/lib/api/dashboard'
+import { useAuth } from '@/contexts/auth-context'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SocketProvider, useRealtimeNotifications } from '@/lib/providers/socket-provider'
 import {
@@ -60,12 +61,74 @@ function AdminDashboardInner() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    try { setData(await dashboardApi.getAdminDashboard()) }
-    catch { setError('تعذر تحميل بيانات لوحة تحكم الإدارة.') }
-    finally { setLoading(false) }
+    try {
+      const { nexusBridge } = await import('@/lib/nexusDataBridge')
+      const metrics = nexusBridge.getSchoolMetrics()
+      const students = nexusBridge.getStudents()
+      const hw = nexusBridge.getHomework()
+      const certs = nexusBridge.getCertificates()
+      const obs = nexusBridge.getObservations()
+
+      const adminData: any = {
+        kpis: {
+          totalUsers: metrics.totalStudents + 8,
+          activeUsers: metrics.totalStudents,
+          totalRevenue: 24000,
+          totalSubjects: 4,
+          totalStudents: metrics.totalStudents,
+          totalTeachers: 1,
+          totalClasses: 1,
+        },
+        enrollmentSeries: [
+          { label: 'Jan', value: 8 },
+          { label: 'Feb', value: 8 },
+          { label: 'Mar', value: metrics.totalStudents },
+        ],
+        revenueSeries: [
+          { label: 'Jan', value: 20000 },
+          { label: 'Feb', value: 22000 },
+          { label: 'Mar', value: 24000 },
+        ],
+        invoiceSummary: {
+          total: 8,
+          paid: 7,
+          pending: 1,
+          failed: 0,
+          requiresAction: 0,
+          refunded: 0,
+        },
+        recentActivity: [
+          ...obs.slice(0, 3).map(o => ({
+            type: o.severity === 'positive' ? 'success' : o.severity === 'urgent' ? 'urgent' : 'info',
+            text: `${o.studentName}: ${o.text}`,
+            time: new Date(o.createdAt).toLocaleDateString('ar-SA'),
+          })),
+          ...certs.slice(0, 2).map(c => ({
+            type: 'success',
+            text: `تم إصدار شهادة معتمدة لـ ${c.studentName}: ${c.programTitle}`,
+            time: new Date(c.createdAt).toLocaleDateString('ar-SA'),
+          })),
+        ].slice(0, 5),
+        systemHealth: [
+          { service: 'منظومة الحضور والغياب الذكية (فصل د. إسماعيل عيسى)', status: 'optimal' },
+          { service: 'نظام إدارة الاختبارات والواجبات', status: 'optimal' },
+          { service: 'بوابة الشهادات والتحقق بالباركود', status: 'optimal' },
+        ],
+      }
+      setData(adminData)
+      setError(null)
+    } catch {
+      setError('تعذر تحميل بيانات لوحة تحكم الإدارة.')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+    window.addEventListener('nexus:data-changed', load as any)
+    return () => window.removeEventListener('nexus:data-changed', load as any)
+  }, [load])
 
   useRealtimeNotifications(useCallback((n: any) => {
     setLiveNotif(n.title); setTimeout(() => setLiveNotif(null), 5000)

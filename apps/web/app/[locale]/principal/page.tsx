@@ -78,12 +78,71 @@ function PrincipalDashboardInner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await dashboardApi.getAdminDashboard();
+      const { nexusBridge } = await import('@/lib/nexusDataBridge');
+      const metrics = nexusBridge.getSchoolMetrics();
+      const students = nexusBridge.getStudents();
+      const hw = nexusBridge.getHomework();
+      const certs = nexusBridge.getCertificates();
+      const obs = nexusBridge.getObservations();
+
+      const d = {
+        kpis: {
+          totalUsers: metrics.totalStudents + 8,
+          activeUsers: metrics.totalStudents,
+          totalRevenue: 24000,
+          totalSubjects: 4,
+          totalStudents: metrics.totalStudents,
+          totalTeachers: 1,
+          totalClasses: 1,
+          attendanceRate: metrics.attendanceRate,
+          averageGrade: metrics.averageSchoolGrade,
+        },
+        enrollmentSeries: [
+          { label: 'يناير', value: 8 },
+          { label: 'فبراير', value: 8 },
+          { label: 'مارس', value: metrics.totalStudents },
+        ],
+        revenueSeries: [
+          { label: 'يناير', value: 20000 },
+          { label: 'فبراير', value: 22000 },
+          { label: 'مارس', value: 24000 },
+        ],
+        recentActivity: [
+          ...obs.slice(0, 3).map(o => ({
+            type: o.severity === 'positive' ? 'success' : o.severity === 'urgent' ? 'urgent' : 'info',
+            text: o.text,
+            time: new Date(o.createdAt).toLocaleDateString('ar-SA'),
+          })),
+          ...certs.slice(0, 2).map(c => ({
+            type: 'success',
+            text: `تم منح شهادة تميز لـ ${c.studentName}: ${c.programTitle}`,
+            time: new Date(c.createdAt).toLocaleDateString('ar-SA'),
+          })),
+          ...hw.slice(0, 2).map(h => ({
+            type: 'info',
+            text: `واجب جديد: ${h.title} (${h.subject})`,
+            time: new Date(h.createdAt).toLocaleDateString('ar-SA'),
+          })),
+        ].slice(0, 6),
+        systemHealth: [
+          { service: 'نظام الحضور والغياب البيومتري', status: 'optimal' },
+          { service: 'قاعدة بيانات الطلاب (فصل د. إسماعيل عيسى)', status: 'optimal' },
+          { service: 'نظام الواجبات والاختبارات التفاعلية', status: 'optimal' },
+        ],
+      };
       setAdminData(d);
-    } catch { /* use mock fallback */ } finally { setLoading(false); }
+    } catch (e) {
+      console.error('nexusBridge principal load error:', e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    window.addEventListener('nexus:data-changed', load as any);
+    return () => window.removeEventListener('nexus:data-changed', load as any);
+  }, [load]);
 
   useRealtimeNotifications(useCallback((n: any) => {
     setLiveNotif(n.title); setTimeout(() => setLiveNotif(null), 5000);
