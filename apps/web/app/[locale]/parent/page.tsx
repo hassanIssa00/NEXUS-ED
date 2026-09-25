@@ -324,6 +324,43 @@ export default function ParentDashboard() {
         </div>
       </motion.div>
 
+      {/* ─── DR. ISMAIL CLASSROOM HUB BANNER ─── */}
+      <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
+        className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-emerald-100 dark:border-white/5 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center text-white text-2xl shadow-md shadow-emerald-500/20 flex-shrink-0">
+            👨‍🏫
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-black text-gray-900 dark:text-white">فصل د. إسماعيل عيسى — الصف الأول الابتدائي</h2>
+              <span className="px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 text-xs font-black">
+                حاضر بالبصمة ✅
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 font-medium mt-1">
+              معلم الفصل: <span className="font-bold text-emerald-600">د. إسماعيل عيسى</span> • الطالب: <span className="font-bold text-gray-800 dark:text-gray-200">أحمد فيصل الغامدي</span>
+            </p>
+            <p className="text-xs text-emerald-600 font-bold mt-1.5 flex items-center gap-1.5">
+              <span>💬 آخر ملاحظة من المعلم:</span>
+              <span className="font-normal text-gray-600 dark:text-gray-300">"أحمد متميز اليوم في حفظ وترتيل القرآن الكريم، تم منحه وسام التميز و50 نقطة!"</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 w-full md:w-auto">
+          <button onClick={() => setParentTab('schedule')} className="flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-black text-xs transition-colors">
+            جدول الحصص 📅
+          </button>
+          <button onClick={() => setParentTab('homework')} className="flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 text-amber-700 dark:text-amber-300 font-black text-xs transition-colors">
+            الواجبات 📝
+          </button>
+          <button onClick={() => setParentTab('messages')} className="flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-xs shadow-md shadow-emerald-600/20 transition-all">
+            مراسلة د. إسماعيل 💬
+          </button>
+        </div>
+      </motion.div>
+
       {/* CHILDREN SELECTOR */}
       <div>
         <h2 className="text-lg font-extrabold text-gray-900 dark:text-white mb-4 flex items-center gap-2 px-1">

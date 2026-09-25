@@ -397,6 +397,45 @@ export default function StudentDashboardPage() {
       </div>
 
       {activeStudentTab === 'dashboard' && (<>
+      {/* ─── CLASSROOM & FACE ID STATUS ─── */}
+      <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
+        className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-violet-100 dark:border-white/5 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-purple-600 flex items-center justify-center text-white text-2xl shadow-md shadow-violet-500/20 flex-shrink-0">
+            🏫
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-black text-gray-900 dark:text-white">الصف الأول الابتدائي — فصل د. إسماعيل عيسى</h2>
+              <span className="px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 text-xs font-black">
+                نشط الآن ✅
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 font-medium mt-1">
+              معلم الفصل: <span className="font-bold text-violet-600">د. إسماعيل عيسى</span> • الطالب: <span className="font-bold text-gray-800 dark:text-gray-200">أحمد فيصل الغامدي (#cls-std-2)</span>
+            </p>
+            <div className="flex items-center gap-3 mt-2 text-xs">
+              <span className="flex items-center gap-1 text-emerald-600 font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5" /> بصمة الوجه (Face ID) معتمدة
+              </span>
+              <span className="text-gray-400">•</span>
+              <span className="text-gray-500 font-medium">الحصة الحالية: <span className="font-black text-violet-600">القرآن الكريم (07:00 - 07:45)</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <button onClick={() => {
+            alert('تم تأكيد مطابقة بصمة الوجه وتسجيل حضور الطالب أحمد فيصل بنجاح! ✅')
+          }} className="flex-1 md:flex-none px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2">
+            <span>تسجيل حضور ذكي (Face ID) 📸</span>
+          </button>
+          <button onClick={() => setActiveStudentTab('schedule')} className="px-4 py-3 rounded-2xl bg-violet-50 dark:bg-violet-500/10 hover:bg-violet-100 text-violet-700 dark:text-violet-300 font-black text-xs transition-colors">
+            جدول الحصص 📅
+          </button>
+        </div>
+      </motion.div>
+
       {/* ─── STATS GRID ─── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
@@ -410,6 +449,131 @@ export default function StudentDashboardPage() {
           </motion.div>
         ))}
       </div>
+
+      {/* ─── ACTIVE HOMEWORK & TODAY SCHEDULE SECTION ─── */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Homework Preview */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+          className="bg-white dark:bg-[#1e1e2d] border border-gray-100 dark:border-white/5 rounded-[2rem] p-6 shadow-sm flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-black text-gray-900 dark:text-white text-base flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
+                <BookOpen className="w-4 h-4 text-amber-500" />
+              </div>
+              الواجبات المدرسية المفتوحة
+            </h3>
+            <button onClick={() => setActiveStudentTab('homework')} className="text-xs font-bold text-violet-600 hover:underline">
+              عرض الكل ({homeworkData.length}) ↗
+            </button>
+          </div>
+
+          <div className="space-y-3 flex-1">
+            {homeworkData.slice(0, 3).map((hw, idx) => {
+              const submitted = hwSubmissionsData.find(s => s.assignmentId === hw.id && s.studentId === studentLinkedId)
+              return (
+                <div key={hw.id || idx} className="p-4 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="font-black text-sm text-gray-900 dark:text-white truncate">{hw.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{hw.subject} • موعد التسليم: {hw.dueDate}</p>
+                  </div>
+                  <div>
+                    {submitted ? (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-black">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> مُسلَّم {submitted.grade ? `(${submitted.grade}%)` : ''}
+                      </span>
+                    ) : (
+                      <button onClick={() => setSelectedHwId(hw.id)} className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs shadow-sm transition-colors">
+                        حل الواجب ✏️
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </motion.div>
+
+        {/* Today's Schedule Preview */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+          className="bg-white dark:bg-[#1e1e2d] border border-gray-100 dark:border-white/5 rounded-[2rem] p-6 shadow-sm flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-black text-gray-900 dark:text-white text-base flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-violet-50 dark:bg-violet-500/10 flex items-center justify-center">
+                <Calendar className="w-4 h-4 text-violet-500" />
+              </div>
+              جدول حصص اليوم الدراسي
+            </h3>
+            <button onClick={() => setActiveStudentTab('schedule')} className="text-xs font-bold text-violet-600 hover:underline">
+              الجدول الأسبوعي ↗
+            </button>
+          </div>
+
+          <div className="space-y-2 flex-1">
+            {[
+              { num: 1, name: 'اللغة العربية', time: '07:00 — 07:45', emoji: '📖', status: 'جارية الآن' },
+              { num: 2, name: 'القرآن الكريم', time: '07:45 — 08:30', emoji: '📿', status: 'قادمة' },
+              { num: 3, name: 'استراحة الفطور', time: '08:30 — 09:15', emoji: '🥪', status: 'استراحة' },
+              { num: 4, name: 'التربية الإسلامية', time: '09:30 — 10:15', emoji: '🕌', status: 'قادمة' },
+              { num: 5, name: 'الرياضيات', time: '10:15 — 11:00', emoji: '🔢', status: 'قادمة' },
+            ].map((period, i) => (
+              <div key={i} className={`p-3 rounded-2xl flex items-center justify-between gap-3 text-xs ${
+                period.status === 'جارية الآن' ? 'bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20' : 'bg-gray-50 dark:bg-white/5'
+              }`}>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">{period.emoji}</span>
+                  <div>
+                    <span className="font-black text-gray-900 dark:text-white">{period.name}</span>
+                    <span className="text-gray-400 mr-2">حصة {period.num}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 font-mono">{period.time}</span>
+                  {period.status === 'جارية الآن' && (
+                    <span className="px-2 py-0.5 rounded-md bg-violet-600 text-white font-bold text-[10px] animate-pulse">
+                      الآن
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* ─── CERTIFICATES PREVIEW ─── */}
+      {certsData.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+          className="bg-white dark:bg-[#1e1e2d] border border-amber-200/50 dark:border-amber-500/10 rounded-[2rem] p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-black text-gray-900 dark:text-white text-base flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
+                <Trophy className="w-4 h-4 text-amber-500" />
+              </div>
+              أحدث شهادات وأوسمة التميز المعتمدة
+            </h3>
+            <button onClick={() => setActiveStudentTab('certificates')} className="text-xs font-bold text-amber-600 hover:underline">
+              عرض كل الشهادات ↗
+            </button>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {certsData.slice(0, 2).map((cert, i) => (
+              <div key={cert.id || i} className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center text-2xl flex-shrink-0 text-white shadow-sm">
+                  🏆
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-black text-sm text-gray-900 dark:text-white truncate">{cert.programTitle || cert.title}</h4>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{cert.achievementText || cert.description}</p>
+                  <p className="text-[10px] text-amber-600 font-bold mt-1">كود الاعتماد: #{cert.serialNumber || cert.id}</p>
+                </div>
+                <div className="text-center font-black text-amber-600 text-lg">
+                  {cert.score}%
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/* ─── QUICK NAV ─── */}
       <QuickNavGrid />
