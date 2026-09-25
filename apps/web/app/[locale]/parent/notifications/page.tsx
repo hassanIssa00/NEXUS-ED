@@ -1,123 +1,166 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { Bell, Loader2, CheckCheck, AlertTriangle, Info, Calendar, RefreshCw } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { apiClient } from '@/lib/api/client';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react'
+import { motion } from 'framer-motion'
+import {
+  Bell, CheckCircle2, AlertTriangle, BookOpen,
+  Trophy, Clock, Sparkles, CheckCheck
+} from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 interface Notification {
-    id: string;
-    title: string;
-    body: string;
-    type: string;
-    isRead: boolean;
-    createdAt: string;
+  id: string
+  title: string
+  body: string
+  time: string
+  isRead: boolean
+  type: 'attendance' | 'homework' | 'certificate' | 'grade' | 'general'
 }
 
-const TYPE_STYLES: Record<string, { bg: string; icon: typeof Bell; badge: string }> = {
-    ABSENCE: { bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800', icon: AlertTriangle, badge: 'غياب' },
-    GRADE:   { bg: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800', icon: CheckCheck, badge: 'درجة' },
-    EXAM:    { bg: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800', icon: Calendar, badge: 'اختبار' },
-    INFO:    { bg: 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700', icon: Info, badge: 'إشعار' },
-};
+const DEFAULT_NOTIFICATIONS: Notification[] = [
+  {
+    id: 'n1',
+    title: 'تسجيل حضور ذكي (Face ID) ✅',
+    body: 'تم تسجيل حضور الطالب أحمد فيصل الغامدي في طابور الصباح والحصة الأولى بنجاح.',
+    time: 'اليوم — 07:05 ص',
+    isRead: false,
+    type: 'attendance',
+  },
+  {
+    id: 'n2',
+    title: 'واجب جديد من د. إسماعيل عيسى 📚',
+    body: 'أضاف الدكتور إسماعيل عيسى واجب "قراءة درس المد بالألف وكتابة 3 كلمات" في مادة لغتي.',
+    time: 'اليوم — 08:30 ص',
+    isRead: false,
+    type: 'homework',
+  },
+  {
+    id: 'n3',
+    title: 'اعتماد وسام التميز وشهادة تقدير 🏆',
+    body: 'منح المعلم د. إسماعيل وسام رواد الفصاحة وشهادة تفوق لأحمد لتميزه في تسميع سورة الناس.',
+    time: 'أمس — 12:15 م',
+    isRead: true,
+    type: 'certificate',
+  },
+  {
+    id: 'n4',
+    title: 'رصد درجة اختبار مادة الرياضيات 🔢',
+    body: 'حصل أحمد على درجة 95/100 في الاختبار الدوري القصير للفصل الثاني — أداء ممتاز!',
+    time: 'منذ يومين',
+    isRead: true,
+    type: 'grade',
+  },
+  {
+    id: 'n5',
+    title: 'تذكير بموعد الأنشطة اللاصفية 🎨',
+    body: 'يوم الخميس القادم مخصص لمعرض الفنون البصرية والتشكيلية، يرجى إحضار كراسة الرسم.',
+    time: 'منذ 3 أيام',
+    isRead: true,
+    type: 'general',
+  },
+]
 
 export default function ParentNotificationsPage() {
-    const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState<Notification[]>(DEFAULT_NOTIFICATIONS)
 
-    const fetchNotifications = () => {
-        setLoading(true);
-        apiClient.get('/api/notifications')
-            .then(res => setNotifications(res.data?.data || res.data || []))
-            .catch(() => setNotifications([]))
-            .finally(() => setLoading(false));
-    };
+  const unreadCount = notifications.filter(n => !n.isRead).length
 
-    useEffect(() => { fetchNotifications(); }, []);
+  const markAllRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
+  }
 
-    const markAllRead = async () => {
-        try {
-            await apiClient.post('/api/notifications/read-all');
-            setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-        } catch {}
-    };
+  const toggleRead = (id: string) => {
+    setNotifications(prev =>
+      prev.map(n => (n.id === id ? { ...n, isRead: !n.isRead } : n))
+    )
+  }
 
-    const unreadCount = notifications.filter(n => !n.isRead).length;
-
-    return (
-        <div className="space-y-6" dir="rtl">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold">🔔 الإشعارات والتنبيهات</h1>
-                    <p className="text-muted-foreground mt-1">كل ما يخص أبنائك وأخبار المدرسة</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    {unreadCount > 0 && (
-                        <Badge className="bg-red-500 text-white">{unreadCount} جديد</Badge>
-                    )}
-                    <Button variant="ghost" size="sm" onClick={fetchNotifications} disabled={loading} className="gap-1">
-                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    </Button>
-                    {unreadCount > 0 && (
-                        <Button variant="outline" size="sm" onClick={markAllRead} className="gap-1">
-                            <CheckCheck className="w-4 h-4" />
-                            قراءة الكل
-                        </Button>
-                    )}
-                </div>
+  return (
+    <div className="space-y-8 pb-16" dir="rtl">
+      {/* ── HERO BANNER ── */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#b45309] via-[#d97706] to-[#F59E0B] p-8 md:p-10 text-white shadow-[0_24px_70px_rgba(245,158,11,0.32)]"
+      >
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/15 backdrop-blur-md mb-3 shadow-sm border border-white/20">
+              <Sparkles className="w-3.5 h-3.5 text-yellow-200 animate-pulse" />
+              <span className="text-xs font-bold text-amber-100">مركز التنبيهات المباشرة</span>
             </div>
+            <h1 className="text-3xl md:text-5xl font-black mb-2 tracking-tight">الإشعارات والتنبيهات 🔔</h1>
+            <p className="text-amber-100 text-sm md:text-base max-w-xl font-medium">
+              متابعة فورية ومباشرة لكافة مستجدات الحضور والواجبات والتوجيهات من د. إسماعيل عيسى.
+            </p>
+          </div>
 
-            {loading ? (
-                <div className="flex items-center justify-center h-48">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                </div>
-            ) : notifications.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-48 gap-3 text-center">
-                    <Bell className="w-16 h-16 text-muted-foreground/30" />
-                    <p className="text-muted-foreground">لا توجد إشعارات حالياً</p>
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    <AnimatePresence>
-                        {notifications.map((notif, i) => {
-                            const style = TYPE_STYLES[notif.type] || TYPE_STYLES.INFO;
-                            const Icon = style.icon;
-                            return (
-                                <motion.div
-                                    key={notif.id}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: i * 0.04 }}
-                                >
-                                    <Card className={`overflow-hidden border transition-all ${style.bg} ${!notif.isRead ? 'ring-2 ring-primary/20' : 'opacity-80'}`}>
-                                        <div className="flex items-start p-4 gap-4">
-                                            <div className="w-10 h-10 rounded-xl bg-white/60 dark:bg-black/20 flex items-center justify-center flex-shrink-0 shadow-sm">
-                                                <Icon className="w-5 h-5 text-gray-700 dark:text-gray-200" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex justify-between items-start gap-2 mb-1">
-                                                    <h3 className="font-bold text-gray-900 dark:text-gray-100">
-                                                        {!notif.isRead && <span className="inline-block w-2 h-2 rounded-full bg-primary mr-1 ml-0" />}
-                                                        {notif.title}
-                                                    </h3>
-                                                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                                        {new Date(notif.createdAt).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
-                                                    </span>
-                                                </div>
-                                                <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{notif.body}</p>
-                                                <Badge variant="secondary" className="mt-2 text-xs">{style.badge}</Badge>
-                                            </div>
-                                        </div>
-                                    </Card>
-                                </motion.div>
-                            );
-                        })}
-                    </AnimatePresence>
-                </div>
+          <div className="flex items-center gap-3">
+            <div className="bg-white/10 border border-white/15 backdrop-blur-md px-4 py-2.5 rounded-2xl text-center">
+              <p className="text-[10px] text-amber-200 font-bold uppercase">غير مقروء</p>
+              <p className="text-2xl font-black">{unreadCount}</p>
+            </div>
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllRead}
+                className="px-4 py-3 rounded-2xl bg-white text-amber-800 font-black text-xs shadow-lg hover:bg-amber-50 transition-colors"
+              >
+                تحديد الكل كمقروء
+              </button>
             )}
+          </div>
         </div>
-    );
+      </motion.div>
+
+      {/* ── NOTIFICATIONS LIST ── */}
+      <div className="space-y-3.5">
+        {notifications.map((notif, i) => {
+          const typeIcons = {
+            attendance: { icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
+            homework: { icon: BookOpen, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+            certificate: { icon: Trophy, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' },
+            grade: { icon: Sparkles, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-500/10' },
+            general: { icon: Bell, color: 'text-teal-500', bg: 'bg-teal-50 dark:bg-teal-500/10' },
+          }
+          const cfg = typeIcons[notif.type] || typeIcons.general
+          const Icon = cfg.icon
+
+          return (
+            <motion.div
+              key={notif.id}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              onClick={() => toggleRead(notif.id)}
+              className={`p-5 rounded-[2rem] border backdrop-blur-xl transition-all cursor-pointer flex items-start gap-4 ${
+                notif.isRead
+                  ? 'bg-white/60 dark:bg-[#1e1e2d]/60 border-gray-100 dark:border-white/5 opacity-80'
+                  : 'bg-white/95 dark:bg-[#1e1e2d]/95 border-amber-200 dark:border-amber-500/30 shadow-md ring-1 ring-amber-500/10'
+              }`}
+            >
+              <div className={`w-12 h-12 rounded-2xl ${cfg.bg} flex items-center justify-center flex-shrink-0 ${cfg.color}`}>
+                <Icon className="w-6 h-6" />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <h3 className={`font-black text-sm ${notif.isRead ? 'text-gray-800 dark:text-gray-200' : 'text-gray-900 dark:text-white'}`}>
+                    {notif.title}
+                  </h3>
+                  <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap">{notif.time}</span>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed font-medium">
+                  {notif.body}
+                </p>
+              </div>
+
+              {!notif.isRead && (
+                <div className="w-2.5 h-2.5 rounded-full bg-amber-500 flex-shrink-0 mt-2 shadow-sm" />
+              )}
+            </motion.div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }

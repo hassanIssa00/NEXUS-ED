@@ -284,12 +284,15 @@ function getNavigationByRole(role: string) {
         case 'student':
             return [
                 { href: '/student' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/student/assignments' as any, label: 'الواجبات', icon: FileText },
-                { href: '/student/grades' as any, label: 'الدرجات', icon: Award },
-                { href: '/student/million' as any, label: 'مسابقة نكسس', icon: Trophy },
-                { href: '/student/games' as any, label: 'الألعاب التعليمية', icon: Gamepad2 },
-                { href: '/student/content' as any, label: 'المكتبة التعليمية', icon: Video },
+                { href: '/student/schedule' as any, label: 'جدول الحصص', icon: Calendar },
+                { href: '/student/assignments' as any, label: 'الواجبات المدرسية', icon: FileText },
                 { href: '/student/attendance' as any, label: 'سجل الحضور', icon: QrCode },
+                { href: '/student/grades' as any, label: 'الدرجات والتقييم', icon: Award },
+                { href: '/student/certificates' as any, label: 'الإنجازات والشهادات', icon: Trophy },
+                { href: '/student/subjects' as any, label: 'المناهج الدراسية', icon: BookOpen },
+                { href: '/student/games' as any, label: 'الألعاب التعليمية', icon: Gamepad2 },
+                { href: '/student/million' as any, label: 'مسابقة نكسس', icon: Star },
+                { href: '/student/content' as any, label: 'المكتبة التعليمية', icon: Video },
                 { href: '/student/messages' as any, label: 'الرسائل', icon: MessageSquare },
                 { href: '/student/profile' as any, label: 'الملف الذكي', icon: Brain },
                 ...settings,
@@ -298,26 +301,28 @@ function getNavigationByRole(role: string) {
         case 'teacher':
             return [
                 { href: '/teacher' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/teacher/classes' as any, label: 'فصولي', icon: Users },
+                { href: '/teacher/classes' as any, label: 'فصولي والطلاب', icon: Users },
                 { href: '/teacher/assignments' as any, label: 'الواجبات', icon: FileText },
                 { href: '/teacher/quizzes' as any, label: 'الاختبارات', icon: Target },
-                { href: '/teacher/grading' as any, label: 'التصحيح', icon: ClipboardList },
+                { href: '/teacher/grading' as any, label: 'التصحيح والرصد', icon: ClipboardList },
                 { href: '/teacher/attendance' as any, label: 'الحضور والغياب', icon: Calendar },
-                { href: '/teacher/lessons' as any, label: 'الدروس', icon: BookOpen },
+                { href: '/teacher/automation/certificates' as any, label: 'الشهادات والتحفيز', icon: Award },
+                { href: '/teacher/lessons' as any, label: 'الدروس والمحتوى', icon: BookOpen },
                 { href: '/teacher/messages' as any, label: 'الرسائل', icon: MessageSquare },
                 { href: '/teacher/automation' as any, label: 'أدوات الأتمتة', icon: Zap },
-                { href: '/teacher/notifications' as any, label: 'التنبيهات', icon: Award },
+                { href: '/teacher/notifications' as any, label: 'التنبيهات', icon: Star },
                 ...settings,
             ]
 
         case 'parent':
             return [
                 { href: '/parent' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/parent/grades' as any, label: 'درجات الأبناء', icon: Award },
-                { href: '/parent/attendance' as any, label: 'سجل الحضور', icon: Calendar },
-                { href: '/parent/notifications' as any, label: 'الإشعارات', icon: BookOpen },
-                { href: '/parent/payments' as any, label: 'المدفوعات', icon: CreditCard },
+                { href: '/parent/schedule' as any, label: 'جدول الحصص', icon: Calendar },
+                { href: '/parent/attendance' as any, label: 'سجل الحضور', icon: QrCode },
+                { href: '/parent/grades' as any, label: 'درجات الأبناء والشهادات', icon: Award },
                 { href: '/parent/messages' as any, label: 'التواصل مع المعلم', icon: MessageSquare },
+                { href: '/parent/payments' as any, label: 'المدفوعات', icon: CreditCard },
+                { href: '/parent/notifications' as any, label: 'الإشعارات', icon: BookOpen },
                 ...settings,
             ]
 

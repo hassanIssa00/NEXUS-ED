@@ -65,11 +65,7 @@ export default function ParentDashboard() {
   const [parentDisplayName, setParentDisplayName] = useState('فيصل الغامدي')
   const [liveNotif, setLiveNotif] = useState<string | null>(null)
   const [liveAttendance, setLiveAttendance] = useState<string | null>(null)
-  const [parentTab, setParentTab] = useState<'dashboard'|'schedule'|'homework'|'achievements'|'messages'|'reports'>('dashboard')
-  const [parentMessages, setParentMessages] = useState<any[]>([])
-  const [newMessage, setNewMessage] = useState('')
-  const [sendingMsg, setSendingMsg] = useState(false)
-  const [parentReports, setParentReports] = useState<any[]>([])
+
 
   useEffect(() => {
     const load = async () => {
@@ -152,22 +148,7 @@ export default function ParentDashboard() {
 
         setChildrenData([childData])
 
-        // Load messages & reports for parent
-        const obsForParent = nexusBridge.getObservations(linkedStudentId)
-        setParentMessages(obsForParent.map(o => ({
-          id: o.id,
-          from: 'د. إسماعيل عيسى',
-          text: o.text,
-          time: o.createdAt,
-          type: o.severity === 'positive' ? 'praise' : o.severity === 'urgent' ? 'urgent' : 'info'
-        })))
-        const hwForParent = nexusBridge.getHomework()
-        const hwSubsForParent = nexusBridge.getHomeworkSubmissions().filter(s => s.studentId === linkedStudentId)
-        setParentReports([
-          { id: 'r1', title: 'تقرير الحضور الشهري', date: new Date().toISOString(), type: 'attendance', content: `نسبة الحضور: ${nexusBridge.getStudentById(linkedStudentId)?.attendanceRate || 97}%` },
-          { id: 'r2', title: 'تقرير الواجبات', date: new Date().toISOString(), type: 'homework', content: `مُسلَّم: ${hwSubsForParent.length} من ${hwForParent.length}` },
-          ...nexusBridge.getCertificates(linkedStudentId).map(c => ({ id: c.id, title: `شهادة: ${c.programTitle}`, date: c.createdAt, type: 'certificate', content: c.achievement }))
-        ])
+
       } catch (e) {
         console.error('nexusBridge parent load error:', e)
       } finally {
@@ -247,27 +228,7 @@ export default function ParentDashboard() {
         )}
       </AnimatePresence>
 
-      {/* Parent Tab Bar */}
-      <div className="flex gap-2 bg-gray-100/80 dark:bg-white/5 p-1.5 rounded-2xl overflow-x-auto mb-6">
-        {[
-          { key: 'dashboard', label: 'الرئيسية', icon: Home },
-          { key: 'schedule', label: 'جدول الحصص', icon: Calendar },
-          { key: 'homework', label: 'الواجبات', icon: BookOpen },
-          { key: 'achievements', label: 'الإنجازات', icon: Trophy },
-          { key: 'messages', label: 'التواصل', icon: MessageSquare },
-          { key: 'reports', label: 'التقارير', icon: FileText },
-        ].map(t => (
-          <button key={t.key} onClick={() => setParentTab(t.key as any)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap transition-all flex-shrink-0 ${
-              parentTab === t.key ? 'bg-white dark:bg-[#1e1e2d] text-green-600 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}>
-            <t.icon className="w-3.5 h-3.5" />{t.label}
-          </button>
-        ))}
-      </div>
 
-      {parentTab === 'dashboard' && (
-        <>
           {/* HERO */}
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
             className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#d97706] via-[#ea580c] to-[#e11d48] p-8 md:p-10 text-white shadow-[0_20px_50px_rgba(234,88,12,0.25)]">
@@ -349,15 +310,15 @@ export default function ParentDashboard() {
         </div>
 
         <div className="flex items-center gap-2.5 w-full md:w-auto">
-          <button onClick={() => setParentTab('schedule')} className="flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-black text-xs transition-colors">
+          <Link href="/parent/schedule" className="flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-black text-xs transition-colors text-center">
             جدول الحصص 📅
-          </button>
-          <button onClick={() => setParentTab('homework')} className="flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 text-amber-700 dark:text-amber-300 font-black text-xs transition-colors">
-            الواجبات 📝
-          </button>
-          <button onClick={() => setParentTab('messages')} className="flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-xs shadow-md shadow-emerald-600/20 transition-all">
+          </Link>
+          <Link href="/parent/attendance" className="flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 text-amber-700 dark:text-amber-300 font-black text-xs transition-colors text-center">
+            سجل الحضور 📋
+          </Link>
+          <Link href="/parent/messages" className="flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-xs shadow-md shadow-emerald-600/20 transition-all text-center">
             مراسلة د. إسماعيل 💬
-          </button>
+          </Link>
         </div>
       </motion.div>
 
@@ -496,199 +457,6 @@ export default function ParentDashboard() {
           </div>
         </motion.div>
       </AnimatePresence>
-      </>
-      )}
-
-      {parentTab === 'schedule' && (
-        <motion.div key="par-sched" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
-          <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-[2rem] p-6 text-white">
-            <h2 className="text-2xl font-black mb-1">📅 جدول حصص ابنك/ابنتك</h2>
-            <p className="text-green-100 text-sm">جدول فصل د. إسماعيل — الصف الأول الابتدائي</p>
-          </div>
-          {['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'].map((day, dayIdx) => {
-            const CLASS_SCHEDULE_PARENT = [
-              {dayOfWeek:0,periodNumber:1,subjectName:'اللغة العربية',startTime:'07:00',endTime:'07:45'},
-              {dayOfWeek:0,periodNumber:2,subjectName:'القرآن الكريم',startTime:'07:45',endTime:'08:30'},
-              {dayOfWeek:0,periodNumber:4,subjectName:'التربية الإسلامية',startTime:'09:30',endTime:'10:15'},
-              {dayOfWeek:0,periodNumber:5,subjectName:'الرياضيات',startTime:'10:15',endTime:'11:00'},
-              {dayOfWeek:0,periodNumber:7,subjectName:'العلوم',startTime:'11:45',endTime:'12:30'},
-              {dayOfWeek:1,periodNumber:1,subjectName:'اللغة العربية',startTime:'07:00',endTime:'07:45'},
-              {dayOfWeek:1,periodNumber:2,subjectName:'اللغة العربية',startTime:'07:45',endTime:'08:30'},
-              {dayOfWeek:1,periodNumber:4,subjectName:'القرآن الكريم',startTime:'09:30',endTime:'10:15'},
-              {dayOfWeek:1,periodNumber:5,subjectName:'التربية الإسلامية',startTime:'10:15',endTime:'11:00'},
-              {dayOfWeek:1,periodNumber:6,subjectName:'الرياضيات',startTime:'11:00',endTime:'11:45'},
-              {dayOfWeek:2,periodNumber:1,subjectName:'اللغة العربية',startTime:'07:00',endTime:'07:45'},
-              {dayOfWeek:2,periodNumber:2,subjectName:'التربية الإسلامية',startTime:'07:45',endTime:'08:30'},
-              {dayOfWeek:2,periodNumber:4,subjectName:'فن',startTime:'09:30',endTime:'10:15'},
-              {dayOfWeek:2,periodNumber:5,subjectName:'اللغة العربية',startTime:'10:15',endTime:'11:00'},
-              {dayOfWeek:2,periodNumber:7,subjectName:'فن',startTime:'11:45',endTime:'12:30'},
-              {dayOfWeek:3,periodNumber:1,subjectName:'اللغة العربية',startTime:'07:00',endTime:'07:45'},
-              {dayOfWeek:3,periodNumber:2,subjectName:'اللغة العربية',startTime:'07:45',endTime:'08:30'},
-              {dayOfWeek:3,periodNumber:4,subjectName:'القرآن الكريم',startTime:'09:30',endTime:'10:15'},
-              {dayOfWeek:3,periodNumber:5,subjectName:'التربية الإسلامية',startTime:'10:15',endTime:'11:00'},
-              {dayOfWeek:4,periodNumber:1,subjectName:'القرآن الكريم',startTime:'07:00',endTime:'07:45'},
-              {dayOfWeek:4,periodNumber:2,subjectName:'اللغة العربية',startTime:'07:45',endTime:'08:30'},
-              {dayOfWeek:4,periodNumber:4,subjectName:'القرآن الكريم',startTime:'09:30',endTime:'10:15'},
-              {dayOfWeek:4,periodNumber:5,subjectName:'الرياضيات',startTime:'10:15',endTime:'11:00'},
-              {dayOfWeek:4,periodNumber:6,subjectName:'التربية الإسلامية',startTime:'11:00',endTime:'11:45'},
-            ]
-            const dayPeriods = CLASS_SCHEDULE_PARENT.filter(p => p.dayOfWeek === dayIdx)
-            const subjectEmojis: Record<string,string> = {'اللغة العربية':'📖','القرآن الكريم':'📿','التربية الإسلامية':'🕌','الرياضيات':'🔢','العلوم':'🔬','فن':'🎨'}
-            return (
-              <div key={day} className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
-                <h4 className="font-black text-gray-900 dark:text-white mb-3">{day}</h4>
-                <div className="space-y-2">
-                  {dayPeriods.sort((a,b)=>a.periodNumber-b.periodNumber).map((p,pi) => (
-                    <div key={pi} className="flex items-center gap-3 p-3 rounded-2xl bg-gray-50 dark:bg-white/5 text-sm">
-                      <span className="text-lg">{subjectEmojis[p.subjectName]||'📚'}</span>
-                      <span className="font-bold text-gray-900 dark:text-white flex-1">{p.subjectName}</span>
-                      <span className="text-xs text-gray-500 font-mono">{p.startTime}—{p.endTime}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </motion.div>
-      )}
-
-      {parentTab === 'homework' && (
-        <motion.div key="par-hw" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
-          <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-[2rem] p-6 text-white">
-            <h2 className="text-2xl font-black mb-1">📝 متابعة الواجبات</h2>
-            <p className="text-amber-100 text-sm">واجبات ابنك/ابنتك ومستوى إنجازها</p>
-          </div>
-          {childrenData[0] && childrenData[0].upcomingAssignments?.map((hw: any, i: number) => (
-            <motion.div key={hw.id||i} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.06}} whileHover={{y:-2}}
-              className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-2xl flex-shrink-0">📚</div>
-                <div className="flex-1">
-                  <h3 className="font-black text-gray-900 dark:text-white">{hw.title}</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">{hw.subject?.name || hw.subject} • تسليم: {hw.dueDate}</p>
-                </div>
-                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-black">
-                  ⏳ معلق
-                </span>
-              </div>
-            </motion.div>
-          ))}
-          {(!childrenData[0]?.upcomingAssignments?.length) && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <div className="text-5xl">✅</div>
-              <p className="font-bold text-gray-500">ليس هناك واجبات معلقة — رائع!</p>
-            </div>
-          )}
-        </motion.div>
-      )}
-
-      {parentTab === 'achievements' && (
-        <motion.div key="par-achiev" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
-          <div className="bg-gradient-to-br from-amber-400 to-yellow-500 rounded-[2rem] p-6 text-white">
-            <h2 className="text-2xl font-black mb-1">🏆 إنجازات ابنك/ابنتك</h2>
-            <p className="text-amber-100 text-sm">الشهادات والأوسمة المحققة</p>
-          </div>
-          {childrenData[0]?.certificates?.length > 0 ? (
-            <div className="space-y-3">
-              {childrenData[0].certificates.map((cert: any, i: number) => (
-                <motion.div key={cert.id||i} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.08}} whileHover={{y:-2}}
-                  className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-amber-200/50 dark:border-amber-500/20 rounded-3xl p-5 shadow-sm">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center text-2xl flex-shrink-0">🏆</div>
-                    <div className="flex-1">
-                      <h3 className="font-black text-gray-900 dark:text-white">{cert.programTitle || cert.title}</h3>
-                      <p className="text-sm text-gray-500">{cert.achievementText || cert.description}</p>
-                    </div>
-                    <div className="text-xl font-black text-amber-600">{cert.score}%</div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <div className="text-6xl">🌟</div>
-              <p className="font-bold text-gray-500">لا توجد شهادات بعد — شجّع ابنك على التميز!</p>
-            </div>
-          )}
-        </motion.div>
-      )}
-
-      {parentTab === 'messages' && (
-        <motion.div key="par-msg" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
-          <div className="bg-gradient-to-br from-violet-600 to-purple-700 rounded-[2rem] p-6 text-white">
-            <h2 className="text-2xl font-black mb-1">💬 التواصل مع المعلم</h2>
-            <p className="text-violet-200 text-sm">ملاحظات وتواصل مع د. إسماعيل عيسى</p>
-          </div>
-          {/* Messages list */}
-          <div className="space-y-3">
-            {parentMessages.map((msg, i) => (
-              <motion.div key={msg.id||i} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.06}}
-                className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-sm font-black flex-shrink-0 ${
-                    msg.type==='praise'?'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600':
-                    msg.type==='urgent'?'bg-rose-100 dark:bg-rose-500/10 text-rose-600':
-                    'bg-blue-100 dark:bg-blue-500/10 text-blue-600'
-                  }`}>{msg.type==='praise'?'⭐':msg.type==='urgent'?'⚠️':'📩'}</div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="font-black text-sm text-gray-900 dark:text-white">{msg.from}</p>
-                      <p className="text-[10px] text-gray-400">{new Date(msg.time).toLocaleDateString('ar-SA')}</p>
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{msg.text}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-          {/* Send message */}
-          <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
-            <h3 className="font-black text-gray-900 dark:text-white mb-3">📤 إرسال رسالة للمعلم</h3>
-            <textarea value={newMessage} onChange={e=>setNewMessage(e.target.value)} rows={3}
-              placeholder="اكتب رسالتك لد. إسماعيل..."
-              className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-green-500/50 mb-3" />
-            <button onClick={async () => {
-              if (!newMessage.trim()) return
-              setSendingMsg(true)
-              try {
-                const { nexusBridge } = await import('@/lib/nexusDataBridge')
-                nexusBridge.addObservation({ studentId: childrenData[0]?.id || 'cls-std-2', studentName: childrenData[0]?.name || 'الطالب', authorName: 'ولي الأمر', authorRole: 'parent', category: 'guidance', severity: 'neutral', text: `رسالة من ولي الأمر: ${newMessage}` })
-                setNewMessage('')
-                window.dispatchEvent(new CustomEvent('nexus:data-changed'))
-              } catch(e) { console.error(e) } finally { setSendingMsg(false) }
-            }} disabled={!newMessage.trim() || sendingMsg}
-              className="w-full py-3 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-black text-sm hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-              {sendingMsg ? <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" /> : <><SendIcon className="w-4 h-4" />إرسال الرسالة</>}
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {parentTab === 'reports' && (
-        <motion.div key="par-rep" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
-          <div className="bg-gradient-to-br from-slate-600 to-gray-700 rounded-[2rem] p-6 text-white">
-            <h2 className="text-2xl font-black mb-1">📊 تقارير الطالب</h2>
-            <p className="text-gray-300 text-sm">تقارير وملخصات أداء ابنك/ابنتك</p>
-          </div>
-          {parentReports.map((rep, i) => (
-            <motion.div key={rep.id||i} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.06}} whileHover={{y:-2}}
-              className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl ${
-                  rep.type==='attendance'?'bg-blue-100 dark:bg-blue-500/10':
-                  rep.type==='certificate'?'bg-amber-100 dark:bg-amber-500/10':
-                  'bg-green-100 dark:bg-green-500/10'
-                }`}>{rep.type==='attendance'?'📅':rep.type==='certificate'?'🏆':'📝'}</div>
-                <div className="flex-1">
-                  <h3 className="font-black text-gray-900 dark:text-white">{rep.title}</h3>
-                  <p className="text-sm text-gray-500">{rep.content}</p>
-                  <p className="text-xs text-gray-400 mt-1">{new Date(rep.date).toLocaleDateString('ar-SA')}</p>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
     </div>
   )
 }
