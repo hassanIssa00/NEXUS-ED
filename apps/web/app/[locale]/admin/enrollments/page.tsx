@@ -1,251 +1,328 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
-import { enrollmentService, Enrollment } from '@/lib/services/enrollment.service';
-import { classService, ClassEntity } from '@/lib/services/class.service';
-import { userService, User } from '@/lib/services/user.service';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import {
+    Table, TableBody, TableCell, TableHead,
+    TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+    Dialog, DialogContent, DialogDescription,
+    DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+    Select, SelectContent, SelectItem,
+    SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Search, Plus, Trash2, UserPlus, Users, ArrowRightLeft, ShieldCheck, Check } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { nexusBridge, SchoolClass, ClassStudentRecord, EnrollmentRecord } from '@/lib/nexusDataBridge';
 
 export default function EnrollmentsPage() {
-    const t = useTranslations('admin');
-    const [classes, setClasses] = useState<ClassEntity[]>([]);
-    const [students, setStudents] = useState<User[]>([]);
-    const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-    const [selectedClass, setSelectedClass] = useState<string>('');
-    const [loading, setLoading] = useState(false);
+    const { toast } = useToast();
+    const [classes, setClasses] = useState<SchoolClass[]>([]);
+    const [allStudents, setAllStudents] = useState<ClassStudentRecord[]>([]);
+    const [enrollments, setEnrollments] = useState<EnrollmentRecord[]>([]);
+    const [selectedClassId, setSelectedClassId] = useState<string>('CLS-101');
+    const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+    const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
 
-    useEffect(() => {
-        fetchClasses();
-        fetchStudents();
-    }, []);
-
-    useEffect(() => {
-        if (selectedClass) {
-            fetchEnrollments();
-        }
-    }, [selectedClass]);
-
-    const fetchClasses = async () => {
+    const loadData = () => {
         try {
-            const data = await classService.getAll();
-            setClasses(data);
-        } catch (error) {
-            console.error('Failed to fetch classes', error);
-        }
-    };
+            const clsList = nexusBridge.getClasses();
+            const stdList = nexusBridge.getStudents();
+            const enrList = nexusBridge.getEnrollments();
 
-    const fetchStudents = async () => {
-        try {
-            const response = await userService.getAll({ role: 'STUDENT' });
-            setStudents(response.data || response);
-        } catch (error) {
-            console.error('Failed to fetch students', error);
-        }
-    };
+            setClasses(clsList);
+            setAllStudents(stdList);
+            setEnrollments(enrList);
 
-    const fetchEnrollments = async () => {
-        if (!selectedClass) return;
-        setLoading(true);
-        try {
-            const data = await enrollmentService.getByClass(selectedClass);
-            setEnrollments(data);
-        } catch (error) {
-            console.error('Failed to fetch enrollments', error);
+            if (!selectedClassId && clsList.length > 0) {
+                setSelectedClassId(clsList[0].id);
+            }
+        } catch (e) {
+            console.error('Failed to load enrollments:', e);
+            toast({ title: 'خطأ', description: 'فشل تحميل بيانات القيد والتسجيل', variant: 'destructive' });
         } finally {
             setLoading(false);
         }
     };
 
+    useEffect(() => {
+        loadData();
+        const handleSync = () => loadData();
+        window.addEventListener('nexus:data-changed', handleSync);
+        return () => window.removeEventListener('nexus:data-changed', handleSync);
+    }, []);
+
+    const selectedClass = classes.find((c) => c.id === selectedClassId);
+
+    // Enrolled students in this class
+    const classStudents = allStudents.filter((s) => s.classId === selectedClassId);
+
+    // Students available to enroll (not currently in this class)
+    const availableStudents = allStudents.filter((s) => s.classId !== selectedClassId);
+
     const handleBulkEnroll = async () => {
-        if (selectedStudents.length === 0 || !selectedClass) return;
+        if (selectedStudentIds.length === 0 || !selectedClass) return;
 
         try {
-            await enrollmentService.bulkEnroll(selectedStudents, selectedClass);
-            setIsModalOpen(false);
-            setSelectedStudents([]);
-            fetchEnrollments();
-        } catch (error: any) {
-            alert(error.message || 'Failed to enroll students');
-        }
-    };
-
-    const handleUnenroll = async (id: string) => {
-        if (confirm(t('confirmDelete'))) {
-            try {
-                await enrollmentService.delete(id);
-                fetchEnrollments();
-            } catch (error) {
-                console.error('Failed to unenroll', error);
+            for (const stdId of selectedStudentIds) {
+                const std = allStudents.find((s) => s.id === stdId);
+                if (std) {
+                    nexusBridge.enrollStudent({
+                        studentId: std.id,
+                        studentName: std.fullName,
+                        classId: selectedClass.id,
+                        className: selectedClass.name,
+                        academicYear: selectedClass.academicYear || '2026-2027',
+                        status: 'active',
+                    });
+                }
             }
+
+            toast({
+                title: 'تم القيد بنجاح 🎉',
+                description: `تم قيد ${selectedStudentIds.length} طالب في ${selectedClass.name}`,
+            });
+
+            setIsModalOpen(false);
+            setSelectedStudentIds([]);
+            loadData();
+        } catch (e: any) {
+            toast({ title: 'خطأ', description: e.message || 'فشل تسجيل الطلاب', variant: 'destructive' });
         }
     };
 
-    const enrolledStudentIds = new Set(enrollments.map(e => e.studentId));
-    const availableStudents = students.filter(s => !enrolledStudentIds.has(s.id));
+    const handleUnenroll = async (studentId: string) => {
+        const student = allStudents.find((s) => s.id === studentId);
+        if (!confirm(`هل أنت متأكد من إلغاء قيد الطالب ${student?.fullName || ''} من هذا الفصل؟`)) return;
+
+        try {
+            // Find enrollment record
+            const enr = enrollments.find((e) => e.studentId === studentId && e.classId === selectedClassId);
+            if (enr) {
+                nexusBridge.unenrollStudent(enr.id);
+            }
+            if (student) {
+                student.classId = '';
+                student.grade = 'غير مقيد بفصل حالياً';
+                nexusBridge.saveStudent(student);
+            }
+            toast({ title: 'تم بنجاح', description: 'تم إلغاء قيد الطالب من الفصل' });
+            loadData();
+        } catch {
+            toast({ title: 'خطأ', description: 'فشل إلغاء القيد', variant: 'destructive' });
+        }
+    };
+
+    const filteredClassStudents = classStudents.filter((s) => {
+        const q = searchQuery.toLowerCase();
+        return (
+            s.fullName.toLowerCase().includes(q) ||
+            (s.universalId || '').toLowerCase().includes(q) ||
+            s.nationalId.includes(q) ||
+            s.parentPhone.includes(q)
+        );
+    });
 
     return (
-        <div>
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t('enrollments')}</h1>
-            </div>
-
-            {/* Class Selector */}
-            <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {t('selectClass')}
-                </label>
-                <select
-                    className="w-full max-w-md px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                    value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
+        <div className="space-y-6" dir="rtl">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">شؤون الطلاب وقيد الفصول</h1>
+                    <p className="text-muted-foreground">
+                        إدارة قيد وتسجيل وتوزيع الطلاب على الشعب والفصول الدراسية وربطهم برواد الفصول
+                    </p>
+                </div>
+                <Button
+                    onClick={() => setIsModalOpen(true)}
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                    disabled={availableStudents.length === 0}
                 >
-                    <option value="">{t('selectClass')}</option>
-                    {classes.map((cls) => (
-                        <option key={cls.id} value={cls.id}>
-                            {cls.name} {cls.academicYear && `(${cls.academicYear})`}
-                        </option>
-                    ))}
-                </select>
+                    <UserPlus className="w-4 h-4" />
+                    قيد ونقل طلاب لهذا الفصل ({availableStudents.length} متاح)
+                </Button>
             </div>
 
-            {selectedClass && (
-                <>
-                    <div className="mb-4">
-                        <button
-                            onClick={() => setIsModalOpen(true)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                            disabled={availableStudents.length === 0}
-                        >
-                            {t('enrollStudents')}
-                        </button>
+            {/* Class Selector Bar */}
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <label className="text-sm font-semibold whitespace-nowrap">اختر الفصل الدراسي:</label>
+                    <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+                        <SelectTrigger className="w-full sm:w-[360px] font-bold">
+                            <SelectValue placeholder="اختر الفصل" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {classes.map((cls) => (
+                                <SelectItem key={cls.id} value={cls.id}>
+                                    {cls.name} ({cls.homeroomTeacherName})
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {selectedClass && (
+                    <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-sm border-blue-200 bg-blue-50 text-blue-800">
+                            رائد الفصل: {selectedClass.homeroomTeacherName}
+                        </Badge>
+                        <Badge variant="outline" className="text-sm border-emerald-200 bg-emerald-50 text-emerald-800 font-mono">
+                            المقيدون: {classStudents.length} / {selectedClass.capacity} طالب
+                        </Badge>
                     </div>
+                )}
+            </div>
 
-                    {loading ? (
-                        <div>Loading...</div>
-                    ) : (
-                        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
-                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead className="bg-gray-50 dark:bg-gray-700">
-                                    <tr>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            {t('studentName')}
-                                        </th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            {t('email')}
-                                        </th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            {t('enrolledAt')}
-                                        </th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            {t('actions')}
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                    {enrollments.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={4} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                                                {t('noEnrollments')}
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        enrollments.map((enrollment) => (
-                                            <tr key={enrollment.id}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                                    {enrollment.student
-                                                        ? `${enrollment.student.firstName || ''} ${enrollment.student.lastName || ''}`.trim() || enrollment.student.name || enrollment.student.email
-                                                        : '-'}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                                    {enrollment.student?.email || '-'}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                                    {new Date(enrollment.enrolledAt).toLocaleDateString()}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                    <button
-                                                        onClick={() => handleUnenroll(enrollment.id)}
-                                                        className="text-red-600 hover:text-red-900 dark:hover:text-red-400"
-                                                    >
-                                                        {t('unenroll')}
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </>
-            )}
+            {/* Search within class */}
+            <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-lg border shadow-sm">
+                <div className="relative flex-1">
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <Input
+                        placeholder="بحث في طلاب هذا الفصل بالاسم، معرف الطالب (ID)، أو رقم الهوية..."
+                        className="pr-10"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+            </div>
 
-            {/* Enroll Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-                        <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
-                            {t('enrollStudents')}
-                        </h2>
-                        <div className="space-y-2 mb-4">
-                            {availableStudents.length === 0 ? (
-                                <p className="text-gray-500 dark:text-gray-400">{t('allStudentsEnrolled')}</p>
-                            ) : (
-                                availableStudents.map((student) => (
+            {/* Table of Enrolled Students */}
+            <div className="rounded-md border bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="text-right">معرف الطالب (ID)</TableHead>
+                            <TableHead className="text-right">اسم الطالب الكامل</TableHead>
+                            <TableHead className="text-right">رقم الهوية الوطنية</TableHead>
+                            <TableHead className="text-right">ولي الأمر</TableHead>
+                            <TableHead className="text-right">هاتف التواصل</TableHead>
+                            <TableHead className="text-right">المعدل التراكمي</TableHead>
+                            <TableHead className="text-right">نسبة الحضور</TableHead>
+                            <TableHead className="text-right">الإجراءات</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredClassStudents.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                                    لا يوجد طلاب مقيدين بهذا الفصل يطابقون البحث
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            filteredClassStudents.map((std) => (
+                                <TableRow key={std.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                                    <TableCell className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
+                                        {std.universalId || std.id}
+                                    </TableCell>
+                                    <TableCell className="font-semibold">{std.fullName}</TableCell>
+                                    <TableCell className="font-mono text-xs text-muted-foreground">{std.nationalId}</TableCell>
+                                    <TableCell className="text-sm">{std.parentName}</TableCell>
+                                    <TableCell className="font-mono text-xs">{std.parentPhone}</TableCell>
+                                    <TableCell>
+                                        <Badge
+                                            className={
+                                                std.averageGrade >= 95
+                                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                    : 'bg-blue-100 text-blue-800 border-blue-300'
+                                            }
+                                        >
+                                            {std.averageGrade}%
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs">{std.attendanceRate}%</TableCell>
+                                    <TableCell>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleUnenroll(std.id)}
+                                            className="text-red-600 hover:bg-red-50 text-xs gap-1"
+                                            title="إلغاء القيد"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            نقل / إلغاء
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
+
+            {/* Bulk Enroll Modal */}
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <DialogContent className="sm:max-w-[650px] max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>قيد ونقل طلاب إلى {selectedClass?.name}</DialogTitle>
+                        <DialogDescription>
+                            حدد الطلاب المراد قيدهم أو نقلهم إلى هذا الفصل الرسمي
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3 my-4">
+                        {availableStudents.length === 0 ? (
+                            <p className="text-center py-6 text-muted-foreground">جميع طلاب المدرسة مقيدون بهذا الفصل بالفعل.</p>
+                        ) : (
+                            availableStudents.map((student) => {
+                                const isChecked = selectedStudentIds.includes(student.id);
+                                return (
                                     <label
                                         key={student.id}
-                                        className="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer"
+                                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                                            isChecked ? 'bg-blue-50/80 border-blue-400 dark:bg-blue-950/40' : 'hover:bg-slate-50 dark:hover:bg-slate-900/40'
+                                        }`}
                                     >
-                                        <input
-                                            type="checkbox"
-                                            className="mr-3"
-                                            checked={selectedStudents.includes(student.id)}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setSelectedStudents([...selectedStudents, student.id]);
-                                                } else {
-                                                    setSelectedStudents(selectedStudents.filter(id => id !== student.id));
-                                                }
-                                            }}
-                                        />
-                                        <div>
-                                            <div className="font-medium text-gray-900 dark:text-white">
-                                                {student.firstName && student.lastName
-                                                    ? `${student.firstName} ${student.lastName}`
-                                                    : student.name || student.email}
-                                            </div>
-                                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                {student.email}
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 rounded text-blue-600"
+                                                checked={isChecked}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedStudentIds([...selectedStudentIds, student.id]);
+                                                    } else {
+                                                        setSelectedStudentIds(selectedStudentIds.filter((id) => id !== student.id));
+                                                    }
+                                                }}
+                                            />
+                                            <div>
+                                                <div className="font-semibold text-sm">{student.fullName}</div>
+                                                <div className="text-xs text-muted-foreground flex gap-3 mt-0.5">
+                                                    <span>المعرف: {student.universalId || student.id}</span>
+                                                    <span>ولي الأمر: {student.parentName}</span>
+                                                    <span>الحالي: {student.grade}</span>
+                                                </div>
                                             </div>
                                         </div>
+                                        <Badge variant="outline" className="text-xs">
+                                            {student.averageGrade}%
+                                        </Badge>
                                     </label>
-                                ))
-                            )}
-                        </div>
-                        <div className="flex justify-end gap-3 mt-6">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIsModalOpen(false);
-                                    setSelectedStudents([]);
-                                }}
-                                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
-                            >
-                                {t('cancel')}
-                            </button>
-                            <button
-                                onClick={handleBulkEnroll}
-                                disabled={selectedStudents.length === 0}
-                                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {t('enroll')} ({selectedStudents.length})
-                            </button>
-                        </div>
+                                );
+                            })
+                        )}
                     </div>
-                </div>
-            )}
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                            إلغاء
+                        </Button>
+                        <Button
+                            onClick={handleBulkEnroll}
+                            disabled={selectedStudentIds.length === 0}
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                        >
+                            تأكيد قيد ({selectedStudentIds.length}) طلاب في الفصل
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -65,8 +65,8 @@ function VPDashboardInner() {
         kpis: {
           totalStudents: metrics.totalStudents,
           activeUsers: metrics.presentToday || metrics.totalStudents,
-          totalClasses: 1,
-          totalTeachers: 1,
+          totalClasses: metrics.totalClasses,
+          totalTeachers: metrics.totalTeachers,
           attendanceRate: metrics.attendanceRate,
           supportNeeded: metrics.supportNeededStudents,
         },

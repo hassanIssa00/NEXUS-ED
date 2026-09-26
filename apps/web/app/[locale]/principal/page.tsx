@@ -87,13 +87,13 @@ function PrincipalDashboardInner() {
 
       const d = {
         kpis: {
-          totalUsers: metrics.totalStudents + 8,
+          totalUsers: metrics.totalStudents + metrics.totalTeachers + 7,
           activeUsers: metrics.totalStudents,
           totalRevenue: 24000,
-          totalSubjects: 4,
+          totalSubjects: 12,
           totalStudents: metrics.totalStudents,
-          totalTeachers: 1,
-          totalClasses: 1,
+          totalTeachers: metrics.totalTeachers,
+          totalClasses: metrics.totalClasses,
           attendanceRate: metrics.attendanceRate,
           averageGrade: metrics.averageSchoolGrade,
         },

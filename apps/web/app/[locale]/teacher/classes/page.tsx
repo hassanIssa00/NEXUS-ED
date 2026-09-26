@@ -17,11 +17,20 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { nexusBridge, ClassStudentRecord, DailyAttendanceRecord } from '@/lib/nexusDataBridge';
+import { nexusBridge, ClassStudentRecord, DailyAttendanceRecord, SchoolClass } from '@/lib/nexusDataBridge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function TeacherClassesPage() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [classes, setClasses] = useState<SchoolClass[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string>('CLS-101');
   const [students, setStudents] = useState<ClassStudentRecord[]>([]);
   const [attendance, setAttendance] = useState<DailyAttendanceRecord[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<ClassStudentRecord | null>(null);
@@ -34,7 +43,10 @@ export default function TeacherClassesPage() {
   const [newNationalId, setNewNationalId] = useState('');
 
   const loadData = () => {
-    setStudents(nexusBridge.getStudents());
+    const clsList = nexusBridge.getClasses();
+    setClasses(clsList);
+    const activeId = selectedClassId || nexusBridge.getActiveClass() || 'CLS-101';
+    setStudents(nexusBridge.getStudents(activeId));
     setAttendance(nexusBridge.getTodayAttendance());
   };
 
@@ -43,7 +55,15 @@ export default function TeacherClassesPage() {
     const handleSync = () => loadData();
     window.addEventListener('nexus:data-changed', handleSync);
     return () => window.removeEventListener('nexus:data-changed', handleSync);
-  }, []);
+  }, [selectedClassId]);
+
+  const handleClassChange = (newClassId: string) => {
+    setSelectedClassId(newClassId);
+    nexusBridge.setActiveClass(newClassId);
+    setStudents(nexusBridge.getStudents(newClassId));
+  };
+
+  const activeClass = classes.find((c) => c.id === selectedClassId) || classes[0];
 
   const getStudentStatus = (id: string): 'present' | 'absent' | 'late' => {
     const record = attendance.find((a) => a.studentId === id);
@@ -66,18 +86,21 @@ export default function TeacherClassesPage() {
     e.preventDefault();
     if (!newName.trim()) return;
 
+    const universalId = nexusBridge.generateUniversalId('STD');
     const newStudent: ClassStudentRecord = {
       id: `cls-std-${Date.now()}`,
+      universalId,
       fullName: newName.trim(),
       fullNameEn: newName.trim(),
-      grade: 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
+      classId: selectedClassId,
+      grade: activeClass?.name || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
       nationalId: newNationalId.trim() || `10${Math.floor(10000000 + Math.random() * 90000000)}`,
       dateOfBirth: '2019-05-15',
       parentName: newParentName.trim() || `ولي أمر ${newName.trim()}`,
       parentPhone: newParentPhone.trim() || '0500000000',
       parentEmail: `parent.${Date.now()}@nexusedu.sa`,
       photoUrl: '/images/avatars/default.webp',
-      notes: 'طالب مسجل حديثاً في فصل د. إسماعيل عيسى.',
+      notes: `طالب مسجل حديثاً في ${activeClass?.name || 'فصل د. إسماعيل عيسى'}.`,
       averageGrade: 90,
       attendanceRate: 100,
       rank: students.length + 1,
@@ -97,7 +120,7 @@ export default function TeacherClassesPage() {
 
     toast({
       title: 'تم إضافة الطالب بنجاح 🎉',
-      description: `أهلاً بالطالب ${newStudent.fullName} في فصل د. إسماعيل عيسى.`,
+      description: `أهلاً بالطالب ${newStudent.fullName} بمعرف (${universalId}) في ${activeClass?.name || 'الفصل'}.`,
     });
   };
 
@@ -105,6 +128,7 @@ export default function TeacherClassesPage() {
     (s) =>
       s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.nationalId.includes(searchTerm) ||
+      (s.universalId && s.universalId.toLowerCase().includes(searchTerm.toLowerCase())) ||
       s.parentName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -113,14 +137,25 @@ export default function TeacherClassesPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">فصولي الدراسية 🏫</h2>
-            <Badge className="bg-primary/10 text-primary border-primary/20 text-xs font-bold">
-              فصل د. إسماعيل عيسى
-            </Badge>
+            
+            {/* Multi-Class Switcher */}
+            <Select value={selectedClassId} onValueChange={handleClassChange}>
+              <SelectTrigger className="w-[300px] h-9 font-bold bg-white dark:bg-slate-800 border-primary/20 text-primary">
+                <SelectValue placeholder="اختر الفصل" />
+              </SelectTrigger>
+              <SelectContent>
+                {classes.map((cls) => (
+                  <SelectItem key={cls.id} value={cls.id}>
+                    {cls.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            إدارة طلاب الفصل، متابعة كشوف الأسماء، ورصد الحالات الدراسية
+          <p className="text-sm text-muted-foreground mt-1">
+            إدارة طلاب الشعبة، متابعة كشوف الأسماء، ورصد الحضور والتقييمات الأكاديمية
           </p>
         </div>
 
@@ -128,7 +163,7 @@ export default function TeacherClassesPage() {
           <div className="relative flex-1 sm:w-64">
             <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="بحث عن طالب أو هوية..."
+              placeholder="بحث عن طالب أو هوية أو ID..."
               className="pr-9 h-10 rounded-xl"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -150,14 +185,14 @@ export default function TeacherClassesPage() {
           <div>
             <div className="flex items-center gap-2">
               <CardTitle className="text-xl font-black text-gray-900 dark:text-white">
-                الصف الأول الابتدائي — فصل د. إسماعيل عيسى
+                {activeClass?.name || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى'}
               </CardTitle>
               <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
-                نشط الآن
+                الشعبة نشطة
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2 font-medium">
-              <span>لغتي والقرآن الكريم</span>
+            <p className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-2 font-medium">
+              <span>رائد الفصل: {activeClass?.homeroomTeacherName || 'د. إسماعيل عيسى'}</span>
               <span>•</span>
               <span className="font-bold text-primary">{students.length} طلاب مسجلين</span>
               <span>•</span>
