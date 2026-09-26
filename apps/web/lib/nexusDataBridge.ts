@@ -182,6 +182,92 @@ export interface BehavioralObservation {
   createdAt: string;
 }
 
+export interface ClassEventItem {
+  id: string;
+  title: string;
+  category: 'party' | 'trip' | 'activity' | 'competition' | 'open_day' | 'other';
+  categoryLabel: string;
+  driveUrl?: string;
+  coverImage?: string;
+  images?: string[];
+  description?: string;
+  date: string;
+  createdAt: string;
+}
+
+export interface ClassMeetingItem {
+  id: string;
+  title: string;
+  meetingUrl: string;
+  scheduledAt: string;
+  duration: number;
+  notes?: string;
+  hostName: string;
+  createdAt: string;
+}
+
+export interface StudentWeeklyReport {
+  id: string;
+  reportNumber: string;
+  studentId: string;
+  studentName: string;
+  weekTitle: string;
+  date: string;
+  attendanceRate: number;
+  homeworkRate: number;
+  behaviorScore: number;
+  overallGrade: string;
+  teacherNotes: string;
+  recommendation: string;
+  doctorName: string;
+  createdAt: string;
+}
+
+export interface CommunityMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'teacher' | 'parent';
+  studentName?: string;
+  text: string;
+  createdAt: string;
+  isPinned?: boolean;
+  isAnnouncement?: boolean;
+  reactions?: Record<string, number>;
+}
+
+export interface LiveSessionItem {
+  id: string;
+  title: string;
+  description: string;
+  hostName: string;
+  status: 'LIVE' | 'RECORDED';
+  startedAt: string;
+  durationMinutes: number;
+  viewerCount: number;
+  recordingUrl?: string;
+}
+
+export interface CurriculumSubject {
+  slug: string;
+  title: string;
+  shortTitle: string;
+  subtitle: string;
+  grade: string;
+  term: string;
+  year: string;
+  pageCount: number;
+  color: string;
+  accent: string;
+  badge: string;
+  promise: string;
+  units: Array<{
+    title: string;
+    fromPage: number;
+    toPage: number;
+  }>;
+}
+
 // ── Initial Authentic Accounts (8 Portals) ───────────────────────────────────
 
 export const NEXUS_CORE_ACCOUNTS: NexusAccount[] = [
@@ -650,7 +736,300 @@ const KEYS = {
   CERTIFICATES: 'nexus_certificates_v2',
   OBSERVATIONS: 'nexus_observations_v2',
   ACTIVE_USER: 'nexus_current_user_v2',
+  EVENTS: 'nexus_class_events_v2',
+  MEETINGS: 'nexus_class_meetings_v2',
+  REPORTS: 'nexus_student_reports_v2',
+  COMMUNITY_MSGS: 'nexus_community_messages_v2',
+  LIVE_SESSIONS: 'nexus_live_sessions_v2',
 };
+
+export const INITIAL_CLASS_EVENTS: ClassEventItem[] = [
+  {
+    id: 'evt-1',
+    title: 'حفلة تكريم الطلاب المتميزين في القراءة 🏆',
+    category: 'party',
+    categoryLabel: 'حفلة وتكريم 🎉',
+    description: 'تغطية مصورة لحفل تكريم فرسان القراءة والتلاوة بفصل د. إسماعيل عيسى بحضور إدارة المدرسة.',
+    date: '2026-09-24',
+    coverImage: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800&auto=format&fit=crop&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1577896851231-70ef18881754?w=800&auto=format&fit=crop&q=80',
+    ],
+    createdAt: '2026-09-24T10:00:00Z',
+  },
+  {
+    id: 'evt-2',
+    title: 'الرحلة التعليمية الاستكشافية للمركز العلمي 🚌',
+    category: 'trip',
+    categoryLabel: 'رحلة مدرسية 🚌',
+    description: 'زيارة ميدانية لمعارض العلوم التفاعلية وتجارب الكيمياء المبسطة للصف الأول الابتدائي.',
+    date: '2026-09-20',
+    coverImage: 'https://images.unsplash.com/photo-1577896851231-70ef18881754?w=800&auto=format&fit=crop&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1577896851231-70ef18881754?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=800&auto=format&fit=crop&q=80',
+    ],
+    createdAt: '2026-09-20T11:00:00Z',
+  },
+  {
+    id: 'evt-3',
+    title: 'معرض الخط العربي والرسومات الإبداعية 🎨',
+    category: 'activity',
+    categoryLabel: 'نشاط صفي 🎨',
+    description: 'أعمال طلاب الفصل في كتابة الحروف بخط النسخ وتلوين اللوحات الفنية المعبرة.',
+    date: '2026-09-18',
+    coverImage: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=800&auto=format&fit=crop&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=800&auto=format&fit=crop&q=80',
+    ],
+    createdAt: '2026-09-18T09:00:00Z',
+  },
+];
+
+export const INITIAL_MEETINGS: ClassMeetingItem[] = [
+  {
+    id: 'meet-1',
+    title: 'لقاء أولياء الأمور الدوري — تقييم نتائج الشهر الأول والتأسيس',
+    meetingUrl: 'https://meet.google.com/nexus-ismail-class',
+    scheduledAt: '2026-09-28T18:00',
+    duration: 45,
+    notes: 'مناقشة خطة القراءة اليومية في المنزل، وتطوير المهارات الحسابية لفرسان الفصل.',
+    hostName: 'د. إسماعيل عيسى',
+    createdAt: '2026-09-25T12:00:00Z',
+  },
+  {
+    id: 'meet-2',
+    title: 'جلسة توجيه فردية لأولياء أمور الطلاب المتفوقين',
+    meetingUrl: 'https://meet.google.com/nexus-ismail-honor',
+    scheduledAt: '2026-10-02T19:00',
+    duration: 30,
+    notes: 'خطة الإثراء المتقدمة ومسابقات الحساب الذهني وحفظ القرآن.',
+    hostName: 'د. إسماعيل عيسى',
+    createdAt: '2026-09-25T14:00:00Z',
+  },
+];
+
+export const INITIAL_COMMUNITY_MESSAGES: CommunityMessage[] = [
+  {
+    id: 'cmsg-1',
+    senderId: 'acc_teacher_ismail',
+    senderName: 'د. إسماعيل عيسى',
+    senderRole: 'teacher',
+    text: 'السلام عليكم ورحمة الله وبركاته، أهلاً بجميع أولياء أمور طلاب الصف الأول الابتدائي. هذا الملتقى مخصص لمتابعة اليوم الدراسي والاستفسارات والتواصل الفعال لما فيه مصلحة أبنائنا الأبطال.',
+    createdAt: '2026-09-24T08:00:00Z',
+    isPinned: true,
+    isAnnouncement: true,
+    reactions: { '❤️': 8, '👏': 6, '🤲': 8 },
+  },
+  {
+    id: 'cmsg-2',
+    senderId: 'acc_parent_faisal',
+    senderName: 'فيصل الغامدي',
+    senderRole: 'parent',
+    studentName: 'أحمد فيصل الغامدي',
+    text: 'وعليكم السلام ورحمة الله وبركاته دكتور إسماعيل. جزاكم الله خيراً على المجهود العظيم ومتابعة أحمد المستمرة في حفظ القرآن وحل الواجبات 🙏',
+    createdAt: '2026-09-24T09:30:00Z',
+    reactions: { '👍': 5 },
+  },
+  {
+    id: 'cmsg-3',
+    senderId: 'acc_teacher_ismail',
+    senderName: 'د. إسماعيل عيسى',
+    senderRole: 'teacher',
+    text: 'تنويه هام: تم رصد درجات اختبار لغتي التفاعلي ورفع الواجب الجديد، برجاء حث الأبناء على المراجعة والتسليم عبر المنصة.',
+    createdAt: '2026-09-25T15:00:00Z',
+    isAnnouncement: true,
+    reactions: { '👍': 7, '🌟': 4 },
+  },
+];
+
+export const INITIAL_LIVE_SESSIONS: LiveSessionItem[] = [
+  {
+    id: 'live-1',
+    title: 'حصة لغتي التفاعلية المباشرة — مهارات المدود والتنوين',
+    description: 'بث مباشر تفاعلي لشرح درس المد بالألف والواو مع حل تدريبات كتاب الطالب مباشرة.',
+    hostName: 'د. إسماعيل عيسى',
+    status: 'LIVE',
+    startedAt: new Date().toISOString(),
+    durationMinutes: 45,
+    viewerCount: 8,
+  },
+  {
+    id: 'live-2',
+    title: 'جلسة تأسيس الحساب الذهني والأعداد حتى 20',
+    description: 'تسجيل الحصة التفاعلية الخاصة بمهارات الجمع البسيط والمقارنة والتصنيف.',
+    hostName: 'د. إسماعيل عيسى',
+    status: 'RECORDED',
+    startedAt: '2026-09-24T10:00:00Z',
+    durationMinutes: 40,
+    viewerCount: 24,
+    recordingUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+  },
+];
+
+export const CURRICULA_LIST: CurriculumSubject[] = [
+  {
+    slug: 'lughati',
+    title: 'لغتي',
+    shortTitle: 'لغتي',
+    subtitle: 'كتاب الطالب والأنشطة التفاعلية',
+    grade: 'الصف الأول الابتدائي',
+    term: 'الفصل الدراسي الأول',
+    year: '1448هـ',
+    pageCount: 266,
+    color: '#047857',
+    accent: '#10b981',
+    badge: 'اللغة العربية والتأسيس',
+    promise: 'كتاب لغتي التفاعلي المعتمد للصف الأول الابتدائي مع إمكانية الكتابة والتلوين بالقلم التفاعلي على كافة صفحات الدروس وحل التدريبات.',
+    units: [
+      { title: 'دليل الأسرة والتهيئة والاستعداد', fromPage: 1, toPage: 38 },
+      { title: 'الوحدة الأولى: أسرتي (م، ب، ل، د، ن، ر)', fromPage: 39, toPage: 110 },
+      { title: 'الوحدة الثانية: مدرستي (ص، ف، س، ق، ت، ح)', fromPage: 111, toPage: 180 },
+      { title: 'الوحدة الثالثة: مدينتي (أ، ط، ز، و، ج، ش)', fromPage: 181, toPage: 266 },
+    ],
+  },
+  {
+    slug: 'math',
+    title: 'الرياضيات',
+    shortTitle: 'الرياضيات',
+    subtitle: 'كتاب الطالب وحل التمارين التفاعلية',
+    grade: 'الصف الأول الابتدائي',
+    term: 'الفصل الدراسي الأول',
+    year: '1448هـ',
+    pageCount: 155,
+    color: '#1d4ed8',
+    accent: '#3b82f6',
+    badge: 'الأعداد والعمليات',
+    promise: 'كتاب الرياضيات التفاعلي للصف الأول الابتدائي يشمل تدريبات المقارنة والتصنيف، الأعداد حتى 20، والجمع والطرح التفاعلي.',
+    units: [
+      { title: 'الفصل 1: المقارنة والتصنيف', fromPage: 1, toPage: 32 },
+      { title: 'الفصل 2: الأعداد حتى 5', fromPage: 33, toPage: 56 },
+      { title: 'الفصل 3: الموقع والنمط', fromPage: 57, toPage: 80 },
+      { title: 'الفصل 4: الأعداد حتى 10', fromPage: 81, toPage: 114 },
+      { title: 'الفصل 5: الأعداد حتى 20 ومقدمة الجمع', fromPage: 115, toPage: 155 },
+    ],
+  },
+  {
+    slug: 'islamic',
+    title: 'الدراسات الإسلامية',
+    shortTitle: 'الدراسات الإسلامية',
+    subtitle: 'القرآن الكريم، التوحيد، الفقه والسلوك',
+    grade: 'الصف الأول الابتدائي',
+    term: 'الفصل الدراسي الأول',
+    year: '1448هـ',
+    pageCount: 84,
+    color: '#065f46',
+    accent: '#14b8a6',
+    badge: 'القرآن والعقيدة والآداب',
+    promise: 'كتاب الدراسات الإسلامية التفاعلي يشمل سور القرآن الكريم المقررة، أركان الإسلام، والآداب والسلوكيات اليومية مع التدريبات التفاعلية.',
+    units: [
+      { title: 'القسم الأول: القرآن الكريم وتلاوته', fromPage: 1, toPage: 30 },
+      { title: 'القسم الثاني: التوحيد والعقيدة الإسلامية', fromPage: 31, toPage: 54 },
+      { title: 'القسم الثالث: الفقه والسلوك والآداب', fromPage: 55, toPage: 84 },
+    ],
+  },
+  {
+    slug: 'science',
+    title: 'العلوم',
+    shortTitle: 'العلوم',
+    subtitle: 'كتاب الطالب والتجارب والاستكشاف',
+    grade: 'الصف الأول الابتدائي',
+    term: 'الفصل الدراسي الأول',
+    year: '1448هـ',
+    pageCount: 119,
+    color: '#b45309',
+    accent: '#f59e0b',
+    badge: 'الاستكشاف والتفكير العلمي',
+    promise: 'كتاب العلوم التفاعلي للصف الأول الابتدائي يغطي دراسة الكائنات الحية، النباتات، الحيوانات، ومواطن العيش.',
+    units: [
+      { title: 'الوحدة الأولى: النباتات ومخلوقات حية', fromPage: 1, toPage: 46 },
+      { title: 'الوحدة الثانية: الحيوانات ومواطنها', fromPage: 47, toPage: 82 },
+      { title: 'الوحدة الثالثة: أرضنا والبيئة ومواردها', fromPage: 83, toPage: 119 },
+    ],
+  },
+  {
+    slug: 'english',
+    title: 'اللغة الإنجليزية (We Can 1)',
+    shortTitle: 'الإنجليزية We Can',
+    subtitle: "Student's Book & Interactive Phonics",
+    grade: 'الصف الأول الابتدائي',
+    term: 'First Semester',
+    year: '1448H',
+    pageCount: 108,
+    color: '#4338ca',
+    accent: '#6366f1',
+    badge: 'English & Phonics',
+    promise: 'كتاب اللغة الإنجليزية We Can 1 التفاعلي يتيح للطالب التدرب على الحروف والكلمات الأولى والمحادثات البسيطة.',
+    units: [
+      { title: 'Unit 1: Feelings & Greetings', fromPage: 1, toPage: 20 },
+      { title: 'Unit 2: Things We Wear', fromPage: 21, toPage: 38 },
+      { title: 'Unit 3: Things on the Desk & Classroom', fromPage: 39, toPage: 58 },
+      { title: 'Phonics & Alphabet Practice', fromPage: 59, toPage: 80 },
+      { title: 'Picture Dictionary & Workbook', fromPage: 81, toPage: 108 },
+    ],
+  },
+  {
+    slug: 'life-skills',
+    title: 'المهارات الحياتية والأسرية',
+    shortTitle: 'المهارات الحياتية',
+    subtitle: 'كتاب الطالب والتطبيقات الحياتية',
+    grade: 'الصف الأول الابتدائي',
+    term: 'الفصل الدراسي الأول',
+    year: '1448هـ',
+    pageCount: 82,
+    color: '#c026d3',
+    accent: '#d946ef',
+    badge: 'المهارات والسلوك والاستقلالية',
+    promise: 'كتاب المهارات الحياتية والأسرية التفاعلي يركز على تنمية مهارات الطفل الاستقلالية والنظافة والسلامة.',
+    units: [
+      { title: 'الوحدة الأولى: صحتي وسلامتي', fromPage: 1, toPage: 34 },
+      { title: 'الوحدة الثانية: شخصيتي ومسؤوليتي في المنزل', fromPage: 35, toPage: 58 },
+      { title: 'الوحدة الثالثة: وقتي وألعابي وتنظيم يومي', fromPage: 59, toPage: 82 },
+    ],
+  },
+  {
+    slug: 'art',
+    title: 'التربية الفنية',
+    shortTitle: 'التربية الفنية',
+    subtitle: 'كتاب الطالب والتعبير الفني والتشكيل',
+    grade: 'الصف الأول الابتدائي',
+    term: 'الفصل الدراسي الأول',
+    year: '1448هـ',
+    pageCount: 85,
+    color: '#e11d48',
+    accent: '#f43f5e',
+    badge: 'الرسم والتعبير الإبداعي',
+    promise: 'كتاب التربية الفنية التفاعلي يتيح للطفل التلوين، التشكيل، الرسم الحر، ومحاكاة النماذج الفنية.',
+    units: [
+      { title: 'الوحدة الأولى: مجال الرسم والتلوين', fromPage: 1, toPage: 32 },
+      { title: 'الوحدة الثانية: مجال الزخرفة البسيطة', fromPage: 33, toPage: 50 },
+      { title: 'الوحدة الثالثة: مجال الطباعة بالألوان', fromPage: 51, toPage: 66 },
+      { title: 'الوحدة الرابعة: مجال التشكيل والتجسيم', fromPage: 67, toPage: 85 },
+    ],
+  },
+  {
+    slug: 'quran',
+    title: 'جزء عمّ — القرآن الكريم',
+    shortTitle: 'جزء عمّ',
+    subtitle: 'عرض تفاعلي للقراءة والحفظ والتلاوة',
+    grade: 'الصف الأول الابتدائي',
+    term: 'الفصل الدراسي الأول',
+    year: '1448هـ',
+    pageCount: 72,
+    color: '#065f46',
+    accent: '#d97706',
+    badge: 'القرآن الكريم — الجزء الثلاثون',
+    promise: 'عرض تفاعلي لجزء عمّ كامل بخط واضح وتصفح فوري فائق السرعة مخصص للقراءة والحفظ والمتابعة.',
+    units: [
+      { title: 'سورة النبأ، النازعات، وعبس', fromPage: 1, toPage: 18 },
+      { title: 'سورة التكوير إلى سورة الطارق', fromPage: 19, toPage: 36 },
+      { title: 'سورة الأعلى إلى سورة الشرح', fromPage: 37, toPage: 54 },
+      { title: 'سورة التين إلى سورة الناس', fromPage: 55, toPage: 72 },
+    ],
+  },
+];
 
 // ── Local Storage Helper with Cloud Fallback ──────────────────────────────────
 
@@ -982,5 +1361,165 @@ export const nexusBridge = {
       honorRollStudents: students.filter((s) => s.status === 'excellent').length,
       supportNeededStudents: students.filter((s) => s.status === 'warning').length,
     };
+  },
+
+  // ── Class Events & Activities Photos ─────────────────────────────────────────
+  getClassEvents(): ClassEventItem[] {
+    return getItem<ClassEventItem[]>(KEYS.EVENTS, INITIAL_CLASS_EVENTS);
+  },
+
+  saveClassEvent(event: Omit<ClassEventItem, 'id' | 'createdAt'>): ClassEventItem {
+    const all = this.getClassEvents();
+    const newEvent: ClassEventItem = {
+      ...event,
+      id: `evt-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setItem(KEYS.EVENTS, [newEvent, ...all]);
+    return newEvent;
+  },
+
+  deleteClassEvent(id: string): void {
+    const all = this.getClassEvents().filter((e) => e.id !== id);
+    setItem(KEYS.EVENTS, all);
+  },
+
+  // ── Virtual Parent-Teacher Meetings ─────────────────────────────────────────
+  getMeetings(): ClassMeetingItem[] {
+    return getItem<ClassMeetingItem[]>(KEYS.MEETINGS, INITIAL_MEETINGS);
+  },
+
+  createMeeting(meeting: Omit<ClassMeetingItem, 'id' | 'createdAt'>): ClassMeetingItem {
+    const all = this.getMeetings();
+    const newMeeting: ClassMeetingItem = {
+      ...meeting,
+      id: `meet-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setItem(KEYS.MEETINGS, [newMeeting, ...all]);
+    return newMeeting;
+  },
+
+  deleteMeeting(id: string): void {
+    const all = this.getMeetings().filter((m) => m.id !== id);
+    setItem(KEYS.MEETINGS, all);
+  },
+
+  // ── Comprehensive Weekly Reports ────────────────────────────────────────────
+  getWeeklyReports(studentId?: string): StudentWeeklyReport[] {
+    const defaultReports: StudentWeeklyReport[] = this.getStudents().map((s, i) => ({
+      id: `rep-${s.id}`,
+      reportNumber: `NEXUS-REP-2026-${1000 + i}`,
+      studentId: s.id,
+      studentName: s.fullName,
+      weekTitle: 'تقرير الأسبوع الدراسي الرابع — الفصل الدراسي الأول',
+      date: '2026-09-24',
+      attendanceRate: s.attendanceRate,
+      homeworkRate: 95,
+      behaviorScore: 98,
+      overallGrade: s.averageGrade >= 95 ? 'ممتاز مع مرتبة الشرف 🏆' : 'ممتاز ⭐',
+      teacherNotes: `طالب رائع ومثابر في فصل د. إسماعيل عيسى، يظهر تفاعلاً مستمراً في حصص لغتي والقرآن الكريم.`,
+      recommendation: 'يُنصح بمواصلة القراءة الإثرائية اليومية وحفظ السور المقررة.',
+      doctorName: 'د. إسماعيل عيسى',
+      createdAt: '2026-09-24T12:00:00Z',
+    }));
+    const all = getItem<StudentWeeklyReport[]>(KEYS.REPORTS, defaultReports);
+    if (studentId) return all.filter((r) => r.studentId === studentId);
+    return all;
+  },
+
+  saveWeeklyReport(rep: Omit<StudentWeeklyReport, 'id' | 'createdAt' | 'reportNumber'>): StudentWeeklyReport {
+    const all = this.getWeeklyReports();
+    const num = `NEXUS-REP-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    const newRep: StudentWeeklyReport = {
+      ...rep,
+      id: `rep-${Date.now()}`,
+      reportNumber: num,
+      createdAt: new Date().toISOString(),
+    };
+    const existingIdx = all.findIndex((r) => r.studentId === rep.studentId);
+    if (existingIdx >= 0) {
+      all[existingIdx] = newRep;
+      setItem(KEYS.REPORTS, [...all]);
+    } else {
+      setItem(KEYS.REPORTS, [newRep, ...all]);
+    }
+    return newRep;
+  },
+
+  generateAllWeeklyReports(): StudentWeeklyReport[] {
+    const students = this.getStudents();
+    const todayAtt = this.getTodayAttendance();
+    const reports: StudentWeeklyReport[] = students.map((s, idx) => {
+      const att = todayAtt.find((a) => a.studentId === s.id);
+      return {
+        id: `rep-${s.id}-${Date.now()}`,
+        reportNumber: `NEXUS-REP-2026-${2000 + idx}`,
+        studentId: s.id,
+        studentName: s.fullName,
+        weekTitle: 'التقرير الأكاديمي الشامل — فصل د. إسماعيل عيسى',
+        date: new Date().toISOString().split('T')[0],
+        attendanceRate: s.attendanceRate,
+        homeworkRate: 95,
+        behaviorScore: s.averageGrade,
+        overallGrade: s.averageGrade >= 90 ? 'ممتاز مع مرتبة الشرف 🏆' : 'جيد جداً مرتفع ⭐',
+        teacherNotes: `طالب متميز بفصل د. إسماعيل عيسى، متفاعل في حصص اليوم وكان حضوره: ${att?.overallStatus === 'present' ? 'حاضر ومنضبط' : 'مسجل'}.`,
+        recommendation: 'الاستمرار في المراجعة اليومية واستكمال الواجبات الإلكترونية.',
+        doctorName: 'د. إسماعيل عيسى',
+        createdAt: new Date().toISOString(),
+      };
+    });
+    setItem(KEYS.REPORTS, reports);
+    return reports;
+  },
+
+  // ── Parents Community Forum & Messages ──────────────────────────────────────
+  getCommunityMessages(): CommunityMessage[] {
+    return getItem<CommunityMessage[]>(KEYS.COMMUNITY_MSGS, INITIAL_COMMUNITY_MESSAGES);
+  },
+
+  sendCommunityMessage(msg: Omit<CommunityMessage, 'id' | 'createdAt'>): CommunityMessage {
+    const all = this.getCommunityMessages();
+    const newMsg: CommunityMessage = {
+      ...msg,
+      id: `cmsg-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setItem(KEYS.COMMUNITY_MSGS, [...all, newMsg]);
+    return newMsg;
+  },
+
+  toggleMessagePin(id: string): void {
+    const all = this.getCommunityMessages();
+    const target = all.find((m) => m.id === id);
+    if (target) {
+      target.isPinned = !target.isPinned;
+      setItem(KEYS.COMMUNITY_MSGS, [...all]);
+    }
+  },
+
+  // ── Live Broadcast Sessions ─────────────────────────────────────────────────
+  getLiveSessions(): LiveSessionItem[] {
+    return getItem<LiveSessionItem[]>(KEYS.LIVE_SESSIONS, INITIAL_LIVE_SESSIONS);
+  },
+
+  createLiveSession(session: Omit<LiveSessionItem, 'id' | 'startedAt'>): LiveSessionItem {
+    const all = this.getLiveSessions();
+    const newSession: LiveSessionItem = {
+      ...session,
+      id: `live-${Date.now()}`,
+      startedAt: new Date().toISOString(),
+    };
+    setItem(KEYS.LIVE_SESSIONS, [newSession, ...all]);
+    return newSession;
+  },
+
+  // ── Curricula & Textbooks ───────────────────────────────────────────────────
+  getCurricula(): CurriculumSubject[] {
+    return CURRICULA_LIST;
+  },
+
+  getCurriculumBySlug(slug: string): CurriculumSubject | undefined {
+    return CURRICULA_LIST.find((c) => c.slug === slug);
   },
 };
