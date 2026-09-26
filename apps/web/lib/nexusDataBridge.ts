@@ -1047,6 +1047,15 @@ function getItem<T>(key: string, defaultValue: T): T {
   }
 }
 
+async function syncToFirestore(coll: string, id: string, data: any): Promise<void> {
+  if (typeof window === 'undefined' || !db) return;
+  try {
+    await setDoc(doc(db, coll, id), data, { merge: true });
+  } catch (err) {
+    console.warn(`[FirestoreSync] ${coll}/${id} offline save:`, err);
+  }
+}
+
 function setItem<T>(key: string, value: T): void {
   if (typeof window === 'undefined') return;
   try {
@@ -1061,6 +1070,33 @@ function setItem<T>(key: string, value: T): void {
 // ── Data Access APIs ─────────────────────────────────────────────────────────
 
 export const nexusBridge = {
+  // Cloud Pull
+  async pullCloudData(): Promise<void> {
+    if (typeof window === 'undefined' || !db) return;
+    try {
+      const collectionsToSync = [
+        { name: 'class_students', key: KEYS.STUDENTS },
+        { name: 'reports', key: KEYS.REPORTS },
+        { name: 'class_events', key: KEYS.EVENTS },
+        { name: 'class_meetings', key: KEYS.MEETINGS },
+        { name: 'community_messages', key: KEYS.COMMUNITY_MSGS },
+        { name: 'live_sessions', key: KEYS.LIVE_SESSIONS },
+      ];
+      for (const item of collectionsToSync) {
+        const snap = await getDocs(collection(db, item.name));
+        if (!snap.empty) {
+          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          if (list.length > 0) {
+            localStorage.setItem(item.key, JSON.stringify(list));
+          }
+        }
+      }
+      window.dispatchEvent(new CustomEvent('nexus:data-changed'));
+    } catch (e) {
+      console.warn('[FirestoreSync] Cloud pull offline/skipped:', e);
+    }
+  },
+
   // Accounts
   getAccounts(): NexusAccount[] {
     return NEXUS_CORE_ACCOUNTS;
@@ -1108,6 +1144,11 @@ export const nexusBridge = {
       list.unshift(student);
     }
     setItem(KEYS.STUDENTS, list);
+    syncToFirestore('class_students', student.id, student);
+  },
+
+  saveClassStudent(student: ClassStudentRecord): void {
+    this.saveStudent(student);
   },
 
   // Attendance
@@ -1224,6 +1265,7 @@ export const nexusBridge = {
     if (idx >= 0) all[idx] = hw;
     else all.unshift(hw);
     setItem(KEYS.HOMEWORK, all);
+    syncToFirestore('homework', hw.id, hw);
   },
 
   getHomeworkSubmissions(assignmentId?: string): HomeworkSubmission[] {
@@ -1254,6 +1296,7 @@ export const nexusBridge = {
       status: 'submitted',
     };
     setItem(KEYS.HW_SUBMISSIONS, [newSub, ...all]);
+    syncToFirestore('student_homework_logs', newSub.id, newSub);
     return newSub;
   },
 
@@ -1265,6 +1308,7 @@ export const nexusBridge = {
       all[idx].feedback = feedback;
       all[idx].status = 'reviewed';
       setItem(KEYS.HW_SUBMISSIONS, [...all]);
+      syncToFirestore('student_homework_logs', all[idx].id, all[idx]);
     }
   },
 
@@ -1286,6 +1330,7 @@ export const nexusBridge = {
       createdAt: new Date().toISOString(),
     };
     setItem(KEYS.CERTIFICATES, [newCert, ...all]);
+    syncToFirestore('student_cert_logs', newCert.id, newCert);
     return newCert;
   },
 
@@ -1327,7 +1372,12 @@ export const nexusBridge = {
       createdAt: new Date().toISOString(),
     };
     setItem(KEYS.OBSERVATIONS, [newObs, ...all]);
+    syncToFirestore('student_notes', newObs.id, newObs);
     return newObs;
+  },
+
+  saveObservation(obs: Omit<BehavioralObservation, 'id' | 'createdAt'>): BehavioralObservation {
+    return this.addObservation(obs);
   },
 
   // School-wide Live KPIs (for Principal, VP, Supervisor, Admin)
@@ -1376,6 +1426,7 @@ export const nexusBridge = {
       createdAt: new Date().toISOString(),
     };
     setItem(KEYS.EVENTS, [newEvent, ...all]);
+    syncToFirestore('class_events', newEvent.id, newEvent);
     return newEvent;
   },
 
@@ -1397,6 +1448,7 @@ export const nexusBridge = {
       createdAt: new Date().toISOString(),
     };
     setItem(KEYS.MEETINGS, [newMeeting, ...all]);
+    syncToFirestore('class_meetings', newMeeting.id, newMeeting);
     return newMeeting;
   },
 
@@ -1444,6 +1496,7 @@ export const nexusBridge = {
     } else {
       setItem(KEYS.REPORTS, [newRep, ...all]);
     }
+    syncToFirestore('reports', newRep.id, newRep);
     return newRep;
   },
 
@@ -1470,6 +1523,7 @@ export const nexusBridge = {
       };
     });
     setItem(KEYS.REPORTS, reports);
+    reports.forEach((r) => syncToFirestore('reports', r.id, r));
     return reports;
   },
 
@@ -1486,6 +1540,7 @@ export const nexusBridge = {
       createdAt: new Date().toISOString(),
     };
     setItem(KEYS.COMMUNITY_MSGS, [...all, newMsg]);
+    syncToFirestore('community_messages', newMsg.id, newMsg);
     return newMsg;
   },
 

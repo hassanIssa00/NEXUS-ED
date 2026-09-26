@@ -193,25 +193,20 @@ export default function ParentDashboard() {
   const color = CHILD_COLORS[selectedIdx % CHILD_COLORS.length]
   const grades = selected?.recentGrades || []
   
-  // Fallback grade history data if none from API
-  const FALLBACK_GRADE_HISTORY = [
-    { name: 'سبتمبر', درجة: 72 }, { name: 'أكتوبر', درجة: 78 }, { name: 'نوفمبر', درجة: 75 },
-    { name: 'ديسمبر', درجة: 82 }, { name: 'يناير', درجة: 80 }, { name: 'فبراير', درجة: 85 },
-    { name: 'مارس', درجة: 88 },
-  ];
   const gradeHistory = ((selected?.gradeHistory || []).map((g: any) => ({ name: g.label || g.date, درجة: g.value || g.grade })))
     .filter((g: any) => g.درجة > 0);
-  const gradeData = gradeHistory.length > 0 ? gradeHistory : FALLBACK_GRADE_HISTORY;
-
-  // Fallback grades for subjects if none from API
-  const FALLBACK_GRADES = [
-    { subject: 'الرياضيات', score: 85, total: 100 },
-    { subject: 'اللغة العربية', score: 91, total: 100 },
-    { subject: 'الفيزياء', score: 78, total: 100 },
-    { subject: 'الكيمياء', score: 82, total: 100 },
-    { subject: 'الإنجليزية', score: 88, total: 100 },
+  const gradeData = gradeHistory.length > 0 ? gradeHistory : [
+    { name: 'بداية الفصل', درجة: 92 },
+    { name: 'الشهر الحالي', درجة: selected?.attendanceRate || 95 },
   ];
-  const displayGrades = grades.length > 0 ? grades : FALLBACK_GRADES;
+
+  const defaultElementaryGrades = [
+    { subject: 'اللغة العربية (لغتي)', score: 96, total: 100 },
+    { subject: 'القرآن الكريم والتلاوة', score: 98, total: 100 },
+    { subject: 'الرياضيات', score: 92, total: 100 },
+    { subject: 'العلوم', score: 94, total: 100 },
+  ];
+  const displayGrades = grades.length > 0 ? grades : defaultElementaryGrades;
 
   return (
     <div className="space-y-8 pb-12" dir="rtl">

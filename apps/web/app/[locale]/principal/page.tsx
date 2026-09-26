@@ -413,7 +413,7 @@ function PrincipalDashboardInner() {
             </ResponsiveContainer>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={[{name:'يناير', طلاب: 4000}, {name:'فبراير', طلاب: 4200}, {name:'مارس', طلاب: 4500}]} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+              <AreaChart data={[{name:'بداية الفصل', طلاب: 8}, {name:'منتصف الفصل', طلاب: 8}, {name:'الشهر الحالي', طلاب: 8}]} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorEnrollFallback" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
@@ -502,15 +502,14 @@ function PrincipalDashboardInner() {
             </ResponsiveContainer>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={[{name:'يناير', إيرادات: 100000}, {name:'فبراير', إيرادات: 150000}, {name:'مارس', إيرادات: 250000}]} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+              <BarChart data={[{name:'المحصل', إيرادات: 24500}, {name:'المتبقي', إيرادات: 3500}]} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-gray-100 dark:text-gray-800/50" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="إيرادات" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={32}>
-                  <Cell fill="#34d399" />
-                  <Cell fill="#34d399" />
                   <Cell fill="#10b981" />
+                  <Cell fill="#f59e0b" />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -536,22 +535,22 @@ function PrincipalDashboardInner() {
               <div className="space-y-1">
                 {recentActivity.slice(0, 8).map((item: any, i: number) => (
                   <AlertRow key={i}
-                    type={item.action?.includes('absent') ? 'warning' : item.action?.includes('delete') ? 'urgent' : 'info'}
-                    text={`${item.actor || 'مستخدم'}: ${item.action || 'إجراء'}`}
-                    time={new Date(item.createdAt).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' })} />
+                    type={item.type || (item.action?.includes('absent') ? 'warning' : 'info')}
+                    text={item.text || `${item.actor || 'النظام'}: ${item.action || 'إجراء'}`}
+                    time={item.time || new Date(item.createdAt || Date.now()).toLocaleDateString('ar-SA')} />
                 ))}
               </div>
             ) : (
               <div className="space-y-1">
                  {[
-                   { action: 'تسجيل حالة غياب مكررة للطالب أحمد', actor: 'نورة سعد', createdAt: new Date().toISOString() },
-                   { action: 'تصدير التقرير المالي للربع الأول', actor: 'المدير المالي', createdAt: new Date(Date.now() - 3600000).toISOString() },
-                   { action: 'تحديث الجداول الدراسية الأسبوعية', actor: 'وكيل المدرسة', createdAt: new Date(Date.now() - 7200000).toISOString() }
+                   { text: 'تسجيل الحضور اليومي لطلاب فصل د. إسماعيل عيسى', type: 'success', time: 'اليوم' },
+                   { text: 'نشر واجب منزلي جديد في مادة لغتي', type: 'info', time: 'أمس' },
+                   { text: 'منح شهادة تميز للطالب أحمد فيصل الغامدي', type: 'success', time: 'هذا الأسبوع' },
                  ].map((item, i) => (
-                   <AlertRow key={`mock-${i}`}
-                     type="info"
-                     text={`${item.actor}: ${item.action}`}
-                     time={new Date(item.createdAt).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' })} />
+                   <AlertRow key={`act-${i}`}
+                     type={item.type}
+                     text={item.text}
+                     time={item.time} />
                  ))}
               </div>
             )}

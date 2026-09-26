@@ -6,31 +6,24 @@ import { Heart, Users, AlertCircle, FileText, MessageSquare, Brain, Shield, Cale
 import { apiClient } from '@/lib/api/client';
 import { useAuth } from '@/contexts/auth-context';
 
-const studentCases = [
-    { id: 1, student: 'فهد خالد', grade: 'الصف 11 - أ', type: 'سلوكي', status: 'قيد المتابعة', urgency: 'high', desc: 'ميل للعزلة وانخفاض في التحصيل' },
-    { id: 2, student: 'ريم أحمد', grade: 'الصف 10 - ب', type: 'أكاديمي', status: 'جديدة', urgency: 'medium', desc: 'صعوبة في التركيز أثناء الحصص' },
-    { id: 3, student: 'سالم محمد', grade: 'الصف 12 - أ', type: 'نفسي', status: 'قيد المتابعة', urgency: 'high', desc: 'قلق من اختبارات القدرات' },
-    { id: 4, student: 'نورة سعيد', grade: 'الصف 10 - أ', type: 'اجتماعي', status: 'مغلقة', urgency: 'low', desc: 'خلاف بين طالبتين — تم حله' },
+const defaultWeeklyStats = [
+    { label: 'حالات جديدة', value: 0, icon: AlertCircle, color: '#ef4444', bg: 'bg-rose-50 dark:bg-rose-500/10' },
+    { label: 'جلسات إرشادية', value: 0, icon: MessageSquare, color: '#0d9488', bg: 'bg-teal-50 dark:bg-teal-500/10' },
+    { label: 'حالات متابعة', value: 0, icon: Heart, color: '#10b981', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
+    { label: 'إحالات خارجية', value: 0, icon: FileText, color: '#f59e0b', bg: 'bg-amber-50 dark:bg-amber-500/10' },
 ];
 
-const weeklyStats = [
-    { label: 'حالات جديدة', value: 5, icon: AlertCircle, color: '#ef4444', bg: 'bg-rose-50 dark:bg-rose-500/10' },
-    { label: 'جلسات إرشادية', value: 12, icon: MessageSquare, color: '#0d9488', bg: 'bg-teal-50 dark:bg-teal-500/10' },
-    { label: 'حالات مغلقة', value: 3, icon: Heart, color: '#10b981', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
-    { label: 'إحالات خارجية', value: 1, icon: FileText, color: '#f59e0b', bg: 'bg-amber-50 dark:bg-amber-500/10' },
-];
-
-const wellbeingMetrics = [
-    { label: 'الرضا العام للطلاب', value: 82 },
-    { label: 'الشعور بالأمان المدرسي', value: 91 },
-    { label: 'التواصل مع الأقران', value: 76 },
-    { label: 'الدعم الأسري الملموس', value: 68 },
+const defaultWellbeing = [
+    { label: 'الرضا العام للطلاب', value: 95 },
+    { label: 'الشعور بالأمان المدرسي', value: 98 },
+    { label: 'التفاعل مع الأقران', value: 90 },
+    { label: 'المتابعة والتواصل الأسري', value: 92 },
 ];
 
 export default function CounselorDashboard() {
-    const [realCases, setRealCases] = useState<any[]>(studentCases);
-    const [realWeeklyStats, setRealWeeklyStats] = useState<any[]>(weeklyStats);
-    const [realWellbeing, setRealWellbeing] = useState<any[]>(wellbeingMetrics);
+    const [realCases, setRealCases] = useState<any[]>([]);
+    const [realWeeklyStats, setRealWeeklyStats] = useState<any[]>(defaultWeeklyStats);
+    const [realWellbeing, setRealWellbeing] = useState<any[]>(defaultWellbeing);
     const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -77,7 +70,7 @@ export default function CounselorDashboard() {
                     }
                 });
 
-                const activeCases = builtCases.length > 0 ? builtCases : studentCases;
+                const activeCases = builtCases;
                 setRealCases(activeCases);
 
                 const urgentCount = activeCases.filter(c => c.urgency === 'high').length;

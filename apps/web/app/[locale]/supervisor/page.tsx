@@ -6,24 +6,17 @@ import { Users, BookOpen, ClipboardCheck, BarChart3, AlertTriangle, TrendingUp, 
 import { apiClient } from '@/lib/api/client';
 import { useAuth } from '@/contexts/auth-context';
 
-const visitData = [
-    { id: 1, teacher: 'أ. أحمد محمد', subject: 'الرياضيات', class: 'الصف 10 - أ', date: '2026-03-20', rating: 4.5, status: 'مكتملة' },
-    { id: 2, teacher: 'أ. سارة خالد', subject: 'اللغة العربية', class: 'الصف 11 - ب', date: '2026-03-19', rating: 4.0, status: 'مكتملة' },
-    { id: 3, teacher: 'د. حسن عمر', subject: 'الفيزياء', class: 'الصف 12 - أ', date: '2026-03-22', rating: 0, status: 'مجدولة' },
-    { id: 4, teacher: 'أ. نورة سعد', subject: 'الكيمياء', class: 'الصف 10 - ج', date: '2026-03-23', rating: 0, status: 'مجدولة' },
-];
-
-const performanceMetrics = [
-    { label: 'تحضير الدروس', value: 92 },
-    { label: 'التفاعل مع الطلاب', value: 85 },
-    { label: 'استخدام التقنية', value: 78 },
-    { label: 'إدارة الصف', value: 88 },
-    { label: 'التقويم المستمر', value: 81 },
+const initialPerformanceMetrics = [
+    { label: 'تحضير الدروس والخطط', value: 98 },
+    { label: 'التفاعل الصفي والمشاركة', value: 96 },
+    { label: 'استخدام التقنية والمنصات', value: 95 },
+    { label: 'إدارة الصف والانضباط', value: 97 },
+    { label: 'التقويم المستمر والواجبات', value: 98 },
 ];
 
 export default function SupervisorDashboard() {
-    const [realVisitData, setRealVisitData] = useState<any[]>(visitData);
-    const [realPerformanceMetrics, setRealPerformanceMetrics] = useState<any[]>(performanceMetrics);
+    const [realVisitData, setRealVisitData] = useState<any[]>([]);
+    const [realPerformanceMetrics, setRealPerformanceMetrics] = useState<any[]>(initialPerformanceMetrics);
     const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [planModalOpen, setPlanModalOpen] = useState(false);
@@ -48,14 +41,30 @@ export default function SupervisorDashboard() {
                     {
                         id: 1,
                         teacher: 'د. إسماعيل عيسى',
-                        subject: 'اللغة العربية والقرآن الكريم',
+                        subject: 'اللغة العربية (لغتي)',
                         class: metrics.className || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
                         date: new Date().toISOString().split('T')[0],
                         rating: 5.0,
                         status: 'مكتملة',
                     },
-                    { id: 2, teacher: 'أ. سارة خالد', subject: 'اللغة الإنجليزية', class: 'الصف الأول الابتدائي', date: '2026-03-19', rating: 4.5, status: 'مكتملة' },
-                    { id: 3, teacher: 'أ. منصور القحطاني', subject: 'التربية البدنية', class: 'الصف الأول الابتدائي', date: '2026-03-26', rating: 0, status: 'مجدولة' },
+                    {
+                        id: 2,
+                        teacher: 'د. إسماعيل عيسى',
+                        subject: 'القرآن الكريم والتلاوة',
+                        class: metrics.className || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
+                        date: '2026-09-15',
+                        rating: 5.0,
+                        status: 'مكتملة',
+                    },
+                    {
+                        id: 3,
+                        teacher: 'د. إسماعيل عيسى',
+                        subject: 'الرياضيات والعلوم',
+                        class: metrics.className || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
+                        date: '2026-09-20',
+                        rating: 4.9,
+                        status: 'مكتملة',
+                    },
                 ];
                 setRealVisitData(visits);
 
