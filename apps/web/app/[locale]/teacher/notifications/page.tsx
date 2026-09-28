@@ -47,7 +47,7 @@ export default function NotificationsPage() {
     // Load teacher's classes
     useEffect(() => {
         const DEFAULT_CLASSES = [
-            { id: 'cls-ismail-1', name: 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى' },
+            { id: 'cls-ismail-1', name: 'الصف الأول الابتدائي — الفئة (أ)' },
         ];
         apiClient.get('/api/notifications/my-classes')
             .then(res => {

@@ -15,9 +15,9 @@ export default function AdminDashboardPage() {
     ];
 
     const recentUsers = [
-        { name: 'أحمد محمد', role: 'طالب', status: 'active', email: 'ahmed@million.com', joined: '2024-12-01' },
-        { name: 'فاطمة علي', role: 'معلم', status: 'active', email: 'fatima@million.com', joined: '2024-12-02' },
-        { name: 'محمد حسن', role: 'ولي أمر', status: 'pending', email: 'mohamed@million.com', joined: '2024-12-03' },
+        { name: 'أحمد فيصل الغامدي', role: 'طالب', status: 'active', email: 'ahmed.faisal@nexus.edu.sa', joined: '2026-08-15' },
+        { name: 'د. إسماعيل عيسى', role: 'معلم (رائد الفصل)', status: 'active', email: 'ismail.issa@nexus.edu.sa', joined: '2026-08-01' },
+        { name: 'فيصل الغامدي', role: 'ولي أمر', status: 'active', email: 'faisal.alghamdi@nexus.edu.sa', joined: '2026-08-15' },
     ];
 
     const systemHealth = [

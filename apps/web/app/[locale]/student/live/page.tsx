@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Radio, Play, Clock, Users, Eye, Sparkles, Video, CheckCircle2 } from 'lucide-react'
+import { Radio, Play, Clock, Users, Eye, Sparkles, Video, CheckCircle2, Tv } from 'lucide-react'
 import type { LiveSessionItem } from '@/lib/nexusDataBridge'
 
 export default function StudentLivePage() {
@@ -38,31 +38,40 @@ export default function StudentLivePage() {
             {liveSessions.length > 0
               ? <motion.div animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 1.5, repeat: Infinity }} className="w-2 h-2 rounded-full bg-red-500" />
               : <Sparkles className="w-3.5 h-3.5 text-yellow-300" />}
-            <span className="text-xs font-bold text-indigo-100">البث المباشر</span>
+            <span className="text-xs font-bold text-indigo-100">البث المباشر للحصص</span>
           </div>
-          <h1 className="text-4xl font-black mb-2 tracking-tight">الحصص المباشرة والمسجلة 📡</h1>
-          <p className="text-indigo-100 text-sm font-medium">شارك في حصص د. إسماعيل عيسى المباشرة وتابع التسجيلات</p>
+          <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight">الحصص المباشرة والمسجلة 📡</h1>
+          <p className="text-indigo-100 text-sm font-medium">متابعة البث المباشر للحصص الدراسية والتسجيلات التعليمية المعتمدة</p>
           <div className="mt-5 flex flex-wrap gap-3">
             <div className="bg-white/10 border border-white/15 backdrop-blur-md px-4 py-2.5 rounded-2xl">
-              <p className="text-[10px] text-indigo-200 font-medium">بث مباشر الآن</p>
-              <p className="text-lg font-black text-red-400">{liveSessions.length > 0 ? 'مباشر 🔴' : 'لا يوجد'}</p>
+              <p className="text-[10px] text-indigo-200 font-medium">حالة البث المباشر</p>
+              <p className="text-sm font-black text-white">{liveSessions.length > 0 ? 'مباشر الآن 🔴' : 'لا يوجد بث نشط حالياً ⚪'}</p>
             </div>
             <div className="bg-white/10 border border-white/15 backdrop-blur-md px-4 py-2.5 rounded-2xl">
-              <p className="text-[10px] text-indigo-200 font-medium">حصص مسجلة</p>
-              <p className="text-lg font-black">{recorded.length}</p>
+              <p className="text-[10px] text-indigo-200 font-medium">الحصص المسجلة</p>
+              <p className="text-sm font-black text-white">{recorded.length} حصص</p>
             </div>
           </div>
         </div>
       </motion.div>
 
-      {liveSessions.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
-            <motion.div animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 1, repeat: Infinity }}
-              className="w-3 h-3 rounded-full bg-red-500" />
-            يُبث الآن
-          </h2>
-          {liveSessions.map(session => (
+      {/* LIVE BROADCAST SECTION */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
+          <Radio className="w-5 h-5 text-red-500" />
+          البث المباشر
+        </h2>
+
+        {liveSessions.length === 0 ? (
+          <div className="bg-white/80 dark:bg-[#1e1e2d]/80 rounded-3xl p-10 text-center border border-gray-100 dark:border-white/5 space-y-2">
+            <Tv className="w-12 h-12 text-gray-400 mx-auto opacity-50" />
+            <h3 className="font-bold text-gray-800 dark:text-gray-200 text-base">لا توجد حصص تبث مباشرة في الوقت الحالي</h3>
+            <p className="text-xs text-gray-500 max-w-md mx-auto">
+              سيتم إشعارك تلقائياً عند بدء المعلم لأي حصة تفاعلية مباشرة وفق جدول الحصص اليومي.
+            </p>
+          </div>
+        ) : (
+          liveSessions.map(session => (
             <motion.div key={session.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-2 border-red-200 dark:border-red-500/30 rounded-3xl p-6">
               <div className="flex items-start gap-4">
@@ -83,20 +92,28 @@ export default function StudentLivePage() {
                 </a>
               </div>
             </motion.div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
 
+      {/* RECORDED SESSIONS */}
       <div className="space-y-4">
         <h2 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
-          <Video className="w-5 h-5 text-indigo-500" />الحصص المسجلة
+          <Video className="w-5 h-5 text-indigo-500" />
+          الحصص المسجلة
         </h2>
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
           </div>
         ) : recorded.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 font-bold">لا توجد حصص مسجلة بعد</div>
+          <div className="bg-white/80 dark:bg-[#1e1e2d]/80 rounded-3xl p-10 text-center border border-gray-100 dark:border-white/5 space-y-2">
+            <Video className="w-12 h-12 text-gray-400 mx-auto opacity-50" />
+            <h3 className="font-bold text-gray-800 dark:text-gray-200 text-base">لا توجد تسجيلات متاحة حالياً</h3>
+            <p className="text-xs text-gray-500 max-w-md mx-auto">
+              تتم أرشفة الحصص تلقائياً وإتاحة تسجيلاتها للمراجعة فور انتهاء البثوث المباشرة.
+            </p>
+          </div>
         ) : (
           recorded.map((session, i) => (
             <motion.div key={session.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}

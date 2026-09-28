@@ -8,30 +8,30 @@ export default function ParentDashboardPage() {
 
     const children = [
         {
-            id: '1',
-            name: 'أحمد محمد',
-            grade: 'الصف الثامن',
+            id: 'cls-std-2',
+            name: 'أحمد فيصل الغامدي',
+            grade: 'الصف الأول الابتدائي — فئة (أ)',
             avatar: '👦',
-            avgGrade: 92,
-            attendance: 95,
-            assignments: { pending: 2, completed: 18 },
+            avgGrade: 98,
+            attendance: 99,
+            assignments: { pending: 1, completed: 24 },
         },
         {
-            id: '2',
-            name: 'فاطمة محمد',
-            grade: 'الصف السادس',
-            avatar: '👧',
-            avgGrade: 88,
+            id: 'cls-std-17',
+            name: 'تركي فيصل الغامدي',
+            grade: 'الصف الثاني الابتدائي — فئة (أ)',
+            avatar: '👦',
+            avgGrade: 96,
             attendance: 98,
-            assignments: { pending: 1, completed: 20 },
+            assignments: { pending: 2, completed: 22 },
         },
     ];
 
     const recentActivity = [
-        { type: 'grade', text: 'حصل أحمد على 95% في اختبار الرياضيات', time: 'منذ ساعتين', icon: Trophy, color: 'text-green-500' },
-        { type: 'attendance', text: 'فاطمة حضرت جميع الحصص اليوم', time: 'منذ 3 ساعات', icon: Calendar, color: 'text-blue-500' },
-        { type: 'assignment', text: 'أحمد سلّم واجب العلوم', time: 'منذ 5 ساعات', icon: BookOpen, color: 'text-purple-500' },
-        { type: 'message', text: 'رسالة جديدة من معلم الفيزياء', time: 'منذ يوم', icon: MessageCircle, color: 'text-orange-500' },
+        { type: 'grade', text: 'حصل أحمد على 100% في تقييم لغتي اليومي', time: 'منذ ساعتين', icon: Trophy, color: 'text-green-500' },
+        { type: 'attendance', text: 'أحمد حضر الطابور الصباحي وجميع الحصص اليوم', time: 'منذ 3 ساعات', icon: Calendar, color: 'text-blue-500' },
+        { type: 'assignment', text: 'أحمد سلّم واجب القرآن الكريم والتلاوة', time: 'منذ 5 ساعات', icon: BookOpen, color: 'text-purple-500' },
+        { type: 'message', text: 'رسالة جديدة من رائد الفصل د. إسماعيل عيسى', time: 'منذ ساعة', icon: MessageCircle, color: 'text-emerald-500' },
     ];
 
     return (

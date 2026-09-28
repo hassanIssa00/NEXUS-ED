@@ -120,7 +120,7 @@ export default function AttendancePage() {
               التحضير الذكي اليومي 📅
             </h2>
             <Badge className="bg-primary/10 text-primary border-primary/20 text-xs font-bold">
-              فصل د. إسماعيل عيسى
+              الصف الأول الابتدائي — الفئة (أ)
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">

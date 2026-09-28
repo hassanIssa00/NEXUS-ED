@@ -49,7 +49,7 @@ export default function ParentReportsPage() {
               <span className="text-xs font-bold text-amber-100">التقرير الأكاديمي الشامل</span>
             </div>
             <h1 className="text-4xl font-black mb-2 tracking-tight">تقرير تقدم ابنك 📋</h1>
-            <p className="text-amber-100 text-sm font-medium">متابعة دقيقة وشاملة لأداء وتقدم ابنك بفصل د. إسماعيل عيسى</p>
+            <p className="text-amber-100 text-sm font-medium">متابعة دقيقة وشاملة لأداء وتقدم ابنك بالصف الأول الابتدائي (أ)</p>
           </div>
           <button onClick={() => window.print()}
             className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/20 hover:bg-white/30 border border-white/20 text-white font-bold text-sm transition-colors backdrop-blur-md disabled:opacity-50 flex-shrink-0">
@@ -74,7 +74,7 @@ export default function ParentReportsPage() {
             <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
               <div>
                 <h2 className="font-black text-2xl text-gray-900 dark:text-white">{report.studentName}</h2>
-                <p className="text-sm text-gray-500">الصف الأول الابتدائي — فصل د. إسماعيل عيسى</p>
+                <p className="text-sm text-gray-500">الصف الأول الابتدائي — الفئة (أ)</p>
                 <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
                   {new Date(report.date).toLocaleDateString('ar-SA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}

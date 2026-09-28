@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { User, Calendar, IdCard, Users, ArrowLeft, Camera, Sparkles, CheckCircle2 } from 'lucide-react';
+import { User, Calendar, IdCard, Users, ArrowLeft, Camera, Sparkles, CheckCircle2, Upload, Trash2, GraduationCap } from 'lucide-react';
 import type { ClassStudentRecord } from '@/lib/nexusDataBridge';
 
 export default function StudentNewPage() {
@@ -19,6 +19,8 @@ export default function StudentNewPage() {
   const [childrenCount, setChildrenCount] = useState('3');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [stage, setStage] = useState<'kindergarten' | 'elementary' | 'middle' | 'high'>('elementary');
 
   useEffect(() => {
     const load = async () => {
@@ -44,14 +46,64 @@ export default function StudentNewPage() {
 
     try {
       const { nexusBridge } = await import('@/lib/nexusDataBridge');
-      if (student) {
-        nexusBridge.saveClassStudent({
-          ...student,
-          nationalId: nationalId.trim() || student.nationalId,
-          dateOfBirth,
-          notes: notes.trim() || student.notes,
-        });
+            if (photoUrl) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('nexus_student_photo', photoUrl);
+          try {
+            const uStr = localStorage.getItem('nexus_user');
+            if (uStr) {
+              const u = JSON.parse(uStr);
+              u.photoUrl = photoUrl;
+              u.stage = stage;
+              localStorage.setItem('nexus_user', JSON.stringify(u));
+            }
+          } catch {}
+          window.dispatchEvent(new CustomEvent('nexus:data-changed'));
+        }
       }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('nexus_student_stage', stage);
+      }
+      let uName = 'طالب مسجل';
+      let uEmail = '';
+      let uPhone = '';
+      let uId = requestedStudentId || `std_${Date.now()}`;
+      try {
+        const uStr = localStorage.getItem('nexus_user');
+        if (uStr) {
+          const u = JSON.parse(uStr);
+          if (u.name) uName = u.name;
+          if (u.email) uEmail = u.email;
+          if (u.phone) uPhone = u.phone;
+        }
+      } catch {}
+
+      const stageGrade = stage === 'kindergarten' ? 'الروضة' : stage === 'middle' ? 'المرحلة المتوسطة' : stage === 'high' ? 'المرحلة الثانوية' : 'المرحلة الابتدائية';
+      
+      const updatedOrNewStudent = {
+        id: student?.id || uId,
+        universalId: student?.universalId || nexusBridge.generateUniversalId('STD'),
+        fullName: student?.fullName || uName,
+        fullNameEn: student?.fullNameEn || '',
+        grade: student?.grade || stageGrade,
+        classId: student?.classId || 'CLS-101',
+        nationalId: nationalId.trim() || student?.nationalId || '',
+        dateOfBirth: dateOfBirth || student?.dateOfBirth || '2018-01-01',
+        parentName: student?.parentName || '',
+        parentPhone: student?.parentPhone || uPhone,
+        parentEmail: student?.parentEmail || uEmail,
+        photoUrl: photoUrl || student?.photoUrl || undefined,
+        notes: notes.trim() || student?.notes || '',
+        averageGrade: student?.averageGrade ?? 100,
+        attendanceRate: student?.attendanceRate ?? 100,
+        rank: student?.rank ?? 1,
+        assignedProgram: stage === 'kindergarten' ? 'مسار رياض الأطفال' : 'المسار العام',
+        status: student?.status || ('excellent' as const),
+        studentAccountId: student?.studentAccountId || uId,
+        parentAccountId: student?.parentAccountId || '',
+      };
+
+      nexusBridge.saveClassStudent(updatedOrNewStudent);
 
       if (flow === 'student') {
         router.push(`/assessment?student=${requestedStudentId}&flow=student`);
@@ -136,6 +188,95 @@ export default function StudentNewPage() {
               </div>
             </div>
           )}
+
+                    {/* ─── STAGE SELECTION FOR STUDENT ─── */}
+          {!isParent && (
+            <div>
+              <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
+                المرحلة الدراسية للطالب *
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: 'kindergarten', label: 'رياض الأطفال', emoji: '🧸' },
+                  { id: 'elementary', label: 'المرحلة الابتدائية', emoji: '📚' },
+                  { id: 'middle', label: 'المرحلة المتوسطة', emoji: '🔬' },
+                  { id: 'high', label: 'المرحلة الثانوية', emoji: '🎓' },
+                ].map((s) => (
+                  <button
+                    type="button"
+                    key={s.id}
+                    onClick={() => setStage(s.id as any)}
+                    className={`py-2.5 px-3 rounded-2xl text-xs font-black border transition-all flex items-center justify-center gap-1.5 ${
+                      stage === s.id
+                        ? 'bg-teal-600 text-white border-teal-600 shadow-md shadow-teal-600/20'
+                        : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span>{s.emoji}</span>
+                    <span>{s.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ─── PERSONAL PHOTO UPLOAD (اختياري) ─── */}
+          <div>
+            <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
+              الصورة الشخصية (تظهر في البطاقة ولوحة التحكم — اختياري)
+            </label>
+            <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl">
+              <div className="w-16 h-16 rounded-2xl bg-gray-200 dark:bg-white/10 flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 dark:border-white/20 flex-shrink-0 shadow-inner">
+                {photoUrl ? (
+                  <img src={photoUrl} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="w-7 h-7 text-gray-400" />
+                )}
+              </div>
+              <div className="flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 transition-all shadow-sm">
+                    <Upload className="w-3.5 h-3.5 text-teal-600" />
+                    <span>{photoUrl ? 'تغيير الصورة' : 'اختر صورة من جهازك'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            alert('حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت.');
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            if (typeof ev.target?.result === 'string') {
+                              setPhotoUrl(ev.target.result);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                  {photoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoUrl(null)}
+                      className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-red-600 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>حذف</span>
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1.5">
+                  إذا تركتها فارغة، ستظل الخانة جاهزة لتضع صورتك في أي وقت لاحقاً من داخل بطاقتك.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <div>
             <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">ملاحظات إضافية أو تنبيهات صحية خاصة (اختياري)</label>

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Link from 'next/link'
 
 const classes = [
-    { id: 'dr-ismail-1', name: 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى' },
+    { id: 'dr-ismail-1', name: 'الصف الأول الابتدائي — الفئة (أ)' },
 ]
 
 const templates = [

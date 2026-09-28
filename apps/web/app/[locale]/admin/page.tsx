@@ -116,7 +116,7 @@ function AdminDashboardInner() {
           })),
         ].slice(0, 5),
         systemHealth: [
-          { service: 'منظومة الحضور والغياب الذكية (فصل د. إسماعيل عيسى)', status: 'optimal' },
+          { service: 'منظومة الحضور والغياب الذكية (المرحلة الابتدائية)', status: 'optimal' },
           { service: 'نظام إدارة الاختبارات والواجبات', status: 'optimal' },
           { service: 'بوابة الشهادات والتحقق بالباركود', status: 'optimal' },
         ],
@@ -645,14 +645,14 @@ function AdminDashboardInner() {
         <motion.div key="adm-acc" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           <div className="bg-gradient-to-br from-rose-600 via-pink-600 to-purple-600 rounded-[2rem] p-6 text-white shadow-lg">
             <h2 className="text-2xl font-black mb-1">👥 الحسابات الثمانية المعتمدة للمنصة</h2>
-            <p className="text-rose-100 text-sm">إدارة وربط جميع بوابات الدخول الثمانية لنظام Nexus EDU ومطابقتها مع فصل د. إسماعيل</p>
+            <p className="text-rose-100 text-sm">إدارة وربط جميع بوابات الدخول الثمانية لنظام Nexus EDU ومطابقتها مع بيانات المنصة</p>
           </div>
 
           <div className="grid gap-3">
             {[
               { role: 'المعلم', title: 'معلم الفصل والمشرف الأكاديمي', name: 'د. إسماعيل عيسى', email: 'arabic.teacher@nexusedu.sa', path: '/ar/teacher', color: 'from-orange-500 to-amber-600', badge: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400', icon: '👨‍🏫' },
-              { role: 'الطالب', title: 'طالب متميز — فصل د. إسماعيل', name: 'أحمد فيصل الغامدي', email: 'student1@nexusedu.sa', path: '/ar/student', color: 'from-violet-500 to-purple-600', badge: 'bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400', icon: '👦' },
-              { role: 'ولي الأمر', title: 'ولي أمر الطالب أحمد الغامدي', name: 'فيصل الغامدي', email: 'parent1@nexusedu.sa', path: '/ar/parent', color: 'from-emerald-500 to-teal-600', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400', icon: '👨‍👩‍👧' },
+              { role: 'الطالب', title: 'بوابة الطلاب والمسارات التعليمية', name: 'حسابات الطلاب المسجلين', email: 'عبر التسجيل الذاتي أو القبول المدرسي', path: '/ar/student', color: 'from-violet-500 to-purple-600', badge: 'bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400', icon: '👦' },
+              { role: 'ولي الأمر', title: 'بوابة أولياء الأمور والمتابعة المباشرة', name: 'حسابات أولياء الأمور', email: 'عبر ربط بيانات الأبناء بالمنصة', path: '/ar/parent', color: 'from-emerald-500 to-teal-600', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400', icon: '👨‍👩‍👧' },
               { role: 'مدير المدرسة', title: 'الإدارة العامة والمتابعة الشاملة', name: 'م. أحمد الشمري', email: 'principal@nexusedu.sa', path: '/ar/principal', color: 'from-blue-600 to-indigo-700', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400', icon: '🏫' },
               { role: 'وكيل المدرسة', title: 'شؤون الطلاب والانضباط المدرسي', name: 'م. سارة الزهراني', email: 'vice.principal@nexusedu.sa', path: '/ar/vice_principal', color: 'from-pink-600 to-rose-600', badge: 'bg-pink-100 text-pink-700 dark:bg-pink-500/10 dark:text-pink-400', icon: '📋' },
               { role: 'التوجيه الطلابي', title: 'الإرشاد النفسي والسلوكي والرفاهية', name: 'أ. خالد المطيري', email: 'counselor@nexusedu.sa', path: '/ar/counselor', color: 'from-teal-600 to-cyan-600', badge: 'bg-teal-100 text-teal-700 dark:bg-teal-500/10 dark:text-teal-400', icon: '💚' },
@@ -697,7 +697,7 @@ function AdminDashboardInner() {
         <motion.div key="adm-rep" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           <div className="bg-gradient-to-br from-indigo-700 via-blue-700 to-cyan-700 rounded-[2rem] p-6 text-white shadow-lg">
             <h2 className="text-2xl font-black mb-1">📈 التقارير الشاملة وإحصاءات المدرسة</h2>
-            <p className="text-indigo-100 text-sm">ملخص شامل لأداء فصل د. إسماعيل عيسى ومؤشرات الجودة الأكاديمية</p>
+            <p className="text-indigo-100 text-sm">ملخص شامل لأداء طلاب المدرسة ومؤشرات الجودة الأكاديمية</p>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -747,7 +747,7 @@ function AdminDashboardInner() {
       {adminTab === 'system' && (
         <motion.div key="adm-sys" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           <div className="bg-gradient-to-br from-slate-800 via-gray-800 to-zinc-900 rounded-[2rem] p-6 text-white shadow-lg">
-            <h2 className="text-2xl font-black mb-1">🏫 فصل د. إسماعيل عيسى ومزامنة البيانات</h2>
+            <h2 className="text-2xl font-black mb-1">🏫 إدارة الفصول الدراسية ومزامنة البيانات</h2>
             <p className="text-gray-300 text-sm">حالة الربط المركزي، قاعدة البيانات المحلية، وسجلات الطلاب النشطة</p>
           </div>
 
@@ -760,10 +760,10 @@ function AdminDashboardInner() {
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
                   <span className="text-gray-500 font-medium">اسم الفصل</span>
-                  <span className="font-bold text-gray-900 dark:text-white">الصف الأول الابتدائي — فصل د. إسماعيل عيسى</span>
+                  <span className="font-bold text-gray-900 dark:text-white">الصف الأول الابتدائي — الفئة (أ)</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
-                  <span className="text-gray-500 font-medium">معلم الفصل</span>
+                  <span className="text-gray-500 font-medium">رائد الفصل</span>
                   <span className="font-bold text-gray-900 dark:text-white">د. إسماعيل عيسى</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Trophy, Award, Sparkles, Star, Download, Printer, CheckCircle2, ShieldCheck } from 'lucide-react'
+import { Trophy, Award, Sparkles, Printer, CheckCircle2, ShieldCheck } from 'lucide-react'
 
 export default function StudentCertificatesPage() {
   const [certificates, setCertificates] = useState<any[]>([])
@@ -39,7 +39,7 @@ export default function StudentCertificatesPage() {
         <div className="relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 backdrop-blur-md mb-3">
             <Sparkles className="w-3.5 h-3.5 text-yellow-200" />
-            <span className="text-xs font-bold text-amber-100">فصل د. إسماعيل عيسى</span>
+            <span className="text-xs font-bold text-amber-100">الصف الأول الابتدائي • مدارس الإخلاص الأهلية</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight">سجل الإنجازات والشهادات 🏆</h1>
           <p className="text-amber-100 text-sm max-w-xl font-medium">
@@ -48,13 +48,13 @@ export default function StudentCertificatesPage() {
         </div>
       </motion.div>
 
-      {/* GAMIFICATION STATS */}
+      {/* STATS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'المستوى الحالي', val: 'المستوى 4 ⭐', icon: '⭐', color: 'from-violet-500 to-purple-600' },
-          { label: 'نقاط التميز (XP)', val: '2,075 نقطة', icon: '💎', color: 'from-blue-500 to-indigo-600' },
-          { label: 'أيام الحضور المتتالية', val: '9 أيام 🔥', icon: '🔥', color: 'from-orange-500 to-red-500' },
-          { label: 'الأوسمة المفتوحة', val: `${certificates.length} أوسمة`, icon: '🎖️', color: 'from-emerald-500 to-teal-600' },
+          { label: 'الشهادات المعتمدة', val: `${certificates.length} شهادات`, icon: '📜', color: 'from-amber-500 to-yellow-600' },
+          { label: 'الأوسمة الشرفية', val: `${certificates.length} أوسمة`, icon: '🎖️', color: 'from-emerald-500 to-teal-600' },
+          { label: 'المستوى الأكاديمي', val: certificates.length > 0 ? `المستوى ${certificates.length + 1}` : 'المستوى 1', icon: '⭐', color: 'from-violet-500 to-purple-600' },
+          { label: 'نقاط التميز', val: `${certificates.length * 250} نقطة`, icon: '💎', color: 'from-blue-500 to-indigo-600' },
         ].map((s, i) => (
           <div key={i} className={`bg-gradient-to-br ${s.color} rounded-3xl p-5 text-white shadow-sm`}>
             <div className="text-2xl mb-1">{s.icon}</div>
@@ -72,9 +72,12 @@ export default function StudentCertificatesPage() {
         </h3>
 
         {certificates.length === 0 ? (
-          <div className="bg-white/80 dark:bg-[#1e1e2d]/80 rounded-3xl p-16 text-center border border-gray-100 dark:border-white/5">
-            <Trophy className="w-16 h-16 text-amber-400 mx-auto mb-3" />
-            <p className="font-bold text-gray-500">لا توجد شهادات مسجلة بعد — استمر في تفوقك!</p>
+          <div className="bg-white/80 dark:bg-[#1e1e2d]/80 rounded-3xl p-16 text-center border border-gray-100 dark:border-white/5 space-y-3">
+            <Trophy className="w-16 h-16 text-amber-400/40 mx-auto" />
+            <h4 className="font-black text-lg text-gray-800 dark:text-gray-200">لا توجد شهادات صادرة حتى الآن</h4>
+            <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
+              تصدر الشهادات الرسمية من إدارة المدرسة تلقائياً بعد إتمام البرامج التعليمية والاختبارات الفصلية المعتمدة.
+            </p>
           </div>
         ) : (
           certificates.map((cert, i) => (

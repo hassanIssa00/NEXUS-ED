@@ -53,7 +53,7 @@ export default function StudentPhotosPage() {
             <span className="text-xs font-bold text-teal-100">ذاكرتنا المصورة</span>
           </div>
           <h1 className="text-4xl font-black mb-2 tracking-tight">معرض الأنشطة والفعاليات 📸</h1>
-          <p className="text-teal-100 text-sm font-medium">توثيق لحظات التميز والإبداع بفصل د. إسماعيل عيسى</p>
+          <p className="text-teal-100 text-sm font-medium">توثيق لحظات التميز والإبداع لطلاب الصف الأول الابتدائي (أ)</p>
           <div className="mt-5 flex flex-wrap gap-3">
             {[{ label: 'إجمالي الفعاليات', value: events.length }, { label: 'الصور المرفوعة', value: events.reduce((acc, e) => acc + (e.images?.length || 1), 0) }].map((s, i) => (
               <div key={i} className="bg-white/10 border border-white/15 backdrop-blur-md px-4 py-2.5 rounded-2xl">

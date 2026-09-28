@@ -2,21 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Lock, Award } from 'lucide-react';
+import { Trophy, Lock, Award, Sparkles, CheckCircle2 } from 'lucide-react';
 
 interface Badge {
     id: string;
     badgeCode: string;
-    badgeName: string;
     badgeNameAr: string;
-    description: string;
     descriptionAr: string;
-    icon_url?: string;
+    category: string;
     colorHex: string;
     rarity: 'common' | 'rare' | 'epic' | 'legendary';
     pointsReward: number;
     earned?: boolean;
-    earnedAt?: Date;
+    earnedAt?: string;
     progress?: number;
 }
 
@@ -30,46 +28,78 @@ export default function BadgesPage() {
 
     const fetchBadges = async () => {
         try {
-            // TODO: Replace with actual API call
             const mockBadges: Badge[] = [
                 {
                     id: '1',
-                    badgeCode: 'CONSISTENCY_30',
-                    badgeName: 'Consistency Champion',
-                    badgeNameAr: 'بطل الاستمرارية',
-                    description: '30 days login streak',
-                    descriptionAr: '30 يوم حضور متواصل',
+                    badgeCode: 'ATTENDANCE_STREAK',
+                    badgeNameAr: 'بطل الانضباط والمواظبة',
+                    descriptionAr: 'حضور الطابور الصباحي وجميع الحصص بدون أي غياب أو تأخير لمدة شهر كامل',
+                    category: 'الانضباط المدرسي',
                     colorHex: '#3B82F6',
                     rarity: 'rare',
-                    pointsReward: 200,
+                    pointsReward: 250,
                     earned: true,
-                    earnedAt: new Date(),
+                    earnedAt: '2026-09-20',
                 },
                 {
                     id: '2',
-                    badgeCode: 'EXCELLENCE_95',
-                    badgeName: 'Excellence Badge',
-                    badgeNameAr: 'وسام التميز',
-                    description: '95%+ average grade',
-                    descriptionAr: 'معدل 95% أو أكثر',
+                    badgeCode: 'QURAN_HAFIDZ',
+                    badgeNameAr: 'حافظ القرآن الصغير',
+                    descriptionAr: 'إتقان تلاوة وحفظ السور المقررة في منهج القرآن الكريم مع الشيخ عبد الرحمن السعيد',
+                    category: 'التربية الإسلامية',
                     colorHex: '#10B981',
                     rarity: 'epic',
-                    pointsReward: 300,
-                    earned: false,
-                    progress: 87,
+                    pointsReward: 400,
+                    earned: true,
+                    earnedAt: '2026-09-24',
                 },
                 {
                     id: '3',
-                    badgeCode: 'CREATIVITY_5',
-                    badgeName: 'Creative Mind',
-                    badgeNameAr: 'عقل مبدع',
-                    description: 'Complete 5 creative projects',
-                    descriptionAr: 'أكمل 5 مشاريع إبداعية',
+                    badgeCode: 'ARABIC_STAR',
+                    badgeNameAr: 'فارس لغتي الجميلة',
+                    descriptionAr: 'إتقان نطق الحروف بالحركات وكتابة الكلمات بإشراف د. إسماعيل عيسى',
+                    category: 'اللغة العربية',
                     colorHex: '#8B5CF6',
+                    rarity: 'epic',
+                    pointsReward: 350,
+                    earned: true,
+                    earnedAt: '2026-09-26',
+                },
+                {
+                    id: '4',
+                    badgeCode: 'MATH_WIZARD',
+                    badgeNameAr: 'عبقري الحساب والرياضيات',
+                    descriptionAr: 'إكمال 10 اختبارات قصيرة في العمليات الحسابية بدرجة كاملة مع أ. محمد الغامدي',
+                    category: 'الرياضيات',
+                    colorHex: '#F59E0B',
                     rarity: 'rare',
-                    pointsReward: 250,
+                    pointsReward: 300,
                     earned: false,
-                    progress: 60,
+                    progress: 80,
+                },
+                {
+                    id: '5',
+                    badgeCode: 'SCIENCE_EXPLORER',
+                    badgeNameAr: 'المستكشف الصغير',
+                    descriptionAr: 'تنفيذ التجارب العلمية والمشاركة الفعالة في حصص العلوم مع أ. فهد الزهراني',
+                    category: 'العلوم',
+                    colorHex: '#06B6D4',
+                    rarity: 'rare',
+                    pointsReward: 300,
+                    earned: false,
+                    progress: 65,
+                },
+                {
+                    id: '6',
+                    badgeCode: 'SMART_LEADER',
+                    badgeNameAr: 'وسام التميز العام',
+                    descriptionAr: 'تحقيق معدل تراكمي 98% فما فوق وتصدر قائمة شرف الصف الأول الابتدائي',
+                    category: 'التفوق الأكاديمي',
+                    colorHex: '#E11D48',
+                    rarity: 'legendary',
+                    pointsReward: 500,
+                    earned: false,
+                    progress: 90,
                 },
             ];
 
@@ -81,14 +111,17 @@ export default function BadgesPage() {
         }
     };
 
-    const getRarityColor = (rarity: string) => {
-        const colors = {
-            common: 'from-gray-400 to-gray-600',
-            rare: 'from-blue-400 to-blue-600',
-            epic: 'from-purple-400 to-purple-600',
-            legendary: 'from-yellow-400 to-yellow-600',
-        };
-        return colors[rarity as keyof typeof colors] || colors.common;
+    const getRarityBadge = (rarity: string) => {
+        switch (rarity) {
+            case 'legendary':
+                return { text: 'أسطوري', class: 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300' };
+            case 'epic':
+                return { text: 'فائق', class: 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300' };
+            case 'rare':
+                return { text: 'مميز', class: 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300' };
+            default:
+                return { text: 'عادي', class: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300' };
+        }
     };
 
     const earnedBadges = badges.filter(b => b.earned);
@@ -96,131 +129,149 @@ export default function BadgesPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
+            <div className="flex items-center justify-center min-h-screen" dir="rtl">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-background p-6 space-y-8">
+        <div className="min-h-screen bg-background p-4 md:p-8 space-y-8" dir="rtl">
             {/* Header */}
-            <div className="text-center mb-8">
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent mb-4">
-                    Badges Collection
+            <div className="text-center max-w-2xl mx-auto space-y-2">
+                <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-black mb-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    لوحة الإنجازات والأوسمة
+                </div>
+                <h1 className="text-3xl md:text-4xl font-extrabold text-foreground tracking-tight">
+                    أوسمة التميز المدرسي
                 </h1>
-                <p className="text-lg text-muted-foreground">
-                    {earnedBadges.length} / {badges.length} Earned
+                <p className="text-sm md:text-base text-muted-foreground">
+                    أوسمة شرف تُمنح لطلاب مدارس الإخلاص الأهلية للبنين تقديراً لاجتهادهم وتفوقهم الأكاديمي والسلوكي.
                 </p>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                <div className="bg-card border rounded-lg p-6 text-center">
-                    <Trophy className="w-12 h-12 mx-auto mb-2 text-yellow-500" />
-                    <h3 className="text-3xl font-bold">{earnedBadges.length}</h3>
-                    <p className="text-muted-foreground">Earned</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
+                <div className="bg-card border rounded-2xl p-5 text-center shadow-sm">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto mb-2 font-black">
+                        <Trophy className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-2xl font-black text-foreground">{earnedBadges.length}</h3>
+                    <p className="text-xs font-bold text-muted-foreground">أوسمة محققة</p>
                 </div>
 
-                <div className="bg-card border rounded-lg p-6 text-center">
-                    <Lock className="w-12 h-12 mx-auto mb-2 text-gray-500" />
-                    <h3 className="text-3xl font-bold">{lockedBadges.length}</h3>
-                    <p className="text-muted-foreground">Locked</p>
+                <div className="bg-card border rounded-2xl p-5 text-center shadow-sm">
+                    <div className="w-12 h-12 rounded-xl bg-slate-500/10 text-slate-600 flex items-center justify-center mx-auto mb-2 font-black">
+                        <Lock className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-2xl font-black text-foreground">{lockedBadges.length}</h3>
+                    <p className="text-xs font-bold text-muted-foreground">أوسمة قيد الإنجاز</p>
                 </div>
 
-                <div className="bg-card border rounded-lg p-6 text-center">
-                    <Award className="w-12 h-12 mx-auto mb-2 text-purple-500" />
-                    <h3 className="text-3xl font-bold">
+                <div className="bg-card border rounded-2xl p-5 text-center shadow-sm">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2 font-black">
+                        <Award className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-2xl font-black text-foreground">
                         {earnedBadges.reduce((sum, b) => sum + b.pointsReward, 0)}
                     </h3>
-                    <p className="text-muted-foreground">Points Earned</p>
+                    <p className="text-xs font-bold text-muted-foreground">نقاط إضافية مكتسبة</p>
                 </div>
             </div>
 
             {/* Earned Badges */}
-            <div className="mb-12">
-                <h2 className="text-2xl font-bold mb-6">Earned Badges</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {earnedBadges.map((badge, index) => (
-                        <motion.div
-                            key={badge.id}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ duration: 0.3, delay: index * 0.1 }}
-                            className="group relative"
-                        >
-                            <div className={`bg-gradient-to-br ${getRarityColor(badge.rarity)} p-1 rounded-xl`}>
-                                <div className="bg-card rounded-lg p-6 h-full">
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
-                                            <Trophy className="w-8 h-8 text-white" />
+            <div className="max-w-4xl mx-auto">
+                <div className="flex items-center gap-2 mb-4">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    <h2 className="text-xl font-bold text-foreground">الأوسمة التي حصلت عليها ({earnedBadges.length})</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {earnedBadges.map((badge, index) => {
+                        const rarityInfo = getRarityBadge(badge.rarity);
+                        return (
+                            <motion.div
+                                key={badge.id}
+                                initial={{ opacity: 0, y: 15 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.3, delay: index * 0.08 }}
+                                className="bg-card border-2 border-emerald-500/30 rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between"
+                            >
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl" />
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-sm" style={{ backgroundColor: badge.colorHex }}>
+                                            <Trophy className="w-6 h-6" />
                                         </div>
-                                        <span className="text-xs font-semibold px-3 py-1 rounded-full bg-primary text-primary-foreground">
-                                            +{badge.pointsReward} pts
+                                        <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full ${rarityInfo.class}`}>
+                                            {rarityInfo.text}
                                         </span>
                                     </div>
-
-                                    <h3 className="font-bold text-lg mb-2">{badge.badgeName}</h3>
-                                    <p className="text-sm text-muted-foreground mb-4">
-                                        {badge.description}
-                                    </p>
-
-                                    <div className="text-xs text-muted-foreground">
-                                        Earned: {badge.earnedAt ? new Date(badge.earnedAt).toLocaleDateString() : 'N/A'}
-                                    </div>
+                                    <h3 className="font-bold text-base text-foreground mb-1">{badge.badgeNameAr}</h3>
+                                    <p className="text-xs text-muted-foreground leading-relaxed mb-3">{badge.descriptionAr}</p>
                                 </div>
-                            </div>
-                        </motion.div>
-                    ))}
+                                <div className="pt-3 border-t border-border/50 flex items-center justify-between text-xs">
+                                    <span className="font-bold text-primary">+{badge.pointsReward} نقطة</span>
+                                    <span className="text-muted-foreground">تاريخ المنح: {badge.earnedAt}</span>
+                                </div>
+                            </motion.div>
+                        );
+                    })}
                 </div>
             </div>
 
             {/* Locked Badges */}
-            <div>
-                <h2 className="text-2xl font-bold mb-6">Locked Badges</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {lockedBadges.map((badge, index) => (
-                        <motion.div
-                            key={badge.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3, delay: index * 0.1 }}
-                            className="bg-card border rounded-lg p-6 relative overflow-hidden"
-                        >
-                            <div className="absolute inset-0 bg-gradient-to-br from-gray-500/10 to-gray-800/10 backdrop-blur-sm" />
-
-                            <div className="relative z-10">
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center opacity-50">
-                                        <Lock className="w-8 h-8 text-gray-400" />
+            <div className="max-w-4xl mx-auto">
+                <div className="flex items-center gap-2 mb-4">
+                    <Lock className="w-5 h-5 text-muted-foreground" />
+                    <h2 className="text-xl font-bold text-foreground">أوسمة قيد التقدم ({lockedBadges.length})</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {lockedBadges.map((badge, index) => {
+                        const rarityInfo = getRarityBadge(badge.rarity);
+                        return (
+                            <motion.div
+                                key={badge.id}
+                                initial={{ opacity: 0, y: 15 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.3, delay: index * 0.08 }}
+                                className="bg-card/70 border border-border/70 rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between"
+                            >
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground shadow-inner">
+                                            <Lock className="w-5 h-5" />
+                                        </div>
+                                        <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full ${rarityInfo.class}`}>
+                                            {rarityInfo.text}
+                                        </span>
                                     </div>
-                                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-gray-700 text-gray-300">
-                                        +{badge.pointsReward} pts
-                                    </span>
+                                    <h3 className="font-bold text-base text-foreground/80 mb-1">{badge.badgeNameAr}</h3>
+                                    <p className="text-xs text-muted-foreground leading-relaxed mb-3">{badge.descriptionAr}</p>
                                 </div>
-
-                                <h3 className="font-bold text-lg mb-2 opacity-70">{badge.badgeName}</h3>
-                                <p className="text-sm text-muted-foreground mb-4 opacity-50">
-                                    {badge.description}
-                                </p>
-
-                                {badge.progress !== undefined && (
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-muted-foreground">Progress</span>
-                                            <span className="font-semibold">{badge.progress}%</span>
+                                <div>
+                                    {badge.progress !== undefined && (
+                                        <div className="space-y-1.5 mb-3">
+                                            <div className="flex justify-between text-xs font-bold">
+                                                <span className="text-muted-foreground">التقدم نحو الوسام</span>
+                                                <span className="text-primary">{badge.progress}%</span>
+                                            </div>
+                                            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                                                <div
+                                                    className="bg-primary h-2 rounded-full transition-all duration-500"
+                                                    style={{ width: `${badge.progress}%` }}
+                                                />
+                                            </div>
                                         </div>
-                                        <div className="w-full bg-secondary rounded-full h-2">
-                                            <div
-                                                className="bg-primary h-2 rounded-full transition-all duration-500"
-                                                style={{ width: `${badge.progress}%` }}
-                                            />
-                                        </div>
+                                    )}
+                                    <div className="pt-2 border-t border-border/50 flex items-center justify-between text-xs">
+                                        <span className="font-bold text-muted-foreground">مكافأة: +{badge.pointsReward} نقطة</span>
+                                        <span className="text-muted-foreground">{badge.category}</span>
                                     </div>
-                                )}
-                            </div>
-                        </motion.div>
-                    ))}
+                                </div>
+                            </motion.div>
+                        );
+                    })}
                 </div>
             </div>
         </div>

@@ -42,7 +42,7 @@ export default function SupervisorDashboard() {
                     id: idx + 1,
                     teacher: t.name,
                     subject: t.specialization,
-                    class: t.assignedClassIds?.[0] ? `فصل ${t.assignedClassIds[0]}` : 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
+                    class: t.assignedClassIds?.[0] ? `فصل ${t.assignedClassIds[0]}` : 'الصف الأول الابتدائي — الفئة (أ)',
                     date: idx === 0 ? new Date().toISOString().split('T')[0] : `2026-09-${15 + idx * 2}`,
                     rating: idx === 0 ? 5.0 : Number((4.7 + (idx % 3) * 0.1).toFixed(1)),
                     status: 'مكتملة',
@@ -81,7 +81,7 @@ export default function SupervisorDashboard() {
             });
             setAiRecommendation(res.data?.data?.answer || 'يبدو أن التركيز على دمج التقنية في التعليم سيحقق قفزة نوعية في الأداء العام.');
         } catch {
-            setAiRecommendation('تقرير فصلي ممتاز لفصل د. إسماعيل عيسى مع نسب إنجاز تفوق 95%. يُوصى بنقل تجربة التعليم التفاعلي للفصول المجاورة.');
+            setAiRecommendation('تقرير فصلي ممتاز للصف الأول الابتدائي (أ) مع نسب إنجاز تفوق 95%. يُوصى بنقل تجربة التعليم التفاعلي للفصول المجاورة.');
         } finally {
             setAiLoading(false);
         }
@@ -147,7 +147,7 @@ export default function SupervisorDashboard() {
                         </p>
                         <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
                             {[
-                                { name: 'أحمد فيصل الغامدي', plan: 'دعم إضافي في مهارات القراءة الاستيعابية', level: 'متوسط' },
+                                { name: 'برنامج رعاية المتفوقين', plan: 'تطوير مهارات القراءة والتعبير المعرفي', level: 'متقدم' },
                                 { name: 'أ. سارة خالد', plan: 'ورشة عمل حول دمج التقنية في الشرح', level: 'متقدم' },
                                 { name: 'د. حسن عمر', plan: 'تحسين استراتيجيات إدارة الوقت في الفصل', level: 'متوسط' },
                                 { name: 'أ. نورة سعد', plan: 'تطوير طرق التقويم المستمر للطلاب', level: 'مبتدئ' },
@@ -392,12 +392,12 @@ export default function SupervisorDashboard() {
                 <motion.div key="sv-visits" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
                     <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-[2rem] p-6 text-white">
                         <h2 className="text-2xl font-black mb-1">🏫 الزيارات الإشرافية</h2>
-                        <p className="text-indigo-200 text-sm">تسجيل ومتابعة زيارات فصل د. إسماعيل عيسى</p>
+                        <p className="text-indigo-200 text-sm">تسجيل ومتابعة زيارات فصول المدرسة</p>
                     </div>
                     <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm">
                         <h3 className="font-black text-gray-900 dark:text-white mb-3">📝 إضافة ملاحظة زيارة جديدة</h3>
                         <textarea value={newVisitNote} onChange={e=>setNewVisitNote(e.target.value)} rows={4}
-                            placeholder="ملاحظات الزيارة الإشرافية لفصل د. إسماعيل..."
+                            placeholder="ملاحظات وتوصيات الزيارة الإشرافية..."
                             className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 mb-3" />
                         <button onClick={() => {
                             if (!newVisitNote.trim()) return;
@@ -435,7 +435,7 @@ export default function SupervisorDashboard() {
             {supervisorTab === 'analytics' && (
                 <motion.div key="sv-analytics" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-4">
                     <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-[2rem] p-6 text-white">
-                        <h2 className="text-2xl font-black mb-1">📈 تحليلات فصل د. إسماعيل</h2>
+                        <h2 className="text-2xl font-black mb-1">📈 تحليلات الصف الأول الابتدائي (أ)</h2>
                         <p className="text-emerald-100 text-sm">إحصاءات وتحليلات أداء الفصل</p>
                     </div>
                     <div className="grid grid-cols-2 gap-3">

@@ -73,7 +73,7 @@ export default function TeacherPhotosPage() {
               <span className="text-xs font-bold text-blue-100">توثيق الفصل</span>
             </div>
             <h1 className="text-4xl font-black mb-2 tracking-tight">معرض الأنشطة والفعاليات 📸</h1>
-            <p className="text-blue-100 text-sm font-medium">أرشفة لحظات التميز والإبداع بفصل د. إسماعيل عيسى</p>
+            <p className="text-blue-100 text-sm font-medium">أرشفة لحظات التميز والإبداع لطلاب الصف الأول الابتدائي (أ)</p>
           </div>
           <button onClick={() => setShowForm(!showForm)}
             className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/20 hover:bg-white/30 border border-white/20 font-bold text-sm transition-colors backdrop-blur-md">

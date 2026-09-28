@@ -24,13 +24,12 @@ export default function StudentRiskReportPage() {
                 // Since there is no explicit /students endpoint in dashboardApi yet, we will mock the student list
                 // and fetch real risk data for them if they exist in the DB (or fallback).
                 
-                // MOCK STUDENT LIST for teacher (in a real app, this comes from /api/teacher/students)
                 const mockStudentsList = [
-                    { id: '1', name: 'أحمد محمد', grade: 'الصف العاشر' },
-                    { id: '2', name: 'سارة علي', grade: 'الصف الثامن' },
-                    { id: '3', name: 'عمر خالد', grade: 'الصف العاشر' },
-                    { id: '4', name: 'ليلى أحمد', grade: 'الصف السابع' },
-                    { id: '5', name: 'خالد محمود', grade: 'الصف الثامن' }
+                    { id: 'cls-std-1', name: 'ربيع أحمد الزهراني', grade: 'الصف الأول الابتدائي — فئة (أ)' },
+                    { id: 'cls-std-2', name: 'أحمد فيصل الغامدي', grade: 'الصف الأول الابتدائي — فئة (أ)' },
+                    { id: 'cls-std-4', name: 'خالد عبد الله العمري', grade: 'الصف الأول الابتدائي — فئة (أ)' },
+                    { id: 'cls-std-6', name: 'محمد حسن المالكي', grade: 'الصف الأول الابتدائي — فئة (أ)' },
+                    { id: 'cls-std-7', name: 'ريان يوسف الثقفي', grade: 'الصف الأول الابتدائي — فئة (أ)' }
                 ];
 
                 // Fetch risk data for each student

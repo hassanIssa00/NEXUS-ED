@@ -95,7 +95,7 @@ export default function StudentAssignmentsPage() {
         <div className="relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 backdrop-blur-md mb-3">
             <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-            <span className="text-xs font-bold text-amber-100">فصل د. إسماعيل عيسى</span>
+            <span className="text-xs font-bold text-amber-100">الصف الأول الابتدائي • مدارس الإخلاص الأهلية</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight">الواجبات المدرسية 📝</h1>
           <p className="text-amber-100 text-sm max-w-xl font-medium">

@@ -89,6 +89,15 @@ function canUseDemoAuth(): boolean {
 }
 
 function getApiBaseUrl(): string | null {
+    if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname;
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+        // If we are on production/remote domain and API URL points to localhost, do not attempt network fetch
+        if (hostname !== 'localhost' && hostname !== '127.0.0.1' && apiUrl?.includes('localhost')) {
+            return null;
+        }
+        return apiUrl ? apiUrl.replace(/\/$/, '') : null;
+    }
     const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
     return apiUrl ? apiUrl.replace(/\/$/, '') : null;
 }
@@ -254,22 +263,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
+            // 1. Instant 0ms session recovery from localStorage / sessionStorage
+            const restoredDemo = restoreDemoSession();
+            if (restoredDemo && isActive) {
+                setLoading(false);
+                return;
+            }
+
+            // 2. Try remote API session if configured and valid
             const restoredApi = await restoreApiSession();
             if (!isActive) {
                 return;
             }
 
             if (restoredApi) {
-                setLoading(false);
-                return;
-            }
-
-            const restoredDemo = restoreDemoSession();
-            if (!isActive) {
-                return;
-            }
-
-            if (restoredDemo) {
                 setLoading(false);
                 return;
             }

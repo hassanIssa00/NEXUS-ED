@@ -11,6 +11,7 @@ import {
   CheckCircle2, Star, Trophy, Home, FileText, Archive, HeartHandshake, Send, LayoutDashboard, Users, Medal, X, Send as SendIcon
 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import LiveDaySchedule from '@/components/schedule/LiveDaySchedule'
 
 const CHILD_COLORS = ['#8b5cf6', '#10b981', '#f43f5e', '#f59e0b']
 const GRADIENTS = ['from-violet-500 to-indigo-600', 'from-teal-500 to-emerald-600', 'from-rose-500 to-pink-600', 'from-amber-500 to-orange-500']
@@ -62,7 +63,7 @@ export default function ParentDashboard() {
   const [childrenData, setChildrenData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedIdx, setSelectedIdx] = useState(0)
-  const [parentDisplayName, setParentDisplayName] = useState('فيصل الغامدي')
+  const [parentDisplayName, setParentDisplayName] = useState('ولي الأمر')
   const [liveNotif, setLiveNotif] = useState<string | null>(null)
   const [liveAttendance, setLiveAttendance] = useState<string | null>(null)
 
@@ -71,20 +72,28 @@ export default function ParentDashboard() {
     const load = async () => {
       try {
         const { nexusBridge } = await import('@/lib/nexusDataBridge')
-        let linkedStudentId = 'cls-std-2'
-        let currentParentName = 'فيصل الغامدي'
+        let linkedStudentId = ''
+        let currentParentName = 'ولي الأمر'
         try {
           const stored = localStorage.getItem('nexus_user')
           if (stored) {
             const acc = JSON.parse(stored)
             if (acc.linkedStudentId) linkedStudentId = acc.linkedStudentId
+            else if (acc.linkedStudentIds && acc.linkedStudentIds.length > 0) linkedStudentId = acc.linkedStudentIds[0]
             if (acc.name) currentParentName = acc.name
           }
         } catch {}
 
         setParentDisplayName(currentParentName)
 
-        const student = nexusBridge.getStudentById(linkedStudentId)
+        if (!linkedStudentId) {
+          const allStds = nexusBridge.getStudents()
+          if (allStds.length > 0) {
+            linkedStudentId = allStds[0].id
+          }
+        }
+
+        const student = linkedStudentId ? nexusBridge.getStudentById(linkedStudentId) : null
         const todayAtt = nexusBridge.getTodayAttendance()
         const myAtt = todayAtt.find(a => a.studentId === linkedStudentId)
         const hwSubs = nexusBridge.getHomeworkSubmissions().filter(s => s.studentId === linkedStudentId)
@@ -129,11 +138,11 @@ export default function ParentDashboard() {
         }
 
         const childData = {
-          id: linkedStudentId,
-          name: student?.fullName || 'أحمد فيصل الغامدي',
-          class: student?.grade || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
-          gpa: `${((student?.averageGrade || 95) / 10).toFixed(1)}`,
-          attendanceRate: student?.attendanceRate || 97,
+          id: linkedStudentId || 'std_none',
+          name: student?.fullName || 'لا يوجد طالب مسجل بعد',
+          class: student?.grade || 'بانتظار تسجيل الطالب وربط الحساب',
+          gpa: student ? `${((student.averageGrade || 100) / 10).toFixed(1)}` : '0.0',
+          attendanceRate: student?.attendanceRate || 100,
           recentGrades,
           gradeHistory,
           upcomingAssignments,
@@ -289,7 +298,7 @@ export default function ParentDashboard() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black text-gray-900 dark:text-white">فصل د. إسماعيل عيسى — الصف الأول الابتدائي</h2>
+              <h2 className="text-lg font-black text-gray-900 dark:text-white">الصف الأول الابتدائي — الفئة (أ) • رائد الفصل: د. إسماعيل عيسى</h2>
               <span className="px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 text-xs font-black">
                 حاضر بالبصمة ✅
               </span>
@@ -331,6 +340,11 @@ export default function ParentDashboard() {
           className="grid lg:grid-cols-[1fr_360px] gap-6">
 
           <div className="space-y-6">
+            {/* Live Today Schedule for Parent */}
+            <div className="bg-white dark:bg-[#1e1e2d] border border-gray-100 dark:border-white/5 rounded-[2rem] p-6 shadow-sm">
+              <LiveDaySchedule role="parent" studentName={selected.name} />
+            </div>
+
             {/* Grade History Chart */}
             <div className="bg-white dark:bg-[#1e1e2d] border border-gray-100 dark:border-white/5 rounded-[2rem] p-7 shadow-sm">
               <h3 className="font-extrabold text-gray-900 dark:text-white text-base mb-5 flex items-center gap-2">

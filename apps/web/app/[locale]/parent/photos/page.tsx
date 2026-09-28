@@ -46,7 +46,7 @@ export default function ParentPhotosPage() {
             <span className="text-xs font-bold text-amber-100">ذكريات أبنائنا</span>
           </div>
           <h1 className="text-4xl font-black mb-2 tracking-tight">معرض فعاليات الفصل 📸</h1>
-          <p className="text-amber-100 text-sm font-medium">لحظات تميز وإبداع أبنائنا بفصل د. إسماعيل عيسى</p>
+          <p className="text-amber-100 text-sm font-medium">لحظات تميز وإبداع أبنائنا بالصف الأول الابتدائي (أ)</p>
           <div className="mt-5 flex flex-wrap gap-3">
             {[{ label: 'إجمالي الفعاليات', value: events.length }, { label: 'مجموع الصور', value: events.reduce((acc, e) => acc + (e.images?.length || 1), 0) }].map((s, i) => (
               <div key={i} className="bg-white/10 border border-white/15 backdrop-blur-md px-4 py-2.5 rounded-2xl">

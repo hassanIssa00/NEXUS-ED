@@ -135,7 +135,7 @@ export default function TeacherQuizzesPage() {
             <span className="text-xs font-bold text-orange-100">مركز الاختبارات والتقييمات المدرسية</span>
           </div>
           <h1 className="text-4xl font-black mb-2 tracking-tight">الاختبارات والتقييم 📝</h1>
-          <p className="text-orange-100 text-sm font-medium">أنشئ اختبارات تفاعلية وتابع نتائج طلاب فصل د. إسماعيل عيسى لحظياً</p>
+          <p className="text-orange-100 text-sm font-medium">أنشئ اختبارات تفاعلية وتابع نتائج طلاب الصف الأول الابتدائي (أ) لحظياً</p>
           <div className="mt-5 flex flex-wrap gap-3">
             {[
               { label: 'اختبارات منشورة', value: quizzes.length },

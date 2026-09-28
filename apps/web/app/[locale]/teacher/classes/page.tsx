@@ -18,6 +18,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { nexusBridge, ClassStudentRecord, DailyAttendanceRecord, SchoolClass } from '@/lib/nexusDataBridge';
+import NexusToolsTab from '../_components/NexusToolsTab';
+import { useSearchParams } from 'next/navigation';
 import {
   Select,
   SelectContent,
@@ -35,6 +37,15 @@ export default function TeacherClassesPage() {
   const [attendance, setAttendance] = useState<DailyAttendanceRecord[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<ClassStudentRecord | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [activeView, setActiveView] = useState<'roster' | 'nexus-tools'>('roster');
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const tab = searchParams?.get('tab');
+    if (tab === 'tools' || tab === 'nexus-tools') {
+      setActiveView('nexus-tools');
+    }
+  }, [searchParams]);
 
   // New Student Form State
   const [newName, setNewName] = useState('');
@@ -93,14 +104,14 @@ export default function TeacherClassesPage() {
       fullName: newName.trim(),
       fullNameEn: newName.trim(),
       classId: selectedClassId,
-      grade: activeClass?.name || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
+      grade: activeClass?.name || 'الصف الأول الابتدائي — الفئة (أ)',
       nationalId: newNationalId.trim() || `10${Math.floor(10000000 + Math.random() * 90000000)}`,
       dateOfBirth: '2019-05-15',
       parentName: newParentName.trim() || `ولي أمر ${newName.trim()}`,
       parentPhone: newParentPhone.trim() || '0500000000',
       parentEmail: `parent.${Date.now()}@nexusedu.sa`,
       photoUrl: '/images/avatars/default.webp',
-      notes: `طالب مسجل حديثاً في ${activeClass?.name || 'فصل د. إسماعيل عيسى'}.`,
+      notes: `طالب مسجل حديثاً في ${activeClass?.name || 'الصف الأول الابتدائي (أ)'}.`,
       averageGrade: 90,
       attendanceRate: 100,
       rank: students.length + 1,
@@ -170,6 +181,14 @@ export default function TeacherClassesPage() {
             />
           </div>
           <Button
+            variant="outline"
+            onClick={() => setActiveView(activeView === 'nexus-tools' ? 'roster' : 'nexus-tools')}
+            className="h-10 rounded-xl font-bold border-teal-500/30 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/20 gap-1.5 shadow-sm"
+          >
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            {activeView === 'nexus-tools' ? 'كشف الطلاب' : 'أدوات الفصل ⚡'}
+          </Button>
+          <Button
             onClick={() => setShowAddModal(true)}
             className="h-10 rounded-xl font-bold bg-primary hover:bg-primary/90 text-white gap-1.5 shadow-sm"
           >
@@ -179,13 +198,71 @@ export default function TeacherClassesPage() {
         </div>
       </div>
 
+      {/* ─── Navigation Tabs: Students Roster vs Classroom Nexus Tools ─── */}
+      <div className="flex items-center gap-2 bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 p-2 rounded-2xl shadow-sm">
+        <button
+          onClick={() => setActiveView('roster')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${
+            activeView === 'roster'
+              ? 'bg-teal-600 text-white shadow-md shadow-teal-600/20'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>كشف طلاب الفصل والحضور ({students.length} طالب)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveView('nexus-tools')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${
+            activeView === 'nexus-tools'
+              ? 'bg-gradient-to-r from-teal-600 via-sky-600 to-indigo-600 text-white shadow-md shadow-indigo-600/20'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-yellow-300 animate-pulse" />
+          <span>أدوات نكسس التفاعلية للفصل — Nexus Tools</span>
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+            activeView === 'nexus-tools' ? 'bg-white/20 text-white' : 'bg-teal-500/10 text-teal-600 dark:text-teal-400'
+          }`}>
+            44 أداة ذكية ⚡
+          </span>
+        </button>
+      </div>
+
+      {activeView === 'nexus-tools' ? (
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-500/10 via-sky-500/10 to-indigo-500/10 border border-teal-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-lg">
+                🏫
+              </div>
+              <div>
+                <p className="font-extrabold text-sm text-gray-900 dark:text-white">أدوات نكسس التفاعلية للفصل: {activeClass?.name}</p>
+                <p className="text-xs text-gray-500">تم تفعيل 44 أداة ذكية للتحضير، التصحيح الآلي، رصد الدرجات، والألعاب الصفية لهذا الفصل.</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveView('roster')}
+              className="rounded-xl font-bold text-xs"
+            >
+              الرجوع لكشف الطلاب
+            </Button>
+          </div>
+          <NexusToolsTab />
+        </div>
+      ) : (
+        <>
+
       {/* Class Section Card */}
       <Card className="rounded-3xl border-gray-100 dark:border-white/5 shadow-sm overflow-hidden bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl">
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-gray-100 dark:border-white/5 gap-3">
           <div>
             <div className="flex items-center gap-2">
               <CardTitle className="text-xl font-black text-gray-900 dark:text-white">
-                {activeClass?.name || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى'}
+                {activeClass?.name || 'الصف الأول الابتدائي — الفئة (أ)'}
               </CardTitle>
               <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
                 الشعبة نشطة
@@ -388,6 +465,9 @@ export default function TeacherClassesPage() {
             </div>
           </div>
         </div>
+      )}
+
+        </>
       )}
 
       {/* Add Student Modal */}

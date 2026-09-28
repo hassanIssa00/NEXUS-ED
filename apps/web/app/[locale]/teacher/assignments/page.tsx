@@ -78,7 +78,7 @@ export default function AssignmentsPage() {
                 id: selectedAssignment ? selectedAssignment.id : `hw-${Date.now()}`,
                 title: formData.title,
                 subject: subjects.find(s => s.id === formData.subjectId)?.name || 'لغتي العربية',
-                grade: 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
+                grade: 'الصف الأول الابتدائي — الفئة (أ)',
                 instructions: formData.description || 'حل التمارين المطلوبة بدقة وعناية.',
                 dueDate: formData.dueDate || new Date().toISOString().slice(0, 10),
                 totalScore: formData.maxScore || 10,

@@ -77,7 +77,7 @@ export default function LoginCard({ onSubmit, isLoading = false }: LoginCardProp
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="student@example.com"
+                                placeholder="student@nexus.edu.sa"
                                 className={`
                   block w-full pr-10 px-4 py-3 rounded-lg
                   bg-slate-50 dark:bg-slate-900

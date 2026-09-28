@@ -45,7 +45,7 @@ const GAMES = [
     id: 'quran-memorize',
     title: 'ترتيل وتثبيت الآيات 📿',
     emoji: '📿',
-    desc: 'تطابق الآيات الكريمة وترتيب سور جزء عم المقررة لفصل د. إسماعيل',
+    desc: 'تطابق الآيات الكريمة وترتيب سور جزء عم المقررة للصف الأول الابتدائي',
     gradient: 'from-emerald-500 to-green-600',
     lightBg: 'bg-emerald-50 dark:bg-emerald-500/10',
     textColor: 'text-emerald-600 dark:text-emerald-400',

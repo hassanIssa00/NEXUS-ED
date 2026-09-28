@@ -77,14 +77,13 @@ function AnalyticsInner() {
     name: e.label, إيرادات: e.value
   }))
 
-  // Build subject performance from activity heuristic
   const subjectRadar = [
-    { subject: 'الرياضيات', value: 78 },
-    { subject: 'العلوم', value: 85 },
-    { subject: 'اللغة العربية', value: 90 },
-    { subject: 'الإنجليزية', value: 72 },
-    { subject: 'التاريخ', value: 80 },
-    { subject: 'الحاسوب', value: 88 },
+    { subject: 'القرآن الكريم', value: 94 },
+    { subject: 'لغتي الجميلة', value: 92 },
+    { subject: 'الرياضيات', value: 88 },
+    { subject: 'العلوم', value: 89 },
+    { subject: 'الحاسب والتقنية', value: 91 },
+    { subject: 'التربية الفنية والبدنية', value: 95 },
   ]
 
   // Risk student simulation
@@ -212,7 +211,7 @@ function AnalyticsInner() {
 
       {/* Subject Radar + Student Risk */}
       <div className="grid lg:grid-cols-2 gap-5">
-        <Section title="الأداء حسب المادة (نموذجي)" icon={Target} color="#3b82f6">
+        <Section title="الأداء الأكاديمي حسب المواد الدراسية" icon={Target} color="#3b82f6">
           <ResponsiveContainer width="100%" height={240}>
             <RadarChart data={subjectRadar}>
               <PolarGrid stroke="hsl(var(--border))" />

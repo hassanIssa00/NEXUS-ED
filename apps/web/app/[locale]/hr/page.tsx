@@ -8,11 +8,13 @@ import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api/client';
 
 const initialStaff = [
-    { id: 1, name: 'أحمد محمد', role: 'مدرس رياضيات', type: 'دوام كامل', attendance: 'حاضر', time: '07:15 AM' },
-    { id: 2, name: 'سارة خالد', role: 'مدرسة لغة عربية', type: 'دوام كامل', attendance: 'غائب', time: '-' },
-    { id: 3, name: 'يوسف عبدالله', role: 'وكيل شئون طلاب', type: 'إداري', attendance: 'حاضر', time: '07:05 AM' },
-    { id: 4, name: 'نورة سعد', role: 'موجه طلابي', type: 'إداري', attendance: 'إجازة مرضية', time: '-' },
-    { id: 5, name: 'مريم حسن', role: 'مدرسة علوم', type: 'دوام جزئي', attendance: 'حاضر', time: '08:00 AM' },
+    { id: 1, name: 'د. إسماعيل عيسى', role: 'رائد الفصل • لغتي', type: 'دوام كامل', attendance: 'حاضر', time: '06:45 AM' },
+    { id: 2, name: 'أ. محمد الغامدي', role: 'معلم الرياضيات', type: 'دوام كامل', attendance: 'حاضر', time: '07:00 AM' },
+    { id: 3, name: 'الشيخ عبد الرحمن السعيد', role: 'القرآن الكريم والإسلاميات', type: 'دوام كامل', attendance: 'حاضر', time: '06:50 AM' },
+    { id: 4, name: 'أ. فهد الزهراني', role: 'معلم العلوم', type: 'دوام كامل', attendance: 'حاضر', time: '07:10 AM' },
+    { id: 5, name: 'أ. خالد العتيبي', role: 'معلم الحاسب والتقنية', type: 'دوام كامل', attendance: 'حاضر', time: '07:15 AM' },
+    { id: 6, name: 'ك. أحمد الشهري', role: 'التربية البدنية والفنية', type: 'دوام كامل', attendance: 'حاضر', time: '07:05 AM' },
+    { id: 7, name: 'أ. يوسف عبد الله', role: 'وكيل شؤون الطلاب', type: 'إداري', attendance: 'حاضر', time: '06:40 AM' },
 ];
 
 const attendanceTrend = [

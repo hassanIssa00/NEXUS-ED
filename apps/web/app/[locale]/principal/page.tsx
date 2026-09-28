@@ -126,7 +126,7 @@ function PrincipalDashboardInner() {
         ].slice(0, 6),
         systemHealth: [
           { service: 'نظام الحضور والغياب البيومتري', status: 'optimal' },
-          { service: 'قاعدة بيانات الطلاب (فصل د. إسماعيل عيسى)', status: 'optimal' },
+          { service: 'قاعدة بيانات الطلاب (المرحلة الابتدائية)', status: 'optimal' },
           { service: 'نظام الواجبات والاختبارات التفاعلية', status: 'optimal' },
         ],
       };
@@ -543,9 +543,9 @@ function PrincipalDashboardInner() {
             ) : (
               <div className="space-y-1">
                  {[
-                   { text: 'تسجيل الحضور اليومي لطلاب فصل د. إسماعيل عيسى', type: 'success', time: 'اليوم' },
+                   { text: 'تسجيل الحضور اليومي لطلاب الصف الأول الابتدائي (أ)', type: 'success', time: 'اليوم' },
                    { text: 'نشر واجب منزلي جديد في مادة لغتي', type: 'info', time: 'أمس' },
-                   { text: 'منح شهادة تميز للطالب أحمد فيصل الغامدي', type: 'success', time: 'هذا الأسبوع' },
+                   { text: 'اعتماد الخطة الأكاديمية وجداول الحصص المدرسية', type: 'success', time: 'هذا الأسبوع' },
                  ].map((item, i) => (
                    <AlertRow key={`act-${i}`}
                      type={item.type}

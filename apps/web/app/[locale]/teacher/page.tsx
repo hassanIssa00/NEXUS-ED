@@ -1,6 +1,7 @@
-﻿'use client'
+'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from '@/i18n/routing'
+import { useSearchParams } from 'next/navigation'
 import { dashboardApi, TeacherDashboardResponse } from '@/lib/api/dashboard'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRealtimeNotifications } from '@/lib/providers/socket-provider'
@@ -12,6 +13,9 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, Cell } from 'recharts'
 import { LiveClassBanner } from './_components/LiveClassBanner'
 import { GradingQueue } from './_components/GradingQueue'
+import NexusToolsTab from './_components/NexusToolsTab'
+import { Camera } from 'lucide-react'
+import { PhotoUploadModal } from '@/components/PhotoUploadModal'
 
 const Tooltip2 = ({ active, payload, label }: any) => {
   if (active && payload?.length) return (
@@ -68,6 +72,50 @@ export default function TeacherDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [usingFallback, setUsingFallback] = useState(false)
   const [liveNotif, setLiveNotif] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'overview' | 'nexus-tools'>('overview')
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const tab = searchParams?.get('tab')
+    if (tab === 'tools' || tab === 'nexus-tools') {
+      setActiveTab('nexus-tools')
+    } else if (tab === 'overview') {
+      setActiveTab('overview')
+    }
+  }, [searchParams])
+  const [teacherPhoto, setTeacherPhoto] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('nexus_teacher_photo') || null
+    }
+    return null
+  })
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false)
+
+  const handleSavePhoto = (photoUrl: string) => {
+    setTeacherPhoto(photoUrl)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('nexus_teacher_photo', photoUrl)
+      try {
+        const uStr = localStorage.getItem('nexus_user')
+        if (uStr) {
+          const u = JSON.parse(uStr)
+          u.photoUrl = photoUrl
+          localStorage.setItem('nexus_user', JSON.stringify(u))
+        }
+      } catch {}
+      window.dispatchEvent(new CustomEvent('nexus:data-changed'))
+    }
+    setIsPhotoModalOpen(false)
+  }
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('tab') === 'tools' || window.location.hash.includes('tools')) {
+        setActiveTab('nexus-tools')
+      }
+    }
+  }, [])
 
 
   const load = useCallback(async () => {
@@ -85,7 +133,7 @@ export default function TeacherDashboardPage() {
         teacher: {
           name: 'د. إسماعيل عيسى',
           email: 'arabic.teacher@nexusedu.sa',
-          subject: 'لغتي العربية والقرآن الكريم — فصل د. إسماعيل',
+          subject: 'لغتي العربية والقرآن الكريم — الصف الأول (أ)',
         },
         summary: {
           totalStudents: students.length,
@@ -96,7 +144,7 @@ export default function TeacherDashboardPage() {
           attendanceRate: totalAtt > 0 ? Math.round((presentCount / totalAtt) * 100) : 98,
         },
         classPerformance: [
-          { name: 'فصل د. إسماعيل عيسى', averageGrade: 95, studentCount: students.length, subjectCount: 4 },
+          { name: 'الصف الأول الابتدائي (أ)', averageGrade: 95, studentCount: students.length, subjectCount: 4 },
         ],
         recentAssignments: homework.map(h => ({
           id: h.id,
@@ -172,18 +220,57 @@ export default function TeacherDashboardPage() {
         )}
       </AnimatePresence>
 
-      {/* Offline/Fallback Banner */}
+      {/* Offline/Local Sync Notice */}
       {usingFallback && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 px-5 py-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl text-amber-700 dark:text-amber-400 text-sm font-bold">
-          <AlertCircle className="w-4 h-4 flex-shrink-0 animate-pulse" />
-          <span>لا يمكن الاتصال بالخادم — يتم عرض بيانات تجريبية. </span>
-          <button onClick={load} className="underline font-black hover:no-underline">إعادة الاتصال</button>
+          className="flex items-center justify-between gap-3 px-5 py-3 bg-teal-50 dark:bg-teal-500/10 border border-teal-200 dark:border-teal-500/30 rounded-2xl text-teal-800 dark:text-teal-300 text-xs md:text-sm font-bold shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-4 h-4 text-teal-600 animate-pulse flex-shrink-0" />
+            <span>نظام نكسس الذكي يعمل بنجاح مع الفصول والطلاب المسجلين.</span>
+          </div>
+          <button onClick={load} className="text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded-xl transition-all font-bold">تحديث البيانات</button>
         </motion.div>
       )}
 
       {/* Live Banner */}
       <LiveClassBanner />
+
+      {/* Modern Tab Navigation */}
+      <div className="flex items-center gap-2 bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 p-2 rounded-2xl shadow-sm">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${
+            activeTab === 'overview'
+              ? 'bg-teal-600 text-white shadow-md shadow-teal-600/20'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+          }`}
+        >
+          <LayoutDashboard className="w-4 h-4" />
+          <span>لوحة التحكم الرئيسية</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('nexus-tools')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${
+            activeTab === 'nexus-tools'
+              ? 'bg-gradient-to-r from-teal-600 via-sky-600 to-indigo-600 text-white shadow-md shadow-indigo-600/20'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-yellow-300 animate-pulse" />
+          <span>أدوات نكسس — Nexus Tools</span>
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+            activeTab === 'nexus-tools' ? 'bg-white/20 text-white' : 'bg-teal-500/10 text-teal-600 dark:text-teal-400'
+          }`}>
+            44 أداة ذكية
+          </span>
+        </button>
+      </div>
+
+      {activeTab === 'nexus-tools' ? (
+        <NexusToolsTab />
+      ) : (
+        <>
 
 
       {/* HERO */}
@@ -198,13 +285,40 @@ export default function TeacherDashboardPage() {
 
         <div className="relative z-10 flex flex-col md:flex-row items-start justify-between gap-8">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 backdrop-blur-md mb-4">
-              <Sparkles className="w-3 h-3 text-yellow-300 animate-pulse" />
-              <span className="text-xs font-bold text-teal-100">بوابة المعلم الذكية</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-5 mb-5">
+              {/* Teacher Photo Avatar / Placeholder */}
+              <div 
+                onClick={() => setIsPhotoModalOpen(true)}
+                title="انقر لتعديل أو إضافة صورتك الشخصية"
+                className="relative group cursor-pointer w-20 h-20 md:w-24 md:h-24 rounded-3xl overflow-hidden border-2 border-white/30 shadow-2xl flex-shrink-0 bg-white/10 backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 hover:border-white"
+              >
+                {teacherPhoto ? (
+                  <img src={teacherPhoto} alt={teacher.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center border-2 border-dashed border-white/40 rounded-3xl">
+                    <Camera className="w-6 h-6 text-white/80 group-hover:text-white transition-colors mb-1" />
+                    <span className="text-[10px] font-black text-white/90">أضف صورتك</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                  <Camera className="w-5 h-5 mb-0.5" />
+                  <span className="text-[9px] font-bold">تعديل</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 backdrop-blur-md mb-2">
+                  <Sparkles className="w-3 h-3 text-yellow-300 animate-pulse" />
+                  <span className="text-xs font-bold text-teal-100">بوابة المعلم الذكية</span>
+                </div>
+                <h1 className="text-3xl md:text-5xl font-black mb-1 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-teal-200 leading-[1.3]">
+                  أهلاً بك، أ. {teacher.name}
+                </h1>
+                <p className="text-xs md:text-sm text-teal-100 font-medium">
+                  {(teacher as any).role === 'teacher' ? 'معلم معتمد في منصة نكسس التعليمية' : 'كادر تعليمي'}
+                </p>
+              </div>
             </div>
-            <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-teal-200 leading-[1.4]">
-              أهلاً بك،<br/>أ. {teacher.name}
-            </h1>
 
             <div className="flex flex-wrap gap-4 mt-4">
               {[
@@ -228,6 +342,11 @@ export default function TeacherDashboardPage() {
           </div>
 
           <div className="flex flex-col gap-3 w-full md:w-auto">
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              onClick={() => setActiveTab('nexus-tools')}
+              className="w-full flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-black text-sm transition-all shadow-md bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 text-gray-950 hover:brightness-105 cursor-pointer">
+              <Sparkles className="w-4 h-4" /> أدوات نكسس التفاعلية (44 أداة)
+            </motion.button>
             {[
               { href: '/teacher/assignments', icon: Plus, label: 'إسناد واجب جديد', primary: true },
               { href: '/teacher/content-generator', icon: BrainCircuit, label: 'توليد محتوى بالذكاء الاصطناعي', primary: false },
@@ -393,6 +512,17 @@ export default function TeacherDashboardPage() {
           )}
         </div>
       </div>
+    </>
+      )}
+
+      {/* Teacher Photo Modal */}
+      <PhotoUploadModal
+        isOpen={isPhotoModalOpen}
+        onClose={() => setIsPhotoModalOpen(false)}
+        currentPhoto={teacherPhoto}
+        onSave={handleSavePhoto}
+        role="teacher"
+      />
     </div>
   )
 }

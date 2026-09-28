@@ -5,6 +5,7 @@ import { Link, usePathname } from '@/i18n/routing'
 import { cn } from '@/lib/utils'
 import {
     LayoutDashboard,
+    Sparkles,
     BookOpen,
     Users,
     Calendar,
@@ -306,6 +307,7 @@ function getNavigationByRole(role: string) {
         case 'teacher':
             return [
                 { href: '/teacher' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
+                { href: '/teacher?tab=tools' as any, label: 'أدوات نكسس (Nexus Tools)', icon: Sparkles },
                 { href: '/teacher/classes' as any, label: 'فصولي والطلاب', icon: Users },
                 { href: '/teacher/curriculum' as any, label: 'المناهج والخطط الدراسية', icon: BookMarked },
                 { href: '/teacher/assignments' as any, label: 'الواجبات والتصحيح', icon: FileText },

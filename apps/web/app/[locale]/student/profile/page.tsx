@@ -95,12 +95,12 @@ export default function SmartProfilePage() {
               </div>
               <h1 className="text-3xl md:text-4xl font-black">{student?.fullName || 'أحمد فيصل الغامدي'}</h1>
               <p className="text-teal-100 text-sm mt-1">
-                {student?.grade || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى'}
+                {student?.grade || 'الصف الأول الابتدائي — الفئة (أ)'}
               </p>
               <div className="flex items-center gap-3 mt-2 text-xs text-teal-200">
                 <span className="font-mono">المعرف: #{student?.id || 'cls-std-2'}</span>
                 <span>•</span>
-                <span>المعلم المشرف: د. إسماعيل عيسى</span>
+                <span>رائد الفصل: د. إسماعيل عيسى</span>
               </div>
             </div>
           </div>

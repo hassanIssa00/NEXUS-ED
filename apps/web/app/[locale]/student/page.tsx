@@ -24,6 +24,13 @@ import { AchievementsShowcase } from './_components/AchievementsShowcase'
 import { AssignmentsTimeline } from './_components/AssignmentsTimeline'
 import { QuickNavGrid } from './_components/QuickNavGrid'
 
+import { Camera } from 'lucide-react'
+import { KindergartenTrack } from './_components/KindergartenTrack'
+import { MiddleSchoolTrack } from './_components/MiddleSchoolTrack'
+import { HighSchoolTrack } from './_components/HighSchoolTrack'
+import { PhotoUploadModal } from '@/components/PhotoUploadModal'
+import LiveDaySchedule from '@/components/schedule/LiveDaySchedule'
+
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload?.length) return (
     <div className="bg-white/90 dark:bg-[#1e1e2d]/90 backdrop-blur-md border border-gray-100 dark:border-white/10 p-3 rounded-xl shadow-xl">
@@ -40,60 +47,45 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 const FALLBACK_STUDENT_DATA: StudentDashboardResponse = {
   student: {
-    id: 'cls-std-2',
-    name: 'أحمد فيصل الغامدي',
-    email: 'student1@nexusedu.sa',
-    grade: 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
+    id: 'std-user',
+    name: 'طالب نكسس',
+    email: '',
+    grade: 'المرحلة الدراسية',
   },
   summary: {
     totalSubjects: 6,
-    pendingAssignments: 1,
-    completedAssignments: 5,
-    averageGrade: 95,
-    totalLessons: 68,
+    pendingAssignments: 0,
+    completedAssignments: 1,
+    averageGrade: 98,
+    totalLessons: 12,
   },
-  upcomingAssignments: [
-    {
-      id: 'hw-1',
-      title: 'مسائل الجمع الرأسي والأفقي حتى 20',
-      subject: 'الرياضيات',
-      dueDate: '2026-09-29',
-      status: 'PENDING',
-    },
-    {
-      id: 'hw-2',
-      title: 'قراءة درس المد بالألف وكتابة 3 كلمات',
-      subject: 'اللغة العربية',
-      dueDate: '2026-09-30',
-      status: 'PENDING',
-    },
-  ],
+  upcomingAssignments: [],
   attendance: {
-    present: 85,
-    absent: 2,
-    late: 3,
+    present: 1,
+    absent: 0,
+    late: 0,
     excused: 0,
   },
   subjectPerformance: [
-    { id: '1', name: 'اللغة العربية', teacher: 'د. إسماعيل عيسى', averageGrade: 94, totalLessons: 18, submittedAssignments: 5, totalAssignments: 6 },
-    { id: '2', name: 'القرآن الكريم', teacher: 'د. إسماعيل عيسى', averageGrade: 98, totalLessons: 16, submittedAssignments: 5, totalAssignments: 5 },
-    { id: '3', name: 'الرياضيات', teacher: 'د. إسماعيل عيسى', averageGrade: 92, totalLessons: 20, submittedAssignments: 6, totalAssignments: 7 },
-    { id: '4', name: 'العلوم', teacher: 'د. إسماعيل عيسى', averageGrade: 88, totalLessons: 14, submittedAssignments: 4, totalAssignments: 5 },
-    { id: '5', name: 'التربية الإسلامية', teacher: 'د. إسماعيل عيسى', averageGrade: 96, totalLessons: 12, submittedAssignments: 4, totalAssignments: 4 },
-    { id: '6', name: 'الفن والتربية البصرية', teacher: 'د. إسماعيل عيسى', averageGrade: 95, totalLessons: 8, submittedAssignments: 3, totalAssignments: 3 },
+    { id: '1', name: 'اللغة العربية', teacher: 'د. إسماعيل عيسى', averageGrade: 98, totalLessons: 6, submittedAssignments: 1, totalAssignments: 1 },
+    { id: '2', name: 'القرآن الكريم', teacher: 'الشيخ عبد الرحمن السعيد', averageGrade: 100, totalLessons: 4, submittedAssignments: 1, totalAssignments: 1 },
+    { id: '3', name: 'الرياضيات', teacher: 'أ. محمد الغامدي', averageGrade: 96, totalLessons: 5, submittedAssignments: 1, totalAssignments: 1 },
+    { id: '4', name: 'العلوم', teacher: 'أ. فهد الزهراني', averageGrade: 95, totalLessons: 3, submittedAssignments: 1, totalAssignments: 1 },
+    { id: '5', name: 'التربية الإسلامية', teacher: 'الشيخ عبد الرحمن السعيد', averageGrade: 98, totalLessons: 3, submittedAssignments: 1, totalAssignments: 1 },
+    { id: '6', name: 'الفن والتربية البصرية', teacher: 'ك. أحمد الشهري', averageGrade: 95, totalLessons: 2, submittedAssignments: 1, totalAssignments: 1 },
   ],
   gamification: {
-    level: 4,
-    totalXP: 2075,
-    streakDays: 7,
-    achievementsUnlocked: 4,
+    level: 1,
+    totalXP: 350,
+    streakDays: 1,
+    achievementsUnlocked: 0,
   },
   weeklyActivity: [
-    { label: 'الأحد', submissions: 2, attended: 1 },
-    { label: 'الاثنين', submissions: 3, attended: 1 },
-    { label: 'الثلاثاء', submissions: 1, attended: 1 },
-    { label: 'الأربعاء', submissions: 4, attended: 1 },
-    { label: 'الخميس', submissions: 2, attended: 1 },
+    { label: 'الأحد', submissions: 1, attended: 1 },
+    { label: 'الاثنين', submissions: 0, attended: 0 },
+    { label: 'الثلاثاء', submissions: 0, attended: 0 },
+    { label: 'الأربعاء', submissions: 0, attended: 0 },
+    { label: 'الخميس', submissions: 0, attended: 0 },
     { label: 'الجمعة', submissions: 0, attended: 0 },
     { label: 'السبت', submissions: 0, attended: 0 },
   ],
@@ -101,6 +93,48 @@ const FALLBACK_STUDENT_DATA: StudentDashboardResponse = {
 
 export default function StudentDashboardPage() {
   const [data, setData] = useState<StudentDashboardResponse | null>(null)
+
+  const [studentPhoto, setStudentPhoto] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('nexus_student_photo') || null
+    }
+    return null
+  })
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false)
+  const [currentStage, setCurrentStage] = useState<'kindergarten' | 'elementary' | 'middle' | 'high'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('nexus_student_stage')
+      if (saved && ['kindergarten', 'elementary', 'middle', 'high'].includes(saved)) {
+        return saved as any
+      }
+    }
+    return 'elementary'
+  })
+
+  const handleSavePhoto = (photoUrl: string) => {
+    setStudentPhoto(photoUrl)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('nexus_student_photo', photoUrl)
+      try {
+        const uStr = localStorage.getItem('nexus_user')
+        if (uStr) {
+          const u = JSON.parse(uStr)
+          u.photoUrl = photoUrl
+          localStorage.setItem('nexus_user', JSON.stringify(u))
+        }
+      } catch {}
+      window.dispatchEvent(new CustomEvent('nexus:data-changed'))
+    }
+    setIsPhotoModalOpen(false)
+  }
+
+  const handleStageChange = (stage: 'kindergarten' | 'elementary' | 'middle' | 'high') => {
+    setCurrentStage(stage)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('nexus_student_stage', stage)
+      window.dispatchEvent(new CustomEvent('nexus:data-changed'))
+    }
+  }
   const [loading, setLoading] = useState(true)
   const [usingFallback, setUsingFallback] = useState(false)
   const [liveAssignments, setLiveAssignments] = useState<any[]>([])
@@ -110,16 +144,42 @@ export default function StudentDashboardPage() {
     const load = async () => {
       try {
         const { nexusBridge } = await import('@/lib/nexusDataBridge')
-        let linkedStudentId = 'cls-std-2'
+        let linkedStudentId = ''
+        let storedAcc: any = null
         try {
           const stored = localStorage.getItem('nexus_user')
           if (stored) {
-            const acc = JSON.parse(stored)
-            if (acc.linkedStudentId) linkedStudentId = acc.linkedStudentId
+            storedAcc = JSON.parse(stored)
+            if (storedAcc.linkedStudentId) linkedStudentId = storedAcc.linkedStudentId
+            else if (storedAcc.role === 'student') linkedStudentId = storedAcc.id
           }
         } catch {}
 
-        const student = nexusBridge.getStudentById(linkedStudentId)
+        let student = linkedStudentId ? nexusBridge.getStudentById(linkedStudentId) : null
+        if (!student && storedAcc && storedAcc.role === 'student') {
+          student = {
+            id: storedAcc.id || 'std_active',
+            universalId: storedAcc.universalId || 'STD-USER',
+            fullName: storedAcc.name || 'طالب نكسس',
+            fullNameEn: '',
+            grade: storedAcc.stage === 'kindergarten' ? 'الروضة' : storedAcc.stage === 'middle' ? 'المرحلة المتوسطة' : storedAcc.stage === 'high' ? 'المرحلة الثانوية' : 'المرحلة الابتدائية',
+            classId: 'CLS-101',
+            nationalId: '',
+            dateOfBirth: '',
+            parentName: '',
+            parentPhone: storedAcc.phone || '',
+            parentEmail: storedAcc.email || '',
+            photoUrl: storedAcc.photoUrl,
+            notes: '',
+            averageGrade: 100,
+            attendanceRate: 100,
+            rank: 1,
+            assignedProgram: storedAcc.stage === 'kindergarten' ? 'رياض الأطفال' : 'المسار العام',
+            status: 'excellent',
+            studentAccountId: storedAcc.id || '',
+            parentAccountId: '',
+          }
+        }
         const allStudents = nexusBridge.getStudents()
         const todayAtt = nexusBridge.getTodayAttendance()
         const myAtt = todayAtt.find(a => a.studentId === linkedStudentId)
@@ -139,66 +199,98 @@ export default function StudentDashboardPage() {
           status: 'PENDING',
         }))
 
+        const SUBJECT_TEACHERS: Record<string, string> = {
+          'اللغة العربية': 'د. إسماعيل عيسى',
+          'القرآن الكريم': 'الشيخ عبد الرحمن السعيد',
+          'التربية الإسلامية': 'الشيخ عبد الرحمن السعيد',
+          'الرياضيات': 'أ. محمد الغامدي',
+          'العلوم': 'أ. فهد الزهراني',
+          'الفنون البصرية': 'ك. أحمد الشهري',
+        }
         const subjects = ['اللغة العربية', 'القرآن الكريم', 'الرياضيات', 'العلوم', 'التربية الإسلامية', 'الفنون البصرية']
         const subjectPerformance = subjects.map((subj, i) => {
           const subSubs = mySubmissions.filter(s => s.assignmentTitle?.includes(subj.split(' ')[0]) || (s as any).subject?.includes(subj.split(' ')[0]))
           const avgGrade = subSubs.length > 0
             ? Math.round(subSubs.reduce((acc, s) => acc + (s.grade || 0), 0) / subSubs.length * 10)
-            : [94, 98, 92, 88, 96, 95][i]
+            : (student?.averageGrade || 98)
           return {
             id: `subj-${i}`,
             name: subj,
-            teacher: 'د. إسماعيل عيسى',
+            teacher: SUBJECT_TEACHERS[subj] || 'المعلم المختص',
             averageGrade: avgGrade,
-            totalLessons: [18, 16, 20, 14, 12, 8][i],
-            submittedAssignments: subSubs.length || [5, 5, 6, 4, 4, 3][i],
-            totalAssignments: allHw.filter(h => h.subject === subj).length || [6, 5, 7, 5, 4, 3][i],
+            totalLessons: [12, 10, 14, 8, 8, 6][i],
+            submittedAssignments: subSubs.length,
+            totalAssignments: allHw.filter(h => h.subject === subj).length,
           }
         })
 
-        const presentDays = student?.attendanceRate ? Math.round((student.attendanceRate / 100) * 180) : 85
+        // Real attendance from localStorage
+        let storedHistory: any[] = []
+        try {
+          const raw = localStorage.getItem('nexus_student_attendance_history')
+          if (raw) storedHistory = JSON.parse(raw)
+        } catch {}
+
+        const presentCount = storedHistory.filter(h => h.status === 'PRESENT').length
+        const absentCount = storedHistory.filter(h => h.status === 'ABSENT').length
+        const lateCount = storedHistory.filter(h => h.status === 'LATE').length
+        const excusedCount = storedHistory.filter(h => h.status === 'EXCUSED').length
+
+        const isPresentToday = myAtt?.overallStatus === 'present'
+        const hasHistory = storedHistory.length > 0
         const attendance = {
-          present: presentDays,
-          absent: Math.max(0, 180 - presentDays - 3),
-          late: 3,
-          excused: 0,
+          present: hasHistory ? presentCount : (isPresentToday ? 1 : 0),
+          absent: hasHistory ? absentCount : 0,
+          late: hasHistory ? lateCount : 0,
+          excused: hasHistory ? excusedCount : 0,
         }
 
-        const totalXP = (myCerts.length * 500) + (mySubmissions.length * 150) + ((student?.averageGrade || 95) * 10)
+        const totalXP = (myCerts.length * 500) + (mySubmissions.length * 150) + (attendance.present * 50)
         const gamification = {
-          level: Math.min(10, Math.floor(totalXP / 500) + 1),
+          level: Math.max(1, Math.min(10, Math.floor(totalXP / 500) + 1)),
           totalXP,
-          streakDays: mySubmissions.length > 0 ? 7 : 3,
-          achievementsUnlocked: myCerts.length + (student?.status === 'excellent' ? 2 : 1),
+          streakDays: attendance.present > 0 ? attendance.present : 1,
+          achievementsUnlocked: myCerts.length,
         }
+
+        const todayDayOfWeek = new Date().getDay()
+        const dayLabels = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+        const weeklyActivity = dayLabels.map((label, dayIdx) => {
+          const isWeekend = dayIdx === 5 || dayIdx === 6
+          const submissionsOnDay = mySubmissions.filter(s => {
+            const d = new Date(s.submittedAt || ((s as any).createdAt || s.submittedAt))
+            return d.getDay() === dayIdx
+          }).length
+          const dayAttHistory = storedHistory.find(h => new Date(h.date).getDay() === dayIdx)
+          const attendedOnDay = dayAttHistory ? (dayAttHistory.status === 'PRESENT' ? 1 : 0) : (dayIdx === todayDayOfWeek && isPresentToday ? 1 : 0)
+          return {
+            label,
+            submissions: submissionsOnDay,
+            attended: isWeekend ? 0 : attendedOnDay,
+          }
+        })
+
+        const totalLessons = subjectPerformance.reduce((acc, s) => acc + s.totalLessons, 0)
 
         const realData: any = {
           student: {
             id: linkedStudentId,
             name: student?.fullName || 'أحمد فيصل الغامدي',
             email: 'student1@nexusedu.sa',
-            grade: student?.grade || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
+            grade: student?.grade || 'الصف الأول الابتدائي — الفئة (أ)',
           },
           summary: {
             totalSubjects: 6,
             pendingAssignments: pendingHw.length,
             completedAssignments: completedHw.length + mySubmissions.filter(s => s.status === 'submitted').length,
-            averageGrade: student?.averageGrade || 95,
-            totalLessons: 68,
+            averageGrade: student?.averageGrade || 98,
+            totalLessons,
           },
           upcomingAssignments,
           attendance,
           subjectPerformance,
           gamification,
-          weeklyActivity: [
-            { label: 'الأحد', submissions: mySubmissions.filter(s => new Date(s.submittedAt).getDay() === 0).length || 2, attended: myAtt?.overallStatus === 'present' ? 1 : 1 },
-            { label: 'الاثنين', submissions: 3, attended: 1 },
-            { label: 'الثلاثاء', submissions: 1, attended: 1 },
-            { label: 'الأربعاء', submissions: mySubmissions.length || 4, attended: 1 },
-            { label: 'الخميس', submissions: 2, attended: 1 },
-            { label: 'الجمعة', submissions: 0, attended: 0 },
-            { label: 'السبت', submissions: 0, attended: 0 },
-          ],
+          weeklyActivity,
         }
 
         setData(realData)
@@ -244,11 +336,11 @@ export default function StudentDashboardPage() {
 
   const { student, summary, upcomingAssignments, attendance, subjectPerformance, gamification, weeklyActivity } = data || FALLBACK_STUDENT_DATA
 
-  const attPct = (attendance.present + attendance.absent + attendance.late) > 0
-    ? Math.round((attendance.present / (attendance.present + attendance.absent + attendance.late)) * 100) : 97
-  const avgGrade = Math.round(summary.averageGrade || 95)
-  const completionPct = (summary.pendingAssignments + summary.completedAssignments) > 0
-    ? Math.round((summary.completedAssignments / (summary.pendingAssignments + summary.completedAssignments)) * 100) : 83
+  const totalAtt = attendance.present + attendance.absent + attendance.late
+  const attPct = totalAtt > 0 ? Math.round((attendance.present / totalAtt) * 100) : (attendance.present > 0 ? 100 : 100)
+  const avgGrade = Math.round(summary.averageGrade || 98)
+  const totalHw = summary.pendingAssignments + summary.completedAssignments
+  const completionPct = totalHw > 0 ? Math.round((summary.completedAssignments / totalHw) * 100) : 100
 
   const radarData = subjectPerformance.slice(0, 6).map(s => ({
     subject: s.name.substring(0, 12),
@@ -285,6 +377,48 @@ export default function StudentDashboardPage() {
         )}
       </AnimatePresence>
 
+      
+      {/* ─── EDUCATIONAL STAGE SWITCHER (مسار المرحلة الدراسية) ─── */}
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-violet-100 dark:border-white/5 rounded-3xl p-3 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3"
+      >
+        <div className="flex items-center gap-2.5 px-2">
+          <div className="w-8 h-8 rounded-xl bg-violet-600/10 flex items-center justify-center text-violet-600">
+            <GraduationCap className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="text-xs font-black text-gray-900 dark:text-white leading-tight">مسار المرحلة الدراسية</p>
+            <p className="text-[10px] text-gray-400">تخصيص المنهج والأدوات بحسب احتياجات المرحلة</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+          {[
+            { id: 'kindergarten', label: 'رياض الأطفال', emoji: '🧸', tag: 'الطفولة المبكرة' },
+            { id: 'elementary', label: 'المرحلة الابتدائية', emoji: '📚', tag: 'الصفوف 1 - 6' },
+            { id: 'middle', label: 'المرحلة المتوسطة', emoji: '🔬', tag: 'معامل وSTEM' },
+            { id: 'high', label: 'المرحلة الثانوية', emoji: '🎓', tag: 'المسارات والقدرات' },
+          ].map((st) => (
+            <button
+              key={st.id}
+              onClick={() => handleStageChange(st.id as any)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-black transition-all whitespace-nowrap ${
+                currentStage === st.id
+                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/25 scale-[1.02]'
+                  : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10'
+              }`}
+            >
+              <span className="text-base">{st.emoji}</span>
+              <span>{st.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${currentStage === st.id ? 'bg-white/20 text-white' : 'bg-black/5 dark:bg-white/10 text-gray-500'}`}>
+                {st.tag}
+              </span>
+            </button>
+          ))}
+        </div>
+      </motion.div>
+
       {/* ─── HERO SECTION ─── */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -292,42 +426,63 @@ export default function StudentDashboardPage() {
         transition={{ duration: 0.6 }}
         className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#4c1d95] via-[#6d28d9] to-[#7c3aed] p-8 md:p-12 text-white shadow-[0_24px_70px_rgba(109,40,217,0.35)]"
       >
-        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
-          <motion.div
-            animate={{ rotate: 360, scale: [1, 1.1, 1] }}
-            transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
-            className="absolute -top-40 -right-40 w-[500px] h-[500px] bg-purple-400 rounded-full blur-3xl"
-          />
-          <motion.div
-            animate={{ rotate: -360 }}
-            transition={{ duration: 50, repeat: Infinity, ease: 'linear' }}
-            className="absolute -bottom-40 -left-20 w-[400px] h-[400px] bg-indigo-500 rounded-full blur-3xl"
-          />
+        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-25">
+          <div className="absolute -top-32 -right-32 w-96 h-96 bg-purple-300 rounded-full blur-3xl" />
+          <div className="absolute -bottom-32 -left-20 w-80 h-80 bg-indigo-400 rounded-full blur-3xl" />
         </div>
 
         <div className="relative z-10 flex flex-col xl:flex-row items-center justify-between gap-8">
           <div className="w-full xl:w-auto">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 backdrop-blur-md mb-4"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
-              <span className="text-xs font-bold text-violet-100">مرحباً بعودتك! 👋</span>
-            </motion.div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-5 mb-5">
+              {/* Student Photo Avatar / Placeholder */}
+              <div 
+                onClick={() => setIsPhotoModalOpen(true)}
+                title="انقر لتعديل أو إضافة صورتك الشخصية"
+                className="relative group cursor-pointer w-20 h-20 md:w-24 md:h-24 rounded-3xl overflow-hidden border-2 border-white/30 shadow-2xl flex-shrink-0 bg-white/10 backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 hover:border-white"
+              >
+                {studentPhoto ? (
+                  <img src={studentPhoto} alt={student.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center border-2 border-dashed border-white/40 rounded-3xl">
+                    <Camera className="w-6 h-6 text-white/80 group-hover:text-white transition-colors mb-1" />
+                    <span className="text-[10px] font-black text-white/90">أضف صورتك</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                  <Camera className="w-5 h-5 mb-0.5" />
+                  <span className="text-[9px] font-bold">تعديل</span>
+                </div>
+              </div>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="text-4xl md:text-5xl font-black mb-2 tracking-tight"
-            >
-              {student.name}
-            </motion.h1>
-            <p className="text-violet-200 text-sm md:text-base font-medium mb-6">
-              يوم تعليمي رائع بانتظارك في فصل د. إسماعيل! استمر في التميز 🌟
-            </p>
+              <div>
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 backdrop-blur-md mb-2"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+                  <span className="text-xs font-bold text-violet-100">مرحباً بعودتك! 👋</span>
+                </motion.div>
+
+                <motion.h1
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-3xl md:text-5xl font-black mb-1 tracking-tight"
+                >
+                  {student.name}
+                </motion.h1>
+                <p className="text-violet-200 text-xs md:text-sm font-medium">
+                  {((student as any).grade || "الصف الأول الابتدائي")} • {
+                    currentStage === 'kindergarten' ? 'مرحلة رياض الأطفال 🧸' :
+                    currentStage === 'middle' ? 'المرحلة المتوسطة 🔬' :
+                    currentStage === 'high' ? 'المرحلة الثانوية 🎓' :
+                    'المرحلة الابتدائية 📚'
+                  }
+                </p>
+              </div>
+            </div>
 
             {/* Gamification Badges */}
             <motion.div
@@ -390,16 +545,37 @@ export default function StudentDashboardPage() {
             transition={{ delay: 0.5 }}
             className="flex justify-center gap-6 md:gap-10 bg-black/15 p-7 rounded-[2.5rem] border border-white/10 backdrop-blur-md"
           >
-            <ProgressRing pct={attPct} color="#34d399" label="نسبة الحضور" value={`${attPct}%`} size={95} />
+            <ProgressRing pct={attPct} color="#34d399" label="نسبة الحضور" value={`${attPct}%`} size={95} onDark />
             <div className="w-px h-20 bg-white/10 self-center" />
-            <ProgressRing pct={avgGrade} color="#fcd34d" label="المعدل العام" value={`${avgGrade}%`} size={95} />
+            <ProgressRing pct={avgGrade} color="#fcd34d" label="المعدل العام" value={`${avgGrade}%`} size={95} onDark />
             <div className="w-px h-20 bg-white/10 self-center" />
-            <ProgressRing pct={completionPct} color="#60a5fa" label="إنجاز الواجبات" value={`${completionPct}%`} size={95} />
+            <ProgressRing pct={completionPct} color="#60a5fa" label="إنجاز الواجبات" value={`${completionPct}%`} size={95} onDark />
           </motion.div>
         </div>
       </motion.div>
 
-      {/* ─── CLASSROOM & FACE ID STATUS ─── */}
+      {/* ─── DYNAMIC STAGE RENDERING ─── */}
+      {currentStage === 'kindergarten' && (
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+          <KindergartenTrack />
+        </motion.div>
+      )}
+
+      {currentStage === 'middle' && (
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+          <MiddleSchoolTrack />
+        </motion.div>
+      )}
+
+      {currentStage === 'high' && (
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+          <HighSchoolTrack />
+        </motion.div>
+      )}
+
+      {currentStage === 'elementary' && (
+        <div className="space-y-8">
+          {/* ─── CLASSROOM & FACE ID STATUS ─── */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -412,23 +588,29 @@ export default function StudentDashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-black text-gray-900 dark:text-white">
-                الصف الأول الابتدائي — فصل د. إسماعيل عيسى
+                الصف الأول الابتدائي — الفئة (أ)
               </h2>
               <span className="px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 text-xs font-black">
                 نشط الآن ✅
               </span>
             </div>
             <p className="text-xs text-gray-500 font-medium mt-1">
-              معلم الفصل: <span className="font-bold text-violet-600">د. إسماعيل عيسى</span> • الطالب:{' '}
-              <span className="font-bold text-gray-800 dark:text-gray-200">أحمد فيصل الغامدي (#cls-std-2)</span>
+              مدارس نكسس التعليمية الأهلية • رائد الفصل: <span className="font-bold text-violet-600">د. إسماعيل عيسى</span> • الطالب:{' '}
+              <span className="font-bold text-gray-800 dark:text-gray-200">{data?.student?.name || 'طالب مسجل'}</span>
             </p>
-            <div className="flex items-center gap-3 mt-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 text-xs">
               <span className="flex items-center gap-1 text-emerald-600 font-bold">
                 <CheckCircle2 className="w-3.5 h-3.5" /> بصمة الوجه (Face ID) معتمدة
               </span>
               <span className="text-gray-400">•</span>
               <span className="text-gray-500 font-medium">
-                الحصة الحالية: <span className="font-black text-violet-600">القرآن الكريم (07:00 - 07:45)</span>
+                {new Date().getDay() === 5 || new Date().getDay() === 6 ? (
+                  <span className="font-bold text-amber-600">اليوم عطلة نهاية الأسبوع 🌴</span>
+                ) : (
+                  <>
+                    الحالة اليومية: <span className="font-black text-violet-600">مباشر حسب جدول الحصص 📅</span>
+                  </>
+                )}
               </span>
             </div>
           </div>
@@ -508,59 +690,14 @@ export default function StudentDashboardPage() {
           </div>
         </motion.div>
 
-        {/* Today's Schedule Preview */}
+        {/* Today's Schedule Preview — LIVE */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
           className="bg-white dark:bg-[#1e1e2d] border border-gray-100 dark:border-white/5 rounded-[2rem] p-6 shadow-sm flex flex-col"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-black text-gray-900 dark:text-white text-base flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-violet-50 dark:bg-violet-500/10 flex items-center justify-center">
-                <Calendar className="w-4 h-4 text-violet-500" />
-              </div>
-              جدول حصص اليوم الدراسي
-            </h3>
-            <a href="/student/schedule" className="text-xs font-bold text-violet-600 hover:underline">
-              الجدول الأسبوعي ↗
-            </a>
-          </div>
-
-          <div className="space-y-2 flex-1">
-            {[
-              { num: 1, name: 'اللغة العربية', time: '07:00 — 07:45', emoji: '📖', status: 'جارية الآن' },
-              { num: 2, name: 'القرآن الكريم', time: '07:45 — 08:30', emoji: '📿', status: 'قادمة' },
-              { num: 3, name: 'استراحة الفطور', time: '08:30 — 09:15', emoji: '🥪', status: 'استراحة' },
-              { num: 4, name: 'التربية الإسلامية', time: '09:30 — 10:15', emoji: '🕌', status: 'قادمة' },
-              { num: 5, name: 'الرياضيات', time: '10:15 — 11:00', emoji: '🔢', status: 'قادمة' },
-            ].map((period, i) => (
-              <div
-                key={i}
-                className={`p-3 rounded-2xl flex items-center justify-between gap-3 text-xs ${
-                  period.status === 'جارية الآن'
-                    ? 'bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20'
-                    : 'bg-gray-50 dark:bg-white/5'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-base">{period.emoji}</span>
-                  <div>
-                    <span className="font-black text-gray-900 dark:text-white">{period.name}</span>
-                    <span className="text-gray-400 mr-2">حصة {period.num}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-400 font-mono">{period.time}</span>
-                  {period.status === 'جارية الآن' && (
-                    <span className="px-2 py-0.5 rounded-md bg-violet-600 text-white font-bold text-[10px] animate-pulse">
-                      الآن
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          <LiveDaySchedule />
         </motion.div>
       </div>
 
@@ -589,7 +726,7 @@ export default function StudentDashboardPage() {
             </div>
             <div className="flex-1 min-w-0">
               <h4 className="font-black text-sm text-gray-900 dark:text-white truncate">
-                طالب متميز — فصل د. إسماعيل عيسى
+                طالب متميز — الصف الأول الابتدائي (أ)
               </h4>
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
                 لديك {gamification.achievementsUnlocked} أوسمة وشهادات تميز معتمدة في المنصة
@@ -705,6 +842,17 @@ export default function StudentDashboardPage() {
         <AssignmentsTimeline assignments={allAssignments} liveCount={liveAssignments.length} />
         <AchievementsShowcase count={gamification.achievementsUnlocked} />
       </div>
+        </div>
+      )}
+
+      {/* Photo Upload Modal */}
+      <PhotoUploadModal
+        isOpen={isPhotoModalOpen}
+        onClose={() => setIsPhotoModalOpen(false)}
+        currentPhoto={studentPhoto}
+        onSave={handleSavePhoto}
+        role="student"
+      />
     </div>
   )
 }

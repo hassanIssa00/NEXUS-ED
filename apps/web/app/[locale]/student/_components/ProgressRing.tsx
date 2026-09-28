@@ -1,20 +1,28 @@
 'use client'
 import { motion } from 'framer-motion'
 
-export function ProgressRing({ pct, color, size = 90, label, value }: { pct: number; color: string; size?: number; label: string; value: string }) {
+export function ProgressRing({
+  pct, color, size = 90, label, value, onDark = true
+}: {
+  pct: number; color: string; size?: number; label: string; value: string; onDark?: boolean
+}) {
   const r = size / 2 - 8; const circ = 2 * Math.PI * r
   return (
-    <div className="flex flex-col items-center gap-1">
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={6} className="text-gray-200 dark:text-gray-800" />
-        <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={6}
-          strokeLinecap="round" strokeDasharray={circ}
-          initial={{ strokeDashoffset: circ }}
-          animate={{ strokeDashoffset: circ - (pct / 100) * circ }}
-          transition={{ duration: 1.5, ease: 'easeOut', delay: 0.3 }} />
-      </svg>
-      <p className="text-xl font-extrabold -mt-1 text-gray-900 dark:text-white">{value}</p>
-      <p className="text-[11px] text-gray-400 font-medium text-center">{label}</p>
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative">
+        <svg width={size} height={size} className="-rotate-90">
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={7} />
+          <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={7}
+            strokeLinecap="round" strokeDasharray={circ}
+            initial={{ strokeDashoffset: circ }}
+            animate={{ strokeDashoffset: circ - (pct / 100) * circ }}
+            transition={{ duration: 1.5, ease: 'easeOut', delay: 0.3 }} />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <p className="text-xl font-black text-white drop-shadow-md select-none">{value}</p>
+        </div>
+      </div>
+      <p className="text-xs font-black text-center leading-tight text-white/95 drop-shadow-xs select-none">{label}</p>
     </div>
   )
 }

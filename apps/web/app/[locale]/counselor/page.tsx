@@ -48,7 +48,7 @@ export default function CounselorDashboard() {
                 const builtCases = observations.map((obs, idx) => ({
                     id: obs.id || idx + 1,
                     student: obs.studentName,
-                    grade: 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى',
+                    grade: 'الصف الأول الابتدائي — الفئة (أ)',
                     type: obs.category === 'guidance' ? 'نفسي' : obs.category === 'behavior' ? 'سلوكي' : obs.category === 'praise' ? 'تعزيز إيجابي' : 'أكاديمي',
                     status: obs.severity === 'urgent' ? 'جديدة' : obs.severity === 'positive' ? 'مغلقة' : 'قيد المتابعة',
                     urgency: obs.severity === 'urgent' ? 'high' : obs.severity === 'positive' ? 'low' : 'medium',
@@ -107,7 +107,7 @@ export default function CounselorDashboard() {
             });
             setAiAnalysis(res.data?.data?.answer || 'تم تحليل الحالات. يرجى التركيز على متابعة الحالات النفسية نظراً لأهميتها القصوى.');
         } catch {
-            setAiAnalysis('تم تحليل حالات فصل د. إسماعيل عيسى: يظهر الطلاب استجابة ممتازة مع ضرورة استمرار جلسات التعزيز الإيجابي للطلاب ذوي التحصيل المتذبذب.');
+            setAiAnalysis('تم تحليل حالات طلاب الصف الأول الابتدائي (أ): يظهر الطلاب استجابة ممتازة مع ضرورة استمرار جلسات التعزيز الإيجابي للطلاب ذوي التحصيل المتذبذب.');
         } finally {
             setAiLoading(false);
         }
@@ -394,7 +394,7 @@ export default function CounselorDashboard() {
                 <motion.div key="c-students" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-3">
                     <div className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-[2rem] p-6 text-white">
                     <h2 className="text-2xl font-black mb-1">👤 متابعة الطلاب</h2>
-                    <p className="text-teal-100 text-sm">8 طلاب — فصل د. إسماعيل عيسى</p>
+                    <p className="text-teal-100 text-sm">8 طلاب — الصف الأول الابتدائي (أ)</p>
                     </div>
                     {counselorStudents.map((s, i) => {
                     const obs = counselorObs.filter(o => o.studentId === s.id)

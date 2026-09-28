@@ -63,7 +63,7 @@ export default function TeacherCommunityPage() {
             <span className="text-xs font-bold text-blue-100">ملتقى الأسرة التعليمية</span>
           </div>
           <h1 className="text-4xl font-black mb-2 tracking-tight">مجتمع أولياء الأمور 👨‍👩‍👧‍👦</h1>
-          <p className="text-blue-100 text-sm font-medium">التواصل والإعلانات لأولياء أمور فصل د. إسماعيل عيسى</p>
+          <p className="text-blue-100 text-sm font-medium">التواصل والإعلانات لأولياء أمور طلاب الصف الأول الابتدائي (أ)</p>
           <div className="mt-4">
             <div className="bg-white/10 border border-white/15 backdrop-blur-md px-4 py-2.5 rounded-2xl inline-block">
               <p className="text-[10px] text-blue-200">إجمالي الرسائل</p>

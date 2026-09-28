@@ -71,7 +71,7 @@ function VPDashboardInner() {
           supportNeeded: metrics.supportNeededStudents,
         },
         recentActivity: [
-          { text: `تم تسجيل حضور ${metrics.presentToday} طلاب اليوم في فصل د. إسماعيل عيسى` },
+          { text: `تم تسجيل حضور ${metrics.presentToday} طلاب اليوم في الصف الأول الابتدائي (أ)` },
           { text: `نسبة الحضور التراكمية للفصل: ${metrics.attendanceRate}%` },
           ...obs.map(o => ({ text: `${o.studentName}: ${o.text}` })),
         ],
@@ -452,7 +452,7 @@ function VPDashboardInner() {
         <motion.div key="vp-att" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           <div className="bg-gradient-to-br from-rose-600 via-pink-600 to-red-600 rounded-[2rem] p-6 text-white shadow-lg">
             <h2 className="text-2xl font-black mb-1">📅 سجل الحضور اليومي للمدرسة</h2>
-            <p className="text-rose-100 text-sm">متابعة حضور وانصراف طلاب فصل د. إسماعيل عيسى بالكامل</p>
+            <p className="text-rose-100 text-sm">متابعة حضور وانصراف طلاب الصف الأول الابتدائي (أ) بالكامل</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -493,7 +493,7 @@ function VPDashboardInner() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-black text-gray-900 dark:text-white truncate">{student.fullName}</h3>
-                    <p className="text-xs text-gray-500">{student.grade || 'الصف الأول الابتدائي — فصل د. إسماعيل عيسى'}</p>
+                    <p className="text-xs text-gray-500">{student.grade || 'الصف الأول الابتدائي — الفئة (أ)'}</p>
                   </div>
                   <div className="text-center hidden sm:block">
                     <p className="text-sm font-black text-gray-900 dark:text-white">{student.attendanceRate || 97}%</p>
