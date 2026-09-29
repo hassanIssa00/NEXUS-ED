@@ -17,10 +17,13 @@ import { AnimatedCounter } from '@/components/ui/animated-counter'
 
 // Hero Images for Carousel
 const heroImages = [
-    { src: '/images/hero-1.webp', alt: 'نكسس التعليمية - مستقبل التعليم يبدأ من هنا' },
-    { src: '/images/hero-2.webp', alt: 'نكسس التعليمية - تعلم ممتع.. إنجاز بلا حدود' },
-    { src: '/images/hero-3.webp', alt: 'نكسس التعليمية - نحو تعليم أكثر ذكاءً' },
-    { src: '/images/hero-4.webp', alt: 'نكسس التعليمية - بالمعلم يبدأ التغيير' },
+    { src: '/images/nexus-promo-01.webp', alt: 'تعلم ممتع.. إنجاز بلا حدود - نكسس التعليمية × مدارس الإخلاص' },
+    { src: '/images/nexus-promo-02.webp', alt: 'مستقبل التعليم يبدأ من هنا - نكسس التعليمية' },
+    { src: '/images/nexus-promo-03.webp', alt: 'نحو تعليم أكثر ذكاءً - نكسس التعليمية' },
+    { src: '/images/nexus-promo-04.webp', alt: 'نصنع مستقبل التعليم بالتكنولوجيا - الذكاء الاصطناعي' },
+    { src: '/images/nexus-promo-05.webp', alt: 'نصنع مستقبل التعليم بالتكنولوجيا - رؤية 2030' },
+    { src: '/images/nexus-promo-06.webp', alt: 'بالمعلم يبدأ التغيير - نكسس التعليمية' },
+    { src: '/images/nexus-promo-07.webp', alt: 'إدارة واعية تصنع فرقاً حقيقياً - نكسس التعليمية' },
 ]
 
 // School partner logos (text-based for now)
