@@ -17,10 +17,10 @@ import { AnimatedCounter } from '@/components/ui/animated-counter'
 
 // Hero Images for Carousel
 const heroImages = [
-    { src: '/images/hero-1.webp', alt: 'Nexus EDU - Vision' },
-    { src: '/images/hero-2.webp', alt: 'Nexus EDU - Smart Education' },
-    { src: '/images/hero-3.webp', alt: 'Performance Analytics' },
-    { src: '/images/hero-4.webp', alt: 'Admin Overview' },
+    { src: '/images/hero-1.webp', alt: 'نكسس التعليمية - مستقبل التعليم يبدأ من هنا' },
+    { src: '/images/hero-2.webp', alt: 'نكسس التعليمية - تعلم ممتع.. إنجاز بلا حدود' },
+    { src: '/images/hero-3.webp', alt: 'نكسس التعليمية - نحو تعليم أكثر ذكاءً' },
+    { src: '/images/hero-4.webp', alt: 'نكسس التعليمية - بالمعلم يبدأ التغيير' },
 ]
 
 // School partner logos (text-based for now)
