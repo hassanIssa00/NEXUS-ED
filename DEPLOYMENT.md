@@ -1,3 +1,17 @@
+# Nexus EDU production deployment
+
+- GitHub source: `hassanIssa00/NEXUS-ED`
+- Production branch: `master`
+- Vercel project: `nexus-edu-web`
+- Vercel root directory: `apps/web`
+- Production domain: `https://nexus.masarplatform.org`
+- Build: `npm install --legacy-peer-deps`, then `npm run build` from `apps/web`
+
+Deployments should be triggered by pushing to the configured production branch.
+Do not deploy from the monorepo root with the Vercel CLI: local Android and
+Turbo build artifacts can make that upload unnecessarily large. Configure a
+separate backend deployment for changes under `apps/api`.
+
 # Million Platform - دليل النشر على VPS
 
 ## المتطلبات
