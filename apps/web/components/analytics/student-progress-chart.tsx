@@ -15,15 +15,14 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrendingUp, TrendingDown, Minus, Award, BookOpen, Clock } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Award, BookOpen, Clock, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 
 interface StudentProgressPoint {
     date: string;
-    averageGrade: number;
-    attendanceRate: number;
+    averageGrade: number | null;
+    attendanceRate: number | null;
     assignmentsCompleted: number;
-    overallScore: number;
 }
 
 interface StudentProgressChartProps {
@@ -33,54 +32,60 @@ interface StudentProgressChartProps {
 }
 
 export function StudentProgressChart({ studentId, days = 30, data: propData }: StudentProgressChartProps) {
-    const [data, setData] = useState<StudentProgressPoint[]>(propData || []);
-    const [loading, setLoading] = useState(!propData);
+    const [data, setData] = useState<StudentProgressPoint[]>(propData ?? []);
+    const [loading, setLoading] = useState(propData === undefined);
+    const [loadError, setLoadError] = useState(false);
+    const [reloadKey, setReloadKey] = useState(0);
 
     useEffect(() => {
-        if (!propData) {
-            fetchData();
-        }
-    }, [studentId, days]);
-
-    const fetchData = async () => {
-        try {
-            setLoading(true);
-            const { data } = await apiClient.get(`/analytics/student/${studentId}/progress`, { params: { days } });
-            setData(Array.isArray(data) ? data : []);
-        } catch {
-            console.error('Failed to fetch student progress');
-        } finally {
+        if (propData !== undefined) {
+            setData(propData);
             setLoading(false);
+            setLoadError(false);
+            return;
         }
-    };
 
-    // Calculate trends
+        let active = true;
+        setLoading(true);
+        setLoadError(false);
+        apiClient.get(`/analytics/student/${studentId}/progress`, { params: { days } })
+            .then(({ data: responseData }) => {
+                if (active) setData(Array.isArray(responseData) ? responseData : []);
+            })
+            .catch(() => {
+                if (active) {
+                    setData([]);
+                    setLoadError(true);
+                }
+            })
+            .finally(() => {
+                if (active) setLoading(false);
+            });
+
+        return () => { active = false; };
+    }, [studentId, days, propData, reloadKey]);
+
     const calculateTrend = (values: number[]) => {
-        if (values.length < 2) return 'stable';
-        const first = values.slice(0, Math.ceil(values.length / 2));
-        const second = values.slice(Math.ceil(values.length / 2));
+        if (values.length < 2) return null;
+        const midpoint = Math.ceil(values.length / 2);
+        const first = values.slice(0, midpoint);
+        const second = values.slice(midpoint);
         const firstAvg = first.reduce((a, b) => a + b, 0) / first.length;
         const secondAvg = second.reduce((a, b) => a + b, 0) / second.length;
-        
+
         if (secondAvg > firstAvg + 5) return 'up';
         if (secondAvg < firstAvg - 5) return 'down';
         return 'stable';
     };
 
-    const gradeTrend = calculateTrend(data.map(d => d.averageGrade));
-    const attendanceTrend = calculateTrend(data.map(d => d.attendanceRate));
+    const gradeTrend = calculateTrend(data.flatMap(point => point.averageGrade === null ? [] : [point.averageGrade]));
+    const attendanceTrend = calculateTrend(data.flatMap(point => point.attendanceRate === null ? [] : [point.attendanceRate]));
 
-    const TrendIcon = ({ trend }: { trend: string }) => {
+    const TrendIcon = ({ trend }: { trend: string | null }) => {
         if (trend === 'up') return <TrendingUp className="w-4 h-4 text-green-500" />;
         if (trend === 'down') return <TrendingDown className="w-4 h-4 text-red-500" />;
-        return <Minus className="w-4 h-4 text-gray-400" />;
-    };
-
-    const latestData = data[data.length - 1] || {
-        averageGrade: 0,
-        attendanceRate: 0,
-        assignmentsCompleted: 0,
-        overallScore: 0,
+        if (trend === 'stable') return <Minus className="w-4 h-4 text-gray-400" />;
+        return null;
     };
 
     if (loading) {
@@ -96,21 +101,38 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
         );
     }
 
+    if (loadError || data.length === 0) {
+        return (
+            <Card>
+                <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                    <BookOpen className="h-10 w-10 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground">
+                        {loadError ? 'تعذر تحميل سجلات التقدم من المدرسة.' : 'لا توجد سجلات درجات أو حضور أو واجبات لهذه الفترة.'}
+                    </p>
+                    {loadError && (
+                        <button onClick={() => setReloadKey(key => key + 1)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                            <RefreshCw className="h-4 w-4" /> إعادة المحاولة
+                        </button>
+                    )}
+                </CardContent>
+            </Card>
+        );
+    }
+
+    const latestData = data[data.length - 1];
+    const displayValue = (value: number | null, suffix = '') => value === null ? '—' : `${value}${suffix}`;
+
     return (
         <div className="space-y-6">
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-200/50 dark:border-blue-800/50">
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-gray-600 dark:text-gray-400">متوسط الدرجات</p>
-                                <p className="text-2xl font-bold text-blue-600">{latestData.averageGrade}%</p>
+                                <p className="text-2xl font-bold text-blue-600">{displayValue(latestData.averageGrade, '%')}</p>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <TrendIcon trend={gradeTrend} />
-                                <Award className="w-8 h-8 text-blue-500/50" />
-                            </div>
+                            <div className="flex items-center gap-1"><TrendIcon trend={gradeTrend} /><Award className="w-8 h-8 text-blue-500/50" /></div>
                         </div>
                     </CardContent>
                 </Card>
@@ -120,12 +142,9 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-gray-600 dark:text-gray-400">نسبة الحضور</p>
-                                <p className="text-2xl font-bold text-green-600">{latestData.attendanceRate}%</p>
+                                <p className="text-2xl font-bold text-green-600">{displayValue(latestData.attendanceRate, '%')}</p>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <TrendIcon trend={attendanceTrend} />
-                                <Clock className="w-8 h-8 text-green-500/50" />
-                            </div>
+                            <div className="flex items-center gap-1"><TrendIcon trend={attendanceTrend} /><Clock className="w-8 h-8 text-green-500/50" /></div>
                         </div>
                     </CardContent>
                 </Card>
@@ -141,28 +160,12 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                         </div>
                     </CardContent>
                 </Card>
-
-                <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-200/50 dark:border-orange-800/50">
-                    <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">الأداء العام</p>
-                                <p className="text-2xl font-bold text-orange-600">{latestData.overallScore}</p>
-                            </div>
-                            <TrendingUp className="w-8 h-8 text-orange-500/50" />
-                        </div>
-                    </CardContent>
-                </Card>
             </div>
 
-            {/* Progress Chart */}
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5" />
-                        تطور المستوى
-                    </CardTitle>
-                    <CardDescription>متابعة أداء الطالب خلال الفترة الماضية</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><TrendingUp className="w-5 h-5" /> تطور المستوى</CardTitle>
+                    <CardDescription>السجلات الفعلية المتاحة خلال الفترة الماضية</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Tabs defaultValue="combined" className="w-full">
@@ -175,48 +178,13 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                         <TabsContent value="combined" className="mt-4">
                             <ResponsiveContainer width="100%" height={350}>
                                 <LineChart data={data}>
-                                    <defs>
-                                        <linearGradient id="colorGrade" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                                     <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
                                     <YAxis stroke="#6b7280" fontSize={12} domain={[0, 100]} />
-                                    <Tooltip 
-                                        contentStyle={{ 
-                                            backgroundColor: 'var(--background)', 
-                                            border: '1px solid var(--border)',
-                                            borderRadius: '8px',
-                                            direction: 'rtl'
-                                        }} 
-                                    />
+                                    <Tooltip contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', direction: 'rtl' }} />
                                     <Legend />
-                                    <Line 
-                                        type="monotone" 
-                                        dataKey="averageGrade" 
-                                        stroke="#3b82f6" 
-                                        strokeWidth={3}
-                                        dot={{ fill: '#3b82f6', strokeWidth: 2 }}
-                                        name="الدرجات"
-                                    />
-                                    <Line 
-                                        type="monotone" 
-                                        dataKey="attendanceRate" 
-                                        stroke="#10b981" 
-                                        strokeWidth={3}
-                                        dot={{ fill: '#10b981', strokeWidth: 2 }}
-                                        name="الحضور"
-                                    />
-                                    <Line 
-                                        type="monotone" 
-                                        dataKey="overallScore" 
-                                        stroke="#f59e0b" 
-                                        strokeWidth={2}
-                                        strokeDasharray="5 5"
-                                        name="الأداء العام"
-                                    />
+                                    <Line type="monotone" dataKey="averageGrade" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', strokeWidth: 2 }} name="الدرجات" />
+                                    <Line type="monotone" dataKey="attendanceRate" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', strokeWidth: 2 }} name="الحضور" />
                                 </LineChart>
                             </ResponsiveContainer>
                         </TabsContent>
@@ -224,30 +192,11 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                         <TabsContent value="grades" className="mt-4">
                             <ResponsiveContainer width="100%" height={350}>
                                 <AreaChart data={data}>
-                                    <defs>
-                                        <linearGradient id="gradeGradient" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
-                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                                     <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
                                     <YAxis stroke="#6b7280" fontSize={12} domain={[0, 100]} />
-                                    <Tooltip 
-                                        contentStyle={{ 
-                                            backgroundColor: 'var(--background)', 
-                                            border: '1px solid var(--border)',
-                                            borderRadius: '8px'
-                                        }} 
-                                    />
-                                    <Area 
-                                        type="monotone" 
-                                        dataKey="averageGrade" 
-                                        stroke="#3b82f6" 
-                                        strokeWidth={3}
-                                        fill="url(#gradeGradient)"
-                                        name="متوسط الدرجات"
-                                    />
+                                    <Tooltip contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px' }} />
+                                    <Area type="monotone" dataKey="averageGrade" stroke="#3b82f6" strokeWidth={3} fill="#3b82f6" fillOpacity={0.12} name="متوسط الدرجات" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </TabsContent>
@@ -255,30 +204,11 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                         <TabsContent value="attendance" className="mt-4">
                             <ResponsiveContainer width="100%" height={350}>
                                 <AreaChart data={data}>
-                                    <defs>
-                                        <linearGradient id="attendanceGradient" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                                     <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
                                     <YAxis stroke="#6b7280" fontSize={12} domain={[0, 100]} />
-                                    <Tooltip 
-                                        contentStyle={{ 
-                                            backgroundColor: 'var(--background)', 
-                                            border: '1px solid var(--border)',
-                                            borderRadius: '8px'
-                                        }} 
-                                    />
-                                    <Area 
-                                        type="monotone" 
-                                        dataKey="attendanceRate" 
-                                        stroke="#10b981" 
-                                        strokeWidth={3}
-                                        fill="url(#attendanceGradient)"
-                                        name="نسبة الحضور"
-                                    />
+                                    <Tooltip contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px' }} />
+                                    <Area type="monotone" dataKey="attendanceRate" stroke="#10b981" strokeWidth={3} fill="#10b981" fillOpacity={0.12} name="نسبة الحضور" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </TabsContent>

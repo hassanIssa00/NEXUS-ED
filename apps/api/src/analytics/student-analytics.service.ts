@@ -4,10 +4,9 @@ import { Grade, AttendanceStatus } from '@prisma/client';
 
 export interface StudentProgressPoint {
   date: string;
-  averageGrade: number;
-  attendanceRate: number;
+  averageGrade: number | null;
+  attendanceRate: number | null;
   assignmentsCompleted: number;
-  overallScore: number;
 }
 
 export interface ClassComparison {
@@ -220,7 +219,11 @@ export class StudentAnalyticsService {
         totalDays: 0,
         submissions: 0,
       };
-      existing.grades.push((Number(grade.grade) / Number(grade.maxScore)) * 100);
+      const score = Number(grade.grade);
+      const maxScore = Number(grade.maxScore);
+      if (Number.isFinite(score) && Number.isFinite(maxScore) && maxScore > 0) {
+        existing.grades.push((score / maxScore) * 100);
+      }
       progressMap.set(weekStart, existing);
     });
 
@@ -259,20 +262,15 @@ export class StudentAnalyticsService {
       const averageGrade =
         data.grades.length > 0
           ? data.grades.reduce((a, b) => a + b, 0) / data.grades.length
-          : 0;
+          : null;
       const attendanceRate =
-        data.totalDays > 0 ? (data.presentDays / data.totalDays) * 100 : 100;
+        data.totalDays > 0 ? (data.presentDays / data.totalDays) * 100 : null;
 
       progressPoints.push({
         date,
-        averageGrade: Math.round(averageGrade * 10) / 10,
-        attendanceRate: Math.round(attendanceRate * 10) / 10,
+        averageGrade: averageGrade === null ? null : Math.round(averageGrade * 10) / 10,
+        attendanceRate: attendanceRate === null ? null : Math.round(attendanceRate * 10) / 10,
         assignmentsCompleted: data.submissions,
-        overallScore:
-          Math.round(
-            (averageGrade * 0.6 + attendanceRate * 0.3 + data.submissions * 2) *
-            10,
-          ) / 10,
       });
     });
 

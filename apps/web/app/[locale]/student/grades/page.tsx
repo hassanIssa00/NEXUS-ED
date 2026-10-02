@@ -35,14 +35,14 @@ function letterGrade(pct: number) {
   return 'D'
 }
 
-function GradeBadge({ pct }: { pct: number }) {
-  const color = gradeColor(pct)
-  const letter = letterGrade(pct)
+function GradeBadge({ pct }: { pct: number | null }) {
+  const color = pct === null ? '#94a3b8' : gradeColor(pct)
+  const letter = pct === null ? '—' : letterGrade(pct)
   return (
     <div className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl border-2 font-extrabold"
       style={{ borderColor: color, color, backgroundColor: `${color}10` }}>
       <span className="text-lg leading-none">{letter}</span>
-      <span className="text-[10px] leading-none mt-0.5">{pct}%</span>
+      <span className="text-[10px] leading-none mt-0.5">{pct === null ? 'غير متاح' : `${pct}%`}</span>
     </div>
   )
 }
@@ -97,8 +97,8 @@ function AiAnalysisCard({ subjects }: { subjects: any[] }) {
 // ── Subject Row ────────────────────────────────────────────
 function SubjectRow({ grade, idx }: { grade: any; idx: number }) {
   const [expanded, setExpanded] = useState(false)
-  const pct = Math.round(grade.pct || grade.percentage || 0)
-  const color = gradeColor(pct)
+  const pct = typeof grade.pct === 'number' && Number.isFinite(grade.pct) ? Math.round(grade.pct) : null
+  const color = pct === null ? '#94a3b8' : gradeColor(pct)
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
@@ -110,11 +110,11 @@ function SubjectRow({ grade, idx }: { grade: any; idx: number }) {
           <p className="text-xs text-muted-foreground mt-0.5">{grade.teacher || grade.teacherName} • {grade.code || grade.subjectCode}</p>
           <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
             <motion.div className="h-full rounded-full" style={{ backgroundColor: color }}
-              initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1, delay: idx * 0.05 }} />
+              initial={{ width: 0 }} animate={{ width: `${pct ?? 0}%` }} transition={{ duration: 1, delay: idx * 0.05 }} />
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {pct >= 85 ? <TrendingUp className="w-4 h-4 text-emerald-500" /> : pct < 65 ? <TrendingDown className="w-4 h-4 text-rose-500" /> : null}
+          {pct !== null && pct >= 85 ? <TrendingUp className="w-4 h-4 text-emerald-500" /> : pct !== null && pct < 65 ? <TrendingDown className="w-4 h-4 text-rose-500" /> : null}
           {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
         </div>
       </button>
@@ -124,9 +124,9 @@ function SubjectRow({ grade, idx }: { grade: any; idx: number }) {
             <div className="px-4 pb-4 pt-1 border-t border-border/50 space-y-3">
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { label: 'الدرجة', value: `${grade.score ?? grade.grade ?? 0} / ${grade.maxScore ?? grade.maxGrade ?? 100}` },
-                  { label: 'النسبة', value: `${pct}%` },
-                  { label: 'التقدير', value: letterGrade(pct) },
+                  { label: 'الدرجة', value: grade.score !== null && grade.maxScore !== null ? `${grade.score} / ${grade.maxScore}` : 'لا توجد درجة مكتملة' },
+                  { label: 'النسبة', value: pct === null ? 'غير متاحة' : `${pct}%` },
+                  { label: 'التقدير', value: pct === null ? '—' : letterGrade(pct) },
                 ].map((s, i) => (
                   <div key={i} className="bg-muted/50 rounded-xl p-3 text-center">
                     <p className="text-sm font-extrabold text-foreground" style={{ color }}>{s.value}</p>
@@ -153,7 +153,7 @@ function SubjectRow({ grade, idx }: { grade: any; idx: number }) {
                   </div>
                 </div>
               )}
-              {pct < 70 && (
+              {pct !== null && pct < 70 && (
                 <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
                   <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-amber-700 dark:text-amber-300">
@@ -183,17 +183,32 @@ export default function StudentGradesPage() {
     try {
       const res = await apiClient.get('/grades')
       const raw = Array.isArray(res.data?.grades) ? res.data.grades : []
-      const mapped = raw.map((g: any) => ({
-            id: g.id,
-            name: g.subjectName || 'مادة',
-            code: g.subjectCode || '',
-            teacher: g.teacher?.name || g.teacherName || '',
-            score: g.grade ?? 0,
-            maxScore: g.maxGrade ?? 100,
-            pct: g.percentage ?? 0,
-            assignments: [],
-            createdAt: g.date,
-          }))
+      const mapped = raw.map((g: any) => {
+        const score = typeof (g.grade ?? g.score) === 'number' && Number.isFinite(g.grade ?? g.score)
+          ? (g.grade ?? g.score)
+          : null
+        const maxScore = typeof (g.maxGrade ?? g.maxScore) === 'number' && Number.isFinite(g.maxGrade ?? g.maxScore)
+          ? (g.maxGrade ?? g.maxScore)
+          : null
+        const recordedPercentage = typeof g.percentage === 'number' && Number.isFinite(g.percentage)
+          ? g.percentage
+          : null
+        const pct = recordedPercentage ?? (score !== null && maxScore !== null && maxScore > 0
+          ? (score / maxScore) * 100
+          : null)
+
+        return {
+          id: g.id,
+          name: g.subjectName || 'اسم المادة غير متاح',
+          code: g.subjectCode || '',
+          teacher: g.teacher?.name || g.teacherName || '',
+          score,
+          maxScore,
+          pct,
+          assignments: [],
+          createdAt: g.date,
+        }
+      })
       setGrades(mapped)
     } catch {
       setGrades([])
@@ -214,17 +229,22 @@ export default function StudentGradesPage() {
   }, [load]))
 
   const sorted = [...grades].sort((a, b) => {
-    if (sortBy === 'grade') return b.pct - a.pct
+    if (sortBy === 'grade') {
+      if (a.pct === null) return b.pct === null ? 0 : 1
+      if (b.pct === null) return -1
+      return b.pct - a.pct
+    }
     if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '')
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
 
-  const avg = grades.length > 0 ? Math.round(grades.reduce((s, g) => s + g.pct, 0) / grades.length) : 0
-  const best = grades.reduce((a, b) => (a.pct > b.pct ? a : b), { name: '—', pct: 0 })
-  const worst = grades.reduce((a, b) => (a.pct < b.pct ? a : b), { name: '—', pct: 100 })
+  const scoredGrades = grades.filter((grade) => typeof grade.pct === 'number' && Number.isFinite(grade.pct))
+  const avg = scoredGrades.length > 0 ? Math.round(scoredGrades.reduce((sum, grade) => sum + grade.pct, 0) / scoredGrades.length) : null
+  const best = scoredGrades.reduce((current, grade) => current === null || grade.pct > current.pct ? grade : current, null as (typeof scoredGrades[number] | null))
+  const worst = scoredGrades.reduce((current, grade) => current === null || grade.pct < current.pct ? grade : current, null as (typeof scoredGrades[number] | null))
 
-  const radarData = grades.slice(0, 8).map(g => ({ subject: g.name.substring(0, 6), value: g.pct }))
-  const histData = [...grades].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  const radarData = scoredGrades.slice(0, 8).map(g => ({ subject: g.name.substring(0, 6), value: g.pct }))
+  const histData = [...scoredGrades].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     .map(g => ({ name: g.name.substring(0, 6), درجة: g.pct }))
 
   return (
@@ -250,14 +270,14 @@ export default function StudentGradesPage() {
           <div>
             <p className="text-violet-200 text-sm mb-1">سجل الدرجات</p>
             <h1 className="text-3xl font-extrabold mb-2">أدائي الأكاديمي</h1>
-            <p className="text-white/80 text-sm">{grades.length} مادة دراسية مسجلة</p>
+            <p className="text-white/80 text-sm">{grades.length} سجل درجة · {scoredGrades.length} درجة مكتملة</p>
           </div>
           {/* Summary Cards */}
           <div className="flex gap-4 flex-wrap">
             {[
-              { label: 'المعدل العام', value: `${avg}%`, icon: Star, color: '#fbbf24' },
-              { label: 'أفضل مادة', value: best.name, icon: TrendingUp, color: '#22c55e' },
-              { label: 'تحتاج تحسين', value: worst.pct < 75 ? worst.name : '—', icon: Target, color: '#f87171' },
+              { label: 'المعدل العام', value: avg === null ? '—' : `${avg}%`, icon: Star, color: '#fbbf24' },
+              { label: 'أفضل مادة', value: best?.name ?? '—', icon: TrendingUp, color: '#22c55e' },
+              { label: 'تحتاج تحسين', value: worst && worst.pct < 75 ? worst.name : '—', icon: Target, color: '#f87171' },
             ].map((s, i) => (
               <div key={i} className="bg-white/15 backdrop-blur-sm rounded-2xl px-4 py-3 flex items-center gap-2">
                 <s.icon className="w-4 h-4" style={{ color: s.color }} />
@@ -272,7 +292,7 @@ export default function StudentGradesPage() {
       </motion.div>
 
       {/* Charts */}
-      {grades.length > 0 && (
+      {scoredGrades.length > 0 && (
         <div className="grid lg:grid-cols-2 gap-5">
           <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
             className="bg-card border border-border rounded-3xl p-6">
@@ -311,7 +331,7 @@ export default function StudentGradesPage() {
       )}
 
       {/* AI Analysis */}
-      {grades.length > 0 && <AiAnalysisCard subjects={grades} />}
+      {scoredGrades.length > 0 && <AiAnalysisCard subjects={scoredGrades} />}
 
       {/* Grades List */}
       <div>

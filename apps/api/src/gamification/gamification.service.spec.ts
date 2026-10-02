@@ -64,10 +64,37 @@ describe('GamificationService', () => {
     }));
   });
 
-  it('does not disclose rank or XP when the requested school does not own the user', async () => {
+  it('does not invent rank or XP when the requested school does not own the user', async () => {
     prisma.user.findUnique.mockResolvedValue({ totalXP: 300, level: 1, schoolId: 'school-2' });
-    await expect(service.getUserRank('student-1', 'school-1')).resolves.toMatchObject({ rank: 0, points: 0 });
+    await expect(service.getUserRank('student-1', 'school-1')).rejects.toThrow('Student record not found');
     expect(prisma.user.count).not.toHaveBeenCalled();
     expect(prisma.xpTransaction.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns school-scoped rank, student count, and streak from stored records', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      totalXP: 300,
+      level: 1,
+      schoolId: 'school-1',
+      streakDays: 4,
+    });
+    prisma.user.count
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(18);
+    prisma.xpTransaction.findMany.mockResolvedValue([{ id: 'xp-1', amount: 10 }]);
+
+    await expect(service.getUserRank('student-1', 'school-1')).resolves.toMatchObject({
+      rank: 3,
+      points: 300,
+      streak: 4,
+      totalStudents: 18,
+      recentTransactions: [{ id: 'xp-1', amount: 10 }],
+    });
+    expect(prisma.user.count).toHaveBeenNthCalledWith(1, {
+      where: { role: 'STUDENT', isActive: true, schoolId: 'school-1', totalXP: { gt: 300 } },
+    });
+    expect(prisma.user.count).toHaveBeenNthCalledWith(2, {
+      where: { role: 'STUDENT', isActive: true, schoolId: 'school-1' },
+    });
   });
 });

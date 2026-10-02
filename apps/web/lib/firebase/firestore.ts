@@ -1,9 +1,7 @@
 import {
     collection,
-    doc,
     getDoc,
     getDocs,
-    setDoc,
     updateDoc,
     deleteDoc,
     query,
@@ -115,29 +113,4 @@ export async function getAttendance() {
         id: doc.id,
         ...doc.data()
     }))
-}
-
-/**
- * Add seed data (for testing)
- */
-export async function seedData() {
-    const user = getCurrentUser()
-    if (!user) return
-
-    // Seed grades
-    await setDoc(doc(db, 'grades', 'grade1'), {
-        userId: user.uid,
-        subjectName: 'Mathematics',
-        grade: 92,
-        maxGrade: 100,
-        semester: 'Fall 2024'
-    })
-
-    // Seed assignments
-    await setDoc(doc(db, 'assignments', 'assignment1'), {
-        title: 'Math Homework',
-        description: 'Complete problems 1-10',
-        dueDate: new Date('2024-12-10').toISOString(),
-        subject: 'Mathematics'
-    })
 }

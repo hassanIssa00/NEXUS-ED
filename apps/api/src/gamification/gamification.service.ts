@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { EventsGateway } from '../gateway/events.gateway';
 
@@ -130,36 +130,48 @@ export class GamificationService {
   async getUserRank(
     userId: string,
     schoolId?: string,
-  ): Promise<{ rank: number; points: number; level: number; levelName: string; recentTransactions: any[] }> {
+  ): Promise<{
+    rank: number;
+    points: number;
+    level: number;
+    levelName: string;
+    streak: number;
+    totalStudents: number;
+    recentTransactions: any[];
+  }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { totalXP: true, level: true, schoolId: true },
+      select: { totalXP: true, level: true, schoolId: true, streakDays: true },
     });
 
     if (!user || (schoolId && user.schoolId !== schoolId)) {
-      return { rank: 0, points: 0, level: 1, levelName: 'Beginner (مبتدئ)', recentTransactions: [] };
+      throw new NotFoundException('Student record not found');
     }
 
-    const rank = await this.prisma.user.count({
-      where: {
-        role: 'STUDENT',
-        isActive: true,
-        ...(schoolId ? { schoolId } : {}),
-        totalXP: { gt: user.totalXP },
-      },
-    }) + 1;
-
-    const recentTransactions = await this.prisma.xpTransaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    });
+    const schoolStudents = {
+      role: 'STUDENT' as const,
+      isActive: true,
+      ...(schoolId ? { schoolId } : {}),
+    };
+    const [studentsAhead, totalStudents, recentTransactions] = await Promise.all([
+      this.prisma.user.count({
+        where: { ...schoolStudents, totalXP: { gt: user.totalXP } },
+      }),
+      this.prisma.user.count({ where: schoolStudents }),
+      this.prisma.xpTransaction.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+    ]);
 
     return {
-      rank,
+      rank: studentsAhead + 1,
       points: user.totalXP,
       level: user.level,
       levelName: this.getLevelName(user.level),
+      streak: user.streakDays,
+      totalStudents,
       recentTransactions,
     };
   }

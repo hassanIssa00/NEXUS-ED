@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Star, Trophy, Flame, Target, Zap, Award, Lock } from 'lucide-react';
+import { Star, Trophy, Flame, Zap } from 'lucide-react';
 
 interface XpTransaction {
     id: string;
@@ -19,10 +18,10 @@ interface StudentGamificationStats {
     level: number;
     levelName: string;
     currentLevelPoints: number;
-    nextLevelPoints: number;
-    rank: number;
-    totalStudents: number;
-    streak: number;
+    nextLevelPoints: number | null;
+    rank: number | null;
+    totalStudents: number | null;
+    streak: number | null;
     recentTransactions: XpTransaction[];
 }
 
@@ -31,8 +30,8 @@ interface StudentGamificationCardProps {
     data?: StudentGamificationStats;
 }
 
-const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000, 8000, 12000, 20000];
-const LEVEL_NAMES = ['مبتدئ', 'مستكشف', 'مبادر', 'متميز', 'محترف', 'عبقري', 'أسطوري', 'بطل نكسس'];
+const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000];
+const LEVEL_NAMES = ['مبتدئ', 'متعلم', 'متفوق', 'نجم', 'بطل نكسس'];
 
 export function StudentGamificationCard({ studentId, data: propData }: StudentGamificationCardProps) {
     const [data, setData] = useState<StudentGamificationStats | null>(propData || null);
@@ -49,39 +48,30 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
             setLoading(true);
             const { apiClient } = await import('@/lib/api/client');
             const response = await apiClient.get(`/gamification/rank`);
-            
-            if (response.data) {
-                const apiData = response.data;
-                
-                const currentLevelPoints = apiData.points;
-                const nextLevelPoints = LEVEL_THRESHOLDS[apiData.level] || LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
+            const apiData = response.data;
+            const level = apiData?.level;
+            const points = apiData?.points;
 
-                setData({
-                    totalPoints: apiData.points,
-                    level: apiData.level,
-                    levelName: apiData.levelName,
-                    currentLevelPoints,
-                    nextLevelPoints,
-                    rank: apiData.rank,
-                    totalStudents: 100, // This could be fetched from API later
-                    streak: 0, // Fallback, could be added to backend
-                    recentTransactions: apiData.recentTransactions || [],
-                });
+            if (!Number.isInteger(level) || level < 1 || level > LEVEL_NAMES.length ||
+                typeof points !== 'number' || !Number.isFinite(points)) {
+                setData(null);
+                return;
             }
+
+            setData({
+                totalPoints: points,
+                level,
+                levelName: apiData.levelName || LEVEL_NAMES[level - 1],
+                currentLevelPoints: points,
+                nextLevelPoints: LEVEL_THRESHOLDS[level] ?? null,
+                rank: Number.isInteger(apiData.rank) ? apiData.rank : null,
+                totalStudents: Number.isInteger(apiData.totalStudents) ? apiData.totalStudents : null,
+                streak: Number.isInteger(apiData.streak) ? apiData.streak : null,
+                recentTransactions: Array.isArray(apiData.recentTransactions) ? apiData.recentTransactions : [],
+            });
         } catch (err) {
             console.error('Failed to fetch gamification stats', err);
-            // Fallback to minimal data if API fails
-            setData({
-                totalPoints: 0,
-                level: 1,
-                levelName: 'Beginner (مبتدئ)',
-                currentLevelPoints: 0,
-                nextLevelPoints: 500,
-                rank: 0,
-                totalStudents: 0,
-                streak: 0,
-                recentTransactions: [],
-            });
+            setData(null);
         } finally {
             setLoading(false);
         }
@@ -97,10 +87,21 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
         );
     }
 
-    if (!data) return null;
+    if (!data) {
+        return (
+            <Card>
+                <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                    بيانات النقاط والترتيب غير متاحة لهذا الحساب حاليًا.
+                </CardContent>
+            </Card>
+        );
+    }
 
-    const levelProgress = ((data.currentLevelPoints - LEVEL_THRESHOLDS[data.level - 1]!) / 
-        (data.nextLevelPoints - LEVEL_THRESHOLDS[data.level - 1]!)) * 100;
+    const levelFloor = LEVEL_THRESHOLDS[data.level - 1] ?? 0;
+    const levelProgress = data.nextLevelPoints === null
+        ? 100
+        : Math.min(100, Math.max(0, ((data.currentLevelPoints - levelFloor) /
+            (data.nextLevelPoints - levelFloor)) * 100));
 
     return (
         <div className="space-y-4">
@@ -134,7 +135,7 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
                         <div className="text-center">
                             <div className="flex items-center gap-2 justify-center">
                                 <Flame className="w-8 h-8 text-orange-300" />
-                                <span className="text-4xl font-bold">{data.streak}</span>
+                                <span className="text-4xl font-bold">{data.streak ?? '—'}</span>
                             </div>
                             <p className="text-sm opacity-90">يوم متتالي</p>
                         </div>
@@ -143,9 +144,9 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
                         <div className="text-center">
                             <div className="flex items-center gap-2 justify-center">
                                 <Trophy className="w-8 h-8 text-yellow-300" />
-                                <span className="text-4xl font-bold">#{data.rank}</span>
+                                <span className="text-4xl font-bold">{data.rank === null ? '—' : `#${data.rank}`}</span>
                             </div>
-                            <p className="text-sm opacity-90">من {data.totalStudents}</p>
+                            <p className="text-sm opacity-90">من {data.totalStudents ?? '—'}</p>
                         </div>
                     </div>
 
@@ -153,7 +154,7 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
                     <div className="mt-6">
                         <div className="flex justify-between text-sm mb-2">
                             <span>المستوى {data.level}</span>
-                            <span>{data.currentLevelPoints}/{data.nextLevelPoints} نقطة</span>
+                            <span>{data.nextLevelPoints === null ? 'أعلى مستوى' : `${data.currentLevelPoints}/${data.nextLevelPoints} نقطة`}</span>
                         </div>
                         <div className="h-3 bg-white/20 rounded-full overflow-hidden">
                             <motion.div 

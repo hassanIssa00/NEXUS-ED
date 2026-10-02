@@ -30,16 +30,19 @@ function AttendanceDot({ status }: { status: string }) {
 function AttendancePageInner() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [liveAlert, setLiveAlert] = useState<string | null>(null)
   const [monthFilter, setMonthFilter] = useState<number>(new Date().getMonth())
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError(false)
     try {
       const response = await apiClient.get('/attendance')
       setData(response.data)
     } catch {
       setData(null)
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -60,12 +63,23 @@ function AttendancePageInner() {
     </div>
   )
 
-  const summary = data?.summary || { present: 0, absent: 0, late: 0, totalDays: 0, attendanceRate: null }
+  if (loadError || !data?.summary) return (
+    <div className="mx-auto flex min-h-64 max-w-xl flex-col items-center justify-center gap-3 p-6 text-center">
+      <p role="alert" className="text-sm text-rose-600">تعذر تحميل سجل الحضور من المدرسة.</p>
+      <button onClick={() => void load()} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+        <RefreshCw className="h-4 w-4" /> إعادة المحاولة
+      </button>
+    </div>
+  )
+
+  const summary = data.summary
   const history: any[] = data?.history || []
   const weeklyOverview: any[] = data?.weeklyOverview || []
 
   const total = summary.totalDays
-  const attendancePct = (summary.attendanceRate ?? 0) as number
+  const attendancePct = typeof summary.attendanceRate === 'number' && Number.isFinite(summary.attendanceRate)
+    ? summary.attendanceRate
+    : null
 
   // Chart data
   const pieData = [
@@ -124,15 +138,15 @@ function AttendancePageInner() {
             <svg width={100} height={100} className="-rotate-90">
               <circle cx={50} cy={50} r={42} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={8} />
               <motion.circle cx={50} cy={50} r={42} fill="none"
-                stroke={total === 0 ? 'rgba(255,255,255,0.3)' : attendancePct >= 90 ? '#4ade80' : attendancePct >= 75 ? '#fbbf24' : '#f87171'}
+                stroke={total === 0 || attendancePct === null ? 'rgba(255,255,255,0.3)' : attendancePct >= 90 ? '#4ade80' : attendancePct >= 75 ? '#fbbf24' : '#f87171'}
                 strokeWidth={8} strokeLinecap="round"
                 strokeDasharray={2 * Math.PI * 42}
                 initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
-                animate={{ strokeDashoffset: total === 0 ? 2 * Math.PI * 42 : 2 * Math.PI * 42 * (1 - attendancePct / 100) }}
+                animate={{ strokeDashoffset: total === 0 || attendancePct === null ? 2 * Math.PI * 42 : 2 * Math.PI * 42 * (1 - attendancePct / 100) }}
                 transition={{ duration: 1.5, ease: 'easeOut' }} />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-extrabold text-white">{total === 0 ? '—' : `${attendancePct}%`}</span>
+              <span className="text-2xl font-extrabold text-white">{total === 0 || attendancePct === null ? '—' : `${attendancePct}%`}</span>
               <span className="text-xs text-white/70">الحضور</span>
             </div>
           </div>
@@ -194,6 +208,14 @@ function AttendancePageInner() {
               <div>
                 <p className="font-bold text-blue-700 dark:text-blue-400 text-sm">لا توجد سجلات حضور</p>
                 <p className="text-xs text-muted-foreground mt-0.5">لم تسجل المدرسة حضورًا أو غيابًا لهذا الحساب حتى الآن.</p>
+              </div>
+            </div>
+          ) : attendancePct === null ? (
+            <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-4">
+              <Clock className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-bold text-blue-700 dark:text-blue-400 text-sm">نسبة الحضور غير متاحة</p>
+                <p className="text-xs text-muted-foreground mt-0.5">لا توجد بيانات كافية لحساب النسبة.</p>
               </div>
             </div>
           ) : attendancePct >= 90 ? (

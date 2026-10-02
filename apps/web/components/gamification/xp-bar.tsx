@@ -5,49 +5,50 @@ import { motion } from 'framer-motion';
 import { Star } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 
+const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000];
+
 export function XpBar() {
   const { user } = useAuth();
-  const [points, setPoints] = useState(0);
-  const [level, setLevel] = useState(1);
+  const [points, setPoints] = useState<number | null>(null);
+  const [level, setLevel] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Define thresholds locally for now to calculate progress
-  const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000, 8000, 12000, 20000];
-
   useEffect(() => {
-    if (!user?.id) return;
+    let active = true;
+    setPoints(null);
+    setLevel(null);
+    setLoading(Boolean(user?.id));
+    if (!user?.id) return () => { active = false; };
 
     const fetchRank = async () => {
       try {
         const { apiClient } = await import('@/lib/api/client');
         const res = await apiClient.get('/gamification/rank');
-        if (res.data) {
-          setPoints(res.data.points || 0);
-          setLevel(res.data.level || 1);
+        const nextPoints = res.data?.points;
+        const nextLevel = res.data?.level;
+        if (active && typeof nextPoints === 'number' && Number.isFinite(nextPoints) &&
+            Number.isInteger(nextLevel) && nextLevel >= 1 && nextLevel <= LEVEL_THRESHOLDS.length) {
+          setPoints(nextPoints);
+          setLevel(nextLevel);
         }
       } catch (err) {
         console.error('Failed to fetch rank for XP bar', err);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
-    fetchRank();
-  }, [user]);
+    void fetchRank();
+    return () => { active = false; };
+  }, [user?.id]);
 
-  if (loading || !user) return null;
+  if (loading || !user || points === null || level === null) return null;
 
-  const currentLevelMin = LEVEL_THRESHOLDS[level - 1] || 0;
-  const currentLevelMax = LEVEL_THRESHOLDS[level] || LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
+  const currentLevelMin = LEVEL_THRESHOLDS[level - 1] ?? 0;
+  const currentLevelMax = LEVEL_THRESHOLDS[level] ?? null;
   
-  // Calculate percentage within the current level
-  const progressPercentage = Math.min(
-    Math.max(
-      ((points - currentLevelMin) / (currentLevelMax - currentLevelMin)) * 100, 
-      0
-    ), 
-    100
-  );
+  const progressPercentage = currentLevelMax === null
+    ? 100
+    : Math.min(100, Math.max(0, ((points - currentLevelMin) / (currentLevelMax - currentLevelMin)) * 100));
 
   return (
     <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 rounded-full px-3 py-1.5 border border-slate-200 dark:border-slate-700">
