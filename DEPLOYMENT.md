@@ -21,7 +21,7 @@ separate backend deployment for changes under `apps/api`.
 
 ### Verified status — 2026-10-02
 
-- The production domain returned HTTP 200 for `/ar/login` and serves commit `382296df6f50e488a1736de778f0008e23633d63` from `hassanIssa00/NEXUS-ED` branch `master`. The earlier mismatch was that Vercel watched a different GitHub repository; its source is now corrected.
+- The production domain returned HTTP 200 for `/ar/login`; the latest production deployment is attached to `hassanIssa00/NEXUS-ED` branch `master` at commit `863df3d709b5c2f1c2c5f9af22d5347f673bccd8`. The earlier mismatch was that Vercel watched a different GitHub repository; its source is now corrected.
 - The live web response has HSTS, nosniff, frame, referrer, and permissions headers. A Content-Security-Policy header is not present yet; do not describe the site as fully hardened.
 - Live sign-in intentionally remains unavailable until a real API or Supabase auth provider is configured. No production Vercel environment variables were present at verification time.
 - API source tests and build pass locally. The API production service itself is not verified: the legacy Railway health URL returned 404, and no confirmed Nexus API deployment/environment is connected here.
