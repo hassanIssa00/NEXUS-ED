@@ -19,6 +19,19 @@ separate backend deployment for changes under `apps/api`.
 - Private assignment storage is not verified in Supabase. Complete the bucket and server-only key steps in `docs/NEXUS_PRIVATE_FILE_STORAGE.md` before enabling uploads.
 - `apps/mobile` is an Expo starter, not a feature-complete Nexus mobile client or a Google Play release. It needs its own implementation and release validation.
 
+### Verified status — 2026-10-02
+
+- The production domain returned HTTP 200 for `/ar/login` and serves commit `382296df6f50e488a1736de778f0008e23633d63` from `hassanIssa00/NEXUS-ED` branch `master`. The earlier mismatch was that Vercel watched a different GitHub repository; its source is now corrected.
+- The live web response has HSTS, nosniff, frame, referrer, and permissions headers. A Content-Security-Policy header is not present yet; do not describe the site as fully hardened.
+- Live sign-in intentionally remains unavailable until a real API or Supabase auth provider is configured. No production Vercel environment variables were present at verification time.
+- API source tests and build pass locally. The API production service itself is not verified: the legacy Railway health URL returned 404, and no confirmed Nexus API deployment/environment is connected here.
+- `npm audit --workspace=api --omit=dev` reports 3 high and 4 moderate findings, including Prisma/deepmerge-ts, `@nestjs/swagger`/js-yaml, and ExcelJS/uuid. Prisma CLI is build-only and has been moved to `devDependencies`; the audit still reports it through Prisma Client's optional peer relationship. No forced downgrade was applied.
+- The frontend production dependency audit reports zero findings. This does not cover production configuration or the separate API service.
+- Firebase CLI's configured default project is `million-edtech-platform`, not a verified Nexus project. Existing Firebase rules have not been deployed; confirm the Nexus project and review rules in the emulator before any Firebase deployment.
+- Admin-only protection was added to detailed API health metrics. Public liveness/readiness probes remain available.
+
+These checks are a point-in-time verification, not a guarantee of complete security. Do not enable student or parent accounts until the API/auth provider, production secrets, storage policy, and Firebase ownership are confirmed and smoke-tested against the actual school deployment.
+
 # Million Platform - دليل النشر على VPS
 
 ## المتطلبات

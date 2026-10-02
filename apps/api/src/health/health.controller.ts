@@ -1,6 +1,10 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { AuthGuard } from '@nestjs/passport';
 import { MetricsService } from './metrics.service';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '../auth/role.enum';
 
 @ApiTags('Health')
 @Controller('health')
@@ -39,6 +43,8 @@ export class HealthController {
   }
 
   @Get('metrics')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Get detailed system metrics' })
   async metrics(): Promise<Record<string, unknown>> {
     return (await this.metricsService.getMetrics()) as unknown as Record<
@@ -48,6 +54,8 @@ export class HealthController {
   }
 
   @Get('detailed')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Get detailed health with all checks' })
   async detailed() {
     const [metrics, health] = await Promise.all([
