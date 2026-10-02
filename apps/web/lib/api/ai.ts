@@ -2,7 +2,6 @@ import { apiClient } from './client';
 
 export interface AiResponse {
   answer: string;
-  isMock: boolean;
 }
 
 export const aiApi = {

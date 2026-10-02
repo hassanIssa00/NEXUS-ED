@@ -1,181 +1,112 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/routing/route_names.dart';
+import '../../../../services/api_service.dart';
 
-/// Achievements Screen — badges, XP progress, milestones
-class AchievementsScreen extends StatelessWidget {
+class AchievementsScreen extends StatefulWidget {
   const AchievementsScreen({super.key});
 
   @override
+  State<AchievementsScreen> createState() => _AchievementsScreenState();
+}
+
+class _AchievementsScreenState extends State<AchievementsScreen> {
+  Map<String, dynamic>? _data;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
+    try {
+      final response = await ApiService.instance.get('/dashboard/student');
+      if (mounted) setState(() => _data = Map<String, dynamic>.from(response.data as Map));
+    } catch (_) {
+      if (mounted) setState(() => _error = 'تعذر تحميل إنجازات حسابك.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final achievements = _data?['achievements'] as List<dynamic>? ?? const [];
+    final gamification = _data?['gamification'] as Map<String, dynamic>? ?? {};
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: AppColors.backgroundDark,
-        body: SafeArea(
-          bottom: false,
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => context.pop(),
-                      child: Container(
-                        width: 44, height: 44,
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(14)),
-                        child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    const Text('إنجازاتي 🏆', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // XP Progress Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF1E3A5F), Color(0xFF0D1B2A)]),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFFBBF24).withOpacity(0.2)),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('المستوى الحالي', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-                              const SizedBox(height: 4),
-                              ShaderMask(
-                                shaderCallback: (b) => const LinearGradient(colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)]).createShader(b),
-                                child: const Text('المستوى الذهبي ⭐', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
-                              ),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFBBF24).withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Text('1,250\nXP', style: TextStyle(color: Color(0xFFFBBF24), fontSize: 16, fontWeight: FontWeight.w900, height: 1.2), textAlign: TextAlign.center),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('التقدم للمستوى التالي', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
-                          Text('1,250 / 2,000 XP', style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 11, fontWeight: FontWeight.w700)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                          value: 0.625,
-                          backgroundColor: Colors.white.withOpacity(0.06),
-                          valueColor: const AlwaysStoppedAnimation(Color(0xFFFBBF24)),
-                          minHeight: 8,
+        appBar: AppBar(title: const Text('الإنجازات المسجلة'), backgroundColor: AppColors.backgroundDark, foregroundColor: Colors.white, actions: [IconButton(onPressed: _load, tooltip: 'تحديث', icon: const Icon(Icons.refresh))]),
+        body: _loading && _data == null
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null && _data == null
+                ? _LoadError(message: _error!, onRetry: _load)
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(18),
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(gradient: AppColors.primaryGradient, borderRadius: BorderRadius.circular(14)),
+                          child: Row(children: [
+                            const Icon(Icons.bolt_outlined, color: Colors.white, size: 28),
+                            const SizedBox(width: 12),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('${gamification['totalXP'] ?? '—'} XP', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+                              Text('المستوى ${gamification['level'] ?? '—'}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                            ])),
+                            Text('${achievements.length} إنجاز', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                          ]),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        if (achievements.isEmpty)
+                          const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Text('لا توجد إنجازات مسجلة في ملفك بعد.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)))
+                        else
+                          ...achievements.map((value) {
+                            final item = Map<String, dynamic>.from(value as Map);
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(color: AppColors.cardDark, borderRadius: BorderRadius.circular(11), border: Border.all(color: AppColors.borderDark)),
+                              child: Row(children: [
+                                const Icon(Icons.workspace_premium_outlined, color: Color(0xFFFBBF24), size: 24),
+                                const SizedBox(width: 11),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text(item['name']?.toString() ?? 'إنجاز', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                                  if (item['description'] != null) Text(item['description'].toString(), style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                                ])),
+                                Text(_date(item['unlockedAt']), style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                              ]),
+                            );
+                          }),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(onPressed: () => context.go(RouteNames.studentMillionJourney), icon: const Icon(Icons.flag_outlined), label: const Text('عرض مراحل الإنجاز')),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-
-                // Badges Grid
-                const Text('الأوسمة المكتسبة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
-                const SizedBox(height: 12),
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 3,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.85,
-                  children: const [
-                    _BadgeCard(emoji: '🏆', title: 'المتفوق', subtitle: '5 واجبات متتالية', isEarned: true, color: Color(0xFFFBBF24)),
-                    _BadgeCard(emoji: '🔥', title: 'نشيط', subtitle: '7 أيام حضور', isEarned: true, color: Color(0xFFEF4444)),
-                    _BadgeCard(emoji: '⚡', title: 'سريع', subtitle: 'أول من يسلم', isEarned: true, color: Color(0xFF3B82F6)),
-                    _BadgeCard(emoji: '🌟', title: 'نجم المادة', subtitle: 'A+ في مادة', isEarned: true, color: Color(0xFF10B981)),
-                    _BadgeCard(emoji: '📚', title: 'قارئ', subtitle: '20 درس مكتمل', isEarned: true, color: Color(0xFFA855F7)),
-                    _BadgeCard(emoji: '🎯', title: 'دقيق', subtitle: '90%+ في اختبار', isEarned: true, color: Color(0xFF0D9488)),
-                    _BadgeCard(emoji: '💎', title: 'ماسي', subtitle: '2000 XP', isEarned: false, color: Color(0xFF6B7280)),
-                    _BadgeCard(emoji: '🦅', title: 'المنافس', subtitle: 'Top 3', isEarned: false, color: Color(0xFF6B7280)),
-                    _BadgeCard(emoji: '👑', title: 'الملك', subtitle: '#1 في الترتيب', isEarned: false, color: Color(0xFF6B7280)),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Daily Challenge
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFFA855F7)]),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    children: [
-                      const Text('التحدي اليومي 🎮', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 8),
-                      Text('حل 5 أسئلة في الرياضيات واحصل على 50 XP!', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13)),
-                      const SizedBox(height: 14),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-                        child: const Text('ابدأ التحدي', style: TextStyle(color: Color(0xFF7C3AED), fontSize: 14, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
+  }
+
+  static String _date(dynamic raw) {
+    final date = DateTime.tryParse(raw?.toString() ?? '');
+    if (date == null) return '';
+    return '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
   }
 }
 
-class _BadgeCard extends StatelessWidget {
-  final String emoji, title, subtitle;
-  final bool isEarned;
-  final Color color;
-  const _BadgeCard({required this.emoji, required this.title, required this.subtitle, required this.isEarned, required this.color});
-
+class _LoadError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _LoadError({required this.message, required this.onRetry});
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isEarned ? color.withOpacity(0.08) : Colors.white.withOpacity(0.02),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isEarned ? color.withOpacity(0.2) : Colors.white.withOpacity(0.04)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(emoji, style: TextStyle(fontSize: 28, color: isEarned ? null : Colors.grey)),
-          const SizedBox(height: 6),
-          Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: isEarned ? Colors.white : Colors.white.withOpacity(0.2))),
-          const SizedBox(height: 2),
-          Text(subtitle, style: TextStyle(fontSize: 8, color: isEarned ? Colors.white.withOpacity(0.4) : Colors.white.withOpacity(0.1)), textAlign: TextAlign.center),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)), TextButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة'))])));
 }

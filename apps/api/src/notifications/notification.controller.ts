@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query, UseGuards, Request, Param, Inject, Optional } from '@nestjs/common';
+import { BadRequestException, Controller, Post, Body, Get, Query, UseGuards, Request, Param, Inject, Optional, ForbiddenException } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -13,7 +13,7 @@ import { Roles } from '../auth/roles.decorator';
 import { Role } from '../auth/role.enum';
 
 @ApiTags('Notifications')
-@Controller('api/notifications')
+@Controller('notifications')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class NotificationController {
@@ -154,11 +154,26 @@ export class NotificationController {
     @Body() body: { title: string; message: string; targetClassId?: string; targetType: 'all-students' | 'class' | 'parents' },
   ) {
     const teacherId = req.user?.userId || req.user?.sub || req.user?.id;
+    const schoolId = req.user?.schoolId;
+    if (!schoolId || !body.title?.trim() || !body.message?.trim()) {
+      throw new BadRequestException('School, title, and message are required');
+    }
 
     // Find target users
     let userIds: string[] = [];
 
     if (body.targetType === 'class' && body.targetClassId) {
+      const schoolClass = await this.prisma.class.findUnique({
+        where: { id: body.targetClassId },
+        select: { schoolId: true, teacherId: true, classSubjects: { select: { teacherId: true } } },
+      });
+      if (!schoolClass || schoolClass.schoolId !== schoolId) {
+        throw new ForbiddenException('The class is outside your school');
+      }
+      if (req.user.role === Role.TEACHER && schoolClass.teacherId !== teacherId &&
+          !schoolClass.classSubjects.some((subject) => subject.teacherId === teacherId)) {
+        throw new ForbiddenException('You do not teach this class');
+      }
       const enrollments = await this.prisma.enrollment.findMany({
         where: { classId: body.targetClassId },
         select: { studentId: true },
@@ -167,7 +182,7 @@ export class NotificationController {
     } else if (body.targetType === 'all-students') {
       // Find all students in teacher's classes via direct enrollment query
       const subjects = await this.prisma.subject.findMany({
-        where: { teacherId },
+        where: req.user.role === Role.ADMIN ? { schoolId } : { teacherId, schoolId },
         select: { classId: true },
       });
       const classIds = subjects
@@ -183,7 +198,7 @@ export class NotificationController {
     } else if (body.targetType === 'parents') {
       // Find all parents of students in teacher's classes
       const subjects = await this.prisma.subject.findMany({
-        where: { teacherId },
+        where: req.user.role === Role.ADMIN ? { schoolId } : { teacherId, schoolId },
         select: { classId: true },
       });
       const classIds = subjects
@@ -206,24 +221,22 @@ export class NotificationController {
       }
     }
 
-    // Create notifications for all targets
-    const results = await Promise.all(
-      userIds.map((userId) =>
-        this.prisma.notification.create({
-          data: {
-            type: 'INFO',
-            title: body.title,
-            body: body.message,
-            userId,
-            isRead: false,
-          },
-        }).catch(() => null),
-      ),
-    );
+    userIds = [...new Set(userIds)];
+    if (userIds.length === 0) throw new BadRequestException('There are no recipients in the selected scope');
+
+    const result = await this.prisma.notification.createMany({
+      data: userIds.map((userId) => ({
+        type: 'INFO' as const,
+        title: body.title.trim(),
+        body: body.message.trim(),
+        userId,
+        isRead: false,
+      })),
+    });
 
     return {
-      success: true,
-      sent: results.filter(Boolean).length,
+      success: result.count === userIds.length,
+      sent: result.count,
       total: userIds.length,
     };
   }

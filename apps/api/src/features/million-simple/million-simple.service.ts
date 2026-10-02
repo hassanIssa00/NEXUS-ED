@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 
 @Injectable()
@@ -19,10 +19,14 @@ export class MillionSimpleService {
         where: { id: userId },
       });
 
+      if (!user || user.role !== 'STUDENT') {
+        throw new NotFoundException('Student not found');
+      }
+
       profile = await this.prisma.millionProfile.create({
         data: {
           userId,
-          displayName: user?.firstName || `User-${userId.substring(0, 8)}`,
+          displayName: user.name || [user.firstName, user.lastName].filter(Boolean).join(' ') || null,
           totalPoints: 0,
           currentLevel: 'Beginner',
         },
@@ -78,6 +82,11 @@ export class MillionSimpleService {
     exams?: number;
     participation?: number;
   }) {
+    const components = [dto.attendance, dto.assignments, dto.exams, dto.participation];
+    if (components.some((value) => value !== undefined && (!Number.isFinite(value) || value < 0 || value > 100))) {
+      throw new BadRequestException('Score components must be numbers between 0 and 100');
+    }
+
     const profile = await this.getProfile(dto.userId);
 
     const attendance = dto.attendance || 0;
@@ -136,8 +145,9 @@ export class MillionSimpleService {
   /**
    * Get leaderboard
    */
-  async getLeaderboard(limit: number = 10) {
+  async getLeaderboard(limit: number = 10, schoolId: string) {
     return await this.prisma.millionProfile.findMany({
+      where: { user: { is: { schoolId, role: 'STUDENT' } } },
       orderBy: { totalPoints: 'desc' },
       take: limit,
     });

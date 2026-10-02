@@ -33,6 +33,7 @@ export default function NotificationsPage() {
     const { toast } = useToast();
     const [classes, setClasses] = useState<TeacherClass[]>([]);
     const [loadingClasses, setLoadingClasses] = useState(true);
+    const [classLoadFailed, setClassLoadFailed] = useState(false);
     const [loading, setLoading] = useState(false);
     const [sent, setSent] = useState(false);
     const [sentCount, setSentCount] = useState(0);
@@ -46,15 +47,15 @@ export default function NotificationsPage() {
 
     // Load teacher's classes
     useEffect(() => {
-        const DEFAULT_CLASSES = [
-            { id: 'cls-ismail-1', name: 'الصف الأول الابتدائي — الفئة (أ)' },
-        ];
-        apiClient.get('/api/notifications/my-classes')
+        apiClient.get('/notifications/my-classes')
             .then(res => {
                 const data = res.data?.data || res.data || [];
-                setClasses(Array.isArray(data) && data.length > 0 ? data : DEFAULT_CLASSES);
+                setClasses(Array.isArray(data) ? data : []);
             })
-            .catch(() => setClasses(DEFAULT_CLASSES))
+            .catch(() => {
+                setClasses([]);
+                setClassLoadFailed(true);
+            })
             .finally(() => setLoadingClasses(false));
     }, []);
 
@@ -71,35 +72,20 @@ export default function NotificationsPage() {
 
         setLoading(true);
         try {
-            let count = 8;
-            try {
-                const res = await apiClient.post('/api/notifications/send', {
-                    title: form.title,
-                    message: form.message,
-                    targetType: form.targetType,
-                    targetClassId: form.targetClassId || undefined,
-                });
-                count = res.data?.sent || res.data?.total || 8;
-            } catch {
-                count = 8;
+            const res = await apiClient.post('/notifications/send', {
+                title: form.title,
+                message: form.message,
+                targetType: form.targetType,
+                targetClassId: form.targetClassId || undefined,
+            });
+            if (!res.data?.success || !Number.isInteger(res.data.sent)) {
+                throw new Error('The notification service did not confirm delivery');
             }
-            try {
-                const { nexusBridge } = await import('@/lib/nexusDataBridge');
-                nexusBridge.addObservation({
-                    studentId: 'cls-std-2',
-                    studentName: 'أحمد فيصل وجميع طلاب الفصل',
-                    authorName: 'د. إسماعيل عيسى',
-                    authorRole: 'teacher',
-                    category: 'academic',
-                    severity: 'positive',
-                    text: `[إشعار عام من د. إسماعيل] ${form.title}: ${form.message}`,
-                });
-            } catch {}
-
+            const count = res.data.sent as number;
             setSentCount(count);
             setSent(true);
             setForm({ targetType: 'all-students', targetClassId: '', title: '', message: '' });
-            toast({ title: `✅ تم الإرسال لـ ${count} شخص`, description: 'وصل الإشعار للمستلمين بنجاح' });
+            toast({ title: `تم حفظ الإشعار لـ ${count} مستلم`, description: 'تم تسجيله في النظام.' });
         } catch (e: any) {
             toast({
                 title: 'خطأ في الإرسال',
@@ -181,6 +167,7 @@ export default function NotificationsPage() {
                                     📋 فصل دراسي محدد
                                 </button>
                             )}
+                            {classLoadFailed && <p className="text-sm text-destructive">تعذر تحميل فصولك من النظام.</p>}
 
                             {/* Class selector */}
                             {form.targetType === 'class' && (

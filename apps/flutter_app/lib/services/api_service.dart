@@ -49,8 +49,11 @@ class _AuthInterceptor extends Interceptor {
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
     final noAuthEndpoints = [
       ApiConstants.login,
+      ApiConstants.mobileLogin,
       ApiConstants.register,
       ApiConstants.forgotPassword,
+      ApiConstants.refreshToken,
+      ApiConstants.mobileLogout,
     ];
 
     if (!noAuthEndpoints.any((e) => options.path.contains(e))) {
@@ -78,6 +81,10 @@ class _AuthInterceptor extends Interceptor {
           if (response.statusCode == 200 || response.statusCode == 201) {
             final newToken = response.data['access_token'];
             await StorageService.saveAccessToken(newToken);
+            final rotatedRefreshToken = response.data['refresh_token'];
+            if (rotatedRefreshToken is String && rotatedRefreshToken.isNotEmpty) {
+              await StorageService.saveRefreshToken(rotatedRefreshToken);
+            }
 
             err.requestOptions.headers['Authorization'] = 'Bearer $newToken';
             final retryResponse = await ApiService.instance.fetch(err.requestOptions);

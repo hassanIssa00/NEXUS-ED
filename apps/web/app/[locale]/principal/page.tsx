@@ -78,57 +78,19 @@ function PrincipalDashboardInner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { nexusBridge } = await import('@/lib/nexusDataBridge');
-      const metrics = nexusBridge.getSchoolMetrics();
-      const students = nexusBridge.getStudents();
-      const hw = nexusBridge.getHomework();
-      const certs = nexusBridge.getCertificates();
-      const obs = nexusBridge.getObservations();
-
+      const data = await dashboardApi.getAdminDashboard();
       const d = {
-        kpis: {
-          totalUsers: metrics.totalStudents + metrics.totalTeachers + 7,
-          activeUsers: metrics.totalStudents,
-          totalRevenue: 24000,
-          totalSubjects: 12,
-          totalStudents: metrics.totalStudents,
-          totalTeachers: metrics.totalTeachers,
-          totalClasses: metrics.totalClasses,
-          attendanceRate: metrics.attendanceRate,
-          averageGrade: metrics.averageSchoolGrade,
-        },
-        enrollmentSeries: [
-          { label: 'يناير', value: 8 },
-          { label: 'فبراير', value: 8 },
-          { label: 'مارس', value: metrics.totalStudents },
-        ],
-        revenueSeries: [
-          { label: 'يناير', value: 20000 },
-          { label: 'فبراير', value: 22000 },
-          { label: 'مارس', value: 24000 },
-        ],
-        recentActivity: [
-          ...obs.slice(0, 3).map(o => ({
-            type: o.severity === 'positive' ? 'success' : o.severity === 'urgent' ? 'urgent' : 'info',
-            text: o.text,
-            time: new Date(o.createdAt).toLocaleDateString('ar-SA'),
-          })),
-          ...certs.slice(0, 2).map(c => ({
-            type: 'success',
-            text: `تم منح شهادة تميز لـ ${c.studentName}: ${c.programTitle}`,
-            time: new Date(c.createdAt).toLocaleDateString('ar-SA'),
-          })),
-          ...hw.slice(0, 2).map(h => ({
-            type: 'info',
-            text: `واجب جديد: ${h.title} (${h.subject})`,
-            time: new Date(h.createdAt).toLocaleDateString('ar-SA'),
-          })),
-        ].slice(0, 6),
-        systemHealth: [
-          { service: 'نظام الحضور والغياب البيومتري', status: 'optimal' },
-          { service: 'قاعدة بيانات الطلاب (المرحلة الابتدائية)', status: 'optimal' },
-          { service: 'نظام الواجبات والاختبارات التفاعلية', status: 'optimal' },
-        ],
+        ...data,
+        systemHealth: data.systemHealth.map((item) => ({
+          service: item.name,
+          status: item.status === 'healthy' ? 'optimal' : 'warning',
+          detail: item.detail,
+        })),
+        recentActivity: data.recentActivity.map((item) => ({
+          type: 'info',
+          text: `${item.actor} · ${item.action}`,
+          time: new Date(item.createdAt).toLocaleDateString('ar-SA'),
+        })),
       };
       setAdminData(d);
     } catch (e) {
@@ -140,8 +102,6 @@ function PrincipalDashboardInner() {
 
   useEffect(() => {
     load();
-    window.addEventListener('nexus:data-changed', load as any);
-    return () => window.removeEventListener('nexus:data-changed', load as any);
   }, [load]);
 
   useRealtimeNotifications(useCallback((n: any) => {
@@ -173,17 +133,15 @@ function PrincipalDashboardInner() {
     </div>
   );
 
-  // Always render with fallback data - never show blank page
-
   const kpis = adminData?.kpis || {};
   const fallbackKpis = {
-    totalUsers: kpis.totalUsers || 5230,
-    activeUsers: kpis.activeUsers || 4800,
-    totalRevenue: kpis.totalRevenue || 1250000,
-    totalSubjects: kpis.totalSubjects || 85,
-    totalStudents: kpis.totalStudents || 4500,
-    totalTeachers: kpis.totalTeachers || 350,
-    totalClasses: kpis.totalClasses || 150,
+    totalUsers: kpis.totalUsers ?? '—',
+    activeUsers: kpis.activeUsers ?? '—',
+    totalRevenue: kpis.totalRevenue ?? '—',
+    totalSubjects: kpis.totalSubjects ?? '—',
+    totalStudents: kpis.totalStudents ?? '—',
+    totalTeachers: kpis.totalTeachers ?? '—',
+    totalClasses: kpis.totalClasses ?? '—',
   };
   const enrollSeries = (adminData?.enrollmentSeries || []).map((e: any) => ({
     name: e.label, طلاب: e.value
@@ -193,7 +151,7 @@ function PrincipalDashboardInner() {
   }));
   const recentActivity = adminData?.recentActivity || [];
   const systemHealth = adminData?.systemHealth || [];
-  const invoice = (adminData?.invoiceSummary?.total > 0) ? adminData.invoiceSummary : { paid: 850, pending: 120, failed: 30 };
+  const invoice = adminData?.invoiceSummary;
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -371,10 +329,10 @@ function PrincipalDashboardInner() {
       {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { title: 'إجمالي المستخدمين', value: fallbackKpis.totalUsers, description: 'كافة الحسابات المسجلة', icon: Users, color: '#8b5cf6', trend: 5 },
-          { title: 'الطلاب النشطون', value: fallbackKpis.activeUsers, description: 'معدل الدخول هذا الأسبوع', icon: UserCheck, color: '#10b981', trend: 3 },
-          { title: 'الإيرادات المحصلة', value: `${fallbackKpis.totalRevenue.toLocaleString()} ر.س`, description: 'مدفوعات الفصل الحالي', icon: Award, color: '#f59e0b' },
-          { title: 'المواد الدراسية', value: fallbackKpis.totalSubjects, description: 'المناهج النشطة بالنظام', icon: BookOpen, color: '#3b82f6', trend: 0 },
+          { title: 'إجمالي المستخدمين', value: fallbackKpis.totalUsers, description: 'الحسابات المسجلة في المدرسة', icon: Users, color: '#8b5cf6' },
+          { title: 'الحسابات المفعلة', value: fallbackKpis.activeUsers, description: 'المستخدمون المفعّلون حاليًا', icon: UserCheck, color: '#10b981' },
+          { title: 'الإيرادات المحصلة', value: `${fallbackKpis.totalRevenue.toLocaleString()} ر.س`, description: 'إجمالي الفواتير المدفوعة المسجلة', icon: Award, color: '#f59e0b' },
+          { title: 'المواد الدراسية', value: fallbackKpis.totalSubjects, description: 'المواد المرتبطة بمدرسة الحساب', icon: BookOpen, color: '#3b82f6' },
         ].map((k, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
             <KpiCard {...k} />
@@ -411,23 +369,7 @@ function PrincipalDashboardInner() {
                 <Area type="monotone" dataKey="طلاب" stroke="#6366f1" fill="url(#colorEnroll)" strokeWidth={3} activeDot={{ r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }} />
               </AreaChart>
             </ResponsiveContainer>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={[{name:'بداية الفصل', طلاب: 8}, {name:'منتصف الفصل', طلاب: 8}, {name:'الشهر الحالي', طلاب: 8}]} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorEnrollFallback" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-gray-100 dark:text-gray-800/50" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="طلاب" stroke="#6366f1" fill="url(#colorEnrollFallback)" strokeWidth={3} activeDot={{ r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
+          ) : <div className="grid h-[260px] place-items-center text-sm text-muted-foreground">لا توجد سجلات تسجيل كافية لعرض الرسم.</div>}
         </motion.div>
 
         {/* Invoice Status */}
@@ -440,29 +382,33 @@ function PrincipalDashboardInner() {
             الحالة المالية
           </h3>
           <div className="relative flex items-center justify-center" style={{ height: 200 }}>
-            <ResponsiveContainer width="100%" height="100%">
+            {invoice?.total > 0 ? <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={[
-                  { name: 'مدفوعة', value: invoice.paid || 1, color: '#10b981' },
-                  { name: 'معلقة', value: invoice.pending || 0, color: '#f59e0b' },
-                  { name: 'فشلت', value: invoice.failed || 0, color: '#ef4444' },
-                ]} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value" stroke="none">
-                  {['#10b981', '#f59e0b', '#ef4444'].map((c, i) => <Cell key={i} fill={c} />)}
+                  { name: 'مدفوعة', value: invoice.paid, color: '#10b981' },
+                  { name: 'معلقة', value: invoice.pending, color: '#f59e0b' },
+                  { name: 'تحتاج إجراء', value: invoice.requiresAction, color: '#3b82f6' },
+                  { name: 'فشلت', value: invoice.failed, color: '#ef4444' },
+                  { name: 'مستردة', value: invoice.refunded, color: '#8b5cf6' },
+                ].filter((entry) => entry.value > 0)} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value" stroke="none">
+                  {['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6'].map((c, i) => <Cell key={i} fill={c} />)}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
               </PieChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer> : <div className="text-center text-sm text-muted-foreground">{invoice ? 'لا توجد فواتير مسجلة.' : 'تعذر تحميل بيانات الفواتير.'}</div>}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-3xl font-black text-gray-900 dark:text-white">{invoice.paid + invoice.pending + invoice.failed}</span>
+              <span className="text-3xl font-black text-gray-900 dark:text-white">{invoice?.total ?? '—'}</span>
               <span className="text-xs font-bold text-gray-500">مجموع الفواتير</span>
             </div>
           </div>
           <div className="space-y-3 mt-6">
             {[
-              { l: 'تم التحصيل', v: invoice.paid, c: '#10b981', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
-              { l: 'قيد الانتظار', v: invoice.pending, c: '#f59e0b', bg: 'bg-amber-50 dark:bg-amber-500/10' },
-              { l: 'فشل السداد', v: invoice.failed, c: '#ef4444', bg: 'bg-rose-50 dark:bg-rose-500/10' },
-            ].map(s => s.v > 0 && (
+              { l: 'تم التحصيل', v: invoice?.paid, c: '#10b981', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
+              { l: 'قيد الانتظار', v: invoice?.pending, c: '#f59e0b', bg: 'bg-amber-50 dark:bg-amber-500/10' },
+              { l: 'تحتاج إجراء', v: invoice?.requiresAction, c: '#3b82f6', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+              { l: 'فشل السداد', v: invoice?.failed, c: '#ef4444', bg: 'bg-rose-50 dark:bg-rose-500/10' },
+              { l: 'مستردة', v: invoice?.refunded, c: '#8b5cf6', bg: 'bg-violet-50 dark:bg-violet-500/10' },
+            ].map(s => Number(s.v) > 0 && (
               <div key={s.l} className={`flex items-center justify-between text-sm p-3 rounded-xl border border-transparent ${s.bg}`}>
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: s.c }} />
@@ -500,20 +446,7 @@ function PrincipalDashboardInner() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={[{name:'المحصل', إيرادات: 24500}, {name:'المتبقي', إيرادات: 3500}]} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-gray-100 dark:text-gray-800/50" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="إيرادات" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={32}>
-                  <Cell fill="#10b981" />
-                  <Cell fill="#f59e0b" />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+          ) : <div className="grid h-[260px] place-items-center text-sm text-muted-foreground">لا توجد عمليات تحصيل مسجلة لعرضها.</div>}
         </motion.div>
 
         {/* Recent Activity */}
@@ -540,20 +473,7 @@ function PrincipalDashboardInner() {
                     time={item.time || new Date(item.createdAt || Date.now()).toLocaleDateString('ar-SA')} />
                 ))}
               </div>
-            ) : (
-              <div className="space-y-1">
-                 {[
-                   { text: 'تسجيل الحضور اليومي لطلاب الصف الأول الابتدائي (أ)', type: 'success', time: 'اليوم' },
-                   { text: 'نشر واجب منزلي جديد في مادة لغتي', type: 'info', time: 'أمس' },
-                   { text: 'اعتماد الخطة الأكاديمية وجداول الحصص المدرسية', type: 'success', time: 'هذا الأسبوع' },
-                 ].map((item, i) => (
-                   <AlertRow key={`act-${i}`}
-                     type={item.type}
-                     text={item.text}
-                     time={item.time} />
-                 ))}
-              </div>
-            )}
+            ) : <p className="p-6 text-center text-sm text-muted-foreground">لا توجد أنشطة مسجلة بعد.</p>}
           </div>
         </motion.div>
       </div>

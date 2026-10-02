@@ -6,7 +6,7 @@ import { apiClient } from '@/lib/api/client'
 import { SocketProvider, useRealtimeAttendance } from '@/lib/providers/socket-provider'
 import {
   Calendar, CheckCircle2, XCircle, AlertCircle, Clock, TrendingUp,
-  Loader2, RefreshCw, Bell, Award, QrCode, Camera
+  Loader2, RefreshCw, Bell, Award
 } from 'lucide-react'
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts'
 
@@ -36,51 +36,8 @@ function AttendancePageInner() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const { nexusBridge } = await import('@/lib/nexusDataBridge')
-      const todayAtt = nexusBridge.getTodayAttendance()
-      const myAtt = todayAtt.find(a => a.studentId === 'cls-std-2')
-
-      // Read real persistent attendance records from localStorage
-      let storedHistory: any[] = []
-      try {
-        const raw = localStorage.getItem('nexus_student_attendance_history')
-        if (raw) storedHistory = JSON.parse(raw)
-      } catch {}
-
-      // If student has today's attendance but not yet recorded in history, sync it
-      if (myAtt?.overallStatus === 'present' && !storedHistory.some(h => new Date(h.date).toDateString() === new Date().toDateString())) {
-        storedHistory.unshift({
-          date: new Date().toISOString(),
-          status: 'PRESENT',
-          checkInTime: '06:50 ص',
-          checkOutTime: '12:40 م',
-          method: 'FACE_ID_KIOSK',
-          periodsCount: 7,
-        })
-        try { localStorage.setItem('nexus_student_attendance_history', JSON.stringify(storedHistory)) } catch {}
-      }
-
-      const presentCount = storedHistory.filter(h => h.status === 'PRESENT').length
-      const absentCount = storedHistory.filter(h => h.status === 'ABSENT').length
-      const lateCount = storedHistory.filter(h => h.status === 'LATE').length
-      const totalDays = storedHistory.length
-      const attendanceRate = totalDays > 0 ? Math.round((presentCount / totalDays) * 100) : 0
-
-      const realData = {
-        summary: {
-          present: presentCount,
-          absent: absentCount,
-          late: lateCount,
-          totalDays: totalDays,
-          attendanceRate: attendanceRate,
-        },
-        weeklyOverview: storedHistory.slice(0, 5).map(h => ({
-          day: new Date(h.date).toLocaleDateString('ar-SA', { weekday: 'long' }),
-          status: h.status,
-        })),
-        history: storedHistory,
-      }
-      setData(realData)
+      const response = await apiClient.get('/attendance')
+      setData(response.data)
     } catch {
       setData(null)
     } finally {
@@ -89,46 +46,6 @@ function AttendancePageInner() {
   }, [])
 
   useEffect(() => { load() }, [load])
-
-  const recordAttendanceNow = (method: string) => {
-    let stored: any[] = []
-    try {
-      const raw = localStorage.getItem('nexus_student_attendance_history')
-      if (raw) stored = JSON.parse(raw)
-    } catch {}
-
-    const todayStr = new Date().toDateString()
-    if (stored.some(h => new Date(h.date).toDateString() === todayStr)) {
-      setLiveAlert('ℹ️ لقد تم تسجيل حضورك لهذا اليوم بالفعل')
-      setTimeout(() => setLiveAlert(null), 4000)
-      return
-    }
-
-    const newRecord = {
-      date: new Date().toISOString(),
-      status: 'PRESENT',
-      checkInTime: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
-      checkOutTime: '12:40 م',
-      method: method,
-      periodsCount: 7,
-    }
-    stored.unshift(newRecord)
-    try { localStorage.setItem('nexus_student_attendance_history', JSON.stringify(stored)) } catch {}
-
-    import('@/lib/nexusDataBridge').then(({ nexusBridge }) => {
-      (nexusBridge as any).recordAttendance({
-        studentId: 'cls-std-2',
-        studentName: 'أحمد فيصل الغامدي',
-        periodNumber: 1,
-        status: 'present',
-        overallStatus: 'present',
-      })
-    }).catch(() => {})
-
-    setLiveAlert('✅ تم تسجيل حضورك بنجاح!')
-    setTimeout(() => setLiveAlert(null), 4000)
-    load()
-  }
 
   useRealtimeAttendance(useCallback((a: any) => {
     const msg = a.status === 'PRESENT' ? '✅ تم تسجيل حضورك اليوم' : '⚠️ تم تسجيل غيابك اليوم'
@@ -143,12 +60,12 @@ function AttendancePageInner() {
     </div>
   )
 
-  const summary = data?.summary || { present: 0, absent: 0, late: 0, totalDays: 0, attendanceRate: 0 }
+  const summary = data?.summary || { present: 0, absent: 0, late: 0, totalDays: 0, attendanceRate: null }
   const history: any[] = data?.history || []
   const weeklyOverview: any[] = data?.weeklyOverview || []
 
   const total = summary.totalDays
-  const attendancePct = summary.attendanceRate
+  const attendancePct = (summary.attendanceRate ?? 0) as number
 
   // Chart data
   const pieData = [
@@ -200,41 +117,6 @@ function AttendancePageInner() {
               ))}
             </div>
             
-            {/* Actions: QR and Face ID check-in */}
-            <div className="mt-6 flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 rounded-xl">
-                <input 
-                  type="text" 
-                  id="qrCodeInput"
-                  placeholder="أدخل رمز QR المدرسي..."
-                  className="bg-transparent border-none outline-none text-white placeholder-teal-100/70 text-xs px-2 w-44"
-                />
-                <button 
-                  onClick={() => {
-                    const inputEl = document.getElementById('qrCodeInput') as HTMLInputElement
-                    if (inputEl && inputEl.value.trim()) {
-                      recordAttendanceNow('QR_SCAN')
-                      inputEl.value = ''
-                    } else {
-                      setLiveAlert('⚠️ يرجى إدخال رمز QR صالح')
-                      setTimeout(() => setLiveAlert(null), 3000)
-                    }
-                  }}
-                  className="bg-white text-teal-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-teal-50 transition-colors flex items-center gap-1"
-                >
-                  <QrCode className="w-3.5 h-3.5" />
-                  تأكيد الحضور
-                </button>
-              </div>
-
-              <button
-                onClick={() => recordAttendanceNow('FACE_ID')}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-black transition-colors flex items-center gap-1.5 shadow-md"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                تسجيل حضور ببصمة الوجه 📸
-              </button>
-            </div>
           </div>
 
           {/* Attendance Ring */}
@@ -250,7 +132,7 @@ function AttendancePageInner() {
                 transition={{ duration: 1.5, ease: 'easeOut' }} />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-extrabold text-white">{total === 0 ? '0%' : `${attendancePct}%`}</span>
+              <span className="text-2xl font-extrabold text-white">{total === 0 ? '—' : `${attendancePct}%`}</span>
               <span className="text-xs text-white/70">الحضور</span>
             </div>
           </div>
@@ -295,7 +177,7 @@ function AttendancePageInner() {
             <div className="py-12 text-center space-y-2">
               <Calendar className="w-12 h-12 text-muted-foreground/40 mx-auto" />
               <p className="text-muted-foreground text-sm font-bold">لا توجد سجلات حضور مسجلة بعد</p>
-              <p className="text-xs text-muted-foreground/70">سجل حضورك اليومي مباشرة عبر بصمة الوجه أو رمز QR أعلاه</p>
+              <p className="text-xs text-muted-foreground/70">تُسجّل المدرسة الحضور من حساب المعلم أو الإدارة.</p>
             </div>
           )}
         </motion.div>
@@ -310,8 +192,8 @@ function AttendancePageInner() {
             <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-4">
               <Clock className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="font-bold text-blue-700 dark:text-blue-400 text-sm">سجل الحضور الأكاديمي</p>
-                <p className="text-xs text-muted-foreground mt-0.5">لم يتم رصد أي غيابات. يتم تسجيل حضورك عند بدء اليوم الدراسي عبر البوابة الذكية.</p>
+                <p className="font-bold text-blue-700 dark:text-blue-400 text-sm">لا توجد سجلات حضور</p>
+                <p className="text-xs text-muted-foreground mt-0.5">لم تسجل المدرسة حضورًا أو غيابًا لهذا الحساب حتى الآن.</p>
               </div>
             </div>
           ) : attendancePct >= 90 ? (
@@ -398,7 +280,7 @@ function AttendancePageInner() {
                   <AttendanceDot status={status} />
                   <div className="flex-1">
                     <p className="text-sm font-bold text-foreground">{dateStr}</p>
-                    <p className="text-xs text-muted-foreground">طريقة التسجيل: {h.method === 'FACE_ID' ? 'بصمة الوجه الذكية' : 'رمز QR المعتمد'}</p>
+                    <p className="text-xs text-muted-foreground">{h.subject || 'سجل مدرسي'}</p>
                   </div>
                   <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ color: cfg.color, backgroundColor: `${cfg.color}15` }}>
                     {cfg.label}

@@ -7,6 +7,8 @@ import '../../features/auth/screens/register_screen.dart';
 import '../../features/auth/screens/onboarding_screen.dart';
 import '../../features/auth/screens/splash_screen.dart';
 import '../../features/student/screens/student_dashboard.dart';
+import '../../features/student/screens/student_profile_setup_screen.dart';
+import '../../features/student/screens/placement_assessment_screen.dart';
 import '../../features/student/screens/subjects/subjects_screen.dart';
 import '../../features/student/screens/assignments/assignments_screen.dart';
 import '../../features/student/screens/grades/grades_screen.dart';
@@ -19,12 +21,11 @@ import '../../features/student/screens/messages/messages_screen.dart';
 import '../../features/student/screens/settings/settings_screen.dart';
 import '../../features/student/screens/ai/ai_tutor_screen.dart';
 import '../../features/student/screens/profile/profile_screen.dart';
-import '../../features/student/screens/courses/course_details_screen.dart';
 import '../../features/student/screens/notifications/notifications_screen.dart';
 import '../../features/student/screens/achievements/achievements_screen.dart';
-import '../../features/student/screens/quiz/quiz_screen.dart';
 import '../../features/teacher/screens/teacher_dashboard.dart';
 import '../../features/parent/screens/parent_dashboard.dart';
+import '../../features/parent/screens/parent_survey_screen.dart';
 import '../../features/admin/screens/admin_dashboard.dart';
 import '../../shared/widgets/app_scaffold.dart';
 import 'route_names.dart';
@@ -81,9 +82,45 @@ CustomTransitionPage<void> _buildFadeTransition({
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  late final GoRouter router;
+  router = GoRouter(
     initialLocation: RouteNames.splash,
     debugLogDiagnostics: false,
+    redirect: (context, state) {
+      final auth = ref.read(authProvider);
+      final location = state.matchedLocation;
+      final isPublicRoute = const {
+        RouteNames.splash,
+        RouteNames.onboarding,
+        RouteNames.login,
+        RouteNames.register,
+      }.contains(location);
+
+      if (auth.status == AuthStatus.initial || auth.status == AuthStatus.loading) {
+        return location == RouteNames.splash ? null : RouteNames.splash;
+      }
+      if (auth.status == AuthStatus.unauthenticated || auth.status == AuthStatus.error) {
+        if (isPublicRoute) return null;
+        return auth.status == AuthStatus.unauthenticated
+            ? RouteNames.onboarding
+            : RouteNames.login;
+      }
+
+      final home = switch (auth.user?.role) {
+        'student' => RouteNames.studentDashboard,
+        'parent' => RouteNames.parentDashboard,
+        'teacher' => RouteNames.teacherDashboard,
+        'admin' || 'administrator' || 'principal' || 'vice_principal' => RouteNames.adminDashboard,
+        _ => null,
+      };
+      if (home == null) return RouteNames.login;
+      if (isPublicRoute) return home;
+      if (location.startsWith('/student') && home != RouteNames.studentDashboard) return home;
+      if (location.startsWith('/parent') && home != RouteNames.parentDashboard) return home;
+      if (location.startsWith('/teacher') && home != RouteNames.teacherDashboard) return home;
+      if (location.startsWith('/admin') && home != RouteNames.adminDashboard) return home;
+      return null;
+    },
     routes: [
       // ═══════════════════════════════════════════
       // AUTH ROUTES
@@ -123,6 +160,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: RouteNames.studentDashboard,
             name: 'studentDashboard',
             pageBuilder: (context, state) => _buildTransition(child: const StudentDashboard(), state: state),
+          ),
+          GoRoute(
+            path: RouteNames.studentProfileSetup,
+            name: 'studentProfileSetup',
+            pageBuilder: (context, state) => _buildTransition(child: const StudentProfileSetupScreen(), state: state),
+          ),
+          GoRoute(
+            path: RouteNames.studentAssessment,
+            name: 'studentAssessment',
+            pageBuilder: (context, state) => _buildTransition(child: const PlacementAssessmentScreen(), state: state),
           ),
           GoRoute(
             path: RouteNames.studentSubjects,
@@ -187,11 +234,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => _buildTransition(child: const SettingsScreen(), state: state),
           ),
           GoRoute(
-            path: RouteNames.studentCourseDetails,
-            name: 'studentCourseDetails',
-            pageBuilder: (context, state) => _buildTransition(child: const CourseDetailsScreen(), state: state),
-          ),
-          GoRoute(
             path: RouteNames.studentNotifications,
             name: 'studentNotifications',
             pageBuilder: (context, state) => _buildTransition(child: const NotificationsScreen(), state: state),
@@ -200,11 +242,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: RouteNames.studentAchievements,
             name: 'studentAchievements',
             pageBuilder: (context, state) => _buildTransition(child: const AchievementsScreen(), state: state),
-          ),
-          GoRoute(
-            path: RouteNames.studentQuiz,
-            name: 'studentQuiz',
-            pageBuilder: (context, state) => _buildTransition(child: const QuizScreen(), state: state),
           ),
         ],
       ),
@@ -240,6 +277,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'parentDashboard',
             pageBuilder: (context, state) => _buildTransition(child: const ParentDashboard(), state: state),
           ),
+          GoRoute(
+            path: RouteNames.parentSurvey,
+            name: 'parentSurvey',
+            pageBuilder: (context, state) => _buildTransition(
+              child: ParentSurveyScreen(studentId: state.pathParameters['studentId'] ?? ''),
+              state: state,
+            ),
+          ),
         ],
       ),
 
@@ -261,4 +306,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  ref.listen<AuthState>(authProvider, (previous, next) => router.refresh());
+  return router;
 });

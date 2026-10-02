@@ -1,17 +1,18 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/routing/route_names.dart';
+import '../providers/auth_provider.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProviderStateMixin {
   late AnimationController _particleController;
   late AnimationController _logoController;
   late AnimationController _textController;
@@ -27,6 +28,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   final List<_Particle> _particles = [];
   final _random = Random();
+  bool _didNavigate = false;
 
   @override
   void initState() {
@@ -81,10 +83,30 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     Future.delayed(const Duration(milliseconds: 400), () => _ringController.forward());
     Future.delayed(const Duration(milliseconds: 700), () => _textController.forward());
 
-    // Navigate after delay
-    Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) context.go(RouteNames.onboarding);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _routeFor(ref.read(authProvider));
     });
+  }
+
+  void _routeFor(AuthState state) {
+    if (_didNavigate || !mounted) return;
+    if (state.status == AuthStatus.initial || state.status == AuthStatus.loading) return;
+
+    final destination = switch (state.status) {
+      AuthStatus.authenticated => switch (state.user?.role) {
+          'student' => RouteNames.studentDashboard,
+          'parent' => RouteNames.parentDashboard,
+          'teacher' => RouteNames.teacherDashboard,
+          'admin' || 'administrator' || 'principal' || 'vice_principal' => RouteNames.adminDashboard,
+          _ => RouteNames.login,
+        },
+      AuthStatus.unauthenticated => RouteNames.onboarding,
+      AuthStatus.error => RouteNames.login,
+      AuthStatus.initial || AuthStatus.loading => null,
+    };
+    if (destination == null) return;
+    _didNavigate = true;
+    context.go(destination);
   }
 
   @override
@@ -99,6 +121,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AuthState>(authProvider, (previous, next) => _routeFor(next));
     final size = MediaQuery.of(context).size;
 
     return Scaffold(

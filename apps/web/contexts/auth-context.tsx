@@ -24,6 +24,7 @@ interface UserProfile {
     full_name: string;
     role: UserRole;
     avatar_url?: string;
+    phone?: string;
 }
 
 interface AuthContextType {
@@ -31,12 +32,13 @@ interface AuthContextType {
     profile: UserProfile | null;
     session: Session | null;
     loading: boolean;
-    signIn: (email: string, password: string) => Promise<void>;
+    signIn: (email: string, password: string, expectedRole?: UserRole) => Promise<UserRole>;
     signUp: (
         email: string,
         password: string,
         fullName: string,
-        role: UserRole
+        role: UserRole,
+        phone?: string
     ) => Promise<void>;
     signOut: () => Promise<void>;
 }
@@ -44,8 +46,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const ACCESS_TOKEN_STORAGE_KEY = 'access_token';
-const DEMO_FLAG_STORAGE_KEY = 'is_demo';
-const DEMO_PROFILE_STORAGE_KEY = 'demo_profile';
+const LEGACY_DEMO_KEYS = ['is_demo', 'demo_profile', 'nexus_user', 'nexus_role'];
 
 const API_ROLE_TO_APP_ROLE: Record<string, UserRole> = {
     STUDENT: 'student',
@@ -63,10 +64,7 @@ const API_ROLE_TO_APP_ROLE: Record<string, UserRole> = {
 
 const APP_ROLE_TO_API_ROLE: Partial<Record<UserRole, string>> = {
     student: 'STUDENT',
-    teacher: 'TEACHER',
     parent: 'PARENT',
-    admin: 'ADMIN',
-    manager: 'ADMIN',
 };
 
 function createApiUser(id: string, email: string): User {
@@ -80,12 +78,8 @@ function createApiUser(id: string, email: string): User {
     } as User;
 }
 
-function normalizeApiRole(role: string | undefined): UserRole {
-    return API_ROLE_TO_APP_ROLE[role ?? ''] ?? 'student';
-}
-
-function canUseDemoAuth(): boolean {
-    return true;
+function normalizeApiRole(role: string | undefined): UserRole | null {
+    return API_ROLE_TO_APP_ROLE[role?.toUpperCase() ?? ''] ?? null;
 }
 
 function getApiBaseUrl(): string | null {
@@ -111,12 +105,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const clearLocalApiSession = () => {
         sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
-        sessionStorage.removeItem(DEMO_FLAG_STORAGE_KEY);
-        sessionStorage.removeItem(DEMO_PROFILE_STORAGE_KEY);
-        // Also clear localStorage to prevent stale sessions
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('nexus_role');
-        localStorage.removeItem('nexus_user');
+        localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+        for (const key of LEGACY_DEMO_KEYS) {
+            sessionStorage.removeItem(key);
+            localStorage.removeItem(key);
+        }
+    };
+
+    const clearLegacyBrowserSession = () => {
+        if (sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)?.startsWith('nexus_live_')) {
+            sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+        }
+        localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+        for (const key of LEGACY_DEMO_KEYS) {
+            sessionStorage.removeItem(key);
+            localStorage.removeItem(key);
+        }
     };
 
     const setAuthenticatedState = (nextUser: User, nextProfile: UserProfile) => {
@@ -143,12 +147,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         const data = await response.json();
+        const normalizedRole = normalizeApiRole(data.role);
+        if (!normalizedRole) {
+            return null;
+        }
+
         return {
             id: data.id,
             email: data.email,
             full_name: data.name || data.email,
-            role: normalizeApiRole(data.role),
+            role: normalizedRole,
             avatar_url: data.avatar,
+            phone: data.phone,
         };
     };
 
@@ -173,28 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, data.access_token);
-        sessionStorage.setItem(DEMO_FLAG_STORAGE_KEY, 'false');
         return data.access_token as string;
-    };
-
-    const restoreDemoSession = (): boolean => {
-        const rawProfile = sessionStorage.getItem('nexus_user') || localStorage.getItem('nexus_user') || sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
-
-        if (!rawProfile) {
-            return false;
-        }
-
-        try {
-            const profile = JSON.parse(rawProfile) as UserProfile;
-            setAuthenticatedState(
-                createApiUser(profile.id, profile.email),
-                profile
-            );
-            return true;
-        } catch {
-            clearLocalApiSession();
-            return false;
-        }
     };
 
     const restoreApiSession = async (): Promise<boolean> => {
@@ -233,7 +222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const fetchSupabaseProfile = async (userId: string) => {
         if (!supabase) {
-            return;
+            return null;
         }
 
         try {
@@ -247,9 +236,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 throw error;
             }
 
-            setProfile(data as UserProfile);
+            const role = normalizeApiRole(data.role);
+            if (!role) {
+                throw new Error('Unrecognized account role');
+            }
+
+            const profile = { ...data, role } as UserProfile;
+            setProfile(profile);
+            return profile;
         } catch (error) {
             console.error('Error fetching profile:', error);
+            return null;
         } finally {
             setLoading(false);
         }
@@ -263,14 +260,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
-            // 1. Instant 0ms session recovery from localStorage / sessionStorage
-            const restoredDemo = restoreDemoSession();
-            if (restoredDemo && isActive) {
-                setLoading(false);
-                return;
-            }
+            clearLegacyBrowserSession();
 
-            // 2. Try remote API session if configured and valid
+            // Restore only a token validated by the API.
             const restoredApi = await restoreApiSession();
             if (!isActive) {
                 return;
@@ -341,59 +333,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
     }, []);
 
-    const signIn = async (email: string, password: string) => {
+    const signIn = async (email: string, password: string, expectedRole?: UserRole): Promise<UserRole> => {
         const apiBaseUrl = getApiBaseUrl();
 
         try {
-            // 🌟 1. Real Nexus Ecosystem Authentication across all 8 roles
-            const { nexusBridge } = await import('@/lib/nexusDataBridge');
-            const realAccount = nexusBridge.findAccountByEmail(email);
-
-            if (realAccount) {
-                await new Promise(resolve => setTimeout(resolve, 400));
-                const realProfile: UserProfile = {
-                    id: realAccount.id,
-                    email: realAccount.email,
-                    full_name: realAccount.name,
-                    role: realAccount.role,
-                    avatar_url: realAccount.avatarUrl,
-                };
-
-                sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, `nexus_live_${realAccount.id}`);
-                sessionStorage.setItem(DEMO_FLAG_STORAGE_KEY, 'false');
-                sessionStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(realProfile));
-                sessionStorage.setItem('nexus_user', JSON.stringify(realProfile));
-                localStorage.setItem('access_token', `nexus_live_${realAccount.id}`);
-                localStorage.setItem('nexus_user', JSON.stringify(realProfile));
-                localStorage.setItem('nexus_role', realAccount.role);
-
-                setAuthenticatedState(createApiUser(realAccount.id, realAccount.email), realProfile);
-                return;
-            }
-
-            if (canUseDemoAuth()) {
-                await new Promise(resolve => setTimeout(resolve, 500));
-                const demoRole = email.toLowerCase().includes('teacher')
-                    ? 'teacher'
-                    : email.toLowerCase().includes('parent')
-                        ? 'parent'
-                        : email.toLowerCase().includes('admin')
-                            ? 'admin'
-                            : 'student';
-
-                const demoProfile: UserProfile = {
-                    id: 'demo-user-id',
-                    email,
-                    full_name: 'مستخدم تجريبي',
-                    role: demoRole,
-                };
-
-                sessionStorage.setItem(DEMO_FLAG_STORAGE_KEY, 'true');
-                sessionStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(demoProfile));
-                setAuthenticatedState(createApiUser(demoProfile.id, demoProfile.email), demoProfile);
-                return;
-            }
-
             if (apiBaseUrl) {
                 // Clear any previous session before signing in with new credentials
                 clearLocalApiSession();
@@ -407,20 +350,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 if (response.ok) {
                     const data = await response.json();
+                    const role = normalizeApiRole(data.user?.role);
+                    if (!role) {
+                        await fetch(`${apiBaseUrl}/auth/logout`, {
+                            method: 'POST',
+                            credentials: 'include',
+                        }).catch(() => undefined);
+                        throw new Error('Unrecognized account role');
+                    }
+                    if (expectedRole && role !== expectedRole) {
+                        await fetch(`${apiBaseUrl}/auth/logout`, {
+                            method: 'POST',
+                            credentials: 'include',
+                        }).catch(() => undefined);
+                        throw new Error('PORTAL_ROLE_MISMATCH');
+                    }
                     const nextProfile: UserProfile = {
                         id: data.user.id,
                         email: data.user.email,
                         full_name: data.user.name || data.user.email,
-                        role: normalizeApiRole(data.user.role),
+                        role,
                     };
 
                     sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, data.access_token);
-                    sessionStorage.setItem(DEMO_FLAG_STORAGE_KEY, 'false');
                     setAuthenticatedState(
                         createApiUser(data.user.id, data.user.email),
                         nextProfile
                     );
-                    return;
+                    return role;
                 }
 
                 const errorPayload = await response
@@ -439,10 +396,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     throw error;
                 }
 
-                if (data.user) {
-                    await fetchSupabaseProfile(data.user.id);
+                const profile = data.user ? await fetchSupabaseProfile(data.user.id) : null;
+                if (!profile) {
+                    await supabase.auth.signOut();
+                    setUser(null);
+                    setProfile(null);
+                    setSession(null);
+                    throw new Error('Unrecognized account role');
                 }
-                return;
+                if (expectedRole && profile.role !== expectedRole) {
+                    await supabase.auth.signOut();
+                    setUser(null);
+                    setProfile(null);
+                    setSession(null);
+                    throw new Error('PORTAL_ROLE_MISMATCH');
+                }
+                return profile.role;
             }
 
             throw new Error('Authentication services are not configured');
@@ -456,28 +425,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: string,
         password: string,
         fullName: string,
-        role: UserRole
+        role: UserRole,
+        phone?: string
     ) => {
         const apiBaseUrl = getApiBaseUrl();
 
         try {
-            if (canUseDemoAuth()) {
-                const demoProfile: UserProfile = {
-                    id: 'demo-user-id',
-                    email,
-                    full_name: fullName,
-                    role,
-                };
-                sessionStorage.setItem(DEMO_FLAG_STORAGE_KEY, 'true');
-                sessionStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(demoProfile));
-                setAuthenticatedState(createApiUser(demoProfile.id, demoProfile.email), demoProfile);
-                return;
-            }
-
             if (apiBaseUrl) {
                 const apiRole = APP_ROLE_TO_API_ROLE[role];
                 if (!apiRole) {
-                    throw new Error('Self-registration is limited to student, teacher, parent, and admin accounts.');
+                    throw new Error('إنشاء حسابات الموظفين متاح لإدارة المدرسة فقط.');
                 }
 
                 const response = await fetch(`${apiBaseUrl}/auth/register`, {
@@ -488,6 +445,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         password,
                         name: fullName,
                         role: apiRole,
+                        phone,
                     }),
                     credentials: 'include',
                 });
@@ -503,35 +461,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
-            if (!supabase) {
-                throw new Error('Registration services are not configured');
-            }
-
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email,
-                password,
-            });
-
-            if (authError) {
-                throw authError;
-            }
-
-            if (!authData.user) {
-                throw new Error('فشل إنشاء الحساب');
-            }
-
-            const { error: profileError } = await supabase.from('users').insert({
-                id: authData.user.id,
-                email,
-                full_name: fullName,
-                role,
-            });
-
-            if (profileError) {
-                throw profileError;
-            }
-
-            await fetchSupabaseProfile(authData.user.id);
+            throw new Error('خدمة إنشاء الحساب غير متاحة حالياً. حاول مرة أخرى لاحقاً.');
         } catch (error: any) {
             throw new Error(error.message || 'حدث خطأ في إنشاء الحساب');
         }

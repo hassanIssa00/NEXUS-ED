@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { PrismaService } from '../../core/database/prisma.service';
@@ -8,16 +8,16 @@ export interface ParentAdviceResult {
   positives: string[];
   concerns: string[];
   actionableAdvice: string[];
-  overallStatus: 'excellent' | 'good' | 'needsAttention' | 'urgent';
+  overallStatus: 'excellent' | 'good' | 'needsAttention' | 'urgent' | 'insufficientData';
 }
 
 export interface LearningRiskResult {
-  riskLevel: 'low' | 'medium' | 'high';
-  riskScore: number; // 0-100
+  riskLevel: 'low' | 'medium' | 'high' | 'unknown';
+  riskScore: number | null;
   indicators: {
-    attendance: { score: number; detail: string };
-    gradesTrend: { score: number; detail: string };
-    assignmentCompletion: { score: number; detail: string };
+    attendance: { score: number | null; detail: string };
+    gradesTrend: { score: number | null; detail: string };
+    assignmentCompletion: { score: number | null; detail: string };
   };
   recommendation: string;
 }
@@ -35,8 +35,6 @@ export class AiParentService {
     if (apiKey && apiKey !== 'sk_placeholder') {
       this.openai = new OpenAI({ apiKey });
       this.logger.log('AiParentService: OpenAI initialized');
-    } else {
-      this.logger.warn('AiParentService: No valid OpenAI key — mock mode active');
     }
   }
 
@@ -63,43 +61,50 @@ export class AiParentService {
       },
     });
 
-    if (!student) {
-      return this.getMockAdvice('طالب غير معروف');
-    }
+    if (!student || student.role !== 'STUDENT') throw new NotFoundException('Student not found');
 
     const presentCount = (student.attendance || []).filter((a: any) => a.status === 'PRESENT').length;
     const absentCount = (student.attendance || []).filter((a: any) => a.status === 'ABSENT').length;
     const attendanceRate = (student.attendance || []).length > 0
       ? Math.round((presentCount / (student.attendance || []).length) * 100)
-      : 100;
+      : null;
 
     const gradeSummary = (student.studentGrades || []).map((g: any) => ({
-      subject: g.subject?.name || 'Unknown',
+      subject: g.subject?.name || 'مادة غير محددة',
       score: g.score,
       max: g.maxScore || 100,
       pct: Math.round((g.score / (g.maxScore || 100)) * 100),
     }));
 
-    const missingAssignments = await this.prisma.submission.count({
+    const submissionsAwaitingGrade = await this.prisma.submission.count({
       where: { studentId, grade: null },
     });
 
-    const studentName = student.name || student.firstName || 'الطالب';
+    if (!gradeSummary.length && !student.attendance.length) {
+      return {
+        summary: `لا توجد درجات أو سجلات حضور كافية لإعداد تحليل.${submissionsAwaitingGrade ? ` توجد ${submissionsAwaitingGrade} تسليمات بانتظار رصد الدرجة.` : ''}`,
+        positives: [],
+        concerns: [],
+        actionableAdvice: [],
+        overallStatus: 'insufficientData',
+      };
+    }
 
     if (!this.openai) {
-      return this.getMockAdvice(studentName);
+      throw new ServiceUnavailableException('خدمة المستشار الذكي غير متاحة؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
     }
 
     const systemPrompt = `أنت مستشار تعليمي خبير متخصص في التواصل مع أولياء الأمور بالعربية الفصحى.
     مهمتك: تحليل أداء الطالب وتقديم تقرير واضح ومبسط لولي الأمر.
     
-    بيانات الطالب "${studentName}":
-    - نسبة الحضور: ${attendanceRate}% (حضر ${presentCount} يوم، غاب ${absentCount} يوم)
-    - الواجبات المعلقة غير المسلمة: ${missingAssignments}
+    بيانات الأداء المدرسي:
+    - نسبة الحضور: ${attendanceRate === null ? 'لا توجد سجلات حضور' : `${attendanceRate}% (حضر ${presentCount} يوم، غاب ${absentCount} يوم)`}
+    - تسليمات تنتظر رصد الدرجة: ${submissionsAwaitingGrade}
     - آخر الدرجات: ${gradeSummary.map(g => `${g.subject}: ${g.score}/${g.max} (${g.pct}%)`).join('، ')}
     
     ${parentQuestion ? `سؤال ولي الأمر: "${parentQuestion}"` : ''}
     
+    لا تخترع درجات أو حضورًا أو اهتمامًا بمواد غير موجودة في البيانات. اذكر بوضوح عندما تكون البيانات غير متاحة.
     أجب بـ JSON فقط بهذا الشكل الدقيق:
     {
       "summary": "فقرة قصيرة تلخص الوضع العام بأسلوب دافئ ومطمئن",
@@ -117,17 +122,19 @@ export class AiParentService {
         response_format: { type: 'json_object' },
       });
 
-      const result = JSON.parse(completion.choices[0].message.content || '{}');
-      return {
-        summary: result.summary || '',
-        positives: result.positives || [],
-        concerns: result.concerns || [],
-        actionableAdvice: result.actionableAdvice || [],
-        overallStatus: result.overallStatus || 'good',
-      };
+      const content = completion.choices[0]?.message?.content;
+      if (!content) throw new Error('Empty AI response');
+      const result = JSON.parse(content);
+      const statuses = ['excellent', 'good', 'needsAttention', 'urgent'];
+      if (typeof result.summary !== 'string' ||
+          !Array.isArray(result.positives) || !result.positives.every((value: unknown) => typeof value === 'string') ||
+          !Array.isArray(result.concerns) || !result.concerns.every((value: unknown) => typeof value === 'string') ||
+          !Array.isArray(result.actionableAdvice) || !result.actionableAdvice.every((value: unknown) => typeof value === 'string') ||
+          !statuses.includes(result.overallStatus)) throw new Error('AI response did not match the expected schema');
+      return result as ParentAdviceResult;
     } catch (error) {
-      this.logger.error('AiParentService: Failed to generate advice', error);
-      return this.getMockAdvice(studentName);
+      this.logger.error('AiParentService: Failed to generate advice', error instanceof Error ? error.message : String(error));
+      throw new ServiceUnavailableException('تعذر إنشاء نصيحة موثوقة الآن. لم يتم عرض نصيحة افتراضية.');
     }
   }
 
@@ -138,66 +145,83 @@ export class AiParentService {
     const student = await this.prisma.user.findUnique({
       where: { id: studentId },
       include: {
-        studentGrades: {
-          take: 20,
-          orderBy: { createdAt: 'asc' },
-        },
+        studentGrades: { include: { subject: { select: { id: true, name: true } } }, take: 30, orderBy: { createdAt: 'desc' } },
         attendance: {
           take: 30,
           orderBy: { date: 'desc' },
         },
+        enrollments: { select: { classId: true } },
       },
     });
 
-    if (!student) {
-      return { riskLevel: 'low', riskScore: 10, indicators: { attendance: { score: 10, detail: 'لا توجد بيانات' }, gradesTrend: { score: 10, detail: 'لا توجد بيانات' }, assignmentCompletion: { score: 10, detail: 'لا توجد بيانات' } }, recommendation: '' };
-    }
+    if (!student || student.role !== 'STUDENT') throw new NotFoundException('Student not found');
 
-    // Attendance Risk (0-100, higher = more risk)
     const attendanceList = (student.attendance || []) as any[];
     const absentCount = attendanceList.filter((a: any) => a.status === 'ABSENT').length;
-    const attendanceRisk = Math.min(100, Math.round((absentCount / Math.max(attendanceList.length, 1)) * 200));
-    const attendanceDetail = absentCount > 5
-      ? `غاب ${absentCount} مرة من آخر ${attendanceList.length} يوم — يحتاج متابعة`
-      : `نسبة حضور ممتازة`;
+    const lateCount = attendanceList.filter((a: any) => a.status === 'LATE').length;
+    const attendanceRisk = attendanceList.length
+      ? Math.min(100, Math.round(((absentCount + lateCount * 0.5) / attendanceList.length) * 100))
+      : null;
+    const attendanceDetail = attendanceList.length
+      ? `سُجل ${absentCount} غياب و${lateCount} تأخر من ${attendanceList.length} سجل حضور.`
+      : 'لا توجد سجلات حضور كافية في النظام.';
 
-    // Grades Trend Risk (are grades declining?)
     const gradeList = (student.studentGrades || []) as any[];
-    const pcts = gradeList.map((g: any) => Math.round((g.score / (g.maxScore || 100)) * 100));
-    let gradesTrendRisk = 20;
-    if (pcts.length >= 3) {
-      const recent = pcts.slice(-3).reduce((a: number, b: number) => a + b, 0) / 3;
-      const earlier = pcts.slice(0, 3).reduce((a: number, b: number) => a + b, 0) / 3;
-      const decline = earlier - recent;
-      gradesTrendRisk = Math.min(100, Math.max(0, decline * 3));
+    const gradesBySubject = new Map<string, number[]>();
+    for (const grade of gradeList) {
+      const maxScore = grade.maxScore || 100;
+      if (!Number.isFinite(grade.score) || maxScore <= 0) continue;
+      const values = gradesBySubject.get(grade.subject?.id || 'unknown') ?? [];
+      values.push((grade.score / maxScore) * 100);
+      gradesBySubject.set(grade.subject?.id || 'unknown', values);
     }
-    const avgPct = pcts.length > 0 ? Math.round(pcts.reduce((a: number, b: number) => a + b, 0) / pcts.length) : 70;
-    const gradesTrendDetail = gradesTrendRisk > 40
-      ? `الدرجات في تراجع — المتوسط ${avgPct}%`
-      : `الأداء الأكاديمي مستقر أو في تحسن — المتوسط ${avgPct}%`;
-
-    // Assignment Completion Risk
-    const missingCount = await this.prisma.submission.count({
-      where: { studentId, grade: null },
+    const subjectDeclines = Array.from(gradesBySubject.values()).flatMap((values) => {
+      if (values.length < 4) return [];
+      const average = (entries: number[]) => entries.reduce((sum, value) => sum + value, 0) / entries.length;
+      return [Math.max(0, average(values.slice(2, 4)) - average(values.slice(0, 2)))];
     });
-    const assignmentRisk = Math.min(100, missingCount * 15);
-    const assignmentDetail = missingCount > 3
-      ? `${missingCount} واجب غير مسلم — هذا يؤثر على درجات التقديم`
-      : missingCount > 0 ? `${missingCount} واجب معلق` : `جميع الواجبات مسلمة`;
+    const gradesTrendRisk = subjectDeclines.length ? Math.min(100, Math.round(Math.max(...subjectDeclines) * 2)) : null;
+    const gradesTrendDetail = subjectDeclines.length
+      ? `أعلى انخفاض مرصود بين مجموعتين من الدرجات في المادة نفسها: ${Math.round(Math.max(...subjectDeclines))} نقطة مئوية.`
+      : 'لا توجد أربع درجات في مادة واحدة لحساب اتجاه موثوق.';
 
-    // Overall risk score (weighted)
-    const riskScore = Math.round(
-      (attendanceRisk * 0.3) + (gradesTrendRisk * 0.4) + (assignmentRisk * 0.3)
-    );
-    const riskLevel: 'low' | 'medium' | 'high' =
-      riskScore > 60 ? 'high' : riskScore > 30 ? 'medium' : 'low';
+    const classIds = student.enrollments.map(({ classId }) => classId);
+    const dueAssignments = classIds.length ? await this.prisma.assignment.findMany({
+      where: {
+        schoolId: student.schoolId,
+        dueDate: { lt: new Date() },
+        OR: [
+          { classId: { in: classIds } },
+          { subject: { classId: { in: classIds } } },
+        ],
+      },
+      select: { id: true, submissions: { where: { studentId }, select: { id: true } } },
+    }) : [];
+    const assignmentRisk = dueAssignments.length
+      ? Math.round((dueAssignments.filter((assignment) => assignment.submissions.length === 0).length / dueAssignments.length) * 100)
+      : null;
+    const assignmentDetail = dueAssignments.length
+      ? `${dueAssignments.filter((assignment) => assignment.submissions.length === 0).length} من ${dueAssignments.length} واجبًا تجاوز موعده دون تسليم مسجل.`
+      : 'لا توجد واجبات متأخرة مرتبطة بفصول الطالب في البيانات المتاحة.';
 
-    const recommendation =
-      riskLevel === 'high'
-        ? 'يُنصح بالتواصل المباشر مع المعلم وتخصيص وقت مراجعة يومي للطالب'
+    const indicators = [
+      { score: attendanceRisk, weight: 0.3 },
+      { score: gradesTrendRisk, weight: 0.4 },
+      { score: assignmentRisk, weight: 0.3 },
+    ].filter((indicator): indicator is { score: number; weight: number } => indicator.score !== null);
+    const riskScore = indicators.length
+      ? Math.round(indicators.reduce((sum, indicator) => sum + indicator.score * indicator.weight, 0) / indicators.reduce((sum, indicator) => sum + indicator.weight, 0))
+      : null;
+    const riskLevel: LearningRiskResult['riskLevel'] = riskScore === null
+      ? 'unknown'
+      : riskScore > 60 ? 'high' : riskScore > 30 ? 'medium' : 'low';
+    const recommendation = riskLevel === 'unknown'
+      ? 'لا توجد سجلات كافية لتقدير مستوى المخاطر.'
+      : riskLevel === 'high'
+        ? 'تُظهر البيانات المتاحة مؤشرات تحتاج مراجعة مباشرة مع المدرسة.'
         : riskLevel === 'medium'
-        ? 'يُنصح بمتابعة الواجبات يومياً وتشجيع الطالب على المشاركة'
-        : 'الطالب في وضع ممتاز — استمر في التشجيع والمتابعة الإيجابية';
+          ? 'راجع مؤشرات الغياب والدرجات والواجبات مع المدرسة.'
+          : 'لا تظهر المؤشرات المتاحة مستوى مخاطر مرتفعًا.';
 
     return {
       riskLevel,
@@ -211,16 +235,4 @@ export class AiParentService {
     };
   }
 
-  private getMockAdvice(studentName: string): ParentAdviceResult {
-    return {
-      summary: `ابنك ${studentName} يُحقق أداءً جيداً بشكل عام. هناك فرص للتحسين في بعض المواد لكن الصورة العامة إيجابية.`,
-      positives: ['نسبة الحضور منتظمة', 'يُبدي اهتمامًا بالمواد العلمية'],
-      concerns: ['بعض الواجبات تحتاج اهتمامًا أكبر'],
-      actionableAdvice: [
-        'خصص 30 دقيقة يوميًا لمراجعة الواجبات مع ابنك',
-        'تواصل مع معلم الرياضيات لتحديد نقاط الضعف',
-      ],
-      overallStatus: 'good',
-    };
-  }
 }

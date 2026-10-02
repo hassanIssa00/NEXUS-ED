@@ -4,11 +4,15 @@ import { Roles } from '../auth/roles.decorator';
 import { Role } from '../auth/role.enum';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
+import { StudentAnalyticsService } from './student-analytics.service';
 
 @Controller('analytics')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(
+    private readonly analyticsService: AnalyticsService,
+    private readonly studentAnalyticsService: StudentAnalyticsService,
+  ) {}
 
   @Get('overview')
   @Roles(Role.ADMIN)
@@ -34,11 +38,12 @@ export class AnalyticsController {
 
   @Get('grade-trends')
   @Roles(Role.STUDENT, Role.PARENT, Role.TEACHER)
-  getGradeTrends(@Query('studentId') studentId: string, @Query('limit') limit: string, @Request() req: any) {
+  async getGradeTrends(@Query('studentId') studentId: string, @Query('limit') limit: string, @Request() req: any) {
     const id = req.user.role === 'STUDENT' ? req.user.userId : studentId;
     if (!id) {
         throw new Error('Student ID is required');
     }
+    await this.studentAnalyticsService.assertCanAccessStudent(req.user.userId, req.user.role, id);
     return this.analyticsService.getGradeTrends(id, limit ? parseInt(limit, 10) : 10);
   }
 }

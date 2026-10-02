@@ -23,13 +23,16 @@ async function bootstrap() {
   });
 
   const logger = new Logger('Bootstrap');
-  const frontendOrigins = (
-    process.env.FRONTEND_URL || 'http://localhost:3002,http://localhost:3000'
-  ).split(',');
+  const frontendOrigins = new Set(
+    (process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3002,http://localhost:3000'))
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  );
 
   // Enable CORS for frontend
   app.enableCors({
-    origin: true, // Allow all origins in development
+    origin: (origin, callback) => callback(null, !origin || frontendOrigins.has(origin)),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'Accept', 'X-Requested-With'],
@@ -67,6 +70,14 @@ async function bootstrap() {
     legacyHeaders: false,
     message: { message: 'تجاوزت الحد المسموح من محاولات الدخول. حاول مجدداً بعد 15 دقيقة.' },
     skipSuccessfulRequests: true,
+  }));
+
+  app.use('/api/auth/register', rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'محاولات تسجيل كثيرة. حاول مرة أخرى بعد ساعة.' },
   }));
 
   // General auth rate limit

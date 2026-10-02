@@ -1,108 +1,63 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Video, Calendar, Clock, MapPin, Users } from 'lucide-react'
-import { apiClient } from '@/lib/api/client'
-import { Link } from '@/i18n/routing'
+import { useEffect, useState } from 'react';
+import { CalendarDays, Clock3, MapPin, Video } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { apiClient } from '@/lib/api/client';
 
-interface ClassSession {
-    id: string
-    name: string
-    teacher: string
-    schedule: string
-    room: string
-    nextClass: string
-    isLive: boolean
-    joinLink: string
-}
+type ScheduleEvent = { dayOfWeek: number; startTime: string; endTime: string; room?: string | null; subject: string };
+type StudentClass = {
+  id: string;
+  name: string;
+  teacher?: string | null;
+  schedule: ScheduleEvent[];
+  nextClass?: string | null;
+  meetingUrl?: string | null;
+  nextSessionTitle?: string | null;
+};
+
+const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 export default function ClassesPage() {
-    const [classes, setClasses] = useState<ClassSession[]>([])
-    const [loading, setLoading] = useState(true)
+  const [classes, setClasses] = useState<StudentClass[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-    useEffect(() => {
-        fetchClasses()
-    }, [])
+  useEffect(() => {
+    let active = true;
+    apiClient.get('/classes/student/list')
+      .then(({ data }) => { if (active) setClasses(Array.isArray(data) ? data : []); })
+      .catch((reason) => { if (active) setError(reason?.response?.data?.message || 'تعذر تحميل فصولك.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
-    const fetchClasses = async () => {
-        try {
-            const response = await apiClient.get('/classes/student/list')
-            setClasses(response.data)
-        } catch (error) {
-            console.error('Failed to fetch classes:', error)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    if (loading) {
-        return <div className="p-8 text-center">Loading classes...</div>
-    }
-
-    return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Classes</h1>
-                <p className="text-gray-600 dark:text-gray-400">Upcoming sessions and live classrooms</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {classes.map((cls) => (
-                    <Card key={cls.id} className="overflow-hidden hover:shadow-lg transition-all">
-                        <div className="h-32 bg-gradient-to-r from-blue-500 to-indigo-600 relative p-6">
-                            <div className="absolute top-4 right-4">
-                                {cls.isLive ? (
-                                    <Badge className="bg-red-500 hover:bg-red-600 animate-pulse">
-                                        LIVE NOW
-                                    </Badge>
-                                ) : (
-                                    <Badge variant="secondary" className="bg-white/20 text-white hover:bg-white/30 border-none">
-                                        Upcoming
-                                    </Badge>
-                                )}
-                            </div>
-                            <h3 className="text-xl font-bold text-white mb-1">{cls.name}</h3>
-                            <p className="text-blue-100 text-sm flex items-center">
-                                <Users className="w-3 h-3 mr-1" /> {cls.teacher}
-                            </p>
-                        </div>
-                        <CardContent className="pt-6 space-y-4">
-                            <div className="space-y-3">
-                                <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                                    <Calendar className="w-4 h-4 mr-3 text-gray-400" />
-                                    {cls.schedule}
-                                </div>
-                                <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                                    <MapPin className="w-4 h-4 mr-3 text-gray-400" />
-                                    {cls.room}
-                                </div>
-                                <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                                    <Clock className="w-4 h-4 mr-3 text-gray-400" />
-                                    Next: {new Date(cls.nextClass).toLocaleString()}
-                                </div>
-                            </div>
-
-                            <div className="pt-2">
-                                {cls.isLive ? (
-                                    <Link href={cls.joinLink}>
-                                        <Button className="w-full bg-red-600 hover:bg-red-700 text-white">
-                                            <Video className="w-4 h-4 mr-2" />
-                                            Join Live Class
-                                        </Button>
-                                    </Link>
-                                ) : (
-                                    <Button variant="outline" className="w-full" disabled>
-                                        Not Started Yet
-                                    </Button>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-        </div>
-    )
+  return (
+    <main className="space-y-6" dir="rtl">
+      <header><h1 className="text-2xl font-bold">فصولي</h1><p className="mt-1 text-sm text-muted-foreground">الجداول والجلسات المسجلة لفصولك.</p></header>
+      {loading ? <p className="py-8 text-center text-sm text-muted-foreground">تحميل الفصول...</p>
+        : error ? <p role="alert" className="text-sm text-destructive">{error}</p>
+          : classes.length === 0 ? <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">لا توجد فصول مرتبطة بحسابك حاليًا.</p>
+            : <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{classes.map((schoolClass) => (
+              <Card key={schoolClass.id}>
+                <CardHeader><CardTitle className="text-lg">{schoolClass.name}</CardTitle>{schoolClass.teacher && <p className="text-sm text-muted-foreground">{schoolClass.teacher}</p>}</CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <h2 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="h-4 w-4" />الجدول</h2>
+                    {schoolClass.schedule.length === 0 ? <p className="text-sm text-muted-foreground">لا يوجد جدول مسجل.</p> : schoolClass.schedule.map((event, index) => (
+                      <div key={`${event.dayOfWeek}:${event.startTime}:${index}`} className="rounded-md bg-muted/50 p-3 text-sm">
+                        <p className="font-medium">{event.subject}</p>
+                        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"><span>{dayNames[event.dayOfWeek] || 'اليوم غير محدد'}</span><span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />{event.startTime} - {event.endTime}</span>{event.room && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{event.room}</span>}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t pt-4">
+                    {schoolClass.nextClass ? <p className="text-sm text-muted-foreground">{schoolClass.nextSessionTitle || 'الجلسة القادمة'} · {new Date(schoolClass.nextClass).toLocaleString()}</p> : <p className="text-sm text-muted-foreground">لا توجد جلسات قادمة مسجلة.</p>}
+                    {schoolClass.meetingUrl && <a href={schoolClass.meetingUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground"><Video className="h-4 w-4" />فتح رابط الجلسة</a>}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}</section>}
+    </main>
+  );
 }

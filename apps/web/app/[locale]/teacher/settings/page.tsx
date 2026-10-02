@@ -4,13 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/auth-context';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
-import { Loader2, Save, User, Bell, Shield, Lock } from 'lucide-react';
+import { Loader2, Save, User } from 'lucide-react';
+import { ChangePasswordForm } from '@/components/settings/change-password-form';
 
 export default function TeacherSettingsPage() {
     const { user, profile } = useAuth();
@@ -21,12 +21,6 @@ export default function TeacherSettingsPage() {
         name: '',
         phone: '',
     });
-    const [notifications, setNotifications] = useState({
-        submissions: true,
-        weeklyReport: true,
-        grading: false,
-    });
-
     useEffect(() => {
         setLoading(true);
         apiClient.get('/users/me')
@@ -126,55 +120,7 @@ export default function TeacherSettingsPage() {
                     </CardContent>
                 </Card>
 
-                {/* Notifications */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Bell className="w-5 h-5 text-primary" />
-                            تنبيهات الفصول
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {[
-                            { key: 'submissions', label: 'إشعارات تسليم الواجبات', desc: 'تنبيه عند قيام طالب بتسليم واجب' },
-                            { key: 'weeklyReport', label: 'تقارير الأداء الأسبوعية', desc: 'استلام ملخص أداء الطلاب كل أسبوع' },
-                            { key: 'grading', label: 'التصحيح التلقائي', desc: 'تنبيه عند اكتمال التصحيح بالذكاء الاصطناعي' },
-                        ].map(item => (
-                            <div key={item.key} className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
-                                <div className="space-y-0.5">
-                                    <Label className="text-sm font-medium cursor-pointer">{item.label}</Label>
-                                    <p className="text-xs text-muted-foreground">{item.desc}</p>
-                                </div>
-                                <Switch
-                                    checked={notifications[item.key as keyof typeof notifications]}
-                                    onCheckedChange={val => setNotifications({ ...notifications, [item.key]: val })}
-                                />
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
-
-                {/* Security */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Shield className="w-5 h-5 text-primary" />
-                            الأمان
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
-                            <div className="flex items-center gap-3">
-                                <Lock className="w-4 h-4 text-muted-foreground" />
-                                <div>
-                                    <p className="text-sm font-medium">كلمة المرور</p>
-                                    <p className="text-xs text-muted-foreground">تغيير كلمة المرور الحالية</p>
-                                </div>
-                            </div>
-                            <Button variant="outline" size="sm" disabled>قريباً</Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                <ChangePasswordForm />
 
                 <div className="flex justify-end">
                     <Button onClick={handleSave} disabled={saving} className="gap-2 min-w-32">

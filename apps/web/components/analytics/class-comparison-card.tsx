@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Users, Trophy, TrendingUp, Medal } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
 
 interface ClassComparison {
-    studentAverage: number;
-    classAverage: number;
-    studentRank: number;
+    studentAverage: number | null;
+    classAverage: number | null;
+    studentRank: number | null;
     totalStudents: number;
-    percentile: number;
+    percentile: number | null;
 }
 
 interface ClassComparisonCardProps {
@@ -31,11 +32,8 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
     const fetchData = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`/api/analytics/student/${studentId}/comparison`);
-            if (response.ok) {
-                const comparisonData = await response.json();
-                setData(comparisonData);
-            }
+            const { data } = await apiClient.get(`/analytics/student/${studentId}/comparison`);
+            setData(data);
         } catch {
             console.error('Failed to fetch class comparison');
         } finally {
@@ -80,6 +78,19 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
             <Card>
                 <CardContent className="pt-6 text-center text-gray-500">
                     لا توجد بيانات للمقارنة
+                </CardContent>
+            </Card>
+        );
+    }
+
+    if (data.studentAverage === null || data.classAverage === null || data.studentRank === null || data.percentile === null) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Users className="w-5 h-5" />مقارنة مع الفصل</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-2 text-center text-gray-500">
+                    لا توجد درجات مسجلة كافية لحساب الترتيب والمقارنة.
                 </CardContent>
             </Card>
         );

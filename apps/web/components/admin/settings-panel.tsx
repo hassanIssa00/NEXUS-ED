@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { apiClient } from '@/lib/api/client';
 import {
     Settings,
     GraduationCap,
@@ -51,13 +52,16 @@ const defaultSettings: SchoolSettings = {
     gradingSystem: { maxScore: 100, passingScore: 50 },
     periodsConfig: { periodsPerDay: 7, periodDuration: 45, breakDuration: 10, startTime: '07:30' },
     attendancePolicy: { maxAbsenceDays: 15, lateThreshold: 15, parentNotification: true, warningThreshold: 20 },
-    reportSettings: { schoolName: 'مدرسة المليون', headerText: 'بسم الله الرحمن الرحيم', footerText: 'نتمنى لكم التوفيق', showRank: true, showAttendance: true, showBehavior: true },
+    reportSettings: { schoolName: '', headerText: 'بسم الله الرحمن الرحيم', footerText: 'نتمنى لكم التوفيق', showRank: true, showAttendance: true, showBehavior: true },
 };
 
 export function AdminSettingsPanel() {
     const [settings, setSettings] = useState<SchoolSettings>(defaultSettings);
     const [loading, setLoading] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [fetching, setFetching] = useState(true);
+    const [loadFailed, setLoadFailed] = useState(false);
+    const [savedSettings, setSavedSettings] = useState<SchoolSettings>(defaultSettings);
 
     useEffect(() => {
         fetchSettings();
@@ -65,32 +69,25 @@ export function AdminSettingsPanel() {
 
     const fetchSettings = async () => {
         try {
-            const response = await fetch('/api/admin/settings');
-            if (response.ok) {
-                const data = await response.json();
-                // Ensure we only set the settings if the data structure is what we expect
-                // Otherwise, keep the default settings
-                if (data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length > 0) {
-                    setSettings(prev => ({ ...prev, ...data }));
-                }
-            }
+            const { data } = await apiClient.get<SchoolSettings>('/admin/settings');
+            setSettings(data);
+            setSavedSettings(data);
+            setLoadFailed(false);
         } catch {
-            console.error('Failed to fetch settings');
+            setLoadFailed(true);
+        } finally {
+            setFetching(false);
         }
     };
 
     const handleSave = async () => {
         setLoading(true);
         try {
-            const response = await fetch('/api/admin/settings', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(settings),
-            });
-            if (response.ok) {
-                setSaved(true);
-                setTimeout(() => setSaved(false), 3000);
-            }
+            const { data } = await apiClient.put<SchoolSettings>('/admin/settings', settings);
+            setSettings(data);
+            setSavedSettings(data);
+            setSaved(true);
+            setTimeout(() => setSaved(false), 3000);
         } catch {
             console.error('Failed to save settings');
         } finally {
@@ -99,7 +96,7 @@ export function AdminSettingsPanel() {
     };
 
     const handleReset = () => {
-        setSettings(defaultSettings);
+        setSettings(savedSettings);
     };
 
     const updateGrading = (key: keyof SchoolSettings['gradingSystem'], value: number) => {
@@ -129,6 +126,9 @@ export function AdminSettingsPanel() {
             reportSettings: { ...prev.reportSettings, [key]: value },
         }));
     };
+
+    if (fetching) return <div className="p-8 text-center text-muted-foreground">جاري تحميل إعدادات المدرسة...</div>;
+    if (loadFailed) return <div role="alert" className="p-8 text-center text-destructive">تعذر تحميل إعدادات المدرسة من قاعدة البيانات.</div>;
 
     return (
         <div className="space-y-6">

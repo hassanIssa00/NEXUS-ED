@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Download, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { apiClient } from '@/lib/api/client';
 
 interface ExcelDownloadButtonProps {
   endpoint: string;
@@ -26,16 +27,8 @@ export function ExcelDownloadButton({
   const handleDownload = async () => {
     setLoading(true);
     try {
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Download failed');
-
-      const blob = await response.blob();
+      const response = await apiClient.get(endpoint, { responseType: 'blob' });
+      const blob = response.data as Blob;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -81,19 +74,19 @@ export function ExcelExportPanel({ studentId, subjectId, classId }: ExcelExportP
   if (studentId) {
     exports.push(
       {
-        endpoint: `/api/export/student/${studentId}/grades`,
+        endpoint: `/export/student/${studentId}/grades`,
         filename: `student_grades_${studentId}.xlsx`,
         label: 'تصدير الدرجات',
         description: 'جميع الدرجات في ملف Excel',
       },
       {
-        endpoint: `/api/export/student/${studentId}/report`,
+        endpoint: `/export/student/${studentId}/report`,
         filename: `student_report_${studentId}.xlsx`,
         label: 'التقرير الشامل',
         description: 'معلومات + درجات + حضور',
       },
       {
-        endpoint: `/api/export/student/${studentId}/analytics`,
+        endpoint: `/export/student/${studentId}/analytics`,
         filename: `student_analytics_${studentId}.xlsx`,
         label: 'التحليلات',
         description: 'ملخص الأداء لكل مادة',
@@ -103,7 +96,7 @@ export function ExcelExportPanel({ studentId, subjectId, classId }: ExcelExportP
 
   if (subjectId) {
     exports.push({
-      endpoint: `/api/export/subject/${subjectId}/grades`,
+      endpoint: `/export/subject/${subjectId}/grades`,
       filename: `subject_grades_${subjectId}.xlsx`,
       label: 'تصدير درجات المادة',
       description: 'كل درجات الطلاب في هذه المادة',
@@ -112,7 +105,7 @@ export function ExcelExportPanel({ studentId, subjectId, classId }: ExcelExportP
 
   if (classId) {
     exports.push({
-      endpoint: `/api/export/class/${classId}/attendance`,
+      endpoint: `/export/class/${classId}/attendance`,
       filename: `class_attendance_${classId}.xlsx`,
       label: 'تصدير الحضور والغياب',
       description: 'سجل الحضور للشهر الأخير',

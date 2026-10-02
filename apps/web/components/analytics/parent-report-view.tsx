@@ -9,6 +9,7 @@ import {
     FileText, Download, Printer, TrendingUp, TrendingDown, Minus, 
     User, Calendar, Award, Clock, BookOpen, Lightbulb, CheckCircle 
 } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
 
 interface ParentReport {
     studentInfo: {
@@ -17,18 +18,18 @@ interface ParentReport {
         period: string;
     };
     summary: {
-        overallGrade: number;
-        attendanceRate: number;
+        overallGrade: number | null;
+        attendanceRate: number | null;
         assignmentsCompleted: number;
         totalAssignments: number;
         behaviorScore: number;
-        rank: number;
+        rank: number | null;
         totalStudents: number;
     };
     subjects: {
         name: string;
         grade: number;
-        trend: 'UP' | 'DOWN' | 'STABLE';
+        trend: 'UP' | 'DOWN' | 'STABLE' | 'NO_BASELINE';
     }[];
     attendance: {
         present: number;
@@ -66,11 +67,8 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
     const fetchData = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`/api/analytics/student/${studentId}/parent-report?period=${period}`);
-            if (response.ok) {
-                const reportData = await response.json();
-                setData(reportData);
-            }
+            const { data } = await apiClient.get(`/analytics/student/${studentId}/parent-report`, { params: { period } });
+            setData(data);
         } catch {
             console.error('Failed to fetch parent report');
         } finally {
@@ -83,11 +81,10 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
     };
 
     const handleDownload = async () => {
-        // Trigger PDF download from backend
-        window.open(`/api/reports/parent/${studentId}?format=pdf`, '_blank');
+        handlePrint();
     };
 
-    const TrendIcon = ({ trend }: { trend: 'UP' | 'DOWN' | 'STABLE' }) => {
+    const TrendIcon = ({ trend }: { trend: 'UP' | 'DOWN' | 'STABLE' | 'NO_BASELINE' }) => {
         if (trend === 'UP') return <TrendingUp className="w-4 h-4 text-green-500" />;
         if (trend === 'DOWN') return <TrendingDown className="w-4 h-4 text-red-500" />;
         return <Minus className="w-4 h-4 text-gray-400" />;
@@ -177,7 +174,7 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
                     <CardContent className="pt-4">
                         <div className="text-center">
                             <Award className="w-8 h-8 mx-auto text-blue-500 mb-2" />
-                            <p className="text-3xl font-bold text-blue-600">{data.summary.overallGrade}%</p>
+                            <p className="text-3xl font-bold text-blue-600">{data.summary.overallGrade === null ? '—' : `${data.summary.overallGrade}%`}</p>
                             <p className="text-sm text-gray-600">المعدل العام</p>
                         </div>
                     </CardContent>
@@ -187,7 +184,7 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
                     <CardContent className="pt-4">
                         <div className="text-center">
                             <Clock className="w-8 h-8 mx-auto text-green-500 mb-2" />
-                            <p className="text-3xl font-bold text-green-600">{data.summary.attendanceRate}%</p>
+                            <p className="text-3xl font-bold text-green-600">{data.summary.attendanceRate === null ? '—' : `${data.summary.attendanceRate}%`}</p>
                             <p className="text-sm text-gray-600">نسبة الحضور</p>
                         </div>
                     </CardContent>
@@ -210,7 +207,7 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
                         <div className="text-center">
                             <TrendingUp className="w-8 h-8 mx-auto text-orange-500 mb-2" />
                             <p className="text-3xl font-bold text-orange-600">
-                                {data.summary.rank}/{data.summary.totalStudents}
+                                {data.summary.rank === null ? '—' : `${data.summary.rank}/${data.summary.totalStudents}`}
                             </p>
                             <p className="text-sm text-gray-600">الترتيب</p>
                         </div>
@@ -228,7 +225,9 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
-                        {data.subjects.map((subject, idx) => (
+                        {data.subjects.length === 0 ? (
+                            <p className="py-6 text-center text-sm text-muted-foreground">لا توجد درجات مسجلة لهذه الفترة</p>
+                        ) : data.subjects.map((subject, idx) => (
                             <div key={idx} className="flex items-center gap-4">
                                 <div className="w-32 font-medium">{subject.name}</div>
                                 <div className="flex-1">
@@ -238,6 +237,7 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
                                     {subject.grade}%
                                 </Badge>
                                 <TrendIcon trend={subject.trend} />
+                                {subject.trend === 'NO_BASELINE' && <span className="text-xs text-muted-foreground">لا توجد مقارنة سابقة</span>}
                             </div>
                         ))}
                     </div>

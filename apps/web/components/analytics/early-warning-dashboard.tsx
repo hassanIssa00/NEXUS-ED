@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, AlertCircle, AlertOctagon, User, TrendingDown, Clock, BookX, UserMinus } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
 
 interface EarlyWarningAlert {
     type: 'GRADE_DROP' | 'LOW_ATTENDANCE' | 'MISSING_ASSIGNMENTS' | 'BEHAVIOR';
@@ -39,14 +40,12 @@ export function EarlyWarningDashboard({ classId, data: propData }: EarlyWarningD
     const fetchData = async () => {
         try {
             setLoading(true);
-            const url = classId 
-                ? `/api/analytics/student/early-warnings?classId=${classId}` 
-                : '/api/analytics/student/early-warnings';
-            const response = await fetch(url);
-            if (response.ok) {
-                const warningsData = await response.json();
-                setData(warningsData);
+            if (!classId) {
+                setData([]);
+                return;
             }
+            const { data } = await apiClient.get('/analytics/student/early-warnings', { params: { classId } });
+            setData(Array.isArray(data) ? data : []);
         } catch {
             console.error('Failed to fetch early warnings');
         } finally {

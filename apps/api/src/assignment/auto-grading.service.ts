@@ -180,47 +180,6 @@ export class AutoGradingService {
   }
 
   /**
-   * Generate feedback for a rubric level
-   */
-  generateRubricFeedback(level: RubricLevel, maxScore: number): { score: number; feedback: string } {
-    const levelPoints: Record<RubricLevel, number> = {
-      EXCELLENT: 0.95,
-      GOOD: 0.8,
-      NEEDS_IMPROVEMENT: 0.6,
-      UNSATISFACTORY: 0.3,
-    };
-
-    const feedbackTemplates: Record<RubricLevel, string[]> = {
-      EXCELLENT: [
-        'أداء رائع! أظهرت تفهماً عميقاً للمادة. استمر في هذا المستوى الممتاز.',
-        'عمل مذهل! الإجابة شاملة ودقيقة. أنت على المسار الصحيح تماماً!',
-        'ممتاز جداً! تفوقت في جميع جوانب الإجابة.',
-      ],
-      GOOD: [
-        'عمل جيد! هناك بعض النقاط التي يمكن تطويرها لكن الأساس متين.',
-        'أداء جيد! مع بعض التعديلات البسيطة ستصل إلى المستوى الممتاز.',
-        'جيد جداً! واصل التحسن وستحقق نتائج رائعة.',
-      ],
-      NEEDS_IMPROVEMENT: [
-        'تحتاج لمراجعة بعض النقاط. لا تتردد في طلب المساعدة.',
-        'هناك بعض الأخطاء التي يمكن تجنبها. راجع الدرس مرة أخرى.',
-        'المستوى مقبول لكن يحتاج تحسين. تواصل مع المدرس للمساعدة.',
-      ],
-      UNSATISFACTORY: [
-        'يبدو أنك تحتاج لمراجعة شاملة للمادة. تواصل مع المدرس.',
-        'هناك صعوبات واضحة. ننصح بحضور دروس إضافية.',
-        'المستوى أقل من المطلوب. نحتاج للعمل معاً على تحسينه.',
-      ],
-    };
-
-    const score = Math.round(maxScore * levelPoints[level]);
-    const templates = feedbackTemplates[level];
-    const feedback = templates[Math.floor(Math.random() * templates.length)] || '';
-
-    return { score, feedback };
-  }
-
-  /**
    * Save auto-graded submission
    */
   async saveAutoGrade(

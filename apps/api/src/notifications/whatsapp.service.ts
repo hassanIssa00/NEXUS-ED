@@ -24,7 +24,6 @@ export class WhatsAppService {
 
   async sendWhatsApp(to: string, body: string, mediaUrl?: string) {
     if (!this.isEnabled) {
-      // this.logger.warn(`WhatsApp disabled. Mock sending to ${to}: ${body}`);
       return { success: false, error: 'Service disabled' };
     }
 

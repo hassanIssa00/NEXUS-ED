@@ -5,7 +5,6 @@ export { Timeline } from "./widgets/timeline";
 export { KPICard } from "./widgets/kpi-card";
 
 // Charts
-export { ChartPlaceholder } from "./charts/chart-placeholder";
 
 // Forms
 export { AssignmentForm } from "./forms/assignment-form";

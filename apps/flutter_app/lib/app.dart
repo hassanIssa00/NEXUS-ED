@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/theme/app_theme.dart';
 import 'core/routing/app_router.dart';
-import 'core/constants/app_colors.dart';
 
 class NexusEduApp extends ConsumerWidget {
   const NexusEduApp({super.key});

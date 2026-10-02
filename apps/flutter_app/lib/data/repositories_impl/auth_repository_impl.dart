@@ -16,8 +16,8 @@ class AuthRepositoryImpl implements domain.AuthRepository {
   Future<UserEntity> login(String email, String password) async {
     try {
       final response = await _dio.post(
-        ApiConstants.login,
-        data: {'email': email, 'password': password},
+        ApiConstants.mobileLogin,
+        data: {'email': email.trim().toLowerCase(), 'password': password},
       );
 
       final data = response.data;
@@ -39,7 +39,6 @@ class AuthRepositoryImpl implements domain.AuthRepository {
       // Save user info
       await StorageService.saveUserId(user.id);
       await StorageService.saveUserRole(user.role);
-      await StorageService.setDemoMode(false);
 
       return user;
     } on DioException catch (e) {
@@ -55,52 +54,31 @@ class AuthRepositoryImpl implements domain.AuthRepository {
     required String role,
   }) async {
     try {
-      final response = await _dio.post(
+      await _dio.post(
         ApiConstants.register,
         data: {
           'name': name,
-          'email': email,
+          'email': email.trim().toLowerCase(),
           'password': password,
-          'role': role,
+          'role': role.toUpperCase(),
         },
       );
-      return UserModel.fromJson(response.data);
+      return login(email, password);
     } on DioException catch (e) {
       throw _mapDioError(e);
     }
   }
 
   @override
-  Future<UserEntity> demoLogin(String email) async {
-    String role = 'student';
-    if (email.toLowerCase().contains('admin.staff')) {
-      role = 'administrator';
-    } else if (email.toLowerCase().contains('admin')) {
-      role = 'admin';
-    } else if (email.toLowerCase().contains('teacher')) {
-      role = 'teacher';
-    } else if (email.toLowerCase().contains('parent')) {
-      role = 'parent';
-    }
-
-    final user = UserModel(
-      id: 'demo-user-id',
-      email: email,
-      name: 'مستخدم تجريبي',
-      role: role,
-    );
-
-    await StorageService.saveUserId(user.id);
-    await StorageService.saveUserRole(user.role);
-    await StorageService.saveAccessToken('demo-token');
-    await StorageService.setDemoMode(true);
-
-    await Future.delayed(const Duration(seconds: 1));
-    return user;
-  }
-
-  @override
   Future<void> logout() async {
+    final refreshToken = await StorageService.getRefreshToken();
+    if (refreshToken != null) {
+      try {
+        await _dio.post(ApiConstants.mobileLogout, data: {'refresh_token': refreshToken});
+      } catch (_) {
+        // Local credentials are cleared even when the server cannot be reached.
+      }
+    }
     await StorageService.clearAll();
     ApiService.reset();
   }

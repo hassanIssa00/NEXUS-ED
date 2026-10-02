@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AttendanceStatus, InvoiceStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
@@ -9,11 +9,20 @@ export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   private getSchoolWhere(schoolId?: string | null) {
-    return schoolId ? { schoolId } : {};
+    if (!schoolId) throw new ForbiddenException('The account is not assigned to a school');
+    return { schoolId };
   }
 
   private round(value: number) {
     return Math.round(value * 10) / 10;
+  }
+
+  private parseJsonOrNull(value: string) {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
   }
 
   private monthLabel(date: Date) {
@@ -65,6 +74,9 @@ export class DashboardService {
           include: {
             class: {
               include: {
+                teacher: {
+                  select: { id: true, name: true, email: true },
+                },
                 subjects: {
                   include: {
                     teacher: {
@@ -152,26 +164,30 @@ export class DashboardService {
     const pendingAssignments = allAssignments.filter((assignment) => assignment.status === 'pending');
     const completedAssignments = allAssignments.filter((assignment) => assignment.status !== 'pending');
 
+    const classIds = new Set(student.enrollments.map((enrollment) => enrollment.classId));
+    const attendanceRecords = student.attendance.filter((entry) => classIds.has(entry.classId));
     const attendanceBreakdown = {
-      present: student.attendance.filter((entry) => entry.status === AttendanceStatus.PRESENT).length,
-      absent: student.attendance.filter((entry) => entry.status === AttendanceStatus.ABSENT).length,
-      late: student.attendance.filter((entry) => entry.status === AttendanceStatus.LATE).length,
-      excused: student.attendance.filter((entry) => entry.status === AttendanceStatus.EXCUSED).length,
+      present: attendanceRecords.filter((entry) => entry.status === AttendanceStatus.PRESENT).length,
+      absent: attendanceRecords.filter((entry) => entry.status === AttendanceStatus.ABSENT).length,
+      late: attendanceRecords.filter((entry) => entry.status === AttendanceStatus.LATE).length,
+      excused: attendanceRecords.filter((entry) => entry.status === AttendanceStatus.EXCUSED).length,
     };
 
-    const attendanceCount = student.attendance.length || 1;
-    const attendanceRate =
-      ((attendanceBreakdown.present + attendanceBreakdown.late + attendanceBreakdown.excused) /
-        attendanceCount) *
-      100;
+    const countedAttendance = attendanceBreakdown.present + attendanceBreakdown.absent + attendanceBreakdown.late;
+    const attendanceRate = countedAttendance > 0
+      ? this.round(((attendanceBreakdown.present + attendanceBreakdown.late) / countedAttendance) * 100)
+      : null;
+    const gradeRecords = student.studentGrades.filter(
+      (grade) => subjectMap.has(grade.subjectId) && Number(grade.maxScore) > 0 && Number.isFinite(Number(grade.grade)),
+    );
 
     const averageGrade =
-      student.studentGrades.length > 0
-        ? student.studentGrades.reduce(
+      gradeRecords.length > 0
+        ? gradeRecords.reduce(
             (sum, grade) => sum + (Number(grade.grade) / Number(grade.maxScore)) * 100,
             0,
-          ) / student.studentGrades.length
-        : 0;
+          ) / gradeRecords.length
+        : null;
 
     const weeklyActivity = Array.from({ length: 7 }).map((_, index) => {
       const date = new Date();
@@ -179,9 +195,10 @@ export class DashboardService {
       const label = date.toLocaleString('en-US', { weekday: 'short' });
       const submissions = student.submissions.filter(
         (submission) =>
+          subjectMap.has(submission.assignment.subject.id) &&
           submission.submittedAt.toDateString() === date.toDateString(),
       ).length;
-      const attendanceEntry = student.attendance.find(
+      const attendanceEntry = attendanceRecords.find(
         (entry) => entry.date.toDateString() === date.toDateString(),
       );
       return {
@@ -196,23 +213,23 @@ export class DashboardService {
     });
 
     const subjectPerformance = uniqueSubjects.map((subject) => {
-      const grades = student.studentGrades.filter((grade) => grade.subjectId === subject.id);
+      const grades = gradeRecords.filter((grade) => grade.subjectId === subject.id);
       const average =
         grades.length > 0
           ? grades.reduce((sum, grade) => sum + (Number(grade.grade) / Number(grade.maxScore)) * 100, 0) /
             grades.length
-          : 0;
+          : null;
 
       const totalAssignments = subject.assignments.length;
       const submitted = subject.assignments.filter((assignment) => assignment.submissions.length > 0).length;
-      const progress = totalAssignments > 0 ? (submitted / totalAssignments) * 100 : 0;
+      const progress = totalAssignments > 0 ? (submitted / totalAssignments) * 100 : null;
 
       return {
         id: subject.id,
         name: subject.name,
-        teacher: subject.teacher?.name ?? subject.teacher?.email ?? 'Unassigned',
-        averageGrade: this.round(average),
-        progress: this.round(progress),
+        teacher: subject.teacher?.name ?? subject.teacher?.email ?? null,
+        averageGrade: average === null ? null : this.round(average),
+        progress: progress === null ? null : this.round(progress),
         totalLessons: subject.lessons.length,
         totalAssignments,
         submittedAssignments: submitted,
@@ -224,13 +241,18 @@ export class DashboardService {
         id: student.id,
         name: student.name ?? student.email,
         schoolId: student.schoolId,
+        classes: student.enrollments.map(({ class: enrolledClass }) => ({
+          id: enrolledClass.id,
+          name: enrolledClass.name,
+          teacher: enrolledClass.teacher?.name ?? enrolledClass.teacher?.email ?? null,
+        })),
       },
       summary: {
         totalSubjects: uniqueSubjects.length,
         pendingAssignments: pendingAssignments.length,
         completedAssignments: completedAssignments.length,
-        attendanceRate: this.round(attendanceRate),
-        averageGrade: this.round(averageGrade),
+        attendanceRate,
+        averageGrade: averageGrade === null ? null : this.round(averageGrade),
       },
       upcomingAssignments: pendingAssignments
         .sort((a, b) => {
@@ -240,6 +262,13 @@ export class DashboardService {
         })
         .slice(0, 5),
       attendance: attendanceBreakdown,
+      attendanceRecordCount: attendanceRecords.length,
+      achievements: student.achievements.map(({ achievement, unlockedAt }) => ({
+        id: achievement.id,
+        name: achievement.name,
+        description: achievement.description,
+        unlockedAt,
+      })),
       weeklyActivity,
       subjectPerformance,
       gamification: {
@@ -254,32 +283,43 @@ export class DashboardService {
   async getTeacherDashboard(userId: string) {
     const teacher = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        taughtClasses: {
-          include: {
-            students: true,
-            subjects: true,
-          },
-        },
-        taughtSubjects: {
-          include: {
-            lessons: true,
-            assignments: {
-              include: {
-                submissions: true,
-              },
-            },
-            grades: true,
-          },
-        },
-      },
+      select: { id: true, name: true, email: true, schoolId: true },
     });
 
     if (!teacher) {
       throw new NotFoundException('Teacher not found');
     }
+    if (!teacher.schoolId) {
+      throw new ForbiddenException('The account is not assigned to a school');
+    }
 
-    const classIds = teacher.taughtClasses.map((item) => item.id);
+    const [taughtClasses, taughtSubjects] = await Promise.all([
+      this.prisma.class.findMany({
+        where: {
+          schoolId: teacher.schoolId,
+          OR: [{ teacherId: userId }, { classSubjects: { some: { teacherId: userId } } }],
+        },
+        include: {
+          students: { select: { studentId: true } },
+          subjects: { select: { id: true } },
+          classSubjects: { where: { teacherId: userId }, select: { subjectId: true } },
+        },
+      }),
+      this.prisma.subject.findMany({
+        where: {
+          schoolId: teacher.schoolId,
+          OR: [{ teacherId: userId }, { classSubjects: { some: { teacherId: userId } } }],
+        },
+        include: {
+          lessons: { select: { id: true } },
+          assignments: { select: { id: true } },
+          grades: { select: { studentId: true, grade: true, maxScore: true } },
+          classSubjects: { where: { teacherId: userId }, select: { classId: true } },
+        },
+      }),
+    ]);
+
+    const classIds = taughtClasses.map((item) => item.id);
     const recentAttendance = await this.prisma.attendance.findMany({
       where: {
         classId: { in: classIds.length > 0 ? classIds : ['__none__'] },
@@ -289,10 +329,15 @@ export class DashboardService {
       },
     });
 
-    const gradingQueue = await this.prisma.submission.findMany({
+    const [gradingQueue, pendingSubmissionCount] = await Promise.all([
+      this.prisma.submission.findMany({
       where: {
         assignment: {
-          teacherId: userId,
+          schoolId: teacher.schoolId,
+          OR: [
+            { teacherId: userId },
+            { subject: { schoolId: teacher.schoolId, classSubjects: { some: { teacherId: userId } } } },
+          ],
         },
         gradedAt: null,
       },
@@ -306,10 +351,29 @@ export class DashboardService {
       },
       orderBy: { submittedAt: 'desc' },
       take: 8,
-    });
+      }),
+      this.prisma.submission.count({
+        where: {
+          assignment: {
+            schoolId: teacher.schoolId,
+            OR: [
+              { teacherId: userId },
+              { subject: { schoolId: teacher.schoolId, classSubjects: { some: { teacherId: userId } } } },
+            ],
+          },
+          gradedAt: null,
+        },
+      }),
+    ]);
 
     const recentAssignments = await this.prisma.assignment.findMany({
-      where: { teacherId: userId },
+      where: {
+        schoolId: teacher.schoolId,
+        OR: [
+          { teacherId: userId },
+          { subject: { schoolId: teacher.schoolId, classSubjects: { some: { teacherId: userId } } } },
+        ],
+      },
       include: {
         subject: {
           select: { id: true, name: true },
@@ -331,15 +395,12 @@ export class DashboardService {
       take: 5,
     });
 
-    const totalStudents = teacher.taughtClasses.reduce(
-      (sum, classItem) => sum + classItem.students.length,
-      0,
-    );
-    const totalAssignments = teacher.taughtSubjects.reduce(
+    const totalStudents = new Set(taughtClasses.flatMap((classItem) => classItem.students.map((enrollment) => enrollment.studentId))).size;
+    const totalAssignments = taughtSubjects.reduce(
       (sum, subject) => sum + subject.assignments.length,
       0,
     );
-    const totalLessons = teacher.taughtSubjects.reduce(
+    const totalLessons = taughtSubjects.reduce(
       (sum, subject) => sum + subject.lessons.length,
       0,
     );
@@ -347,33 +408,40 @@ export class DashboardService {
     const presentAttendance = recentAttendance.filter(
       (entry) => entry.status === AttendanceStatus.PRESENT || entry.status === AttendanceStatus.LATE,
     ).length;
-    const attendanceRate =
-      recentAttendance.length > 0
-        ? (presentAttendance / recentAttendance.length) * 100
-        : 0;
+    const countedAttendance = recentAttendance.filter((entry) => entry.status !== AttendanceStatus.EXCUSED).length;
+    const attendanceRate = countedAttendance > 0
+      ? this.round((presentAttendance / countedAttendance) * 100)
+      : null;
 
-    const classPerformance = teacher.taughtClasses.map((classItem) => {
-      const classGrades = teacher.taughtSubjects
-        .filter((subject) => subject.classId === classItem.id)
+    const classPerformance = taughtClasses.map((classItem) => {
+      const subjectIds = new Set([
+        ...classItem.subjects.map((subject) => subject.id),
+        ...classItem.classSubjects.map((subject) => subject.subjectId),
+      ]);
+      const classGrades = taughtSubjects
+        .filter((subject) => subjectIds.has(subject.id) && subject.classId === classItem.id)
         .flatMap((subject) => subject.grades || []);
+      const validGrades = classGrades.filter(
+        (grade) => Number(grade.maxScore) > 0 && Number.isFinite(Number(grade.grade)),
+      );
       const averageGrade =
-        classGrades.length > 0
-          ? classGrades.reduce(
+        validGrades.length > 0
+          ? validGrades.reduce(
               (sum, grade) => {
-                const max = Number(grade.maxScore) || 100;
-                const score = Number(grade.grade) || 0;
+                const max = Number(grade.maxScore);
+                const score = Number(grade.grade);
                 return sum + (score / max) * 100;
               },
               0,
-            ) / classGrades.length
-          : 0;
+            ) / validGrades.length
+          : null;
 
       return {
         id: classItem.id,
         name: classItem.name,
-        studentCount: classItem.students?.length || 0,
-        subjectCount: classItem.subjects?.length || 0,
-        averageGrade: this.round(averageGrade || 0),
+        studentCount: classItem.students.length,
+        subjectCount: subjectIds.size,
+        averageGrade: averageGrade === null ? null : this.round(averageGrade),
       };
     });
 
@@ -384,12 +452,12 @@ export class DashboardService {
         schoolId: teacher.schoolId,
       },
       summary: {
-        totalClasses: teacher.taughtClasses.length,
+        totalClasses: taughtClasses.length,
         totalStudents,
         totalAssignments,
         totalLessons,
-        pendingSubmissions: gradingQueue.length,
-        attendanceRate: this.round(attendanceRate),
+        pendingSubmissions: pendingSubmissionCount,
+        attendanceRate,
       },
       classPerformance,
       recentAssignments: recentAssignments.map((assignment) => ({
@@ -415,7 +483,7 @@ export class DashboardService {
         id: alert.id,
         title: alert.title,
         body: alert.body,
-        data: alert.data ? JSON.parse(alert.data) : null,
+        data: alert.data ? this.parseJsonOrNull(alert.data) : null,
         createdAt: alert.createdAt,
       })),
     };
@@ -438,7 +506,9 @@ export class DashboardService {
     }
 
     const scope = this.getSchoolWhere(admin.schoolId);
-    const [users, classes, subjects, invoices, auditLogs] = await Promise.all([
+    const attendanceSince = new Date();
+    attendanceSince.setUTCDate(attendanceSince.getUTCDate() - 30);
+    const [users, classes, subjects, invoices, auditLogs, attendance] = await Promise.all([
       this.prisma.user.findMany({
         where: scope,
         select: { id: true, role: true, createdAt: true, isActive: true },
@@ -473,6 +543,10 @@ export class DashboardService {
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
+      this.prisma.attendance.findMany({
+        where: { date: { gte: attendanceSince }, class: { schoolId: admin.schoolId } },
+        select: { status: true },
+      }),
     ]);
 
     const students = users.filter((user) => user.role === Role.STUDENT);
@@ -481,6 +555,9 @@ export class DashboardService {
     const paidInvoices = invoices.filter((invoice) => invoice.status === InvoiceStatus.PAID);
     const totalRevenue = paidInvoices.reduce((sum, invoice) => sum + Number(invoice.amount), 0);
     const failedInvoices = invoices.filter((invoice) => invoice.status === InvoiceStatus.FAILED).length;
+    const attendanceRate = attendance.length
+      ? this.round((attendance.filter((record) => record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.LATE).length / attendance.length) * 100)
+      : null;
 
     return {
       admin: {
@@ -496,6 +573,7 @@ export class DashboardService {
         totalSubjects: subjects.length,
         activeUsers,
         totalRevenue: this.round(totalRevenue),
+        attendanceRate,
       },
       enrollmentSeries: this.buildSeries(students, 'createdAt'),
       revenueSeries: this.buildRevenueSeries(
@@ -552,7 +630,8 @@ export class DashboardService {
             student: {
               include: {
                 studentGrades: { include: { subject: true }, orderBy: { createdAt: 'desc' }, take: 5 },
-                attendance: { orderBy: { date: 'desc' }, take: 30 },
+                attendance: { include: { class: { select: { name: true } } }, orderBy: { date: 'desc' }, take: 30 },
+                enrollments: { include: { class: { select: { id: true, name: true } } } },
               }
             }
           }
@@ -562,35 +641,72 @@ export class DashboardService {
 
     if (!parent) throw new NotFoundException('Parent not found');
 
-    const childrenData = (parent.children as any[]).map((relation: any) => {
+    const childrenData = await Promise.all((parent.children as any[]).map(async (relation: any) => {
       const student = relation.student;
       const attendanceList = (student.attendance || []) as any[];
-      const presentCount = attendanceList.filter((a: any) => a.status === 'PRESENT').length;
-      const attendanceRate = attendanceList.length > 0 ? Math.round((presentCount / attendanceList.length) * 100) : 100;
-      
-      const gradesList = (student.studentGrades || [] as any[]).map((g: any) => ({
+      const presentCount = attendanceList.filter((a: any) => a.status === 'PRESENT' || a.status === 'LATE').length;
+      const attendanceRate = attendanceList.length > 0 ? this.round((presentCount / attendanceList.length) * 100) : null;
+
+      const validGrades = (student.studentGrades || [] as any[]).filter((grade: any) => Number(grade.maxScore) > 0);
+      const gradesList = validGrades.map((g: any) => ({
         subject: g.subject?.name || 'Unknown',
-        score: g.grade,
-        total: g.maxScore || 100
+        score: this.round((Number(g.grade) / Number(g.maxScore)) * 100),
+        total: 100,
+        recordedScore: Number(g.grade),
+        recordedMaximum: Number(g.maxScore),
+        date: g.createdAt,
       }));
-      
-      let gpa = '0.0';
-      if (gradesList.length > 0) {
-        const sum = gradesList.reduce((acc: number, g: any) => acc + ((g.score || 0) / g.total) * 4.0, 0);
-        gpa = (sum / gradesList.length).toFixed(1);
-      }
+
+      const classIds = student.enrollments.map((enrollment: any) => enrollment.classId);
+      const upcomingAssignments = classIds.length > 0 ? await this.prisma.assignment.findMany({
+        where: {
+          dueDate: { gte: new Date() },
+          OR: [
+            { classId: { in: classIds } },
+            { classId: null, subject: { classId: { in: classIds } } },
+          ],
+        },
+        include: { subject: { select: { name: true } } },
+        orderBy: { dueDate: 'asc' },
+        take: 10,
+      }) : [];
+      const submissions = upcomingAssignments.length > 0 ? await this.prisma.submission.findMany({
+        where: { studentId: student.id, assignmentId: { in: upcomingAssignments.map((assignment) => assignment.id) } },
+        select: { assignmentId: true },
+      }) : [];
+      const submittedIds = new Set(submissions.map((submission) => submission.assignmentId));
 
       return {
         id: student.id,
-        name: student.name || student.firstName || 'طالب',
-        grade: 'عام',
-        avatar: '',
-        gpa,
-        attendance: attendanceRate,
-        nextExam: 'لا توجد اختبارات قريبة',
-        recentGrades: gradesList
+        name: student.name || [student.firstName, student.lastName].filter(Boolean).join(' ') || 'طالب',
+        className: student.enrollments.map((enrollment: any) => enrollment.class.name).filter(Boolean).join('، ') || null,
+        averageGrade: validGrades.length > 0
+          ? this.round(validGrades.reduce((sum: number, grade: any) => sum + (Number(grade.grade) / Number(grade.maxScore)) * 100, 0) / validGrades.length)
+          : null,
+        gradeRecordCount: validGrades.length,
+        attendanceRate,
+        attendanceRecordCount: attendanceList.length,
+        attendance: attendanceList.length > 0 ? {
+          present: attendanceList.filter((record: any) => record.status === 'PRESENT').length,
+          absent: attendanceList.filter((record: any) => record.status === 'ABSENT').length,
+          late: attendanceList.filter((record: any) => record.status === 'LATE').length,
+          excused: attendanceList.filter((record: any) => record.status === 'EXCUSED').length,
+        } : null,
+        attendanceHistory: attendanceList.map((record: any) => ({
+          date: record.date,
+          status: record.status,
+          className: record.class?.name || null,
+        })),
+        recentGrades: gradesList,
+        upcomingAssignments: upcomingAssignments.map((assignment) => ({
+          id: assignment.id,
+          title: assignment.title,
+          subject: assignment.subject.name,
+          dueDate: assignment.dueDate,
+          submitted: submittedIds.has(assignment.id),
+        })),
       };
-    });
+    }));
 
     return {
       children: childrenData

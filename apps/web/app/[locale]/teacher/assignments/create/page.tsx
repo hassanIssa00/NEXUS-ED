@@ -45,24 +45,21 @@ export default function CreateAssignmentPage() {
     const [loading, setLoading] = useState(false)
     const [isGenerating, setIsGenerating] = useState(false)
     const [subjects, setSubjects] = useState<Subject[]>([])
+    const [loadingSubjects, setLoadingSubjects] = useState(true)
+    const [subjectsError, setSubjectsError] = useState('')
     
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
-        // Fetch real subjects if API is ready, for now we will hardcode a fallback if empty
         const fetchSubjects = async () => {
             try {
-                // If there's a subjects endpoint, we'd use it here. 
-                // For MVP, if it fails, we fall back to a default subject.
-                const res = await apiClient.get('/subjects').catch(() => null);
-                if (res?.data && res.data.length > 0) {
-                    setSubjects(res.data);
-                } else {
-                    // Fallback to a default subject so the teacher isn't blocked
-                    setSubjects([{ id: 'default-subject', name: 'المادة الافتراضية' }]);
-                }
+                const res = await apiClient.get('/subjects/teacher/my');
+                setSubjects(Array.isArray(res.data) ? res.data : []);
+                if (!Array.isArray(res.data) || res.data.length === 0) setSubjectsError('لا توجد مواد مرتبطة بحسابك.');
             } catch (err) {
-                console.error(err);
+                setSubjectsError('تعذر تحميل المواد من النظام.');
+            } finally {
+                setLoadingSubjects(false);
             }
         };
         fetchSubjects();
@@ -94,32 +91,23 @@ export default function CreateAssignmentPage() {
         
         setIsGenerating(true)
         try {
-            const selectedSubject = subjects.find(s => s.id === subjectId)?.name || 'عام';
-            const res = await apiClient.post('/ai/generate-exam', {
+            const generated = await apiClient.post('/ai/suggest-questions', {
+                subjectId,
                 topic: title,
-                subject: selectedSubject,
-                questionCount: 3,
-                questionType: 'mixed'
+                count: 3,
+                difficulty: 'MEDIUM',
             });
-
-            if (res.data?.questions) {
-                let aiText = "تم توليد هذه الأسئلة بواسطة الذكاء الاصطناعي بناءً على العنوان:\n\n";
-                res.data.questions.forEach((q: any, i: number) => {
-                    aiText += `${i + 1}. ${q.question}\n`;
-                    if (q.type === 'multiple_choice' && q.options) {
-                        q.options.forEach((opt: string, j: number) => {
-                            aiText += `   - ${opt}\n`;
-                        });
-                    }
-                    aiText += `   الإجابة الصحيحة: ${q.correctAnswer}\n\n`;
-                });
-                
-                setDescription(prev => prev ? prev + '\n\n' + aiText : aiText);
-                toast({ title: 'تم التوليد بنجاح', description: 'تمت إضافة الأسئلة إلى حقل الوصف.' })
-            }
+            const questions = Array.isArray(generated.data) ? generated.data : [];
+            if (questions.length === 0) throw new Error('No questions were generated');
+            await apiClient.post('/teacher/ai-generator/question-banks', {
+                subjectId,
+                topic: title,
+                questions,
+            });
+            toast({ title: 'تم حفظ بنك الأسئلة', description: `تم حفظ ${questions.length} أسئلة في بنك المادة.` });
         } catch (error) {
             console.error(error);
-            toast({ title: 'خطأ', description: 'تعذر توليد الأسئلة. يرجى المحاولة لاحقاً.', variant: 'destructive' })
+            toast({ title: 'خطأ', description: 'تعذر توليد الأسئلة أو حفظها. لم يتم عرض بيانات تجريبية.', variant: 'destructive' })
         } finally {
             setIsGenerating(false)
         }
@@ -207,7 +195,7 @@ export default function CreateAssignmentPage() {
 
                             <div className="space-y-2">
                                 <Label>المادة (Subject)</Label>
-                                <Select value={subjectId} onValueChange={setSubjectId} required>
+                                <Select value={subjectId} onValueChange={setSubjectId} required disabled={loadingSubjects || subjects.length === 0}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="اختر المادة" />
                                     </SelectTrigger>
@@ -217,6 +205,7 @@ export default function CreateAssignmentPage() {
                                         ))}
                                     </SelectContent>
                                 </Select>
+                                {subjectsError && <p className="text-sm text-destructive">{subjectsError}</p>}
                             </div>
                         </div>
 

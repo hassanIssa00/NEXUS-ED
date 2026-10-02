@@ -91,6 +91,27 @@ export class GradeService {
     });
   }
 
+  async findChildGradesForParent(parentId: string, studentId: string) {
+    const relation = await this.prisma.parentStudent.findFirst({
+      where: { parentId, studentId },
+      include: {
+        parent: { select: { schoolId: true } },
+        student: { select: { schoolId: true, role: true, isActive: true } },
+      },
+    });
+    if (
+      !relation ||
+      relation.student.role !== 'STUDENT' ||
+      !relation.student.isActive ||
+      !relation.parent.schoolId ||
+      relation.parent.schoolId !== relation.student.schoolId
+    ) {
+      throw new ForbiddenException('You do not have access to this student');
+    }
+
+    return this.findMyGrades(studentId);
+  }
+
   async findOne(id: string) {
     const grade = await this.prisma.grade.findUnique({
       where: { id },

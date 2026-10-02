@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BrainCircuit, Target, AlertTriangle, CheckCircle2, TrendingUp, Sparkles, Loader2, ArrowRight, Send, User, RotateCcw } from 'lucide-react'
+import { BrainCircuit, Target, AlertTriangle, TrendingUp, Sparkles, Send, User, RotateCcw } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import Link from 'next/link'
 
@@ -24,11 +24,10 @@ function ChatMessage({ msg }: { msg: { role: 'user' | 'ai', text: string } }) {
 export default function AiPersonalTutorPage() {
     const [data, setData] = useState<any>(null)
     const [loadingMap, setLoadingMap] = useState(true)
-    const [messages, setMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([
-        { role: 'ai', text: 'أهلاً بك! أنا معلمك الذكي المخصص. لقد قمت بتحليل أدائك الأخير، ويمكننا مناقشة نقاط الضعف أو يمكنك سؤالي عن أي درس يواجهك فيه صعوبة.' }
-    ])
+    const [messages, setMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([])
     const [input, setInput] = useState('')
     const [loadingChat, setLoadingChat] = useState(false)
+    const [chatError, setChatError] = useState('')
     const chatRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -47,11 +46,14 @@ export default function AiPersonalTutorPage() {
         const q = input.trim(); setInput('')
         setMessages(p => [...p, { role: 'user', text: q }])
         setLoadingChat(true)
+        setChatError('')
         try {
             const res = await apiClient.post('/ai/ask', { question: q })
-            setMessages(p => [...p, { role: 'ai', text: res.data?.data?.answer || 'عذراً، حدث خطأ أثناء معالجة سؤالك.' }])
+            const answer = res.data?.data?.answer
+            if (!answer) throw new Error('AI response is empty')
+            setMessages(p => [...p, { role: 'ai', text: answer }])
         } catch {
-            setMessages(p => [...p, { role: 'ai', text: 'لا يمكن الاتصال بالخادم الآن.' }])
+            setChatError('تعذر الحصول على رد من خدمة المساعد الآن.')
         } finally {
             setLoadingChat(false)
         }
@@ -105,14 +107,13 @@ export default function AiPersonalTutorPage() {
                                 <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
                                     <BrainCircuit className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                                 </div>
-                                <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white dark:border-[#1e1e2d] shadow-sm animate-pulse" />
                             </div>
                             <div>
                                 <h3 className="font-bold text-gray-900 dark:text-white text-sm">نكسس AI</h3>
-                                <p className="text-[10px] text-gray-500 font-medium">متصل وجاهز للمساعدة</p>
+                                <p className="text-[10px] text-gray-500 font-medium">خدمة خارجية تعتمد على إعدادات المدرسة</p>
                             </div>
                         </div>
-                        <button onClick={() => setMessages([{ role: 'ai', text: 'كيف يمكنني مساعدتك الآن؟' }])} 
+                        <button onClick={() => { setMessages([]); setChatError('') }}
                             className="p-2 bg-white dark:bg-[#12121a] rounded-lg border border-gray-100 dark:border-white/10 text-gray-500 hover:text-indigo-600 transition-colors shadow-sm" title="محادثة جديدة">
                             <RotateCcw className="w-4 h-4" />
                         </button>
@@ -121,6 +122,7 @@ export default function AiPersonalTutorPage() {
                     {/* Messages */}
                     <div ref={chatRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-gray-50/30 dark:bg-transparent">
                         <AnimatePresence>
+                            {messages.length === 0 && <p className="text-center text-sm text-gray-500">اكتب سؤالك لبدء محادثة جديدة.</p>}
                             {messages.map((m, i) => <ChatMessage key={i} msg={m} />)}
                             {loadingChat && (
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3 ml-auto">
@@ -133,6 +135,7 @@ export default function AiPersonalTutorPage() {
                                 </motion.div>
                             )}
                         </AnimatePresence>
+                        {chatError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{chatError}</p>}
                     </div>
 
                     {/* Input */}
@@ -179,7 +182,7 @@ export default function AiPersonalTutorPage() {
                                                 <p className="text-[10px] text-gray-500 leading-tight mt-0.5">{t.description}</p>
                                             </div>
                                             <span className="text-[10px] font-black bg-rose-50 text-rose-600 dark:bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-100 dark:border-rose-500/20">
-                                                ضعف {t.score}%
+                                                فجوة درجات {t.score}%
                                             </span>
                                         </div>
                                         <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
@@ -191,11 +194,12 @@ export default function AiPersonalTutorPage() {
                                     </div>
                                 ))}
                             </div>
-                        ) : (
+                        ) : data ? (
                             <div className="flex flex-col items-center justify-center p-4 text-center">
-                                <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-2" />
-                                <p className="text-xs font-bold text-emerald-600">لا توجد نقاط ضعف بارزة! استمر في التميز.</p>
+                                <p className="text-xs text-gray-500">لا توجد بيانات كافية لعرض نقاط تحسين حتى الآن.</p>
                             </div>
+                        ) : (
+                            <p className="text-xs text-gray-500">خريطة التحسين غير متاحة حاليًا.</p>
                         )}
                     </motion.div>
 

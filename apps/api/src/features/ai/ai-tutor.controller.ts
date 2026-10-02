@@ -1,18 +1,26 @@
-import { Controller, Post, Body, UseGuards, Request, Get, Param } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { BadRequestException, Controller, Get, Param, Post, Body, Request, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { Role } from '../../auth/role.enum';
+import { Roles } from '../../auth/roles.decorator';
+import { RolesGuard } from '../../auth/roles.guard';
+import { StudentAnalyticsService } from '../../analytics/student-analytics.service';
 import { AiTutorService } from './ai-tutor.service';
 import { AiExamService } from './ai-exam.service';
 import { AiAnalyticsService } from './ai-analytics.service';
 import { AiParentService } from './ai-parent.service';
 import { AiPersonalTutorService } from './ai-personal-tutor.service';
 import { AiContentService } from './ai-content.service';
+import { AiGradingService } from './ai-grading.service';
 import { PrismaService } from '../../core/database/prisma.service';
+
+const SCHOOL_STAFF = [Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR];
+const STUDENT_DATA_ROLES = [Role.STUDENT, Role.PARENT, ...SCHOOL_STAFF];
 
 @ApiTags('AI Tutor')
 @Controller('ai')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class AiTutorController {
   constructor(
     private readonly aiService: AiTutorService,
@@ -21,147 +29,142 @@ export class AiTutorController {
     private readonly aiParentService: AiParentService,
     private readonly aiPersonalTutorService: AiPersonalTutorService,
     private readonly aiContentService: AiContentService,
+    private readonly aiGradingService: AiGradingService,
+    private readonly studentAnalytics: StudentAnalyticsService,
     private readonly prisma: PrismaService,
   ) {}
 
   @Post('ask')
-  @ApiOperation({ summary: 'Ask the AI Tutor a question' })
-  async ask(
-    @Body() body: { question: string; subject?: string; history?: { role: 'user' | 'assistant'; content: string }[] },
-    @Request() req: any,
-  ) {
-    // JWT payload: userId (primary), sub (fallback), id (last resort)
-    const studentId = req.user?.userId || req.user?.sub || req.user?.id;
-    const context = {
+  @Roles(Role.STUDENT)
+  async ask(@Body() body: any, @Request() req: any) {
+    if (typeof body?.question !== 'string' || !body.question.trim() || body.question.length > 2000) {
+      throw new BadRequestException('يجب إدخال سؤال لا يتجاوز 2000 حرف');
+    }
+    if (body.history !== undefined && (!Array.isArray(body.history) || body.history.length > 12 ||
+        body.history.some((item: any) => !item || !['user', 'assistant'].includes(item.role) || typeof item.content !== 'string' || item.content.length > 2000))) {
+      throw new BadRequestException('سجل المحادثة غير صالح أو أطول من المسموح');
+    }
+    if (body.subject !== undefined && (typeof body.subject !== 'string' || body.subject.length > 100)) {
+      throw new BadRequestException('اسم المادة غير صالح');
+    }
+    const studentId = this.userId(req);
+    const answer = await this.aiService.askTutor(body.question.trim(), {
       subject: body.subject,
-      grade: req.user?.grade || 'Unknown',
+      grade: req.user?.grade,
       studentId,
-    };
-
-    const answer = await this.aiService.askTutor(body.question, context, body.history || []);
-
-    return {
-      success: true,
-      data: { answer, isMock: !process.env.OPENAI_API_KEY },
-    };
+    }, body.history || []);
+    return { success: true, data: { answer } };
   }
 
   @Post('generate-exam')
-  @ApiOperation({ summary: 'Generate an exam using AI' })
-  async generateExam(
-    @Body() body: {
-      topic: string;
-      subject: string;
-      gradeLevel?: string;
-      questionCount?: number;
-      questionType?: 'multiple_choice' | 'true_false' | 'mixed';
-    },
-  ) {
+  @Roles(Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
+  async generateExam(@Body() body: any) {
+    if (typeof body?.topic !== 'string' || !body.topic.trim() || body.topic.length > 200 ||
+        typeof body?.subject !== 'string' || !body.subject.trim() || body.subject.length > 120) {
+      throw new BadRequestException('المادة والموضوع مطلوبان وبحد أقصى 200 حرف للموضوع');
+    }
+    const questionCount = body.questionCount === undefined ? 5 : Number(body.questionCount);
+    const questionType = body.questionType || 'mixed';
+    if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 30 ||
+        !['multiple_choice', 'true_false', 'mixed'].includes(questionType)) {
+      throw new BadRequestException('عدد الأسئلة أو نوعها غير صالح');
+    }
+    if (body.gradeLevel !== undefined && (typeof body.gradeLevel !== 'string' || body.gradeLevel.length > 80)) {
+      throw new BadRequestException('الصف الدراسي غير صالح');
+    }
     const questions = await this.aiExamService.generateExam({
-      topic: body.topic,
-      subject: body.subject,
-      gradeLevel: body.gradeLevel || 'الصف الأول',
-      questionCount: body.questionCount || 5,
-      questionType: body.questionType || 'mixed',
+      topic: body.topic.trim(),
+      subject: body.subject.trim(),
+      gradeLevel: body.gradeLevel || 'غير محدد',
+      questionCount,
+      questionType,
     });
-
     return { success: true, data: { questions } };
   }
 
   @Get('student-insights/:id')
-  @ApiOperation({ summary: 'Generate AI insights for a student based on performance' })
+  @Roles(...STUDENT_DATA_ROLES)
   async getStudentInsights(@Param('id') id: string, @Request() req: any) {
-    const studentId = id === 'me' ? (req.user?.userId || req.user?.sub || req.user?.id) : id;
-    
-    if (!studentId) {
-       return { success: false, message: 'Unauthorized or missing ID' };
-    }
-
+    const studentId = id === 'me' ? this.userId(req) : id;
+    await this.studentAnalytics.assertCanAccessStudent(this.userId(req), req.user.role, studentId);
     const student = await this.prisma.user.findUnique({
       where: { id: studentId },
       include: {
-        studentGrades: { include: { subject: true } },
-        attendance: true,
+        studentGrades: { include: { subject: true }, take: 30, orderBy: { createdAt: 'desc' } },
+        attendance: { take: 30, orderBy: { date: 'desc' } },
       },
     });
+    if (!student) throw new BadRequestException('ملف الطالب غير متاح');
 
-    if (!student) {
-      return { success: false, message: 'Student not found' };
-    }
-
-    const missingAssignmentsCount = await this.prisma.submission.count({
-      where: { studentId, grade: null },
-    });
-
-    const totalAttendance = (student.attendance || []).length;
-    const presentAttendance = (student.attendance as any[] || []).filter((a: any) => a.status === 'PRESENT').length;
-    const attendanceRate = totalAttendance > 0 ? Math.round((presentAttendance / totalAttendance) * 100) : 100;
-
-    const gradesSummary = (student.studentGrades as any[] || []).slice(0, 10).map((g: any) => ({
-      subject: g.subject?.name || 'Unknown',
-      score: g.score,
-      maxScore: g.maxScore || 100,
+    const ungradedSubmissions = await this.prisma.submission.count({ where: { studentId, grade: null } });
+    const totalAttendance = student.attendance.length;
+    const presentAttendance = student.attendance.filter((record) => record.status === 'PRESENT').length;
+    const attendanceRate = totalAttendance ? Math.round((presentAttendance / totalAttendance) * 100) : null;
+    const grades = student.studentGrades.map((grade) => ({
+      subject: grade.subject?.name || 'مادة غير محددة',
+      score: grade.score,
+      maxScore: grade.maxScore || 100,
     }));
-
     const insights = await this.aiAnalyticsService.generateStudentInsights({
-      name: student.name || student.firstName,
-      grades: gradesSummary,
-      missingAssignments: missingAssignmentsCount,
+      grades,
+      ungradedSubmissions,
       attendanceRate,
     });
-
     return { success: true, data: insights };
   }
 
   @Post('parent-advice')
-  @ApiOperation({ summary: 'Generate AI advice for a parent about their child' })
-  async getParentAdvice(
-    @Body() body: { studentId: string; question?: string }
-  ) {
-    const advice = await this.aiParentService.generateParentAdvice(body.studentId, body.question);
+  @Roles(Role.PARENT, Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR)
+  async getParentAdvice(@Body() body: any, @Request() req: any) {
+    if (typeof body?.studentId !== 'string' || !body.studentId) throw new BadRequestException('معرف الطالب مطلوب');
+    if (body.question !== undefined && (typeof body.question !== 'string' || body.question.length > 2000)) {
+      throw new BadRequestException('السؤال غير صالح أو أطول من المسموح');
+    }
+    await this.studentAnalytics.assertCanAccessStudent(this.userId(req), req.user.role, body.studentId);
+    const advice = await this.aiParentService.generateParentAdvice(body.studentId, body.question?.trim());
     return { success: true, data: advice };
   }
 
   @Get('learning-risk/:studentId')
-  @ApiOperation({ summary: 'Detect early learning risk indicators for a student' })
-  async getLearningRisk(@Param('studentId') studentId: string) {
-    const riskReport = await this.aiParentService.detectLearningRiskIndicators(studentId);
-    return { success: true, data: riskReport };
+  @Roles(...STUDENT_DATA_ROLES)
+  async getLearningRisk(@Param('studentId') studentId: string, @Request() req: any) {
+    await this.studentAnalytics.assertCanAccessStudent(this.userId(req), req.user.role, studentId);
+    return { success: true, data: await this.aiParentService.detectLearningRiskIndicators(studentId) };
   }
 
   @Get('weakness-map/:id')
-  @ApiOperation({ summary: 'Generate a weakness map and learning path for a student' })
+  @Roles(...STUDENT_DATA_ROLES)
   async getWeaknessMap(@Param('id') id: string, @Request() req: any) {
-    const studentId = id === 'me' ? (req.user?.userId || req.user?.sub || req.user?.id) : id;
-    if (!studentId) {
-       return { success: false, message: 'Unauthorized or missing ID' };
-    }
+    const studentId = id === 'me' ? this.userId(req) : id;
+    await this.studentAnalytics.assertCanAccessStudent(this.userId(req), req.user.role, studentId);
+    return { success: true, data: await this.aiPersonalTutorService.buildWeaknessMap(studentId) };
+  }
 
-    try {
-      const weaknessMap = await this.aiPersonalTutorService.buildWeaknessMap(studentId);
-      return { success: true, data: weaknessMap };
-    } catch (error) {
-      return { success: false, message: (error as Error).message };
-    }
+  @Post('grade/:submissionId')
+  @Roles(Role.TEACHER, Role.ADMIN)
+  async suggestGrade(@Param('submissionId') submissionId: string, @Request() req: any) {
+    return { success: true, data: await this.aiGradingService.suggestGrade(submissionId, this.userId(req), req.user.role) };
   }
 
   @Post('process-document')
-  @ApiOperation({ summary: 'Generate interactive content from document text' })
-  async processDocument(@Body() body: { text: string }) {
-    if (!body.text) {
-      return { success: false, message: 'Text is required' };
+  @Roles(Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
+  async processDocument(@Body() body: any) {
+    if (typeof body?.text !== 'string' || !body.text.trim() || body.text.length > 80000) {
+      throw new BadRequestException('النص مطلوب ويجب ألا يتجاوز 80000 حرف');
     }
-    const content = await this.aiContentService.processContent(body.text);
-    return { success: true, data: content };
+    return { success: true, data: await this.aiContentService.processContent(body.text) };
   }
 
   @Post('generate-image')
-  @ApiOperation({ summary: 'Generate an educational illustration' })
-  async generateImage(@Body() body: { prompt: string }) {
-    if (!body.prompt) {
-      return { success: false, message: 'Prompt is required' };
+  @Roles(Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
+  async generateImage(@Body() body: any) {
+    if (typeof body?.prompt !== 'string' || !body.prompt.trim() || body.prompt.length > 500) {
+      throw new BadRequestException('وصف الصورة مطلوب وبحد أقصى 500 حرف');
     }
-    const imageUrl = await this.aiContentService.generateImage(body.prompt);
-    return { success: true, data: { url: imageUrl } };
+    return { success: true, data: { url: await this.aiContentService.generateImage(body.prompt.trim()) } };
+  }
+
+  private userId(request: any): string {
+    return request.user.userId || request.user.sub || request.user.id;
   }
 }

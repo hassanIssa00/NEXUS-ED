@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Grade, AttendanceStatus } from '@prisma/client';
 
@@ -11,18 +11,18 @@ export interface StudentProgressPoint {
 }
 
 export interface ClassComparison {
-  studentAverage: number;
-  classAverage: number;
-  studentRank: number;
+  studentAverage: number | null;
+  classAverage: number | null;
+  studentRank: number | null;
   totalStudents: number;
-  percentile: number;
+  percentile: number | null;
 }
 
 export interface EarlyWarning {
   studentId: string;
   studentName: string;
   alerts: {
-    type: 'GRADE_DROP' | 'LOW_ATTENDANCE' | 'MISSING_ASSIGNMENTS' | 'BEHAVIOR';
+    type: 'GRADE_DROP' | 'LOW_ATTENDANCE' | 'MISSING_ASSIGNMENTS';
     severity: 'LOW' | 'MEDIUM' | 'HIGH';
     message: string;
     value: number;
@@ -38,18 +38,17 @@ export interface ParentReport {
     period: string;
   };
   summary: {
-    overallGrade: number;
-    attendanceRate: number;
+    overallGrade: number | null;
+    attendanceRate: number | null;
     assignmentsCompleted: number;
     totalAssignments: number;
-    behaviorScore: number;
-    rank: number;
+    rank: number | null;
     totalStudents: number;
   };
   subjects: {
     name: string;
     grade: number;
-    trend: 'UP' | 'DOWN' | 'STABLE';
+    trend: 'UP' | 'DOWN' | 'STABLE' | 'NO_BASELINE';
   }[];
   attendance: {
     present: number;
@@ -70,6 +69,99 @@ export interface ParentReport {
 @Injectable()
 export class StudentAnalyticsService {
   constructor(private prisma: PrismaService) { }
+
+  async assertCanAccessStudent(actorId: string, actorRole: string, studentId: string): Promise<void> {
+    const [actor, student] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: actorId }, select: { id: true, role: true, schoolId: true } }),
+      this.prisma.user.findUnique({
+        where: { id: studentId },
+        select: {
+          id: true,
+          role: true,
+          schoolId: true,
+          parents: { select: { parentId: true } },
+          enrollments: {
+            select: {
+              class: {
+                select: {
+                  teacherId: true,
+                  classSubjects: { select: { teacherId: true } },
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    if (!actor || !student || student.role !== 'STUDENT') {
+      throw new NotFoundException('Student not found');
+    }
+
+    const sameSchool = Boolean(actor.schoolId && actor.schoolId === student.schoolId);
+    const isStudent = actorRole === 'STUDENT' && actorId === studentId;
+    const isParent = actorRole === 'PARENT' && student.parents.some((parent) => parent.parentId === actorId);
+    const isTeacher = actorRole === 'TEACHER' && student.enrollments.some(({ class: schoolClass }) =>
+      schoolClass.teacherId === actorId || schoolClass.classSubjects.some((subject) => subject.teacherId === actorId),
+    );
+    const isSchoolStaff = sameSchool && ['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'COUNSELOR', 'SUPERVISOR', 'HR'].includes(actorRole);
+
+    if (!isStudent && !isParent && !isTeacher && !isSchoolStaff) {
+      throw new ForbiddenException('You do not have access to this student');
+    }
+  }
+
+  async assertCanAccessClass(actorId: string, actorRole: string, classId?: string): Promise<void> {
+    if (!classId) {
+      throw new ForbiddenException('A class scope is required');
+    }
+
+    const [actor, schoolClass] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: actorId }, select: { schoolId: true } }),
+      this.prisma.class.findUnique({
+        where: { id: classId },
+        select: { schoolId: true, teacherId: true, classSubjects: { select: { teacherId: true } } },
+      }),
+    ]);
+
+    if (!actor || !schoolClass) {
+      throw new NotFoundException('Class not found');
+    }
+
+    const isTeacher = actorRole === 'TEACHER' && (
+      schoolClass.teacherId === actorId || schoolClass.classSubjects.some((subject) => subject.teacherId === actorId)
+    );
+    const isSchoolStaff = Boolean(actor.schoolId && actor.schoolId === schoolClass.schoolId) &&
+      ['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'COUNSELOR', 'SUPERVISOR', 'HR'].includes(actorRole);
+
+    if (!isTeacher && !isSchoolStaff) {
+      throw new ForbiddenException('You do not have access to this class');
+    }
+  }
+
+  async assertCanAccessSubject(actorId: string, actorRole: string, subjectId: string): Promise<void> {
+    const [actor, subject] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: actorId }, select: { schoolId: true } }),
+      this.prisma.subject.findUnique({
+        where: { id: subjectId },
+        select: { schoolId: true, teacherId: true, classId: true, classSubjects: { select: { teacherId: true } } },
+      }),
+    ]);
+
+    if (!actor || !subject) {
+      throw new NotFoundException('Subject not found');
+    }
+
+    const isTeacher = actorRole === 'TEACHER' && (
+      subject.teacherId === actorId || subject.classSubjects.some((assignment) => assignment.teacherId === actorId)
+    );
+    const isSchoolStaff = Boolean(actor.schoolId && actor.schoolId === subject.schoolId) &&
+      ['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPERVISOR', 'HR'].includes(actorRole);
+
+    if (!isTeacher && !isSchoolStaff) {
+      throw new ForbiddenException('You do not have access to this subject');
+    }
+  }
 
   /**
    * Get student progress over time (for charts)
@@ -199,11 +291,11 @@ export class StudentAnalyticsService {
 
     if (!enrollment) {
       return {
-        studentAverage: 0,
-        classAverage: 0,
-        studentRank: 0,
+        studentAverage: null,
+        classAverage: null,
+        studentRank: null,
         totalStudents: 0,
-        percentile: 0,
+        percentile: null,
       };
     }
 
@@ -217,7 +309,11 @@ export class StudentAnalyticsService {
 
     // Get grades for all students
     const allGrades = await this.prisma.grade.findMany({
-      where: { studentId: { in: studentIds } },
+      where: {
+        studentId: { in: studentIds },
+        subject: { classId: enrollment.classId },
+        maxScore: { gt: 0 },
+      },
     });
 
     // Calculate averages per student
@@ -225,16 +321,16 @@ export class StudentAnalyticsService {
 
     for (const sid of studentIds) {
       const studentGrades = allGrades.filter((g) => g.studentId === sid);
-      if (studentGrades.length > 0) {
-        const avg =
-          studentGrades.reduce(
-            (sum, g) => sum + (Number(g.grade) / Number(g.maxScore)) * 100,
-            0,
-          ) / studentGrades.length;
-        studentAverages.push({ studentId: sid, average: avg });
-      } else {
-        studentAverages.push({ studentId: sid, average: 0 });
-      }
+      if (studentGrades.length === 0) continue;
+      const avg = studentGrades.reduce(
+        (sum, g) => sum + (Number(g.grade) / Number(g.maxScore)) * 100,
+        0,
+      ) / studentGrades.length;
+      studentAverages.push({ studentId: sid, average: avg });
+    }
+
+    if (studentAverages.length === 0) {
+      return { studentAverage: null, classAverage: null, studentRank: null, totalStudents: 0, percentile: null };
     }
 
     // Sort by average
@@ -242,21 +338,18 @@ export class StudentAnalyticsService {
 
     // Find student's position
     const studentData = studentAverages.find((s) => s.studentId === studentId);
-    const studentRank =
-      studentAverages.findIndex((s) => s.studentId === studentId) + 1;
+    const rankIndex = studentAverages.findIndex((s) => s.studentId === studentId);
+    const studentRank = rankIndex < 0 ? null : rankIndex + 1;
     const classAverage =
       studentAverages.reduce((sum, s) => sum + s.average, 0) /
       studentAverages.length;
 
     return {
-      studentAverage: Math.round((studentData?.average || 0) * 10) / 10,
+      studentAverage: studentData ? Math.round(studentData.average * 10) / 10 : null,
       classAverage: Math.round(classAverage * 10) / 10,
       studentRank,
       totalStudents: studentAverages.length,
-      percentile: Math.round(
-        ((studentAverages.length - studentRank + 1) / studentAverages.length) *
-        100,
-      ),
+      percentile: studentRank === null ? null : Math.round(((studentAverages.length - studentRank + 1) / studentAverages.length) * 100),
     };
   }
 
@@ -264,51 +357,88 @@ export class StudentAnalyticsService {
    * Early Warning System - Detect at-risk students
    */
   async getEarlyWarnings(classId?: string): Promise<EarlyWarning[]> {
-    // Get students (either all or from specific class)
-    let studentIds: string[] = [];
+    if (!classId) throw new ForbiddenException('A class scope is required');
 
-    if (classId) {
-      const enrollments = await this.prisma.enrollment.findMany({
-        where: { classId },
-        select: { studentId: true },
-      });
-      studentIds = enrollments.map((e) => e.studentId);
-    } else {
-      const students = await this.prisma.user.findMany({
-        where: { role: 'STUDENT', isActive: true },
-        select: { id: true },
-      });
-      studentIds = students.map((s) => s.id);
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { classId },
+      select: {
+        studentId: true,
+        student: { select: { name: true, firstName: true, lastName: true } },
+      },
+    });
+    const studentMap = new Map(enrollments.map((enrollment) => [enrollment.studentId, enrollment.student]));
+    const studentIds = [...studentMap.keys()];
+    if (studentIds.length === 0) return [];
+
+    const dueAssignments = await this.prisma.assignment.findMany({
+      where: {
+        dueDate: { lte: new Date() },
+        OR: [{ classId }, { classId: null, subject: { classId } }],
+      },
+      select: { id: true },
+    });
+    const dueAssignmentIds = dueAssignments.map((assignment) => assignment.id);
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const [recentGrades, recentAttendance, submissions] = await Promise.all([
+      this.prisma.grade.findMany({
+        where: {
+          studentId: { in: studentIds },
+          createdAt: { gte: thirtyDaysAgo },
+          subject: { classId },
+          maxScore: { gt: 0 },
+        },
+        select: { studentId: true, grade: true, maxScore: true },
+      }),
+      this.prisma.attendance.findMany({
+        where: {
+          studentId: { in: studentIds },
+          classId,
+          date: { gte: thirtyDaysAgo },
+          status: { not: AttendanceStatus.EXCUSED },
+        },
+        select: { studentId: true, status: true },
+      }),
+      dueAssignmentIds.length
+        ? this.prisma.submission.findMany({
+            where: { studentId: { in: studentIds }, assignmentId: { in: dueAssignmentIds } },
+            select: { studentId: true, assignmentId: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const gradesByStudent = new Map<string, typeof recentGrades>();
+    for (const grade of recentGrades) {
+      const grades = gradesByStudent.get(grade.studentId) ?? [];
+      grades.push(grade);
+      gradesByStudent.set(grade.studentId, grades);
+    }
+    const attendanceByStudent = new Map<string, typeof recentAttendance>();
+    for (const entry of recentAttendance) {
+      const records = attendanceByStudent.get(entry.studentId) ?? [];
+      records.push(entry);
+      attendanceByStudent.set(entry.studentId, records);
+    }
+    const submittedByStudent = new Map<string, Set<string>>();
+    for (const submission of submissions) {
+      const assignments = submittedByStudent.get(submission.studentId) ?? new Set<string>();
+      assignments.add(submission.assignmentId);
+      submittedByStudent.set(submission.studentId, assignments);
     }
 
     const warnings: EarlyWarning[] = [];
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
     for (const studentId of studentIds) {
-      const student = await this.prisma.user.findUnique({
-        where: { id: studentId },
-        select: {
-          name: true,
-          firstName: true,
-          lastName: true,
-          behaviorScore: true,
-        },
-      });
+      const student = studentMap.get(studentId);
 
       const alerts: EarlyWarning['alerts'] = [];
 
-      // Check grades
-      const recentGrades = await this.prisma.grade.findMany({
-        where: { studentId, createdAt: { gte: thirtyDaysAgo } },
-      });
-
-      if (recentGrades.length > 0) {
+      const validRecentGrades = gradesByStudent.get(studentId) ?? [];
+      if (validRecentGrades.length > 0) {
         const avgGrade =
-          recentGrades.reduce(
+          validRecentGrades.reduce(
             (sum, g) => sum + (Number(g.grade) / Number(g.maxScore)) * 100,
             0,
-          ) / recentGrades.length;
+          ) / validRecentGrades.length;
 
         if (avgGrade < 50) {
           alerts.push({
@@ -322,10 +452,7 @@ export class StudentAnalyticsService {
       }
 
       // Check attendance
-      const attendance = await this.prisma.attendance.findMany({
-        where: { studentId, date: { gte: thirtyDaysAgo } },
-      });
-
+      const attendance = attendanceByStudent.get(studentId) ?? [];
       if (attendance.length > 0) {
         const presentCount = attendance.filter(
           (a) => a.status === 'PRESENT' || a.status === 'LATE',
@@ -343,35 +470,9 @@ export class StudentAnalyticsService {
         }
       }
 
-      // Check missing assignments
-      const enrollment = await this.prisma.enrollment.findFirst({
-        where: { studentId },
-        include: {
-          class: {
-            include: {
-              subjects: {
-                include: {
-                  assignments: {
-                    where: { dueDate: { lte: new Date() } },
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
-
-      if (enrollment) {
-        let totalAssignments = 0;
-        enrollment.class.subjects.forEach((subject) => {
-          totalAssignments += subject.assignments.length;
-        });
-
-        const submissions = await this.prisma.submission.count({
-          where: { studentId },
-        });
-
-        const missingCount = totalAssignments - submissions;
+      if (dueAssignmentIds.length > 0) {
+        const submittedCount = submittedByStudent.get(studentId)?.size ?? 0;
+        const missingCount = dueAssignmentIds.length - submittedCount;
         if (missingCount > 2) {
           alerts.push({
             type: 'MISSING_ASSIGNMENTS',
@@ -381,17 +482,6 @@ export class StudentAnalyticsService {
             threshold: 2,
           });
         }
-      }
-
-      // Check behavior
-      if (student?.behaviorScore && student.behaviorScore < 60) {
-        alerts.push({
-          type: 'BEHAVIOR',
-          severity: student.behaviorScore < 40 ? 'HIGH' : 'MEDIUM',
-          message: `درجة السلوك ${student.behaviorScore} تحتاج متابعة`,
-          value: student.behaviorScore,
-          threshold: 60,
-        });
       }
 
       // Only add if there are alerts
@@ -445,10 +535,13 @@ export class StudentAnalyticsService {
         },
       },
     });
+    if (!student || student.role !== 'STUDENT') throw new NotFoundException('Student not found');
+    const enrollment = student.enrollments[0];
+    const classId = enrollment?.classId;
 
     // Get grades
     const grades = await this.prisma.grade.findMany({
-      where: { studentId },
+      where: { studentId, ...(classId ? { subject: { classId } } : {}), maxScore: { gt: 0 } },
       include: { subject: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -458,12 +551,16 @@ export class StudentAnalyticsService {
 
     // Get attendance
     const attendance = await this.prisma.attendance.findMany({
-      where: { studentId, date: { gte: startDate } },
+      where: { studentId, ...(classId ? { classId } : {}), date: { gte: startDate } },
     });
 
     // Get submissions
     const submissions = await this.prisma.submission.findMany({
-      where: { studentId, submittedAt: { gte: startDate } },
+      where: {
+        studentId,
+        submittedAt: { gte: startDate },
+        ...(classId ? { assignment: { OR: [{ classId }, { classId: null, subject: { classId } }] } } : {}),
+      },
       include: { assignment: { include: { subject: true } } },
     });
 
@@ -494,18 +591,18 @@ export class StudentAnalyticsService {
 
     const subjects: ParentReport['subjects'] = [];
     subjectGrades.forEach((data, name) => {
-      const currentAvg =
-        data.grades.length > 0
-          ? data.grades.reduce((a, b) => a + b, 0) / data.grades.length
-          : 0;
-      const previousAvg =
-        data.previous.length > 0
-          ? data.previous.reduce((a, b) => a + b, 0) / data.previous.length
-          : currentAvg;
+      if (data.grades.length === 0) return;
+      const currentAvg = data.grades.reduce((a, b) => a + b, 0) / data.grades.length;
+      const previousAvg = data.previous.length > 0
+        ? data.previous.reduce((a, b) => a + b, 0) / data.previous.length
+        : null;
 
-      let trend: 'UP' | 'DOWN' | 'STABLE' = 'STABLE';
-      if (currentAvg > previousAvg + 5) trend = 'UP';
-      else if (currentAvg < previousAvg - 5) trend = 'DOWN';
+      let trend: 'UP' | 'DOWN' | 'STABLE' | 'NO_BASELINE' = 'NO_BASELINE';
+      if (previousAvg !== null) {
+        trend = 'STABLE';
+        if (currentAvg > previousAvg + 5) trend = 'UP';
+        else if (currentAvg < previousAvg - 5) trend = 'DOWN';
+      }
 
       subjects.push({
         name,
@@ -523,7 +620,6 @@ export class StudentAnalyticsService {
     };
 
     // Get total assignments for the period
-    const enrollment = student?.enrollments[0];
     let totalAssignments = 0;
     if (enrollment) {
       const classSubjects = await this.prisma.subject.findMany({
@@ -543,26 +639,27 @@ export class StudentAnalyticsService {
 
     // Generate recommendations
     const recommendations: string[] = [];
+    const validRecentGrades = recentGrades.filter((grade) => Number(grade.maxScore) > 0);
     const overallGrade =
-      recentGrades.length > 0
-        ? recentGrades.reduce(
+      validRecentGrades.length > 0
+        ? validRecentGrades.reduce(
           (sum, g) => sum + (Number(g.grade) / Number(g.maxScore)) * 100,
           0,
-        ) / recentGrades.length
-        : 0;
+        ) / validRecentGrades.length
+        : null;
     const attendanceRate =
       attendance.length > 0
         ? ((attendanceStats.present + attendanceStats.late) /
           attendance.length) *
         100
-        : 100;
+        : null;
 
-    if (overallGrade < 60) {
+    if (overallGrade !== null && overallGrade < 60) {
       recommendations.push(
         'يُنصح بمتابعة الطالب في الدروس الخصوصية لتحسين المستوى الأكاديمي',
       );
     }
-    if (attendanceStats.absent > 3) {
+    if (attendance.length > 0 && attendanceStats.absent > 3) {
       recommendations.push(
         'يُرجى متابعة انتظام الحضور، الغياب المتكرر يؤثر على التحصيل',
       );
@@ -578,8 +675,8 @@ export class StudentAnalyticsService {
         `يحتاج الطالب لمتابعة في: ${downSubjects.join('، ')}`,
       );
     }
-    if (recommendations.length === 0) {
-      recommendations.push('أداء الطالب ممتاز! استمروا في التشجيع والمتابعة');
+    if (recommendations.length === 0 && (validRecentGrades.length > 0 || attendance.length > 0 || totalAssignments > 0)) {
+      recommendations.push('لا توجد مؤشرات متابعة ضمن السجلات المتاحة لهذه الفترة');
     }
 
     return {
@@ -592,20 +689,21 @@ export class StudentAnalyticsService {
         period: period === 'week' ? 'أسبوعي' : 'شهري',
       },
       summary: {
-        overallGrade: Math.round(overallGrade * 10) / 10,
-        attendanceRate: Math.round(attendanceRate * 10) / 10,
+        overallGrade: overallGrade === null ? null : Math.round(overallGrade * 10) / 10,
+        attendanceRate: attendanceRate === null ? null : Math.round(attendanceRate * 10) / 10,
         assignmentsCompleted: submissions.length,
         totalAssignments,
-        behaviorScore: student?.behaviorScore || 75,
         rank: comparison.studentRank,
         totalStudents: comparison.totalStudents,
       },
       subjects,
       attendance: attendanceStats,
-      recentGrades: submissions.slice(0, 5).map((s) => ({
+      recentGrades: submissions
+        .filter((submission) => submission.grade !== null || submission.score !== null)
+        .slice(0, 5).map((s) => ({
         subject: s.assignment.subject?.name || 'Unknown',
         assignment: s.assignment.title,
-        score: Number(s.grade) || 0,
+        score: Number(s.grade ?? s.score),
         maxScore: Number(s.assignment.maxScore),
         date: s.submittedAt,
       })),

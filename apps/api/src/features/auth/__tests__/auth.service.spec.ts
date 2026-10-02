@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
 import { AuthService } from '../services/auth.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 
@@ -12,6 +13,10 @@ describe('AuthService', () => {
     let service: AuthService;
 
     const mockPrismaService = {
+        school: {
+            findUnique: jest.fn(),
+            findMany: jest.fn(),
+        },
         user: {
             findUnique: jest.fn(),
             create: jest.fn(),
@@ -73,6 +78,7 @@ describe('AuthService', () => {
         };
 
         it('should create a new user successfully', async () => {
+            mockPrismaService.school.findMany.mockResolvedValue([{ id: 'school-1' }]);
             mockPrismaService.user.findUnique.mockResolvedValue(null);
             (bcrypt.hash as jest.Mock).mockResolvedValue('hashedPassword');
             mockPrismaService.user.create.mockResolvedValue({
@@ -81,6 +87,7 @@ describe('AuthService', () => {
                 name: registerDto.name,
                 role: registerDto.role,
                 password: 'hashedPassword',
+                schoolId: 'school-1',
             });
 
             const result = await service.register(registerDto);
@@ -105,6 +112,8 @@ describe('AuthService', () => {
             password: 'hashedPassword',
             role: 'STUDENT',
             name: 'Test User',
+            schoolId: 'school-1',
+            isActive: true,
         };
 
         it('should return tokens on successful login and persist the refresh token', async () => {
@@ -147,7 +156,7 @@ describe('AuthService', () => {
         it('should rotate the refresh token and return new tokens', async () => {
             mockJwtService.verifyAsync.mockResolvedValue({ sub: '1', type: 'refresh' });
             mockPrismaService.refreshToken.findUnique.mockResolvedValue({
-                tokenHash: 'stored-hash',
+                tokenHash: createHash('sha256').update('valid-token').digest('hex'),
                 userId: '1',
                 revokedAt: null,
                 expiresAt: new Date(Date.now() + 60_000),
@@ -157,6 +166,8 @@ describe('AuthService', () => {
                 email: 'test@test.com',
                 role: 'STUDENT',
                 name: 'Test User',
+                schoolId: 'school-1',
+                isActive: true,
             });
             mockPrismaService.refreshToken.update.mockResolvedValue({});
             mockPrismaService.refreshToken.create.mockResolvedValue({});

@@ -1,124 +1,52 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routing/route_names.dart';
-import 'package:go_router/go_router.dart';
+import '../../../auth/providers/auth_provider.dart';
 
-/// Profile Screen — user info, stats, achievements, settings
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
+    final name = user?.name.trim() ?? '';
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: AppColors.backgroundDark,
         body: SafeArea(
           bottom: false,
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
-            child: Column(
-              children: [
-                // LOGO + Title
-                Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Image.asset('assets/images/logo.jpeg', width: 44, height: 44, fit: BoxFit.cover),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text('الملف الشخصي', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-                  ],
-                ),
-                const SizedBox(height: 30),
-
-                // Avatar + Name
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(28),
-                  decoration: BoxDecoration(
-                    gradient: AppColors.heroGradient,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.15)),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 90, height: 90,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(colors: [Color(0xFF0D9488), Color(0xFF10B981)]),
-                          border: Border.all(color: Colors.white.withOpacity(0.2), width: 3),
-                        ),
-                        child: const Center(child: Text('أ', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.white))),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text('أحمد محمد', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white)),
-                      const SizedBox(height: 4),
-                      Text('ahmed@nexus.edu.sa', style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.4))),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFBBF24).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text('🎓 طالب — المستوى الذهبي', style: TextStyle(color: Color(0xFFFBBF24), fontSize: 12, fontWeight: FontWeight.w700)),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Stats Row
-                Row(
-                  children: [
-                    Expanded(child: _ProfileStat(value: '1,250', label: 'XP', icon: Icons.bolt_rounded, color: const Color(0xFFFBBF24))),
-                    const SizedBox(width: 10),
-                    Expanded(child: _ProfileStat(value: '#3', label: 'الترتيب', icon: Icons.emoji_events_rounded, color: const Color(0xFF10B981))),
-                    const SizedBox(width: 10),
-                    Expanded(child: _ProfileStat(value: '87%', label: 'المتوسط', icon: Icons.trending_up_rounded, color: const Color(0xFF3B82F6))),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Menu Items
-                _ProfileMenuItem(icon: Icons.workspace_premium_rounded, title: 'إنجازاتي', subtitle: '12 إنجاز', color: const Color(0xFFFBBF24),
-                  onTap: () => context.push(RouteNames.studentAchievements)),
-                _ProfileMenuItem(icon: Icons.assignment_rounded, title: 'واجباتي', subtitle: '3 واجبات معلقة', color: const Color(0xFF3B82F6),
-                  onTap: () => context.go(RouteNames.studentAssignments)),
-                _ProfileMenuItem(icon: Icons.bar_chart_rounded, title: 'درجاتي', subtitle: 'عرض التقارير', color: const Color(0xFF10B981),
-                  onTap: () => context.push(RouteNames.studentGrades)),
-                _ProfileMenuItem(icon: Icons.calendar_today_rounded, title: 'جدولي', subtitle: 'الجدول الدراسي', color: const Color(0xFFA855F7),
-                  onTap: () => context.push(RouteNames.studentSchedule)),
-                _ProfileMenuItem(icon: Icons.settings_rounded, title: 'الإعدادات', subtitle: 'حسابي والتفضيلات', color: const Color(0xFF6B7280),
-                  onTap: () => context.go(RouteNames.studentSettings)),
-                const SizedBox(height: 16),
-
-                // Logout
-                GestureDetector(
-                  onTap: () => context.go(RouteNames.login),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEF4444).withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.15)),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 20),
-                        SizedBox(width: 8),
-                        Text('تسجيل الخروج', style: TextStyle(color: Color(0xFFEF4444), fontSize: 14, fontWeight: FontWeight.w700)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+            children: [
+              const Text('الملف الشخصي', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: Colors.white)),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(gradient: AppColors.heroGradient, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF10B981).withOpacity(0.15))),
+                child: Row(children: [
+                  CircleAvatar(radius: 30, backgroundColor: const Color(0xFF0D9488), foregroundColor: Colors.white, child: Text(name.isEmpty ? '؟' : name.substring(0, 1), style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800))),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(name.isEmpty ? '—' : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+                    const SizedBox(height: 4),
+                    Text(user?.email ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.65))),
+                    const SizedBox(height: 7),
+                    const Text('طالب', style: TextStyle(color: Color(0xFF6EE7B7), fontSize: 12, fontWeight: FontWeight.w700)),
+                  ])),
+                ]),
+              ),
+              const SizedBox(height: 22),
+              const Text('سجلاتك', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              _ProfileMenuItem(icon: Icons.workspace_premium_outlined, title: 'الإنجازات', subtitle: 'عرض الإنجازات المسجلة', onTap: () => context.push(RouteNames.studentAchievements)),
+              _ProfileMenuItem(icon: Icons.assignment_outlined, title: 'الواجبات', subtitle: 'متابعة الواجبات المسجلة', onTap: () => context.go(RouteNames.studentAssignments)),
+              _ProfileMenuItem(icon: Icons.bar_chart_outlined, title: 'الدرجات', subtitle: 'عرض سجلات الدرجات', onTap: () => context.push(RouteNames.studentGrades)),
+              _ProfileMenuItem(icon: Icons.calendar_today_outlined, title: 'الجدول', subtitle: 'عرض الجدول المرتبط بحسابك', onTap: () => context.push(RouteNames.studentSchedule)),
+              _ProfileMenuItem(icon: Icons.settings_outlined, title: 'الحساب', subtitle: 'بيانات الجلسة وتسجيل الخروج', onTap: () => context.go(RouteNames.studentSettings)),
+            ],
           ),
         ),
       ),
@@ -126,75 +54,23 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-class _ProfileStat extends StatelessWidget {
-  final String value, label;
-  final IconData icon;
-  final Color color;
-  const _ProfileStat({required this.value, required this.label, required this.icon, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: BoxDecoration(
-        color: AppColors.cardDark,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.borderDark),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 8),
-          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: color)),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4))),
-        ],
-      ),
-    );
-  }
-}
-
 class _ProfileMenuItem extends StatelessWidget {
   final IconData icon;
-  final String title, subtitle;
-  final Color color;
-  final VoidCallback? onTap;
-  const _ProfileMenuItem({required this.icon, required this.title, required this.subtitle, required this.color, this.onTap});
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _ProfileMenuItem({required this.icon, required this.title, required this.subtitle, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.cardDark,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.borderDark),
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(color: AppColors.cardDark, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.borderDark)),
+        child: ListTile(
+          onTap: onTap,
+          leading: Icon(icon, color: const Color(0xFF34D399)),
+          title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          subtitle: Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+          trailing: const Icon(Icons.chevron_left, color: Colors.white54),
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.35))),
-                ],
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.15), size: 16),
-          ],
-        ),
-      ),
-    );
-  }
+      );
 }

@@ -1,6 +1,9 @@
-import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '../auth/role.enum';
 import {
   WebPushService,
   PushSubscription,
@@ -8,7 +11,7 @@ import {
 } from './web-push.service';
 
 @ApiTags('Web Push')
-@Controller('api/push')
+@Controller('push')
 @ApiBearerAuth()
 export class WebPushController {
   constructor(private readonly webPushService: WebPushService) {}
@@ -22,25 +25,27 @@ export class WebPushController {
   }
 
   @Post('subscribe')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiOperation({ summary: 'Subscribe to push notifications' })
   async subscribe(
-    @Body() data: { userId: string; subscription: PushSubscription },
+    @Body() data: { subscription: PushSubscription },
+    @Req() req: any,
   ) {
-    await this.webPushService.saveSubscription(data.userId, data.subscription);
+    await this.webPushService.saveSubscription(req.user.userId || req.user.sub || req.user.id, data.subscription);
     return { success: true, message: 'Subscribed successfully' };
   }
 
   @Post('unsubscribe')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiOperation({ summary: 'Unsubscribe from push notifications' })
-  async unsubscribe(@Body() data: { userId: string; endpoint: string }) {
-    await this.webPushService.unsubscribe(data.userId, data.endpoint);
+  async unsubscribe(@Body() data: { endpoint: string }, @Req() req: any) {
+    await this.webPushService.unsubscribe(req.user.userId || req.user.sub || req.user.id, data.endpoint);
     return { success: true, message: 'Unsubscribed successfully' };
   }
 
   @Post('send')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Send push notification (admin/test)' })
   async sendPush(
     @Body() data: { userId: string; payload: PushNotificationPayload },

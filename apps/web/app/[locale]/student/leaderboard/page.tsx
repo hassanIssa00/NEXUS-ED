@@ -22,7 +22,7 @@ function LoadingCard() {
 
 export default function LeaderboardPage() {
     const { user } = useAuth();
-    const studentId = user?.id || 'demo-student';
+    const studentId = user?.id;
 
     return (
         <div className="space-y-6">
@@ -65,7 +65,7 @@ export default function LeaderboardPage() {
                         transition={{ delay: 0.2 }}
                     >
                         <Suspense fallback={<LoadingCard />}>
-                            <StudentGamificationCard studentId={studentId} />
+                            {studentId ? <StudentGamificationCard studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">سجّل الدخول لعرض بياناتك.</p>}
                         </Suspense>
                     </motion.div>
                 </div>

@@ -1,6 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
 
 export interface WeaknessTopic {
@@ -17,18 +15,7 @@ export interface WeaknessMapResult {
 
 @Injectable()
 export class AiPersonalTutorService {
-  private openai: OpenAI | null = null;
-  private readonly logger = new Logger(AiPersonalTutorService.name);
-
-  constructor(
-    private readonly prisma: PrismaService,
-    private configService: ConfigService
-  ) {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (apiKey && apiKey !== 'sk_placeholder') {
-      this.openai = new OpenAI({ apiKey });
-    }
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Builds a personalized weakness map based on student's past performance
@@ -47,82 +34,42 @@ export class AiPersonalTutorService {
       },
     });
 
-    if (!student) {
-      throw new Error('Student not found');
+    if (!student || student.role !== 'STUDENT') throw new NotFoundException('Student not found');
+
+    const subjectTotals = new Map<string, { score: number; maxScore: number; count: number }>();
+    for (const grade of student.studentGrades) {
+      const maxScore = grade.maxScore || 100;
+      if (!Number.isFinite(grade.score) || maxScore <= 0) continue;
+      const subject = grade.subject?.name || 'مادة غير محددة';
+      const current = subjectTotals.get(subject) ?? { score: 0, maxScore: 0, count: 0 };
+      current.score += grade.score;
+      current.maxScore += maxScore;
+      current.count += 1;
+      subjectTotals.set(subject, current);
     }
 
-    const failedGrades = (student.studentGrades || []).filter((g: any) => {
-      const pct = (g.score / (g.maxScore || 100)) * 100;
-      return pct < 70;
+    const subjects = Array.from(subjectTotals.entries()).map(([topic, result]) => {
+      const percentage = Math.round((result.score / result.maxScore) * 100);
+      return { topic, percentage, count: result.count };
     });
+    const topics = subjects.filter((subject) => subject.percentage < 70).map((subject) => ({
+      topic: subject.topic,
+      score: Math.max(0, 100 - subject.percentage),
+      description: `متوسط الدرجات المسجلة: ${subject.percentage}% من ${subject.count} تقييمًا.`,
+    }));
 
-    if (failedGrades.length === 0) {
-      return {
-        topics: [],
-        recommendations: [
-          'أداؤك ممتاز! استمر في التركيز على الواجبات القادمة لتحافظ على مستواك.',
-          'حاول مراجعة الدروس بشكل استباقي لتكون مستعدًا دائماً.'
-        ],
-        learningPath: 'تطوير المهارات المتقدمة والحفاظ على التفوق.'
-      };
+    if (!subjects.length) {
+      return { topics: [], recommendations: [], learningPath: 'لا توجد درجات مسجلة كافية لبناء خريطة تحسين.' };
+    }
+    if (!topics.length) {
+      return { topics: [], recommendations: [], learningPath: 'لا تظهر درجات أقل من 70% في البيانات المسجلة المتاحة.' };
     }
 
-    const failedContext = (failedGrades as any[]).map((g: any) => 
-      `${g.subject?.name || 'مادة'}: تقييم - الدرجة: ${g.score}/${g.maxScore || 100}`
-    ).join(' | ');
-
-    if (!this.openai) {
-      return this.getMockWeaknessMap();
-    }
-
-    const systemPrompt = `أنت معلم شخصي ذكي (AI Personal Tutor). مهمتك بناء "خريطة نقاط ضعف" لطالب وتحليل الدرجات الضعيفة التي حصل عليها مؤخراً لاستنتاج المفاهيم أو المواضيع التي يحتاج التركيز عليها.
-
-بيانات الإخفاقات الأخيرة للطالب:
-${failedContext}
-
-أخرج ردك كـ JSON يحتوي على:
-{
-  "topics": [
-    { "topic": "اسم المفهوم أو المادة", "score": رقم_يعبر_عن_مستوى_الضعف_من_100 (مثلا 40 يعني ضعيف جدا), "description": "وصف قصير للمشكلة" }
-  ],
-  "recommendations": [
-    "توصية عملية 1 للبدء فوراً",
-    "توصية 2"
-  ],
-  "learningPath": "جملة تلخص المسار التعليمي المقترح لهذا الأسبوع بناء على التحليل"
-}`;
-
-    try {
-      const completion = await this.openai.chat.completions.create({
-        messages: [{ role: 'system', content: systemPrompt }],
-        model: 'gpt-4o',
-        temperature: 0.7,
-        response_format: { type: 'json_object' },
-      });
-
-      const result = JSON.parse(completion.choices[0].message.content || '{}');
-      return {
-        topics: result.topics || [],
-        recommendations: result.recommendations || [],
-        learningPath: result.learningPath || '',
-      };
-    } catch (error) {
-      this.logger.error('Failed to generate weakness map', error);
-      return this.getMockWeaknessMap();
-    }
-  }
-
-  private getMockWeaknessMap(): WeaknessMapResult {
+    const focusSubjects = topics.map(({ topic }) => topic);
     return {
-      topics: [
-        { topic: 'المعادلات الجبرية', score: 45, description: 'صعوبة في حل المعادلات من الدرجة الثانية.' },
-        { topic: 'الفيزياء - الحركة', score: 50, description: 'أخطاء في تطبيق قوانين نيوتن.' }
-      ],
-      recommendations: [
-        'راجع أمثلة الكتاب في الوحدة الثالثة للرياضيات.',
-        'تدرب على 3 مسائل يومياً عن الحركة قبل البدء بالواجب الجديد.'
-      ],
-      learningPath: 'التركيز على الأساسيات الرياضية وتطبيق القوانين الفيزيائية خطوة بخطوة.'
+      topics,
+      recommendations: ['راجع تفاصيل التقييمات المسجلة لهذه المواد وناقش ملاحظات المعلم مع المدرسة.'],
+      learningPath: `ابدأ بمتابعة نتائج مادة ${focusSubjects.join('، ')}؛ الخريطة مبنية على متوسط الدرجات المسجلة فقط ولا تحدد مهارة فرعية غير موجودة في النظام.`,
     };
   }
 }

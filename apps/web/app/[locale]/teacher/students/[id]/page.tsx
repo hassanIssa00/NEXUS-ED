@@ -91,15 +91,6 @@ export default function TeacherStudentProfilePage() {
     mastery: Math.round(subject.total / subject.count)
   }));
 
-  // Mock data if no real skills exist yet for the UI to look good
-  const displayRadarData = radarData.length > 0 ? radarData : [
-    { subject: 'الرياضيات', mastery: 85 },
-    { subject: 'العلوم', mastery: 65 },
-    { subject: 'اللغة العربية', mastery: 90 },
-    { subject: 'اللغة الإنجليزية', mastery: 75 },
-    { subject: 'التاريخ', mastery: 60 }
-  ];
-
   return (
     <div className="space-y-6" dir="rtl">
       <div className="flex justify-between items-center">
@@ -166,15 +157,17 @@ export default function TeacherStudentProfilePage() {
         <Card className="flex flex-col items-center justify-center p-6 text-center">
           <CardTitle className="text-lg mb-4 w-full text-right">خريطة المعرفة</CardTitle>
           <div className="w-full h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={displayRadarData}>
+            {radarData.length === 0 ? (
+              <p className="pt-24 text-sm text-muted-foreground">لا توجد بيانات مهارات مسجلة لهذا الطالب.</p>
+            ) : <ResponsiveContainer width="100%" height="100%">
+              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                 <PolarGrid />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#888', fontSize: 12 }} />
                 <PolarRadiusAxis angle={30} domain={[0, 100]} />
                 <Radar name="إتقان المهارات" dataKey="mastery" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
                 <Tooltip />
               </RadarChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer>}
           </div>
           <p className="text-xs text-muted-foreground mt-4">
             توضح الخريطة نسبة إتقان الطالب للمهارات الأساسية في كل مادة.

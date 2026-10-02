@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import {
@@ -7,7 +7,6 @@ import {
   SubmitAssignmentDto,
   GradeSubmissionDto,
 } from './dto/assignment.dto';
-import { AutoGradingService } from './auto-grading.service';
 import { EventsGateway } from '../gateway/events.gateway';
 import { GamificationService } from '../gamification/gamification.service';
 
@@ -15,7 +14,6 @@ import { GamificationService } from '../gamification/gamification.service';
 export class AssignmentService {
   constructor(
     private prisma: PrismaService,
-    private autoGrading: AutoGradingService,
     @Optional() private eventsGateway: EventsGateway,
     @Optional() private gamification: GamificationService,
   ) {}
@@ -43,27 +41,80 @@ export class AssignmentService {
     });
   }
 
+  private async getActiveActor(userId: string) {
+    if (!userId) throw new ForbiddenException('An authenticated account is required');
+    const actor = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, schoolId: true, isActive: true },
+    });
+    if (!actor?.isActive || !actor.schoolId) {
+      throw new ForbiddenException('An active school account is required');
+    }
+    return actor;
+  }
+
+  private assertAssignmentManager(
+    actor: { id: string; role: string; schoolId: string | null },
+    assignment: { teacherId: string; schoolId: string | null },
+  ) {
+    if (actor.schoolId !== assignment.schoolId) {
+      throw new ForbiddenException('Assignment belongs to another school');
+    }
+    if (actor.role !== 'ADMIN' && (actor.role !== 'TEACHER' || actor.id !== assignment.teacherId)) {
+      throw new ForbiddenException('You cannot manage this assignment');
+    }
+  }
+
+  private async assertOwnedAttachments(urls: string[] | undefined, ownerId: string) {
+    if (!urls?.length) return;
+    const records = await this.prisma.file.findMany({
+      where: { url: { in: urls }, uploadedById: ownerId },
+      select: { url: true },
+    });
+    if (new Set(records.map((record) => record.url)).size !== new Set(urls).size) {
+      throw new ForbiddenException('Every attachment must be uploaded by your account');
+    }
+  }
+
   async create(data: CreateAssignmentDto, teacherId: string) {
-    // Verify teacher teaches this subject
+    const actor = await this.getActiveActor(teacherId);
+    if (actor.role !== 'TEACHER' && actor.role !== 'ADMIN') {
+      throw new ForbiddenException('Only teachers and school administrators can create assignments');
+    }
     const subject = await this.prisma.subject.findUnique({
       where: { id: data.subjectId },
-      include: { teacher: true },
+      select: { id: true, name: true, code: true, teacherId: true, schoolId: true, classId: true },
     });
 
     if (!subject) {
       throw new NotFoundException('Subject not found');
     }
 
-    if (subject.teacherId !== teacherId) {
+    if (!subject.schoolId || subject.schoolId !== actor.schoolId) {
+      throw new ForbiddenException('Subject belongs to another school');
+    }
+    if (actor.role === 'TEACHER' && subject.teacherId !== teacherId) {
       throw new ForbiddenException('You do not teach this subject');
     }
+    const assignedTeacherId = actor.role === 'TEACHER' ? teacherId : subject.teacherId;
+    if (!assignedTeacherId) throw new ForbiddenException('Assign a teacher to this subject first');
+    const assignedTeacher = await this.prisma.user.findUnique({
+      where: { id: assignedTeacherId },
+      select: { id: true, role: true, schoolId: true, isActive: true },
+    });
+    if (!assignedTeacher?.isActive || assignedTeacher.role !== 'TEACHER' || assignedTeacher.schoolId !== actor.schoolId) {
+      throw new ForbiddenException('The subject teacher is not an active teacher in this school');
+    }
+    await this.assertOwnedAttachments(data.attachments, actor.id);
 
     const assignment = await this.prisma.assignment.create({
       data: {
         ...data,
-        teacherId,
+        teacherId: assignedTeacherId,
         schoolId: subject.schoolId,
-        maxScore: data.maxScore || 100,
+        classId: subject.classId,
+        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+        maxScore: data.maxScore ?? 100,
       },
       include: {
         subject: {
@@ -86,7 +137,7 @@ export class AssignmentService {
     await this.createAuditLog({
       action: 'assignment.created',
       entityId: assignment.id,
-      userId: teacherId,
+      userId: actor.id,
       schoolId: subject.schoolId,
       metadata: {
         subjectId: subject.id,
@@ -109,8 +160,14 @@ export class AssignmentService {
     return assignment;
   }
 
-  async findAll(filters: { subjectId?: string } = {}) {
-    const where: any = {};
+  async findAll(filters: { subjectId?: string; teacherId?: string } = {}, actorId: string) {
+    const actor = await this.getActiveActor(actorId);
+    if (actor.role !== 'ADMIN' && actor.role !== 'TEACHER') {
+      throw new ForbiddenException('Only school staff can view assignment lists');
+    }
+    const where: Prisma.AssignmentWhereInput = { schoolId: actor.schoolId };
+    if (actor.role === 'TEACHER') where.teacherId = actor.id;
+    else if (filters.teacherId) where.teacherId = filters.teacherId;
 
     if (filters.subjectId) {
       where.subjectId = filters.subjectId;
@@ -144,8 +201,10 @@ export class AssignmentService {
   }
 
   async findByTeacher(teacherId: string) {
+    const actor = await this.getActiveActor(teacherId);
+    if (actor.role !== 'TEACHER') throw new ForbiddenException('Teacher account required');
     return this.prisma.assignment.findMany({
-      where: { teacherId },
+      where: { teacherId: actor.id, schoolId: actor.schoolId },
       include: {
         subject: {
           select: {
@@ -165,6 +224,8 @@ export class AssignmentService {
   }
 
   async findByStudent(studentId: string) {
+    const actor = await this.getActiveActor(studentId);
+    if (actor.role !== 'STUDENT') throw new ForbiddenException('Student account required');
     const enrollments = await this.prisma.enrollment.findMany({
       where: { studentId },
       include: {
@@ -175,6 +236,7 @@ export class AssignmentService {
                 subject: {
                   include: {
                     assignments: {
+                      where: { schoolId: actor.schoolId },
                       include: {
                         subject: true,
                         submissions: {
@@ -189,6 +251,7 @@ export class AssignmentService {
             subjects: {
               include: {
                 assignments: {
+                  where: { schoolId: actor.schoolId },
                   include: {
                     subject: true,
                     submissions: {
@@ -207,6 +270,7 @@ export class AssignmentService {
       const enrollmentClass = enrollment.class as typeof enrollment.class & {
         subjects?: Array<{ assignments: any[] }>;
       };
+      if (enrollment.class.schoolId !== actor.schoolId) return [];
       const classSubjects =
         enrollmentClass.classSubjects?.length > 0 
           ? enrollmentClass.classSubjects
@@ -239,7 +303,14 @@ export class AssignmentService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, actorId: string) {
+    const actor = await this.getActiveActor(actorId);
+    if (actor.role === 'STUDENT') {
+      const allowed = await this.findByStudent(actor.id);
+      const studentAssignment = allowed.find((item) => item.id === id);
+      if (!studentAssignment) throw new NotFoundException('Assignment not found');
+      return studentAssignment;
+    }
     const assignment = await this.prisma.assignment.findUnique({
       where: { id },
       include: {
@@ -274,11 +345,13 @@ export class AssignmentService {
     if (!assignment) {
       throw new NotFoundException('Assignment not found');
     }
+    this.assertAssignmentManager(actor, assignment);
 
     return assignment;
   }
 
-  async update(id: string, data: UpdateAssignmentDto, teacherId: string) {
+  async update(id: string, data: UpdateAssignmentDto, actorId: string) {
+    const actor = await this.getActiveActor(actorId);
     const assignment = await this.prisma.assignment.findUnique({
       where: { id },
     });
@@ -287,13 +360,11 @@ export class AssignmentService {
       throw new NotFoundException('Assignment not found');
     }
 
-    if (assignment.teacherId !== teacherId) {
-      throw new ForbiddenException('You can only edit your own assignments');
-    }
+    this.assertAssignmentManager(actor, assignment);
 
     const updatedAssignment = await this.prisma.assignment.update({
       where: { id },
-      data,
+      data: { ...data, dueDate: data.dueDate ? new Date(data.dueDate) : data.dueDate },
       include: {
         subject: true,
         teacher: {
@@ -308,7 +379,7 @@ export class AssignmentService {
     await this.createAuditLog({
       action: 'assignment.updated',
       entityId: updatedAssignment.id,
-      userId: teacherId,
+      userId: actor.id,
       schoolId: updatedAssignment.schoolId,
       metadata: {
         title: updatedAssignment.title,
@@ -318,7 +389,8 @@ export class AssignmentService {
     return updatedAssignment;
   }
 
-  async delete(id: string, teacherId: string) {
+  async delete(id: string, actorId: string) {
+    const actor = await this.getActiveActor(actorId);
     const assignment = await this.prisma.assignment.findUnique({
       where: { id },
     });
@@ -327,9 +399,7 @@ export class AssignmentService {
       throw new NotFoundException('Assignment not found');
     }
 
-    if (assignment.teacherId !== teacherId) {
-      throw new ForbiddenException('You can only delete your own assignments');
-    }
+    this.assertAssignmentManager(actor, assignment);
 
     const deletedAssignment = await this.prisma.assignment.delete({
       where: { id },
@@ -338,7 +408,7 @@ export class AssignmentService {
     await this.createAuditLog({
       action: 'assignment.deleted',
       entityId: deletedAssignment.id,
-      userId: teacherId,
+      userId: actor.id,
       schoolId: deletedAssignment.schoolId,
       metadata: {
         title: deletedAssignment.title,
@@ -353,14 +423,14 @@ export class AssignmentService {
     data: SubmitAssignmentDto,
     studentId: string,
   ) {
-    // Check if assignment exists
-    const assignment = await this.prisma.assignment.findUnique({
-      where: { id: assignmentId },
-    });
-
-    if (!assignment) {
-      throw new NotFoundException('Assignment not found');
+    const actor = await this.getActiveActor(studentId);
+    if (actor.role !== 'STUDENT') throw new ForbiddenException('Student account required');
+    if (!data.content?.trim() && !(data.attachments?.length)) {
+      throw new BadRequestException('Write an answer or attach a file before submitting');
     }
+    const assignment = (await this.findByStudent(studentId)).find((item) => item.id === assignmentId);
+    if (!assignment) throw new NotFoundException('Assignment not found');
+    await this.assertOwnedAttachments(data.attachments, actor.id);
 
     // Check if already submitted
     const existing = await this.prisma.submission.findUnique({
@@ -373,13 +443,20 @@ export class AssignmentService {
     });
 
     if (existing) {
+      if (existing.gradedAt) {
+        throw new ForbiddenException('A graded submission cannot be replaced');
+      }
       // Update existing submission
       return this.prisma.submission.update({
         where: { id: existing.id },
         data: {
-          content: data.content,
+          content: data.content?.trim() || null,
           attachments: data.attachments || [],
           submittedAt: new Date(),
+          grade: null,
+          score: null,
+          feedback: null,
+          gradedAt: null,
         },
       }).then(async (submission) => {
         const assignmentWithSchool = await this.prisma.assignment.findUnique({
@@ -398,9 +475,6 @@ export class AssignmentService {
           },
         });
 
-        // Trigger AI grading in the background
-        this.autoGrading.gradeWithAI(assignmentId, submission.id).catch(e => console.error('AI Grading Error:', e));
-
         return submission;
       });
     }
@@ -409,7 +483,7 @@ export class AssignmentService {
       data: {
         assignmentId,
         studentId,
-        content: data.content,
+        content: data.content?.trim() || null,
         attachments: data.attachments || [],
       },
     });
@@ -436,14 +510,11 @@ export class AssignmentService {
       await this.gamification.awardXp(studentId, xpAward, reason, submission.id);
     }
 
-    // Trigger AI grading in the background
-    this.autoGrading.gradeWithAI(assignmentId, submission.id).catch(e => console.error('AI Grading Error:', e));
-
     return submission;
   }
 
   async getSubmissions(assignmentId: string, teacherId: string) {
-    // Verify teacher owns this assignment
+    const actor = await this.getActiveActor(teacherId);
     const assignment = await this.prisma.assignment.findUnique({
       where: { id: assignmentId },
     });
@@ -452,11 +523,7 @@ export class AssignmentService {
       throw new NotFoundException('Assignment not found');
     }
 
-    if (assignment.teacherId !== teacherId) {
-      throw new ForbiddenException(
-        'You can only view submissions for your assignments',
-      );
-    }
+    this.assertAssignmentManager(actor, assignment);
 
     return this.prisma.submission.findMany({
       where: { assignmentId },
@@ -473,11 +540,25 @@ export class AssignmentService {
     });
   }
 
+  async getTeacherSubmissions(teacherId: string) {
+    const actor = await this.getActiveActor(teacherId);
+    if (actor.role !== 'TEACHER') throw new ForbiddenException('Teacher account required');
+    return this.prisma.submission.findMany({
+      where: { assignment: { teacherId: actor.id, schoolId: actor.schoolId } },
+      include: {
+        student: { select: { id: true, name: true, email: true } },
+        assignment: { select: { id: true, title: true, maxScore: true, subjectId: true } },
+      },
+      orderBy: { submittedAt: 'desc' },
+    });
+  }
+
   async gradeSubmission(
     submissionId: string,
     data: GradeSubmissionDto,
     teacherId: string,
   ) {
+    const actor = await this.getActiveActor(teacherId);
     const submission = await this.prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
@@ -489,34 +570,48 @@ export class AssignmentService {
       throw new NotFoundException('Submission not found');
     }
 
-    if (submission.assignment.teacherId !== teacherId) {
-      throw new ForbiddenException(
-        'You can only grade submissions for your assignments',
-      );
+    this.assertAssignmentManager(actor, submission.assignment);
+    if (!Number.isFinite(data.score) || data.score < 0 || data.score > submission.assignment.maxScore) {
+      throw new BadRequestException(`Score must be between 0 and ${submission.assignment.maxScore}`);
     }
 
-    const gradedSubmission = await this.prisma.submission.update({
-      where: { id: submissionId },
-      data: {
-        grade: data.score,
-        feedback: data.feedback,
-        gradedAt: new Date(),
-      },
-      include: {
-        student: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    const gradedAt = new Date();
+    const [gradedSubmission] = await this.prisma.$transaction([
+      this.prisma.submission.update({
+        where: { id: submissionId },
+        data: { grade: data.score, score: data.score, feedback: data.feedback, gradedAt },
+        include: { student: { select: { id: true, name: true, email: true } } },
+      }),
+      this.prisma.grade.upsert({
+        where: {
+          assignmentId_studentId: {
+            assignmentId: submission.assignmentId,
+            studentId: submission.studentId,
           },
         },
-      },
-    });
+        update: {
+          score: data.score,
+          grade: data.score,
+          maxScore: submission.assignment.maxScore,
+          comments: data.feedback,
+          subjectId: submission.assignment.subjectId,
+        },
+        create: {
+          assignmentId: submission.assignmentId,
+          score: data.score,
+          grade: data.score,
+          maxScore: submission.assignment.maxScore,
+          comments: data.feedback,
+          studentId: submission.studentId,
+          subjectId: submission.assignment.subjectId,
+        },
+      }),
+    ]);
 
     await this.createAuditLog({
       action: 'assignment.graded',
       entityId: submission.assignmentId,
-      userId: teacherId,
+      userId: actor.id,
       schoolId: submission.assignment.schoolId,
       metadata: {
         submissionId,

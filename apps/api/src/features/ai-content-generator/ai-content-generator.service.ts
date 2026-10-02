@@ -31,8 +31,11 @@ export class AiContentGeneratorService {
     return this.prisma.generatedTemplate.delete({ where: { id } });
   }
 
-  async getQuestionBanks(subjectId?: string) {
-    const where = subjectId ? { subjectId } : {};
+  async getQuestionBanks(teacherId: string, subjectId?: string) {
+    const where = {
+      ...(subjectId ? { subjectId } : {}),
+      subject: { OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }] },
+    };
     return this.prisma.questionBank.findMany({
       where,
       include: { subject: { select: { id: true, name: true } } },
@@ -40,7 +43,18 @@ export class AiContentGeneratorService {
     });
   }
 
-  async saveQuestionBank(subjectId: string, topic: string, questions: any[]) {
+  async saveQuestionBank(teacherId: string, subjectId: string, topic: string, questions: any[]) {
+    if (!Array.isArray(questions) || questions.length === 0 || !topic.trim()) {
+      throw new NotFoundException('A topic and at least one question are required');
+    }
+    const subject = await this.prisma.subject.findFirst({
+      where: {
+        id: subjectId,
+        OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }],
+      },
+      select: { id: true },
+    });
+    if (!subject) throw new NotFoundException('Subject not found');
     return this.prisma.questionBank.create({
       data: {
         subjectId,

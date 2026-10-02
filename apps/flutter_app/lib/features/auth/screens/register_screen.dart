@@ -67,19 +67,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
         );
 
     if (success && mounted) {
+      final role = ref.read(authProvider).user?.role;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('✅ تم إنشاء الحساب بنجاح'),
+          content: const Text('تم إنشاء الحساب وتسجيل الدخول بنجاح'),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
-      context.go(RouteNames.login);
+      context.go(role == 'parent'
+          ? RouteNames.parentDashboard
+          : RouteNames.studentProfileSetup);
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('❌ فشل إنشاء الحساب'),
+          content: Text(ref.read(authProvider).errorMessage ?? 'فشل إنشاء الحساب'),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -195,12 +198,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                       Row(
                         children: [
                           _RoleChip(emoji: '📚', label: 'طالب', value: 'student', selected: _selectedRole == 'student', onTap: () => setState(() => _selectedRole = 'student')),
-                          const SizedBox(width: 8),
-                          _RoleChip(emoji: '👨‍🏫', label: 'معلم', value: 'teacher', selected: _selectedRole == 'teacher', onTap: () => setState(() => _selectedRole = 'teacher')),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 12),
                           _RoleChip(emoji: '👨‍👩‍👧', label: 'ولي أمر', value: 'parent', selected: _selectedRole == 'parent', onTap: () => setState(() => _selectedRole = 'parent')),
-                          const SizedBox(width: 8),
-                          _RoleChip(emoji: '🛡️', label: 'مشرف', value: 'admin', selected: _selectedRole == 'admin', onTap: () => setState(() => _selectedRole = 'admin')),
                         ],
                       ),
                       const SizedBox(height: 24),

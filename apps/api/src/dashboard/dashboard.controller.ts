@@ -28,7 +28,7 @@ export class DashboardController {
   }
 
   @Get('admin')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
   getAdminDashboard(@Request() req: any) {
     return this.dashboardService.getAdminDashboard(req.user.userId);
   }

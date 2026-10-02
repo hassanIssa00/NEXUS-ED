@@ -14,9 +14,6 @@ abstract class AuthRepository {
     required String role,
   });
 
-  /// Demo mode login (no backend)
-  Future<UserEntity> demoLogin(String email);
-
   /// Logout and clear session
   Future<void> logout();
 

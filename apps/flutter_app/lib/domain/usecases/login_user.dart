@@ -13,8 +13,4 @@ class LoginUser {
     return _repository.login(email, password);
   }
 
-  /// Execute demo login
-  Future<UserEntity> demoLogin(String email) {
-    return _repository.demoLogin(email);
-  }
 }

@@ -14,7 +14,9 @@ export const apiClient = axios.create({
 // Request interceptor - add access token
 apiClient.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('access_token')
+        const token = typeof window === 'undefined'
+            ? null
+            : sessionStorage.getItem('access_token') || localStorage.getItem('access_token')
         if (token) {
             config.headers.Authorization = `Bearer ${token}`
         }
@@ -42,13 +44,14 @@ apiClient.interceptors.response.use(
                 )
 
                 // Save new access token
-                localStorage.setItem('access_token', data.access_token)
+                sessionStorage.setItem('access_token', data.access_token)
 
                 // Retry original request with new token
                 originalRequest.headers.Authorization = `Bearer ${data.access_token}`
                 return apiClient(originalRequest)
             } catch (refreshError) {
                 // Refresh failed - redirect to login
+                sessionStorage.removeItem('access_token')
                 localStorage.removeItem('access_token')
                 if (typeof window !== 'undefined') {
                     window.location.href = '/login'

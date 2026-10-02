@@ -3,23 +3,24 @@
 import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/auth-context';
+import { useAuth, type UserRole } from '@/contexts/auth-context';
 import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Mail, Lock, AlertCircle, Shield, GraduationCap, BookOpen, Users, UserCheck, Eye, Settings, CreditCard, Sparkles, CheckCircle, Fingerprint, Calculator } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Mail, Lock, AlertCircle, Shield, GraduationCap, BookOpen, Users, UserCheck, Eye, Settings, CreditCard, Sparkles, CheckCircle, Calculator } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 
 const roleMapping: Record<string, { label: string; color: string; emailPrefix: string; gradient: string; icon: any; features: string[]; welcomeEmoji: string; bgImage: string }> = {
-    student: { label: 'طالب', color: '#00D1B2', emailPrefix: 'student', gradient: 'from-teal-900/80 via-emerald-900/80 to-cyan-900/80', icon: GraduationCap, features: ['تتبع الدرجات والواجبات', 'تعلم ذكي بالـ AI', 'ترتيبك في لوحة المتصدرين'], welcomeEmoji: '🎓', bgImage: '/images/auth/student.webp' },
-    teacher: { label: 'معلم', color: '#3B82F6', emailPrefix: 'teacher', gradient: 'from-blue-900/80 via-indigo-900/80 to-blue-950/80', icon: BookOpen, features: ['أتمتة التحضير والرصد', 'تحليل أداء الطلاب', 'أدوات تعليمية متقدمة'], welcomeEmoji: '📚', bgImage: '/images/auth/teacher.webp' },
-    parent: { label: 'ولي أمر', color: '#F59E0B', emailPrefix: 'parent', gradient: 'from-amber-900/80 via-orange-900/80 to-amber-950/80', icon: Users, features: ['متابعة تقدم الأبناء', 'تقارير فورية ودقيقة', 'تواصل مباشر مع المدرسة'], welcomeEmoji: '👨‍👩‍👧', bgImage: '/images/auth/parent.webp' },
-    principal: { label: 'مدير المدرسة', color: '#8B5CF6', emailPrefix: 'principal', gradient: 'from-purple-900/80 via-violet-900/80 to-purple-950/80', icon: Shield, features: ['لوحة قيادة شاملة', 'تقارير أداء المعلمين', 'إحصائيات المدرسة الكاملة'], welcomeEmoji: '🏫', bgImage: '/images/auth/principal.webp' },
+    student: { label: 'طالب', color: '#00D1B2', emailPrefix: 'student', gradient: 'from-teal-900/80 via-emerald-900/80 to-cyan-900/80', icon: GraduationCap, features: ['الواجبات والدرجات المسجلة', 'المواد والصفوف المرتبطة بحسابك', 'المحتوى المتاح لك'], welcomeEmoji: '🎓', bgImage: '/images/auth/student.webp' },
+    teacher: { label: 'معلم', color: '#3B82F6', emailPrefix: 'teacher', gradient: 'from-blue-900/80 via-indigo-900/80 to-blue-950/80', icon: BookOpen, features: ['الفصول المسندة إليك', 'الواجبات وأعمال الطلاب', 'سجلات الطلاب المرتبطين بفصولك'], welcomeEmoji: '📚', bgImage: '/images/auth/teacher.webp' },
+    parent: { label: 'ولي أمر', color: '#F59E0B', emailPrefix: 'parent', gradient: 'from-amber-900/80 via-orange-900/80 to-amber-950/80', icon: Users, features: ['حسابات الطلاب المرتبطة بك', 'سجلات الحضور والدرجات', 'رسائل واستبيانات المدرسة'], welcomeEmoji: '👨‍👩‍👧', bgImage: '/images/auth/parent.webp' },
+    principal: { label: 'مدير المدرسة', color: '#8B5CF6', emailPrefix: 'principal', gradient: 'from-purple-900/80 via-violet-900/80 to-purple-950/80', icon: Shield, features: ['سجلات المدرسة المتاحة', 'تقارير بحسب البيانات المسجلة', 'الفصول والحسابات وفق الصلاحيات'], welcomeEmoji: '🏫', bgImage: '/images/auth/principal.webp' },
     vice_principal: { label: 'الوكيل', color: '#EC4899', emailPrefix: 'vp', gradient: 'from-pink-900/80 via-rose-900/80 to-pink-950/80', icon: UserCheck, features: ['متابعة الحضور اليومي', 'شئون الطلاب', 'التقارير السلوكية'], welcomeEmoji: '📋', bgImage: '/images/auth/vice_principal.webp' },
     counselor: { label: 'الموجه الطلابي', color: '#14B8A6', emailPrefix: 'counselor', gradient: 'from-teal-900/80 via-cyan-900/80 to-teal-950/80', icon: Eye, features: ['متابعة الحالات النفسية', 'خطط الإرشاد الطلابي', 'تحليلات الرفاهية'], welcomeEmoji: '🤝', bgImage: '/images/auth/counselor.webp' },
     supervisor: { label: 'المشرف التربوي', color: '#6366F1', emailPrefix: 'supervisor', gradient: 'from-indigo-900/80 via-violet-900/80 to-indigo-950/80', icon: Eye, features: ['الزيارات الإشرافية', 'تقييم أداء المعلمين', 'خطط التحسين والتطوير'], welcomeEmoji: '👁️', bgImage: '/images/auth/supervisor.webp' },
     admin: { label: 'الشئون الإدارية والمالية', color: '#F43F5E', emailPrefix: 'admin', gradient: 'from-rose-900/80 via-red-900/80 to-rose-950/80', icon: Settings, features: ['إدارة الحسابات المالية', 'شئون الموظفين', 'التقارير الإدارية'], welcomeEmoji: '💼', bgImage: '/images/auth/admin.webp' },
     accountant: { label: 'المحاسب المالي', color: '#10B981', emailPrefix: 'accountant', gradient: 'from-emerald-900/80 via-teal-900/80 to-emerald-950/80', icon: Calculator, features: ['إدارة الفواتير والمدفوعات', 'التقارير المالية والتحصيل', 'متابعة الرسوم المدرسية'], welcomeEmoji: '💰', bgImage: '/images/auth/admin.webp' },
+    hr: { label: 'الموارد البشرية', color: '#0F766E', emailPrefix: 'hr', gradient: 'from-teal-900/80 via-cyan-900/80 to-teal-950/80', icon: UserCheck, features: ['سجلات الموظفين المتاحة', 'بيانات الحسابات الإدارية', 'المعلومات المرتبطة بالصلاحية'], welcomeEmoji: '👥', bgImage: '/images/auth/admin.webp' },
 };
 
 export default function RoleLoginPage() {
@@ -60,7 +61,7 @@ export default function RoleLoginPage() {
         setLoading(true);
 
         try {
-            await signIn(email, password);
+            await signIn(email, password, role as UserRole);
             toast({ title: '✅ تم بنجاح', description: 'مرحباً بك في بوابتك الأمنية' });
             
             if(role === 'teacher') router.push(`/${locale}/teacher`);
@@ -71,9 +72,13 @@ export default function RoleLoginPage() {
             else if(role === 'supervisor') router.push(`/${locale}/supervisor`);
             else if(role === 'parent') router.push(`/${locale}/parent`);
             else if(role === 'accountant') router.push(`/${locale}/accountant`);
+            else if(role === 'hr') router.push(`/${locale}/hr`);
             else router.push(`/${locale}/student`);
         } catch (error: any) {
-            toast({ variant: 'destructive', title: '❌ خطأ', description: tAuth('loginFailed') });
+            const description = error?.message === 'PORTAL_ROLE_MISMATCH'
+                ? 'نوع الحساب لا يطابق بوابة الدخول المختارة.'
+                : tAuth('loginFailed');
+            toast({ variant: 'destructive', title: '❌ خطأ', description });
         } finally {
             setLoading(false);
         }
@@ -187,15 +192,15 @@ export default function RoleLoginPage() {
                     </div>
                 </motion.div>
 
-                {/* Bottom: Security Badge */}
+                {/* School identity */}
                 <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 1.2 }}
                     className="relative z-10 flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-5 py-3 border border-white/10"
                 >
-                    <Fingerprint className="w-5 h-5 text-white/80" />
-                    <span className="text-white/70 text-sm font-medium">محمية بتشفير SSL 256-bit • مطابقة لمعايير PDPL</span>
+                    <Shield className="w-5 h-5 text-white/80" />
+                    <span className="text-white/70 text-sm font-medium">مدارس الإخلاص الأهلية · جدة</span>
                 </motion.div>
             </motion.div>
 

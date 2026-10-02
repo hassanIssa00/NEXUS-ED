@@ -5,17 +5,20 @@ class ApiConstants {
   // ═══════════════════════════════════════════
   // BASE URL
   // ═══════════════════════════════════════════
-  // For Android emulator use 10.0.2.2 instead of localhost
-  // For real device, use actual IP or deployed URL
-  static const String baseUrl = 'http://10.0.2.2:3001/api';
-  static const String productionUrl = 'https://your-api-domain.com/api';
+  // Override for production/device builds with --dart-define=NEXUS_API_URL=...
+  static const String baseUrl = String.fromEnvironment(
+    'NEXUS_API_URL',
+    defaultValue: 'http://10.0.2.2:4000/api',
+  );
 
   // ═══════════════════════════════════════════
   // AUTH ENDPOINTS
   // ═══════════════════════════════════════════
   static const String login = '/auth/login';
+  static const String mobileLogin = '/auth/mobile/login';
   static const String register = '/auth/register';
-  static const String refreshToken = '/auth/refresh';
+  static const String refreshToken = '/auth/mobile/refresh';
+  static const String mobileLogout = '/auth/mobile/logout';
   static const String forgotPassword = '/auth/forgot-password';
   static const String resetPassword = '/auth/reset-password';
 

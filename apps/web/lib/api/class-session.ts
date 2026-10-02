@@ -6,7 +6,8 @@ export interface ClassSession {
   teacherId: string;
   title: string;
   isActive: boolean;
-  meetingUrl: string;
+  meetingUrl: string | null;
+  duration: number;
   startTime: string;
   teacher?: {
     name: string | null;
@@ -14,8 +15,8 @@ export interface ClassSession {
 }
 
 export const classSessionApi = {
-  start: (classId: string, title?: string) => 
-    apiClient.post<ClassSession>(`/classes/${classId}/sessions/start`, { title }),
+  start: (classId: string, data: { title: string; meetingUrl: string; duration?: number }) =>
+    apiClient.post<ClassSession>(`/classes/${classId}/sessions/start`, data),
     
   end: (classId: string, sessionId: string) => 
     apiClient.post(`/classes/${classId}/sessions/${sessionId}/end`),
@@ -23,6 +24,6 @@ export const classSessionApi = {
   getActive: (classId: string) => 
     apiClient.get<ClassSession | null>(`/classes/${classId}/sessions/active`),
     
-  markAttendance: (classId: string, sessionId: string) => 
-    apiClient.post(`/classes/${classId}/sessions/${sessionId}/attendance`),
+  markAttendance: (classId: string, sessionId: string, studentId: string) =>
+    apiClient.post(`/classes/${classId}/sessions/${sessionId}/attendance`, { studentId }),
 };

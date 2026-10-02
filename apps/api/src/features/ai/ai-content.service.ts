@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import OpenAI from 'openai';
 
 export interface GeneratedContent {
@@ -36,7 +36,7 @@ export class AiContentService {
    */
   async processContent(text: string): Promise<GeneratedContent> {
     if (!this.openai) {
-      throw new Error('OpenAI API Key is not configured');
+      throw new ServiceUnavailableException('توليد المحتوى غير متاح؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
     }
 
     const systemPrompt = `أنت مساعد ذكي للمعلمين. مهمتك تحويل النص التعليمي المدخل إلى محتوى تفاعلي متكامل.
@@ -96,7 +96,7 @@ export class AiContentService {
       };
     } catch (error: any) {
       this.logger.error('Failed to generate interactive content: ' + error.message, error);
-      throw new Error('فشل توليد المحتوى الذكي: ' + error.message);
+      throw new ServiceUnavailableException('تعذر توليد المحتوى الآن.');
     }
   }
 
@@ -105,7 +105,7 @@ export class AiContentService {
    */
   async generateImage(prompt: string): Promise<string> {
     if (!this.openai) {
-      throw new Error('OpenAI API Key is not configured');
+      throw new ServiceUnavailableException('توليد الصور غير متاح؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
     }
 
     try {
@@ -119,7 +119,7 @@ export class AiContentService {
       return response.data?.[0]?.url || '';
     } catch (error: any) {
       this.logger.error('Failed to generate image: ' + error.message, error);
-      throw new Error('فشل توليد الصورة: ' + error.message);
+      throw new ServiceUnavailableException('تعذر توليد الصورة الآن.');
     }
   }
 

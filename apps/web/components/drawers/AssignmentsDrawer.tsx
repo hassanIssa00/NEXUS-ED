@@ -5,6 +5,7 @@ import { DrawerPanel } from '../sidebar/DrawerPanel';
 import { FileText, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { apiClient } from '@/lib/api/client';
 
 interface Assignment {
     id: string;
@@ -19,36 +20,27 @@ interface Assignment {
 export function AssignmentsDrawer() {
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadFailed, setLoadFailed] = useState(false);
 
     useEffect(() => {
-        // Fetch assignments from API
-        // For now, using mock data
-        setTimeout(() => {
-            setAssignments([
-                {
-                    id: '1',
-                    title: 'واجب الرياضيات - الفصل 3',
-                    description: 'حل تمارين الجبر من صفحة 45 إلى 50',
-                    dueDate: new Date('2024-12-05'),
-                    status: 'pending'
-                },
-                {
-                    id: '2',
-                    title: 'بحث العلوم - الخلايا',
-                    description: 'كتابة بحث عن أنواع الخلايا',
-                    dueDate: new Date('2024-12-07'),
-                    status: 'pending'
-                },
-                {
-                    id: '3',
-                    title: 'واجب اللغة العربية',
-                    description: 'قراءة القصة وكتابة تلخيص',
-                    dueDate: new Date('2024-12-02'),
-                    status: 'submitted'
-                }
-            ]);
-            setLoading(false);
-        }, 500);
+        let active = true;
+        apiClient.get('/assignments/student').then(({ data }) => {
+            if (!active) return;
+            setAssignments((Array.isArray(data) ? data : []).map((item: any) => ({
+                id: item.id,
+                title: item.title,
+                description: item.description || '',
+                dueDate: new Date(item.dueDate),
+                status: item.status,
+                grade: item.grade ?? undefined,
+                maxGrade: item.maxScore ?? undefined,
+            })));
+        }).catch(() => {
+            if (active) setLoadFailed(true);
+        }).finally(() => {
+            if (active) setLoading(false);
+        });
+        return () => { active = false; };
     }, []);
 
     const getStatusBadge = (status: Assignment['status']) => {
@@ -88,7 +80,7 @@ export function AssignmentsDrawer() {
                 ) : assignments.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                         <FileText className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                        <p>لا توجد واجبات حالياً</p>
+                        <p>{loadFailed ? 'تعذر تحميل الواجبات من النظام' : 'لا توجد واجبات مسجلة'}</p>
                     </div>
                 ) : (
                     assignments.map((assignment) => (

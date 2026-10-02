@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Search, FileText, BookOpen, FlaskConical, Sparkles, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { apiClient } from '@/lib/api/client';
 
 interface AssignmentTemplate {
   id: string;
@@ -62,14 +63,10 @@ export function AssignmentTemplatePicker({ onSelectTemplate }: TemplatePickerPro
 
   const fetchTemplates = async () => {
     try {
-      const response = await fetch('/api/templates/assignments', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      });
-      const data = await response.json();
-      setTemplates(data);
-      setFilteredTemplates(data);
+      const { data } = await apiClient.get('/templates/assignments');
+      const rows = Array.isArray(data) ? data : [];
+      setTemplates(rows);
+      setFilteredTemplates(rows);
     } catch (error) {
       console.error('Failed to fetch templates:', error);
     } finally {

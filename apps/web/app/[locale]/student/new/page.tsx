@@ -1,309 +1,185 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { User, Calendar, IdCard, Users, ArrowLeft, Camera, Sparkles, CheckCircle2, Upload, Trash2, GraduationCap } from 'lucide-react';
-import type { ClassStudentRecord } from '@/lib/nexusDataBridge';
+import { useEffect, useState } from 'react';
+import { useRouter } from '@/i18n/routing';
+import { CalendarDays, Check, Copy, GraduationCap, Link2, LoaderCircle, ShieldCheck, Users } from 'lucide-react';
+import { useAuth } from '@/contexts/auth-context';
+import { apiClient } from '@/lib/api/client';
+
+const gradeOptions = [
+  { value: 0, label: 'رياض الأطفال / التمهيدي' },
+  { value: 1, label: 'الصف الأول الابتدائي' },
+  { value: 2, label: 'الصف الثاني الابتدائي' },
+  { value: 3, label: 'الصف الثالث الابتدائي' },
+  { value: 4, label: 'الصف الرابع الابتدائي' },
+  { value: 5, label: 'الصف الخامس الابتدائي' },
+  { value: 6, label: 'الصف السادس الابتدائي' },
+  { value: 7, label: 'الصف الأول المتوسط' },
+  { value: 8, label: 'الصف الثاني المتوسط' },
+  { value: 9, label: 'الصف الثالث المتوسط' },
+  { value: 10, label: 'الصف الأول الثانوي' },
+  { value: 11, label: 'الصف الثاني الثانوي' },
+  { value: 12, label: 'الصف الثالث الثانوي' },
+];
+
+function errorMessage(error: any) {
+  const message = error?.response?.data?.message ?? error?.message;
+  return Array.isArray(message) ? message.join('، ') : message || 'تعذر حفظ البيانات. حاول مرة أخرى.';
+}
 
 export default function StudentNewPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const flow = searchParams.get('flow') || 'parent';
-  const requestedStudentId = searchParams.get('student') || 'cls-std-2';
-
-  const [student, setStudent] = useState<ClassStudentRecord | null>(null);
-  const [nationalId, setNationalId] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('2020-04-15');
-  const [parentAge, setParentAge] = useState('38');
-  const [childrenCount, setChildrenCount] = useState('3');
-  const [notes, setNotes] = useState('');
+  const { profile, loading: authLoading } = useAuth();
+  const [gradeLevel, setGradeLevel] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [linkCode, setLinkCode] = useState('');
   const [saving, setSaving] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [stage, setStage] = useState<'kindergarten' | 'elementary' | 'middle' | 'high'>('elementary');
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
+
+  const role = profile?.role;
+  const isStudent = role === 'student';
+  const isParent = role === 'parent';
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const { nexusBridge } = await import('@/lib/nexusDataBridge');
-        const s = nexusBridge.getStudentById(requestedStudentId);
-        if (s) {
-          setStudent(s);
-          if (s.nationalId) setNationalId(s.nationalId);
-          if (s.dateOfBirth) setDateOfBirth(s.dateOfBirth);
-          if (s.notes) setNotes(s.notes);
+    if (authLoading) return;
+    if (!profile) {
+      router.replace('/login');
+      return;
+    }
+    if (profile.role === 'student') {
+      apiClient.get('/users/me/student-profile').then(({ data }) => {
+        if (data) {
+          setGradeLevel(String(data.gradeLevel));
+          setDateOfBirth(data.dateOfBirth ? String(data.dateOfBirth).slice(0, 10) : '');
         }
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    load();
-  }, [requestedStudentId]);
+      }).catch(() => setError('تعذر تحميل ملف الطالب الحالي.'));
+    }
+  }, [authLoading, profile, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setSaving(true);
+    setError('');
 
     try {
-      const { nexusBridge } = await import('@/lib/nexusDataBridge');
-            if (photoUrl) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('nexus_student_photo', photoUrl);
-          try {
-            const uStr = localStorage.getItem('nexus_user');
-            if (uStr) {
-              const u = JSON.parse(uStr);
-              u.photoUrl = photoUrl;
-              u.stage = stage;
-              localStorage.setItem('nexus_user', JSON.stringify(u));
-            }
-          } catch {}
-          window.dispatchEvent(new CustomEvent('nexus:data-changed'));
-        }
-      }
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('nexus_student_stage', stage);
-      }
-      let uName = 'طالب مسجل';
-      let uEmail = '';
-      let uPhone = '';
-      let uId = requestedStudentId || `std_${Date.now()}`;
-      try {
-        const uStr = localStorage.getItem('nexus_user');
-        if (uStr) {
-          const u = JSON.parse(uStr);
-          if (u.name) uName = u.name;
-          if (u.email) uEmail = u.email;
-          if (u.phone) uPhone = u.phone;
-        }
-      } catch {}
-
-      const stageGrade = stage === 'kindergarten' ? 'الروضة' : stage === 'middle' ? 'المرحلة المتوسطة' : stage === 'high' ? 'المرحلة الثانوية' : 'المرحلة الابتدائية';
-      
-      const updatedOrNewStudent = {
-        id: student?.id || uId,
-        universalId: student?.universalId || nexusBridge.generateUniversalId('STD'),
-        fullName: student?.fullName || uName,
-        fullNameEn: student?.fullNameEn || '',
-        grade: student?.grade || stageGrade,
-        classId: student?.classId || 'CLS-101',
-        nationalId: nationalId.trim() || student?.nationalId || '',
-        dateOfBirth: dateOfBirth || student?.dateOfBirth || '2018-01-01',
-        parentName: student?.parentName || '',
-        parentPhone: student?.parentPhone || uPhone,
-        parentEmail: student?.parentEmail || uEmail,
-        photoUrl: photoUrl || student?.photoUrl || undefined,
-        notes: notes.trim() || student?.notes || '',
-        averageGrade: student?.averageGrade ?? 100,
-        attendanceRate: student?.attendanceRate ?? 100,
-        rank: student?.rank ?? 1,
-        assignedProgram: stage === 'kindergarten' ? 'مسار رياض الأطفال' : 'المسار العام',
-        status: student?.status || ('excellent' as const),
-        studentAccountId: student?.studentAccountId || uId,
-        parentAccountId: student?.parentAccountId || '',
-      };
-
-      nexusBridge.saveClassStudent(updatedOrNewStudent);
-
-      if (flow === 'student') {
-        router.push(`/assessment?student=${requestedStudentId}&flow=student`);
+      if (isStudent) {
+        await apiClient.put('/users/me/student-profile', {
+          gradeLevel: Number(gradeLevel),
+          ...(dateOfBirth ? { dateOfBirth: new Date(`${dateOfBirth}T00:00:00.000Z`).toISOString() } : {}),
+        });
+        const { data } = await apiClient.post('/users/student-link-code');
+        setLinkCode(data.code);
+      } else if (isParent) {
+        const { data } = await apiClient.post('/users/link-student', { code: linkCode.trim() });
+        router.push(`/survey?student=${encodeURIComponent(data.student.id)}`);
       } else {
-        router.push(`/survey?student=${requestedStudentId}&flow=parent`);
+        router.replace('/login');
       }
-    } catch (e) {
-      console.error(e);
+    } catch (submitError) {
+      setError(errorMessage(submitError));
+    } finally {
       setSaving(false);
     }
   };
 
-  const isParent = flow === 'parent';
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(linkCode);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setError('تعذر نسخ الرمز. يمكنك تحديده ونسخه يدويًا.');
+    }
+  };
+
+  if (authLoading || !role) {
+    return <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">جارٍ التحقق من الحساب...</div>;
+  }
+
+  if (!isStudent && !isParent) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0f1015] flex items-center justify-center p-4" dir="rtl">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-xl bg-white/90 dark:bg-[#1e1e2d]/90 backdrop-blur-2xl border border-gray-100 dark:border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
-        
-        <div className="text-center mb-6">
-          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mb-3 ${
-            isParent ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600' : 'bg-teal-50 dark:bg-teal-500/10 text-teal-600'
-          }`}>
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>الخطوة 2 من 3: استكمال البيانات الرسمية</span>
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-[#0f1015]" dir="rtl">
+      <section className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#1e1e2d] md:p-8">
+        <div className="mb-6 flex items-start gap-4">
+          <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${isStudent ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+            {isStudent ? <GraduationCap className="h-6 w-6" /> : <Users className="h-6 w-6" />}
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-gray-500">استكمال إعداد الحساب</p>
+            <h1 className="mt-1 text-xl font-black text-gray-900 dark:text-white">{isStudent ? 'الملف الدراسي' : 'ربط حساب ولي الأمر'}</h1>
+            <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+              {isStudent
+                ? `مرحبًا ${profile?.full_name || ''}، حدّد صفك الحالي. تُحفظ البيانات في ملفك المدرسي.`
+                : 'أدخل رمز الربط الذي يصدره الطالب من حسابه. لا نستخدم الأسماء أو أرقام الجوال لمطابقة الحسابات.'}
+            </p>
           </div>
-          <h1 className="text-2xl font-black text-gray-900 dark:text-white">
-            {isParent ? 'بيانات ولي الأمر والأسرة' : 'بيانات الطالب الشخصية'}
-          </h1>
-          <p className="text-xs text-gray-500 mt-1">
-            {isParent
-              ? `استكمال بيانات رب الأسرة للطالب: ${student?.fullName || 'أحمد فيصل الغامدي'}`
-              : 'يرجى تزويدنا برقم الهوية وتاريخ الميلاد لإصدار السجلات المعتمدة'}
-          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
-              {isParent ? 'رقم الهوية الوطنية / الإقامة لولي الأمر' : 'رقم الهوية الوطنية / شهادة الميلاد للطالب'} *
-            </label>
-            <div className="relative">
-              <IdCard className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
-              <input required value={nationalId} onChange={e => setNationalId(e.target.value)}
-                placeholder="10XXXXXXXX" dir="ltr"
-                className="w-full pr-10 pl-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
-            </div>
-          </div>
+        {error && <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">تاريخ ميلاد الطفل</label>
-              <div className="relative">
-                <Calendar className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
-                <input type="date" value={dateOfBirth} onChange={e => setDateOfBirth(e.target.value)}
-                  className="w-full pr-10 pl-3 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-xs font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
-              </div>
-            </div>
-
-            {isParent ? (
-              <div>
-                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">عمر ولي الأمر (سنة)</label>
-                <input type="number" min={20} max={80} value={parentAge} onChange={e => setParentAge(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-xs font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
-              </div>
-            ) : (
-              <div>
-                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">الصف الدراسي</label>
-                <input disabled value="الصف الأول الابتدائي"
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-white/10 text-xs font-bold text-gray-700 dark:text-gray-300" />
-              </div>
-            )}
-          </div>
-
-          {isParent && (
-            <div>
-              <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">عدد الأبناء في الأسرة</label>
-              <div className="relative">
-                <Users className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
-                <input type="number" min={1} max={15} value={childrenCount} onChange={e => setChildrenCount(e.target.value)}
-                  className="w-full pr-10 pl-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
-              </div>
-            </div>
-          )}
-
-                    {/* ─── STAGE SELECTION FOR STUDENT ─── */}
-          {!isParent && (
-            <div>
-              <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
-                المرحلة الدراسية للطالب *
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: 'kindergarten', label: 'رياض الأطفال', emoji: '🧸' },
-                  { id: 'elementary', label: 'المرحلة الابتدائية', emoji: '📚' },
-                  { id: 'middle', label: 'المرحلة المتوسطة', emoji: '🔬' },
-                  { id: 'high', label: 'المرحلة الثانوية', emoji: '🎓' },
-                ].map((s) => (
-                  <button
-                    type="button"
-                    key={s.id}
-                    onClick={() => setStage(s.id as any)}
-                    className={`py-2.5 px-3 rounded-2xl text-xs font-black border transition-all flex items-center justify-center gap-1.5 ${
-                      stage === s.id
-                        ? 'bg-teal-600 text-white border-teal-600 shadow-md shadow-teal-600/20'
-                        : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-100'
-                    }`}
-                  >
-                    <span>{s.emoji}</span>
-                    <span>{s.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ─── PERSONAL PHOTO UPLOAD (اختياري) ─── */}
-          <div>
-            <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
-              الصورة الشخصية (تظهر في البطاقة ولوحة التحكم — اختياري)
-            </label>
-            <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl">
-              <div className="w-16 h-16 rounded-2xl bg-gray-200 dark:bg-white/10 flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 dark:border-white/20 flex-shrink-0 shadow-inner">
-                {photoUrl ? (
-                  <img src={photoUrl} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <Camera className="w-7 h-7 text-gray-400" />
-                )}
-              </div>
-              <div className="flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 transition-all shadow-sm">
-                    <Upload className="w-3.5 h-3.5 text-teal-600" />
-                    <span>{photoUrl ? 'تغيير الصورة' : 'اختر صورة من جهازك'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          if (file.size > 5 * 1024 * 1024) {
-                            alert('حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت.');
-                            return;
-                          }
-                          const reader = new FileReader();
-                          reader.onload = (ev) => {
-                            if (typeof ev.target?.result === 'string') {
-                              setPhotoUrl(ev.target.result);
-                            }
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                  </label>
-                  {photoUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setPhotoUrl(null)}
-                      className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-red-600 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>حذف</span>
-                    </button>
-                  )}
-                </div>
-                <p className="text-[10px] text-gray-400 mt-1.5">
-                  إذا تركتها فارغة، ستظل الخانة جاهزة لتضع صورتك في أي وقت لاحقاً من داخل بطاقتك.
+        {!linkCode ? (
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {isStudent ? (
+              <>
+                <label className="block space-y-2 text-sm font-bold text-gray-700 dark:text-gray-200">
+                  الصف الدراسي
+                  <span className="relative block">
+                    <GraduationCap className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+                    <select required value={gradeLevel} onChange={(event) => setGradeLevel(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white py-3 pe-10 ps-3 text-sm dark:border-white/10 dark:bg-white/5">
+                      <option value="" disabled>اختر الصف الدراسي</option>
+                      {gradeOptions.map((grade) => <option key={grade.value} value={grade.value}>{grade.label}</option>)}
+                    </select>
+                  </span>
+                </label>
+                <label className="block space-y-2 text-sm font-bold text-gray-700 dark:text-gray-200">
+                  تاريخ الميلاد (اختياري)
+                  <span className="relative block">
+                    <CalendarDays className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+                    <input type="date" value={dateOfBirth} max={new Date().toISOString().slice(0, 10)} onChange={(event) => setDateOfBirth(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white py-3 pe-10 ps-3 text-sm dark:border-white/10 dark:bg-white/5" />
+                  </span>
+                </label>
+                <p className="flex gap-2 rounded-lg bg-sky-50 p-3 text-xs leading-5 text-sky-800 dark:bg-sky-500/10 dark:text-sky-200">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /> لن يظهر اختبار تحديد مستوى إلا إذا أعدّت المدرسة اختبارًا فعليًا مناسبًا للصف ونشرته لحسابك.
                 </p>
+              </>
+            ) : (
+              <label className="block space-y-2 text-sm font-bold text-gray-700 dark:text-gray-200">
+                رمز ربط الطالب
+                <span className="relative block">
+                  <Link2 className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+                  <input required autoComplete="one-time-code" inputMode="text" maxLength={16} minLength={16} value={linkCode} onChange={(event) => setLinkCode(event.target.value.toUpperCase().replace(/[^A-F0-9]/g, ''))} placeholder="مثال: 8F2A1C6D9B4E7301" dir="ltr" className="w-full rounded-lg border border-gray-200 bg-white py-3 pe-10 ps-3 text-center font-mono text-lg tracking-widest dark:border-white/10 dark:bg-white/5" />
+                </span>
+                <span className="block text-xs font-normal text-gray-500">الرمز صالح لمدة 7 أيام ويُستخدم مرة واحدة.</span>
+              </label>
+            )}
+
+            <button type="submit" disabled={saving || (isParent && linkCode.length !== 16)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50">
+              {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isStudent ? <GraduationCap className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+              {saving ? 'جارٍ الحفظ...' : isStudent ? 'حفظ الملف وإصدار رمز ولي الأمر' : 'ربط الطالب والمتابعة'}
+            </button>
+          </form>
+        ) : (
+          <div className="space-y-5">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-center dark:border-emerald-500/20 dark:bg-emerald-500/10">
+              <Check className="mx-auto h-7 w-7 text-emerald-700 dark:text-emerald-300" />
+              <p className="mt-2 font-bold text-emerald-900 dark:text-emerald-100">تم حفظ ملفك وإصدار رمز الربط</p>
+              <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">شاركه مع ولي أمرك فقط. سيُلغى بعد الاستخدام أو بعد 7 أيام.</p>
+              <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-white p-2 dark:border-white/10 dark:bg-black/20">
+                <code dir="ltr" className="flex-1 select-all text-xl font-black tracking-[0.2em] text-gray-900 dark:text-white">{linkCode}</code>
+                <button type="button" onClick={copyCode} aria-label="نسخ رمز ولي الأمر" title="نسخ الرمز" className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/10">
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </button>
               </div>
             </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button type="button" onClick={() => router.push('/assessment')} className="w-full rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white hover:bg-teal-800">بدء الاختبار التشخيصي</button>
+              <button type="button" onClick={() => router.push('/student')} className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/10">الدخول إلى لوحة الطالب</button>
+            </div>
           </div>
-
-          <div>
-            <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">ملاحظات إضافية أو تنبيهات صحية خاصة (اختياري)</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-              placeholder="أي ملاحظات يرغب ولي الأمر أو الطالب في إطلاع المعلم عليها..."
-              className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-xs font-medium text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none resize-none focus:ring-2 focus:ring-blue-500/50" />
-          </div>
-
-          <div className="pt-3">
-            <button type="submit" disabled={saving}
-              className={`w-full py-4 rounded-2xl font-black text-sm text-white shadow-xl flex items-center justify-center gap-2 transition-all ${
-                isParent
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/30'
-                  : 'bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 shadow-teal-500/30'
-              }`}>
-              {saving ? (
-                <div className="w-5 h-5 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-              ) : (
-                <>
-                  <span>{isParent ? 'حفظ والانتقال إلى استبيان ولي الأمر الشامل' : 'حفظ وبدء الاختبار التشخيصي التفاعلي'}</span>
-                  <ArrowLeft className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </motion.div>
-    </div>
+        )}
+      </section>
+    </main>
   );
 }

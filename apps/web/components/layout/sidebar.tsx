@@ -312,6 +312,7 @@ function getNavigationByRole(role: string) {
                 { href: '/teacher/curriculum' as any, label: 'المناهج والخطط الدراسية', icon: BookMarked },
                 { href: '/teacher/assignments' as any, label: 'الواجبات والتصحيح', icon: FileText },
                 { href: '/teacher/quizzes' as any, label: 'بنك الاختبارات والتقييم', icon: Target },
+                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: BarChart3 },
                 { href: '/teacher/attendance' as any, label: 'رصد الحضور والانضباط', icon: Calendar },
                 { href: '/teacher/reports' as any, label: 'التقارير الأسبوعية الشاملة', icon: BarChart3 },
                 { href: '/teacher/automation/certificates' as any, label: 'الشهادات والأوسمة', icon: Award },
@@ -333,9 +334,10 @@ function getNavigationByRole(role: string) {
                 { href: '/parent/schedule' as any, label: 'جدول الحصص الأسبوعي', icon: Calendar },
                 { href: '/parent/attendance' as any, label: 'سجل الحضور والانضباط', icon: QrCode },
                 { href: '/parent/reports' as any, label: 'التقرير الأكاديمي الشامل', icon: BarChart3 },
+                { href: '/assessment/reports' as any, label: 'تقارير اختبارات الأبناء', icon: GraduationCap },
                 { href: '/parent/grades' as any, label: 'درجات الأبناء والشهادات', icon: Award },
                 { href: '/parent/meetings' as any, label: 'لقاءات أولياء الأمور', icon: HeartHandshake },
-                { href: '/parent/messages' as any, label: 'التواصل مع د. إسماعيل', icon: MessageSquare },
+                { href: '/parent/messages' as any, label: 'التواصل مع المعلمين', icon: MessageSquare },
                 { href: '/parent/community' as any, label: 'ملتقى أولياء الأمور', icon: Users },
                 { href: '/parent/photos' as any, label: 'معرض فعاليات الفصل', icon: Camera },
                 { href: '/parent/payments' as any, label: 'المدفوعات والمستحقات', icon: CreditCard },
@@ -351,6 +353,7 @@ function getNavigationByRole(role: string) {
                 { href: '/admin/classes' as any, label: 'الفصول الدراسية', icon: BookOpen },
                 { href: '/admin/subjects' as any, label: 'المواد الدراسية', icon: BookMarked },
                 { href: '/admin/enrollments' as any, label: 'التسجيلات', icon: GraduationCap },
+                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: BarChart3 },
                 { href: '/admin/content' as any, label: 'إدارة المحتوى', icon: Video },
                 { href: '/admin/games' as any, label: 'إدارة الألعاب', icon: Gamepad2 },
                 { href: '/admin/permissions' as any, label: 'الصلاحيات', icon: Shield },
@@ -363,6 +366,7 @@ function getNavigationByRole(role: string) {
                 { href: '/principal/classes' as any, label: 'الفصول', icon: Users },
                 { href: '/principal/teachers' as any, label: 'المعلمون', icon: BookOpen },
                 { href: '/principal/analytics' as any, label: 'التقارير والإحصاءات', icon: BarChart3 },
+                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: GraduationCap },
                 ...settings,
             ]
 
@@ -372,6 +376,7 @@ function getNavigationByRole(role: string) {
                 { href: '/vice_principal/schedules' as any, label: 'الجداول الدراسية', icon: Calendar },
                 { href: '/vice_principal/attendance' as any, label: 'الحضور العام', icon: QrCode },
                 { href: '/vice_principal/students' as any, label: 'سجلات الطلاب', icon: GraduationCap },
+                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: BarChart3 },
                 ...settings,
             ]
 
@@ -381,6 +386,7 @@ function getNavigationByRole(role: string) {
                 { href: '/counselor/students' as any, label: 'الطلاب', icon: Users },
                 { href: '/counselor/cases' as any, label: 'الحالات', icon: HeartHandshake },
                 { href: '/counselor/attendance' as any, label: 'الغيابات', icon: Calendar },
+                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: BarChart3 },
                 ...settings,
             ]
 
@@ -390,6 +396,7 @@ function getNavigationByRole(role: string) {
                 { href: '/supervisor/schools' as any, label: 'المدارس', icon: Building2 },
                 { href: '/supervisor/teachers' as any, label: 'المعلمون', icon: Eye },
                 { href: '/supervisor/reports' as any, label: 'التقارير', icon: BarChart3 },
+                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: GraduationCap },
                 ...settings,
             ]
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { DrawerPanel } from '../sidebar/DrawerPanel';
 import { Award, TrendingUp, TrendingDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { apiClient } from '@/lib/api/client';
 
 interface Grade {
     id: string;
@@ -18,55 +19,31 @@ interface Grade {
 export function GradesDrawer() {
     const [grades, setGrades] = useState<Grade[]>([]);
     const [loading, setLoading] = useState(true);
-    const [gpa, setGpa] = useState(0);
+    const [gpa, setGpa] = useState<number | null>(null);
 
     useEffect(() => {
-        // Mock data
-        setTimeout(() => {
-            const mockGrades: Grade[] = [
-                {
-                    id: '1',
-                    subject: 'الرياضيات',
-                    score: 85,
-                    maxScore: 100,
-                    percentage: 85,
-                    examType: 'اختبار شهري',
-                    date: new Date('2024-11-25')
-                },
-                {
-                    id: '2',
-                    subject: 'العلوم',
-                    score: 92,
-                    maxScore: 100,
-                    percentage: 92,
-                    examType: 'اختبار نصفي',
-                    date: new Date('2024-11-20')
-                },
-                {
-                    id: '3',
-                    subject: 'اللغة العربية',
-                    score: 88,
-                    maxScore: 100,
-                    percentage: 88,
-                    examType: 'اختبار شهري',
-                    date: new Date('2024-11-18')
-                },
-                {
-                    id: '4',
-                    subject: 'التاريخ',
-                    score: 95,
-                    maxScore: 100,
-                    percentage: 95,
-                    examType: 'اختبار شهري',
-                    date: new Date('2024-11-15')
-                }
-            ];
-
-            setGrades(mockGrades);
-            const avg = mockGrades.reduce((sum, g) => sum + g.percentage, 0) / mockGrades.length;
-            setGpa(Math.round(avg * 10) / 10);
-            setLoading(false);
-        }, 500);
+        let active = true;
+        apiClient.get('/grades').then(({ data }) => {
+            if (!active) return;
+            const rows = (data.grades ?? []).map((grade: any): Grade => ({
+                id: grade.id,
+                subject: grade.subjectName,
+                score: Number(grade.grade),
+                maxScore: Number(grade.maxGrade),
+                percentage: Number(grade.percentage),
+                examType: grade.semester || 'تقييم مسجل',
+                date: new Date(grade.date),
+            }));
+            setGrades(rows);
+            setGpa(rows.length ? Math.round(rows.reduce((sum, grade) => sum + grade.percentage, 0) / rows.length * 10) / 10 : null);
+        }).catch(() => {
+            if (!active) return;
+            setGrades([]);
+            setGpa(null);
+        }).finally(() => {
+            if (active) setLoading(false);
+        });
+        return () => { active = false; };
     }, []);
 
     const getGradeColor = (percentage: number) => {
@@ -96,10 +73,10 @@ export function GradesDrawer() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-5xl font-bold">{gpa}%</div>
+                        <div className="text-5xl font-bold">{gpa === null ? '—' : `${gpa}%`}</div>
                         <div className="flex items-center gap-2 mt-2 text-white/80">
                             <TrendingUp className="w-4 h-4" />
-                            <span className="text-sm">أداء ممتاز</span>
+                            <span className="text-sm">{gpa === null ? 'لا توجد درجات مسجلة' : 'متوسط الدرجات المسجلة'}</span>
                         </div>
                     </CardContent>
                 </Card>

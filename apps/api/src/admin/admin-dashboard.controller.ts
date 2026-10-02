@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Res } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Res, Req, ForbiddenException } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -7,6 +7,9 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '../auth/role.enum';
+import { RolesGuard } from '../auth/roles.guard';
 import type { Response } from 'express';
 import {
   AdminDashboardService,
@@ -18,46 +21,48 @@ import {
 @ApiTags('Admin Dashboard')
 @Controller('admin/dashboard')
 @ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class AdminDashboardController {
   constructor(private readonly dashboardService: AdminDashboardService) {}
 
   @Get('overview')
-  @UseGuards(AuthGuard('jwt'))
+  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
   @ApiOperation({ summary: 'Get admin dashboard overview' })
   @ApiResponse({ status: 200, description: 'Dashboard overview with stats' })
-  async getOverview(): Promise<AdminOverview> {
-    return this.dashboardService.getOverview();
+  async getOverview(@Req() req: any): Promise<AdminOverview> {
+    return this.dashboardService.getOverview(this.schoolId(req));
   }
 
   @Get('teachers')
-  @UseGuards(AuthGuard('jwt'))
+  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.SUPERVISOR)
   @ApiOperation({ summary: 'Get teacher performance metrics' })
   @ApiResponse({
     status: 200,
     description: 'List of teachers with performance stats',
   })
-  async getTeacherPerformance(): Promise<TeacherPerformance[]> {
-    return this.dashboardService.getTeacherPerformance();
+  async getTeacherPerformance(@Req() req: any): Promise<TeacherPerformance[]> {
+    return this.dashboardService.getTeacherPerformance(this.schoolId(req));
   }
 
   @Get('classes')
-  @UseGuards(AuthGuard('jwt'))
+  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.SUPERVISOR)
   @ApiOperation({ summary: 'Get class activity report' })
   @ApiResponse({
     status: 200,
     description: 'List of classes with activity metrics',
   })
-  async getClassActivity(): Promise<ClassActivity[]> {
-    return this.dashboardService.getClassActivity();
+  async getClassActivity(@Req() req: any): Promise<ClassActivity[]> {
+    return this.dashboardService.getClassActivity(this.schoolId(req));
   }
 
   @Get('export/pdf')
-  @UseGuards(AuthGuard('jwt'))
+  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
   @ApiOperation({ summary: 'Export admin report as PDF' })
   @ApiQuery({ name: 'type', enum: ['overview', 'teachers', 'classes', 'full'] })
   async exportPDF(
     @Query('type') type: 'overview' | 'teachers' | 'classes' | 'full',
     @Res() res: Response,
+    @Req() req: any,
   ) {
     // For now, return JSON data that can be converted to PDF on frontend
     // Later: integrate with PDFKit for server-side PDF generation
@@ -65,19 +70,19 @@ export class AdminDashboardController {
 
     switch (type) {
       case 'overview':
-        data = await this.dashboardService.getOverview();
+        data = await this.dashboardService.getOverview(this.schoolId(req));
         break;
       case 'teachers':
-        data = await this.dashboardService.getTeacherPerformance();
+        data = await this.dashboardService.getTeacherPerformance(this.schoolId(req));
         break;
       case 'classes':
-        data = await this.dashboardService.getClassActivity();
+        data = await this.dashboardService.getClassActivity(this.schoolId(req));
         break;
       case 'full':
         data = {
-          overview: await this.dashboardService.getOverview(),
-          teachers: await this.dashboardService.getTeacherPerformance(),
-          classes: await this.dashboardService.getClassActivity(),
+          overview: await this.dashboardService.getOverview(this.schoolId(req)),
+          teachers: await this.dashboardService.getTeacherPerformance(this.schoolId(req)),
+          classes: await this.dashboardService.getClassActivity(this.schoolId(req)),
           generatedAt: new Date().toISOString(),
         };
         break;
@@ -92,14 +97,19 @@ export class AdminDashboardController {
   }
 
   @Get('stats/financial')
-  @UseGuards(AuthGuard('jwt'))
-  async getFinancialStats() {
-    return this.dashboardService.getFinancialStats();
+  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.ACCOUNTANT)
+  async getFinancialStats(@Req() req: any) {
+    return this.dashboardService.getFinancialStats(this.schoolId(req));
   }
 
   @Get('stats/enrollment')
-  @UseGuards(AuthGuard('jwt'))
-  async getEnrollmentStats() {
-    return this.dashboardService.getEnrollmentStats();
+  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
+  async getEnrollmentStats(@Req() req: any) {
+    return this.dashboardService.getEnrollmentStats(this.schoolId(req));
+  }
+
+  private schoolId(req: any): string {
+    if (!req.user.schoolId) throw new ForbiddenException('The account is not assigned to a school');
+    return req.user.schoolId;
   }
 }

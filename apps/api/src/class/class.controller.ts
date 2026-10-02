@@ -23,32 +23,32 @@ export class ClassController {
 
   @Post()
   @Roles(Role.ADMIN)
-  create(@Body() createClassDto: CreateClassDto) {
-    return this.classService.create(createClassDto);
+  create(@Body() createClassDto: CreateClassDto, @Request() req: any) {
+    return this.classService.create(createClassDto, req.user.schoolId);
   }
 
   @Get()
-  @Roles(Role.ADMIN, Role.TEACHER)
-  findAll() {
-    return this.classService.findAll();
+  @Roles(Role.ADMIN, Role.TEACHER, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR)
+  findAll(@Request() req: any) {
+    return this.classService.findAll(req.user.userId || req.user.sub || req.user.id, req.user.role, req.user.schoolId);
   }
 
   @Get(':id')
-  @Roles(Role.ADMIN, Role.TEACHER)
-  findOne(@Param('id') id: string) {
-    return this.classService.findOne(id);
+  @Roles(Role.ADMIN, Role.TEACHER, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.SUPERVISOR)
+  findOne(@Param('id') id: string, @Request() req: any) {
+    return this.classService.findOne(id, req.user.userId || req.user.sub || req.user.id, req.user.role, req.user.schoolId);
   }
 
   @Patch(':id')
   @Roles(Role.ADMIN)
-  update(@Param('id') id: string, @Body() updateClassDto: UpdateClassDto) {
-    return this.classService.update(id, updateClassDto);
+  update(@Param('id') id: string, @Body() updateClassDto: UpdateClassDto, @Request() req: any) {
+    return this.classService.update(id, updateClassDto, req.user.schoolId);
   }
 
   @Delete(':id')
   @Roles(Role.ADMIN)
-  remove(@Param('id') id: string) {
-    return this.classService.remove(id);
+  remove(@Param('id') id: string, @Request() req: any) {
+    return this.classService.remove(id, req.user.schoolId);
   }
 
   @Get('student/list')

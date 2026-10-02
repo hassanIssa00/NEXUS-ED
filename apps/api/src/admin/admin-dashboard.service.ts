@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 export interface AdminOverview {
@@ -33,7 +33,7 @@ export interface TeacherPerformance {
     assignmentsCreated: number;
     assignmentsGraded: number;
     avgStudentScore: number;
-    attendanceRecorded: number;
+  attendanceRecorded: number | null;
   };
   lastActivity: Date | null;
 }
@@ -56,9 +56,10 @@ export class AdminDashboardService {
   /**
    * Get admin overview dashboard data
    */
-  async getOverview(): Promise<AdminOverview> {
+  async getOverview(schoolId: string): Promise<AdminOverview> {
+    if (!schoolId) throw new ForbiddenException('The account is not assigned to a school');
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setUTCHours(0, 0, 0, 0);
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
 
@@ -71,20 +72,15 @@ export class AdminDashboardService {
       activeUsers,
       todayAttendance,
       weeklyAttendance,
-      submissionStats,
     ] = await Promise.all([
-      this.prisma.user.count({ where: { role: 'STUDENT', isActive: true } }),
-      this.prisma.user.count({ where: { role: 'TEACHER', isActive: true } }),
-      this.prisma.class.count(),
-      this.prisma.subject.count(),
-      this.prisma.assignment.count(),
-      this.prisma.user.count({ where: { isActive: true } }),
-      this.prisma.attendance.findMany({ where: { date: { gte: today } } }),
-      this.prisma.attendance.findMany({ where: { date: { gte: weekAgo } } }),
-      this.prisma.submission.groupBy({
-        by: ['gradedAt'],
-        _count: true,
-      }),
+      this.prisma.user.count({ where: { schoolId, role: 'STUDENT', isActive: true } }),
+      this.prisma.user.count({ where: { schoolId, role: 'TEACHER', isActive: true } }),
+      this.prisma.class.count({ where: { schoolId } }),
+      this.prisma.subject.count({ where: { schoolId } }),
+      this.prisma.assignment.count({ where: { schoolId } }),
+      this.prisma.user.count({ where: { schoolId, isActive: true } }),
+      this.prisma.attendance.findMany({ where: { date: { gte: today }, class: { schoolId } } }),
+      this.prisma.attendance.findMany({ where: { date: { gte: weekAgo }, class: { schoolId } } }),
     ]);
 
     // Calculate attendance stats
@@ -105,14 +101,14 @@ export class AdminDashboardService {
         : 0;
 
     // Calculate submission stats
-    const allSubmissions = await this.prisma.submission.count();
+    const allSubmissions = await this.prisma.submission.count({ where: { assignment: { schoolId } } });
     const gradedSubmissions = await this.prisma.submission.count({
-      where: { gradedAt: { not: null } },
+      where: { gradedAt: { not: null }, assignment: { schoolId } },
     });
 
     // Get overdue assignments
     const overdueAssignments = await this.prisma.assignment.findMany({
-      where: { dueDate: { lt: new Date() } },
+      where: { schoolId, dueDate: { lt: new Date() } },
       include: { _count: { select: { submissions: true } } },
     });
 
@@ -151,17 +147,19 @@ export class AdminDashboardService {
   /**
    * Get teacher performance metrics
    */
-  async getTeacherPerformance(): Promise<TeacherPerformance[]> {
+  async getTeacherPerformance(schoolId: string): Promise<TeacherPerformance[]> {
     const teachers = await this.prisma.user.findMany({
-      where: { role: 'TEACHER', isActive: true },
+      where: { schoolId, role: 'TEACHER', isActive: true },
       include: {
-        taughtClasses: true,
+        taughtClasses: { where: { schoolId } },
         taughtSubjects: {
+          where: { schoolId },
           include: {
             grades: true,
           },
         },
         assignments: {
+          where: { schoolId },
           include: {
             submissions: true,
           },
@@ -196,7 +194,7 @@ export class AdminDashboardService {
           assignmentsCreated: teacher.assignments.length,
           assignmentsGraded: gradedSubmissions.length,
           avgStudentScore: Math.round(avgScore),
-          attendanceRecorded: 0, // TODO: Add attendance recording tracking
+          attendanceRecorded: null,
         },
         lastActivity: teacher.updatedAt,
       };
@@ -206,8 +204,9 @@ export class AdminDashboardService {
   /**
    * Get class activity report
    */
-  async getClassActivity(): Promise<ClassActivity[]> {
+  async getClassActivity(schoolId: string): Promise<ClassActivity[]> {
     const classes = await this.prisma.class.findMany({
+      where: { schoolId },
       include: {
         students: {
           include: {
@@ -287,12 +286,13 @@ export class AdminDashboardService {
     });
   }
 
-  async getFinancialStats() {
+  async getFinancialStats(schoolId: string) {
     const lastYear = new Date();
     lastYear.setFullYear(lastYear.getFullYear() - 1);
 
     const invoices = await this.prisma.invoice.findMany({
       where: {
+        schoolId,
         status: 'PAID',
         createdAt: { gte: lastYear },
       },
@@ -312,13 +312,14 @@ export class AdminDashboardService {
     }));
   }
 
-  async getEnrollmentStats() {
+  async getEnrollmentStats(schoolId: string) {
     const lastYear = new Date();
     lastYear.setFullYear(lastYear.getFullYear() - 1);
 
     const students = await this.prisma.user.findMany({
       where: {
         role: 'STUDENT',
+        schoolId,
         createdAt: { gte: lastYear },
       },
       select: { createdAt: true },

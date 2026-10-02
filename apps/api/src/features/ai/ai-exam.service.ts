@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 
@@ -28,14 +28,12 @@ export class AiExamService {
     if (apiKey && apiKey !== 'sk_placeholder') {
       this.openai = new OpenAI({ apiKey });
       this.logger.log('OpenAI Service initialized for Exam Generation');
-    } else {
-      this.logger.warn('OPENAI_API_KEY not found or invalid. Using Mock AI Service for Exams.');
     }
   }
 
   async generateExam(request: ExamGenerationRequest): Promise<GeneratedQuestion[]> {
     if (!this.openai) {
-      return this.getMockResponse(request);
+      throw new ServiceUnavailableException('خدمة إنشاء الاختبارات غير متاحة؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
     }
 
     try {
@@ -67,52 +65,27 @@ export class AiExamService {
         response_format: { type: 'json_object' }, // Enforce JSON
       });
 
-      const responseContent = completion.choices[0].message.content || '{"questions":[]}';
-      
-      // Handle the case where the model returns {"questions": [...]} instead of just the array
-      try {
-        const parsed = JSON.parse(responseContent);
-        if (parsed.questions && Array.isArray(parsed.questions)) {
-           return parsed.questions as GeneratedQuestion[];
-        }
-        if (Array.isArray(parsed)) {
-            return parsed as GeneratedQuestion[];
-        }
-        return [];
-      } catch (e) {
-        this.logger.error('Failed to parse AI JSON response', e);
-        return this.getMockResponse(request);
+      const responseContent = completion.choices[0]?.message?.content;
+      if (!responseContent) throw new Error('Empty response from AI provider');
+      const parsed = JSON.parse(responseContent);
+      const questions = Array.isArray(parsed) ? parsed : parsed.questions;
+      if (!Array.isArray(questions) || questions.length !== request.questionCount || !questions.every((question) => this.isValidQuestion(question))) {
+        throw new Error('AI response did not match the requested exam schema');
       }
+      return questions as GeneratedQuestion[];
 
     } catch (error) {
-      this.logger.error('OpenAI API Error during exam generation', error);
-      return this.getMockResponse(request);
+      this.logger.error('AI exam generation failed', error instanceof Error ? error.message : String(error));
+      throw new ServiceUnavailableException('تعذر إنشاء الاختبار الآن. لم يتم إنشاء أسئلة بديلة أو تجريبية.');
     }
   }
 
-  private getMockResponse(request: ExamGenerationRequest): GeneratedQuestion[] {
-    this.logger.debug('Returning mock exam questions');
-    const questions: GeneratedQuestion[] = [];
-    
-    for (let i = 1; i <= request.questionCount; i++) {
-        if (request.questionType === 'multiple_choice' || (request.questionType === 'mixed' && i % 2 !== 0)) {
-            questions.push({
-                question: `سؤال تجريبي رقم ${i} عن موضوع: ${request.topic}؟`,
-                type: 'multiple_choice',
-                options: ['الخيار الأول', 'الخيار الثاني (الصحيح)', 'الخيار الثالث', 'الخيار الرابع'],
-                correctAnswer: 'الخيار الثاني (الصحيح)',
-                explanation: 'هذا مجرد سؤال تجريبي نظراً لعدم توفر اتصال بخدمة الذكاء الاصطناعي حالياً.'
-            });
-        } else {
-            questions.push({
-                question: `هل هذه العبارة التجريبية رقم ${i} صحيحة أم خاطئة بخصوص ${request.topic}؟`,
-                type: 'true_false',
-                correctAnswer: 'صحيح',
-                explanation: 'هذا مجرد سؤال تجريبي.'
-            });
-        }
+  private isValidQuestion(value: any): value is GeneratedQuestion {
+    if (!value || typeof value.question !== 'string' || !value.question.trim() || typeof value.correctAnswer !== 'string') return false;
+    if (value.type === 'multiple_choice') {
+      return Array.isArray(value.options) && value.options.length >= 2 && value.options.length <= 6 &&
+        value.options.every((option: unknown) => typeof option === 'string') && value.options.includes(value.correctAnswer);
     }
-    
-    return questions;
+    return value.type === 'true_false' && ['صحيح', 'خطأ'].includes(value.correctAnswer);
   }
 }

@@ -6,9 +6,11 @@ import {
   Param,
   Delete,
   UseGuards,
+  Request,
+  Query,
 } from '@nestjs/common';
 import { EnrollmentService } from './enrollment.service';
-import { CreateEnrollmentDto } from './dto/enrollment.dto';
+import { BulkEnrollmentDto, CreateEnrollmentDto } from './dto/enrollment.dto';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '../auth/role.enum';
 import { AuthGuard } from '@nestjs/passport';
@@ -21,31 +23,43 @@ export class EnrollmentController {
 
   @Post()
   @Roles(Role.ADMIN, Role.TEACHER)
-  create(@Body() createEnrollmentDto: CreateEnrollmentDto) {
-    return this.enrollmentService.create(createEnrollmentDto);
+  create(@Body() createEnrollmentDto: CreateEnrollmentDto, @Request() req: any) {
+    return this.enrollmentService.create(createEnrollmentDto, req.user.userId || req.user.sub || req.user.id, req.user.role, req.user.schoolId);
   }
 
   @Post('bulk')
   @Roles(Role.ADMIN)
-  bulkEnroll(@Body() data: { studentIds: string[]; classId: string }) {
-    return this.enrollmentService.bulkEnroll(data.studentIds, data.classId);
+  bulkEnroll(@Body() data: BulkEnrollmentDto, @Request() req: any) {
+    return this.enrollmentService.bulkEnroll(data.studentIds, data.classId, req.user.schoolId);
+  }
+
+  @Get('class/:classId/candidates')
+  @Roles(Role.ADMIN)
+  findCandidates(
+    @Param('classId') classId: string,
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+    @Query('search') search: string,
+    @Request() req: any,
+  ) {
+    return this.enrollmentService.findCandidates(classId, req.user.schoolId, page, limit, search);
   }
 
   @Get('class/:classId')
   @Roles(Role.ADMIN, Role.TEACHER)
-  findByClass(@Param('classId') classId: string) {
-    return this.enrollmentService.findByClass(classId);
+  findByClass(@Param('classId') classId: string, @Request() req: any) {
+    return this.enrollmentService.findByClass(classId, req.user.userId || req.user.sub || req.user.id, req.user.role, req.user.schoolId);
   }
 
   @Get('student/:studentId')
   @Roles(Role.ADMIN, Role.TEACHER, Role.PARENT)
-  findByStudent(@Param('studentId') studentId: string) {
-    return this.enrollmentService.findByStudent(studentId);
+  findByStudent(@Param('studentId') studentId: string, @Request() req: any) {
+    return this.enrollmentService.findByStudent(studentId, req.user.userId || req.user.sub || req.user.id, req.user.role, req.user.schoolId);
   }
 
   @Delete(':id')
   @Roles(Role.ADMIN)
-  remove(@Param('id') id: string) {
-    return this.enrollmentService.delete(id);
+  remove(@Param('id') id: string, @Request() req: any) {
+    return this.enrollmentService.delete(id, req.user.schoolId);
   }
 }

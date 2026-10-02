@@ -2,7 +2,8 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useRef, useEffect } from 'react'
-import { Bot, X, Send, Sparkles, Mic } from 'lucide-react'
+import { Bot, X, Send, Sparkles } from 'lucide-react'
+import { apiClient } from '@/lib/api/client'
 
 interface Message {
     id: string
@@ -18,43 +19,34 @@ const SUGGESTIONS = [
 
 export function AIAssistantFab() {
     const [isOpen, setIsOpen] = useState(false)
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: '1',
-            role: 'assistant',
-            content: 'أهلاً! أنا مساعدك الذكي في نكسس 🤖 كيف يمكنني مساعدتك اليوم؟'
-        }
-    ])
+    const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
     const [isTyping, setIsTyping] = useState(false)
+    const [error, setError] = useState('')
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages, isTyping])
 
-    const sendMessage = (text: string) => {
-        if (!text.trim()) return
-        const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text }
+    const sendMessage = async (text: string) => {
+        const question = text.trim()
+        if (!question || isTyping) return
+        const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: question }
         setMessages(prev => [...prev, userMsg])
         setInput('')
         setIsTyping(true)
-
-        // Simulate AI response
-        setTimeout(() => {
-            const responses = [
-                'بالطبع! دعني أشرح لك ذلك بطريقة مبسطة. هذا الموضوع مهم جداً في المنهج. 📚',
-                'سؤال ممتاز! المفهوم الأساسي هنا هو... 💡',
-                'لفهم هذا بشكل أعمق، يجب أن تعرف أولاً... 🎯',
-            ]
-            const aiMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: responses[Math.floor(Math.random() * responses.length)] ?? 'أنا هنا لمساعدتك! 😊'
-            }
-            setMessages(prev => [...prev, aiMsg])
+        setError('')
+        try {
+            const response = await apiClient.post<{ success?: boolean; data?: { answer?: string } }>('/ai/ask', { question })
+            const answer = response.data?.data?.answer
+            if (!answer) throw new Error('AI response is empty')
+            setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: answer }])
+        } catch {
+            setError('تعذر الحصول على رد من خدمة المساعد الآن.')
+        } finally {
             setIsTyping(false)
-        }, 1500)
+        }
     }
 
     return (
@@ -103,14 +95,14 @@ export function AIAssistantFab() {
                                 <p className="text-white font-bold text-sm">NEXUS AI ✨</p>
                                 <p className="text-white/70 text-xs">مساعدك الذكي الشخصي</p>
                             </div>
-                            <div className="mr-auto flex items-center gap-1">
-                                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                                <span className="text-white/70 text-xs">متصل</span>
-                            </div>
+                            <Sparkles className="mr-auto h-4 w-4 text-white/80" />
                         </div>
 
                         {/* Messages */}
                         <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+                            {messages.length === 0 && (
+                                <p className="py-4 text-center text-sm text-slate-500">اكتب سؤالك أو اختر سؤالًا مقترحًا.</p>
+                            )}
                             {messages.map(msg => (
                                 <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}>
                                     <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
@@ -121,6 +113,7 @@ export function AIAssistantFab() {
                                     </div>
                                 </div>
                             ))}
+                            {error && <p role="alert" className="text-sm text-red-700" dir="rtl">{error}</p>}
 
                             {/* Typing indicator */}
                             <AnimatePresence>
@@ -148,14 +141,14 @@ export function AIAssistantFab() {
                         </div>
 
                         {/* Suggestions */}
-                        {messages.length === 1 && (
+                        {messages.length === 0 && (
                             <div className="px-4 py-2 border-t border-slate-100 bg-white">
                                 <p className="text-xs text-slate-400 mb-1.5">اقتراحات سريعة:</p>
                                 <div className="flex flex-wrap gap-1.5">
                                     {SUGGESTIONS.map((s, i) => (
                                         <button
                                             key={i}
-                                            onClick={() => sendMessage(s)}
+                                            onClick={() => void sendMessage(s)}
                                             className="text-xs px-2.5 py-1 bg-primary-50 text-primary-600 rounded-full border border-primary-100 hover:bg-primary-100 transition-colors"
                                         >
                                             {s}
@@ -170,13 +163,13 @@ export function AIAssistantFab() {
                             <input
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
+                                onKeyDown={e => e.key === 'Enter' && void sendMessage(input)}
                                 placeholder="اكتب سؤالك هنا..."
                                 className="flex-1 bg-slate-100 rounded-xl px-4 py-2.5 text-sm text-slate-700 outline-none border-0 placeholder:text-slate-400"
                                 dir="rtl"
                             />
                             <button
-                                onClick={() => sendMessage(input)}
+                                onClick={() => void sendMessage(input)}
                                 className="w-9 h-9 nexus-gradient rounded-xl flex items-center justify-center flex-shrink-0 hover:opacity-90 transition-opacity disabled:opacity-50"
                                 disabled={!input.trim() || isTyping}
                             >

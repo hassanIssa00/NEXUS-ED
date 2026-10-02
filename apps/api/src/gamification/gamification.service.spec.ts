@@ -1,156 +1,73 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { GamificationService } from './gamification.service';
 import { PrismaService } from '../prisma.service';
+import { EventsGateway } from '../gateway/events.gateway';
 
 describe('GamificationService', () => {
-    let service: GamificationService;
+  let service: GamificationService;
 
-    const mockPrismaService = {
-        millionProfile: {
-            findMany: jest.fn(),
-            findUnique: jest.fn(),
-            count: jest.fn(),
-            upsert: jest.fn(),
-        },
-        userAchievement: {
-            findMany: jest.fn(),
-            upsert: jest.fn(),
-        },
-        achievement: {
-            upsert: jest.fn(),
-        },
-    };
+  const prisma = {
+    xpTransaction: { create: jest.fn(), findMany: jest.fn() },
+    user: { update: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+  };
+  const eventsGateway = { server: { to: jest.fn().mockReturnThis(), emit: jest.fn() } };
 
-    beforeEach(async () => {
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                GamificationService,
-                {
-                    provide: PrismaService,
-                    useValue: mockPrismaService,
-                },
-            ],
-        }).compile();
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        GamificationService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: EventsGateway, useValue: eventsGateway },
+      ],
+    }).compile();
+    service = module.get(GamificationService);
+    jest.clearAllMocks();
+    eventsGateway.server.to.mockReturnThis();
+  });
 
-        service = module.get<GamificationService>(GamificationService);
-        jest.clearAllMocks();
+  it('maps experience totals to the configured learning levels', () => {
+    expect(service.calculateLevel(100)).toBe(1);
+    expect(service.calculateLevel(501)).toBe(2);
+    expect(service.calculateLevel(1501)).toBe(3);
+    expect(service.calculateLevel(3001)).toBe(4);
+    expect(service.calculateLevel(5001)).toBe(5);
+    expect(service.getLevelName(5)).toContain('Nexus');
+  });
+
+  it('records XP, updates the user level, and emits the live event', async () => {
+    prisma.xpTransaction.create.mockResolvedValue({ id: 'xp-1' });
+    prisma.user.update
+      .mockResolvedValueOnce({ id: 'student-1', totalXP: 520, level: 1 })
+      .mockResolvedValueOnce({ id: 'student-1', level: 2 });
+
+    await expect(service.awardXp('student-1', 20, 'Submitted assignment', 'submission-1'))
+      .resolves.toMatchObject({ success: true, totalXP: 520, leveledUp: true });
+    expect(prisma.xpTransaction.create).toHaveBeenCalledWith({
+      data: { userId: 'student-1', amount: 20, reason: 'Submitted assignment', sourceId: 'submission-1' },
     });
+    expect(eventsGateway.server.to).toHaveBeenCalledWith('user:student-1');
+    expect(eventsGateway.server.emit).toHaveBeenCalledWith('gamification.xp_awarded', expect.objectContaining({
+      amount: 20, totalXP: 520, newLevel: 2,
+    }));
+  });
 
-    describe('getBadges', () => {
-        it('should return all available badges', () => {
-            const badges = service.getBadges();
-            expect(badges.length).toBeGreaterThan(0);
-            expect(badges[0]).toHaveProperty('id');
-            expect(badges[0]).toHaveProperty('points');
-        });
-    });
+  it('limits leaderboard queries to the requested school', async () => {
+    prisma.user.findMany.mockResolvedValue([{
+      id: 'student-1', name: null, firstName: 'Sara', lastName: 'Ali', avatar: null, totalXP: 70, level: 1,
+    }]);
 
-    describe('getLeaderboard', () => {
-        it('should return a list of leaderboard entries with earned badges', async () => {
-            mockPrismaService.millionProfile.findMany.mockResolvedValue([
-                { userId: 'user1', totalPoints: 100, user: { name: 'Ali', avatar: null } },
-                { userId: 'user2', totalPoints: 50, user: { name: 'Sara', avatar: 'pic.png' } },
-            ]);
-            mockPrismaService.userAchievement.findMany.mockResolvedValue([
-                { userId: 'user1', achievement: { key: 'first_quiz' } },
-            ]);
+    await expect(service.getLeaderboard('school', 'school-1', 10)).resolves.toEqual([expect.objectContaining({
+      userId: 'student-1', name: 'Sara Ali', rank: 1, points: 70,
+    })]);
+    expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { role: 'STUDENT', isActive: true, schoolId: 'school-1' }, take: 10,
+    }));
+  });
 
-            const result = await service.getLeaderboard(10);
-
-            expect(result).toHaveLength(2);
-            expect(result[0].rank).toBe(1);
-            expect(result[0].userId).toBe('user1');
-            expect(result[0].badges).toContain('first_quiz');
-            expect(result[1].rank).toBe(2);
-            expect(result[1].userId).toBe('user2');
-            expect(result[1].badges).toHaveLength(0);
-        });
-    });
-
-    describe('getUserRank', () => {
-        it('should return 0 rank and points if user profile does not exist', async () => {
-            mockPrismaService.millionProfile.findUnique.mockResolvedValue(null);
-
-            const result = await service.getUserRank('non_existent');
-
-            expect(result.rank).toBe(0);
-            expect(result.points).toBe(0);
-            expect(result.badges).toEqual([]);
-        });
-
-        it('should return the correct rank and badges for a user', async () => {
-            mockPrismaService.millionProfile.findUnique.mockResolvedValue({
-                userId: 'user1',
-                totalPoints: 120,
-            });
-            mockPrismaService.millionProfile.count.mockResolvedValue(3);
-            mockPrismaService.userAchievement.findMany.mockResolvedValue([
-                { achievement: { key: 'first_quiz' } },
-            ]);
-
-            const result = await service.getUserRank('user1');
-
-            expect(result.rank).toBe(4);
-            expect(result.points).toBe(120);
-            expect(result.badges[0].id).toBe('first_quiz');
-        });
-    });
-
-    describe('awardPoints', () => {
-        it('should upsert the million profile with incremented points', async () => {
-            mockPrismaService.millionProfile.upsert.mockResolvedValue({});
-
-            await service.awardPoints('user1', 50, 'Finished lesson');
-
-            expect(mockPrismaService.millionProfile.upsert).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    where: { userId: 'user1' },
-                    update: { totalPoints: { increment: 50 } },
-                }),
-            );
-        });
-    });
-
-    describe('awardBadge', () => {
-        it('should return null if badge does not exist', async () => {
-            const result = await service.awardBadge('user1', 'non_existent_badge');
-            expect(result).toBeNull();
-        });
-
-        it('should upsert the achievement and user achievement and return badge details', async () => {
-            mockPrismaService.achievement.upsert.mockResolvedValue({ id: 'achievement-1' });
-            mockPrismaService.userAchievement.upsert.mockResolvedValue({});
-
-            const result = await service.awardBadge('user1', 'first_quiz');
-
-            expect(result).toBeDefined();
-            expect(result!.id).toBe('first_quiz');
-            expect(mockPrismaService.achievement.upsert).toHaveBeenCalled();
-            expect(mockPrismaService.userAchievement.upsert).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    where: {
-                        userId_achievementId: {
-                            userId: 'user1',
-                            achievementId: 'achievement-1',
-                        },
-                    },
-                }),
-            );
-        });
-    });
-
-    describe('checkBadges', () => {
-        it('should check requirements and award eligible badges', async () => {
-            const stats = { quiz_count: 5 };
-
-            mockPrismaService.achievement.upsert.mockResolvedValue({ id: 'achievement-1' });
-            mockPrismaService.userAchievement.upsert.mockResolvedValue({});
-
-            const result = await service.checkBadges('user1', stats);
-
-            expect(result.length).toBeGreaterThan(0);
-            expect(result.map(b => b.id)).toContain('first_quiz');
-            expect(mockPrismaService.userAchievement.upsert).toHaveBeenCalled();
-        });
-    });
+  it('does not disclose rank or XP when the requested school does not own the user', async () => {
+    prisma.user.findUnique.mockResolvedValue({ totalXP: 300, level: 1, schoolId: 'school-2' });
+    await expect(service.getUserRank('student-1', 'school-1')).resolves.toMatchObject({ rank: 0, points: 0 });
+    expect(prisma.user.count).not.toHaveBeenCalled();
+    expect(prisma.xpTransaction.findMany).not.toHaveBeenCalled();
+  });
 });

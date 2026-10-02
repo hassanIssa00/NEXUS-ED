@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { DrawerPanel } from '../sidebar/DrawerPanel';
 import { Calendar, Check, X, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { apiClient } from '@/lib/api/client';
 
 interface AttendanceRecord {
     id: string;
@@ -16,30 +17,31 @@ export function AttendanceDrawer() {
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [stats, setStats] = useState({ percentage: 0, present: 0, absent: 0, late: 0, total: 0 });
     const [loading, setLoading] = useState(true);
+    const [loadFailed, setLoadFailed] = useState(false);
 
     useEffect(() => {
-        // Mock data
-        setTimeout(() => {
-            const mockAttendance: AttendanceRecord[] = [
-                { id: '1', date: new Date('2024-12-03'), status: 'present', checkInTime: '08:00' },
-                { id: '2', date: new Date('2024-12-02'), status: 'present', checkInTime: '07:55' },
-                { id: '3', date: new Date('2024-12-01'), status: 'late', checkInTime: '08:15' },
-                { id: '4', date: new Date('2024-11-30'), status: 'absent' },
-                { id: '5', date: new Date('2024-11-29'), status: 'present', checkInTime: '07:58' },
-                { id: '6', date: new Date('2024-11-28'), status: 'present', checkInTime: '08:02' },
-            ];
-
-            setAttendance(mockAttendance);
-
-            const present = mockAttendance.filter(a => a.status === 'present').length;
-            const absent = mockAttendance.filter(a => a.status === 'absent').length;
-            const late = mockAttendance.filter(a => a.status === 'late').length;
-            const total = mockAttendance.length;
-            const percentage = Math.round((present / total) * 100);
-
-            setStats({ percentage, present, absent, late, total });
-            setLoading(false);
-        }, 500);
+        let active = true;
+        apiClient.get('/attendance').then(({ data }) => {
+            if (!active) return;
+            const summary = data.summary ?? {};
+            setAttendance((data.history ?? []).map((record: any, index: number) => ({
+                id: `${record.date}-${index}`,
+                date: new Date(record.date),
+                status: String(record.status).toLowerCase() as AttendanceRecord['status'],
+            })));
+            setStats({
+                percentage: Number(summary.attendanceRate ?? 0),
+                present: Number(summary.present ?? 0),
+                absent: Number(summary.absent ?? 0),
+                late: Number(summary.late ?? 0),
+                total: Number(summary.totalDays ?? 0),
+            });
+        }).catch(() => {
+            if (active) setLoadFailed(true);
+        }).finally(() => {
+            if (active) setLoading(false);
+        });
+        return () => { active = false; };
     }, []);
 
     const getStatusIcon = (status: AttendanceRecord['status']) => {
@@ -93,7 +95,7 @@ export function AttendanceDrawer() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-5xl font-bold">{stats.percentage}%</div>
+                        <div className="text-5xl font-bold">{loadFailed ? '—' : `${stats.percentage}%`}</div>
                         <div className="grid grid-cols-3 gap-2 mt-4 text-sm">
                             <div>
                                 <div className="opacity-80">حاضر</div>
@@ -117,7 +119,7 @@ export function AttendanceDrawer() {
                 ) : attendance.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                         <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                        <p>لا توجد سجلات حضور</p>
+                        <p>{loadFailed ? 'تعذر تحميل الحضور من النظام' : 'لا توجد سجلات حضور'}</p>
                     </div>
                 ) : (
                     <div className="space-y-2">

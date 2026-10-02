@@ -20,7 +20,7 @@ import {
 } from './assignment-template.service';
 
 @ApiTags('Assignment Templates')
-@Controller('api/templates/assignments')
+@Controller('templates/assignments')
 @ApiBearerAuth()
 export class AssignmentTemplateController {
   constructor(private readonly templateService: AssignmentTemplateService) {}

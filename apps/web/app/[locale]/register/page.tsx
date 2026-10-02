@@ -1,51 +1,28 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
+import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, Phone, GraduationCap, Users, ShieldCheck, ArrowLeft, Check, Sparkles, AlertCircle, BookOpen, School, Camera, Upload, Trash2 } from 'lucide-react';
+import { User, Mail, Lock, Phone, GraduationCap, Users, ArrowLeft, Sparkles, AlertCircle } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/language-switcher';
-import { nexusBridge, ClassStudentRecord } from '@/lib/nexusDataBridge';
+import { useAuth } from '@/contexts/auth-context';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [accountType, setAccountType] = useState<'parent' | 'student' | 'teacher'>('parent');
+  const locale = useLocale();
+  const { signUp } = useAuth();
+  const [accountType, setAccountType] = useState<'parent' | 'student'>('parent');
 
   // Form Fields
   const [fullName, setFullName] = useState('');
-  const [childName, setChildName] = useState('');
-  const [specialization, setSpecialization] = useState('اللغة العربية والدراسات الإسلامية');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-    const [studentStage, setStudentStage] = useState<'kindergarten' | 'elementary' | 'middle' | 'high'>('elementary');
-  const [regPhoto, setRegPhoto] = useState<string | null>(null);
-const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [allStudents, setAllStudents] = useState<ClassStudentRecord[]>([]);
-
-  useEffect(() => {
-    setAllStudents(nexusBridge.getStudents());
-  }, []);
-
-  // Intelligent Child Matching for Parents using actual school roster
-  const matchedStudent = useMemo(() => {
-    if (accountType !== 'parent') return null;
-    const cleanParent = fullName.trim().toLowerCase();
-    const cleanPhone = phone.trim().replace(/\D/g, '');
-    const cleanChild = childName.trim().toLowerCase();
-
-    return (
-      allStudents.find((s) => {
-        const pMatch = cleanParent && s.parentName.toLowerCase().includes(cleanParent);
-        const phMatch = cleanPhone && s.parentPhone.includes(cleanPhone);
-        const cMatch = cleanChild && s.fullName.toLowerCase().includes(cleanChild);
-        return pMatch || phMatch || cMatch;
-      }) || null
-    );
-  }, [accountType, fullName, phone, childName, allStudents]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,8 +38,8 @@ const [loading, setLoading] = useState(false);
       return;
     }
 
-    if (password.length < 6) {
-      setError('كلمة المرور يجب أن تكون 6 أحرف أو أرقام على الأقل');
+    if (password.length < 8) {
+      setError('كلمة المرور يجب ألا تقل عن 8 أحرف أو أرقام');
       return;
     }
 
@@ -74,143 +51,9 @@ const [loading, setLoading] = useState(false);
     setLoading(true);
 
     try {
-      if (accountType === 'teacher') {
-        const universalId = nexusBridge.generateUniversalId('TCH');
-        const teacherAccId = `acc_teacher_${Date.now()}`;
-
-        if (regPhoto) {
-          localStorage.setItem('nexus_teacher_photo', regPhoto);
-        }
-        const teacherRecord = {
-          id: teacherAccId,
-          teacherId: universalId,
-          universalId,
-          name: fullName.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          photoUrl: regPhoto || undefined,
-          role: 'teacher' as const,
-          title: `معلم ${specialization}`,
-          specialization: specialization.trim(),
-          nationalId: `10${Math.floor(10000000 + Math.random() * 90000000)}`,
-          assignedClassIds: ['CLS-101'],
-          assignedSubjectIds: ['SUB-ARB-1'],
-          weeklyPeriodsCount: 15,
-          status: 'active' as const,
-          schoolName: 'مدارس نكسس التعليمية الأهلية',
-          employeeId: `EMP-${universalId}`,
-          department: specialization,
-          hireDate: new Date().toISOString().slice(0, 10),
-          createdAt: new Date().toISOString(),
-        };
-
-        nexusBridge.saveTeacher(teacherRecord);
-        nexusBridge.saveAccount({
-          id: teacherAccId,
-          universalId,
-          name: fullName.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          role: 'teacher',
-          title: `معلم ${specialization}`,
-          employeeId: `EMP-${universalId}`,
-          department: specialization,
-          status: 'active',
-          schoolName: 'مدارس نكسس التعليمية الأهلية',
-          avatarUrl: regPhoto || undefined,
-          createdAt: new Date().toISOString(),
-        });
-        localStorage.setItem('nexus_user', JSON.stringify(teacherRecord));
-        localStorage.setItem('access_token', `nexus_live_${teacherAccId}`);
-        localStorage.setItem('nexus_role', 'teacher');
-        window.dispatchEvent(new CustomEvent('nexus:data-changed'));
-
-        router.push('/teacher');
-      } else if (accountType === 'parent') {
-        const universalId = nexusBridge.generateUniversalId('PRT');
-        const studentId = matchedStudent?.id || '';
-        const parentAccId = `acc_parent_${Date.now()}`;
-
-        const parentAccount = {
-          id: parentAccId,
-          universalId,
-          name: fullName.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          role: 'parent' as const,
-          title: matchedStudent ? `ولي أمر الطالب ${matchedStudent.fullName}` : `ولي أمر الطالب ${childName.trim() || fullName.trim()}`,
-          linkedStudentId: studentId,
-          linkedStudentIds: studentId ? [studentId] : [],
-          schoolName: 'مدارس نكسس التعليمية الأهلية',
-          createdAt: new Date().toISOString(),
-        };
-
-        nexusBridge.saveAccount(parentAccount);
-        localStorage.setItem('nexus_user', JSON.stringify(parentAccount));
-        localStorage.setItem('access_token', `nexus_live_${parentAccId}`);
-        localStorage.setItem('nexus_role', 'parent');
-        window.dispatchEvent(new CustomEvent('nexus:data-changed'));
-
-        router.push('/parent');
-      } else {
-        // Student registration
-        const universalId = nexusBridge.generateUniversalId('STD');
-        const studentAccId = `acc_student_${Date.now()}`;
-        const studentRecordId = `std_${Date.now()}`;
-        const stageLabel = studentStage === 'kindergarten' ? 'الروضة' : studentStage === 'middle' ? 'المرحلة المتوسطة' : studentStage === 'high' ? 'المرحلة الثانوية' : 'المرحلة الابتدائية';
-
-        localStorage.setItem('nexus_student_stage', studentStage);
-        if (regPhoto) {
-          localStorage.setItem('nexus_student_photo', regPhoto);
-        }
-
-        const studentRecord: ClassStudentRecord = {
-          id: studentRecordId,
-          universalId,
-          fullName: fullName.trim(),
-          fullNameEn: '',
-          grade: stageLabel,
-          classId: 'CLS-101',
-          nationalId: `11${Math.floor(10000000 + Math.random() * 90000000)}`,
-          dateOfBirth: '2016-01-01',
-          parentName: '',
-          parentPhone: phone.trim(),
-          parentEmail: '',
-          photoUrl: regPhoto || undefined,
-          notes: 'طالب مسجل حديثاً',
-          averageGrade: 100,
-          attendanceRate: 100,
-          rank: 1,
-          assignedProgram: studentStage === 'kindergarten' ? 'مسار رياض الأطفال' : studentStage === 'high' ? 'مسار الثانوي التخصصي' : 'المسار العام',
-          status: 'excellent',
-          studentAccountId: studentAccId,
-          parentAccountId: '',
-        };
-
-        const studentAccount = {
-          id: studentAccId,
-          universalId,
-          name: fullName.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          photoUrl: regPhoto || undefined,
-          stage: studentStage,
-          role: 'student' as const,
-          linkedStudentId: studentRecordId,
-          title: `طالب — ${stageLabel}`,
-          schoolName: 'مدارس نكسس التعليمية الأهلية',
-          createdAt: new Date().toISOString(),
-        };
-
-        nexusBridge.saveStudent(studentRecord);
-        nexusBridge.saveAccount(studentAccount);
-        localStorage.setItem('nexus_user', JSON.stringify(studentAccount));
-        localStorage.setItem('access_token', `nexus_live_${studentAccId}`);
-        localStorage.setItem('nexus_role', 'student');
-        window.dispatchEvent(new CustomEvent('nexus:data-changed'));
-
-        router.push('/student');
-      }
+      await signUp(email.trim().toLowerCase(), password, fullName.trim(), accountType, phone.trim());
+      const flow = accountType === 'student' ? 'student' : 'parent';
+      router.push(`/student/new?flow=${flow}`);
     } catch (err: any) {
       console.error(err);
       setError(err?.message || 'حدث خطأ أثناء إنشاء الحساب');
@@ -241,7 +84,7 @@ const [loading, setLoading] = useState(false);
             </p>
           </div>
 
-          {/* 3 Role Tabs */}
+          {/* Student and parent self-registration */}
           <div className="flex gap-2 bg-gray-100 dark:bg-white/5 p-1.5 rounded-2xl mb-6">
             <button
               type="button"
@@ -267,18 +110,6 @@ const [loading, setLoading] = useState(false);
               <GraduationCap className="w-4 h-4" />
               <span>طالب</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setAccountType('teacher')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-xs transition-all ${
-                accountType === 'teacher'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>معلم</span>
-            </button>
           </div>
 
           {error && (
@@ -293,8 +124,6 @@ const [loading, setLoading] = useState(false);
               <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
                 {accountType === 'parent'
                   ? 'اسم ولي الأمر الكامل *'
-                  : accountType === 'teacher'
-                  ? 'اسم المعلم كاملاً مع اللقب *'
                   : 'اسم الطالب الكامل *'}
               </label>
               <div className="relative">
@@ -306,149 +135,12 @@ const [loading, setLoading] = useState(false);
                   placeholder={
                     accountType === 'parent'
                       ? 'مثال: فيصل الغامدي'
-                      : accountType === 'teacher'
-                      ? 'مثال: أ. عبد العزيز الدوسري'
                       : 'مثال: أحمد فيصل الغامدي'
                   }
                   className="w-full pr-10 pl-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 />
               </div>
             </div>
-
-            {accountType === 'teacher' && (
-              <div>
-                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
-                  التخصص التعليمي / المادة المسندة *
-                </label>
-                <div className="relative">
-                  <BookOpen className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
-                  <input
-                    required
-                    value={specialization}
-                    onChange={(e) => setSpecialization(e.target.value)}
-                    placeholder="مثال: الرياضيات والحساب الذهني / اللغة الإنجليزية"
-                    className="w-full pr-10 pl-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  />
-                </div>
-              </div>
-            )}
-
-                        {accountType === 'student' && (
-              <div>
-                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
-                  المرحلة الدراسية للطالب *
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'kindergarten', label: 'رياض الأطفال', emoji: '🧸' },
-                    { id: 'elementary', label: 'المرحلة الابتدائية', emoji: '📚' },
-                    { id: 'middle', label: 'المرحلة المتوسطة', emoji: '🔬' },
-                    { id: 'high', label: 'المرحلة الثانوية', emoji: '🎓' },
-                  ].map((s) => (
-                    <button
-                      type="button"
-                      key={s.id}
-                      onClick={() => setStudentStage(s.id as any)}
-                      className={`py-2.5 px-3 rounded-2xl text-xs font-black border transition-all flex items-center justify-center gap-1.5 ${
-                        studentStage === s.id
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
-                          : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-100'
-                      }`}
-                    >
-                      <span>{s.emoji}</span>
-                      <span>{s.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Optional Photo Upload */}
-            {(accountType === 'student' || accountType === 'teacher') && (
-              <div>
-                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
-                  الصورة الشخصية (اختياري — ستظل الخانة مخصصة لتضع صورتك لاحقاً)
-                </label>
-                <div className="flex items-center gap-3.5 p-3.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl">
-                  <div className="w-14 h-14 rounded-2xl bg-gray-200 dark:bg-white/10 flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 dark:border-white/20 flex-shrink-0 shadow-inner">
-                    {regPhoto ? (
-                      <img src={regPhoto} alt="Photo Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <Camera className="w-6 h-6 text-gray-400" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 transition-all shadow-sm">
-                        <Upload className="w-3.5 h-3.5 text-blue-600" />
-                        <span>{regPhoto ? 'تغيير الصورة' : 'اختر صورة من جهازك'}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              if (file.size > 5 * 1024 * 1024) {
-                                alert('حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت.');
-                                return;
-                              }
-                              const reader = new FileReader();
-                              reader.onload = (ev) => {
-                                if (typeof ev.target?.result === 'string') {
-                                  setRegPhoto(ev.target.result);
-                                }
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-                      </label>
-                      {regPhoto && (
-                        <button
-                          type="button"
-                          onClick={() => setRegPhoto(null)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-red-600 bg-red-50 dark:bg-red-950/30 hover:bg-red-100"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>إلغاء</span>
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      ستظهر صورتك في الكارد الشخصي بعد الدخول، أو يمكنك إضافتها لاحقاً بنقرة زر.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {accountType === 'parent' && (
-              <div>
-                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
-                  اسم الطالب (الابن/الابنة بالمدرسة)
-                </label>
-                <div className="relative">
-                  <GraduationCap className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
-                  <input
-                    value={childName}
-                    onChange={(e) => setChildName(e.target.value)}
-                    placeholder="مثال: أحمد فيصل الغامدي"
-                    className="w-full pr-10 pl-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  />
-                </div>
-                {matchedStudent && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-400"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>تم التعرف التلقائي على الطالب: {matchedStudent.fullName} ({matchedStudent.grade})</span>
-                  </motion.div>
-                )}
-              </div>
-            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>

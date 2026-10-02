@@ -1,13 +1,11 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
     restart: always
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-million_db}
+      POSTGRES_USER: ${DB_USER:?Set DB_USER before starting production services}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD before starting production services}
+      POSTGRES_DB: ${DB_NAME:?Set DB_NAME before starting production services}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -16,7 +14,15 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
-    command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-redispassword}
+    command:
+      - redis-server
+      - --save
+      - "60"
+      - "1"
+      - --loglevel
+      - warning
+      - --requirepass
+      - ${REDIS_PASSWORD:?Set REDIS_PASSWORD before starting production services}
     volumes:
       - redis_data:/data
     networks:
@@ -31,12 +37,14 @@ services:
       - postgres
       - redis
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-million_db}?schema=public
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL before starting production services}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD before starting production services}
       NODE_ENV: production
-      JWT_SECRET: ${JWT_SECRET:-supersecret}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET before starting production services}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET before starting production services}
+      FRONTEND_URL: https://${DOMAIN_NAME:?Set DOMAIN_NAME before starting production services}
     networks:
       - million_network
 
@@ -48,7 +56,7 @@ services:
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_URL: https://${DOMAIN_NAME:-example.com}/api
+      NEXT_PUBLIC_API_URL: https://${DOMAIN_NAME:?Set DOMAIN_NAME before starting production services}/api
       API_INTERNAL_URL: http://api:4000
     networks:
       - million_network

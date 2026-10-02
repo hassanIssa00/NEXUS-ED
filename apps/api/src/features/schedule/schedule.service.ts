@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 
 @Injectable()
@@ -42,6 +42,26 @@ export class ScheduleService {
     // Usually students have one main class, taking the first one
     const classId = enrollments[0].classId;
     return this.getClassSchedule(classId);
+  }
+
+  async getParentChildSchedule(parentId: string, studentId: string) {
+    const relation = await this.prisma.parentStudent.findFirst({
+      where: { parentId, studentId },
+      include: {
+        parent: { select: { schoolId: true } },
+        student: { select: { schoolId: true, role: true, isActive: true } },
+      },
+    });
+    if (
+      !relation ||
+      relation.student.role !== 'STUDENT' ||
+      !relation.student.isActive ||
+      !relation.parent.schoolId ||
+      relation.parent.schoolId !== relation.student.schoolId
+    ) {
+      throw new ForbiddenException('You do not have access to this student');
+    }
+    return this.getStudentSchedule(studentId);
   }
 
   async getTeacherSchedule(teacherId: string) {

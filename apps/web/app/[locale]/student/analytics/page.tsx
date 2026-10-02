@@ -25,7 +25,7 @@ function LoadingCard() {
 
 export default function StudentAnalyticsPage() {
     const { user, profile } = useAuth();
-    const studentId = user?.id || 'demo-student';
+    const studentId = user?.id;
     const studentName = profile?.full_name || 'الطالب';
 
     return (
@@ -77,7 +77,7 @@ export default function StudentAnalyticsPage() {
                         animate={{ opacity: 1, y: 0 }}
                     >
                         <Suspense fallback={<LoadingCard />}>
-                            <StudentProgressChart studentId={studentId} />
+                            {studentId ? <StudentProgressChart studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">سجّل الدخول لعرض بياناتك.</p>}
                         </Suspense>
                     </motion.div>
                 </TabsContent>
@@ -89,7 +89,7 @@ export default function StudentAnalyticsPage() {
                         animate={{ opacity: 1, y: 0 }}
                     >
                         <Suspense fallback={<LoadingCard />}>
-                            <ClassComparisonCard studentId={studentId} />
+                            {studentId ? <ClassComparisonCard studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">سجّل الدخول لعرض بياناتك.</p>}
                         </Suspense>
                     </motion.div>
                 </TabsContent>
@@ -101,7 +101,7 @@ export default function StudentAnalyticsPage() {
                         animate={{ opacity: 1, y: 0 }}
                     >
                         <Suspense fallback={<LoadingCard />}>
-                            <StudentGamificationCard studentId={studentId} />
+                            {studentId ? <StudentGamificationCard studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">سجّل الدخول لعرض بياناتك.</p>}
                         </Suspense>
                     </motion.div>
                 </TabsContent>
@@ -113,7 +113,7 @@ export default function StudentAnalyticsPage() {
                         animate={{ opacity: 1, y: 0 }}
                     >
                         <Suspense fallback={<LoadingCard />}>
-                            <ParentReportView studentId={studentId} />
+                            {studentId ? <ParentReportView studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">سجّل الدخول لعرض بياناتك.</p>}
                         </Suspense>
                     </motion.div>
                 </TabsContent>

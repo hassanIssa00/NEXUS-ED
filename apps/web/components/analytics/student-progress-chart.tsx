@@ -16,6 +16,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrendingUp, TrendingDown, Minus, Award, BookOpen, Clock } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
 
 interface StudentProgressPoint {
     date: string;
@@ -44,11 +45,8 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
     const fetchData = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`/api/analytics/student/${studentId}/progress?days=${days}`);
-            if (response.ok) {
-                const progressData = await response.json();
-                setData(progressData);
-            }
+            const { data } = await apiClient.get(`/analytics/student/${studentId}/progress`, { params: { days } });
+            setData(Array.isArray(data) ? data : []);
         } catch {
             console.error('Failed to fetch student progress');
         } finally {

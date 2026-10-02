@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Bell, BellOff, Check, X } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { apiClient } from '@/lib/api/client';
 
 export function PushNotificationPermission() {
   const [permission, setPermission] = useState<NotificationPermission>('default');
@@ -59,8 +60,9 @@ export function PushNotificationPermission() {
       const registration = await navigator.serviceWorker.ready;
 
       // Get VAPID public key from server
-      const response = await fetch('/api/push/public-key');
-      const { publicKey } = await response.json();
+      const { data } = await apiClient.get('/push/public-key');
+      const publicKey = data.publicKey;
+      if (!publicKey) throw new Error('Push notifications are not configured');
 
       // Subscribe to push
       const subscription = await registration.pushManager.subscribe({
@@ -69,18 +71,7 @@ export function PushNotificationPermission() {
       });
 
       // Send subscription to server
-      const userId = localStorage.getItem('user_id'); // TODO: Get from auth context
-      await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-        body: JSON.stringify({
-          userId,
-          subscription: subscription.toJSON(),
-        }),
-      });
+      await apiClient.post('/push/subscribe', { subscription: subscription.toJSON() });
 
       setSubscribed(true);
     } catch (err) {
@@ -97,18 +88,7 @@ export function PushNotificationPermission() {
       if (subscription) {
         await subscription.unsubscribe();
 
-        const userId = localStorage.getItem('user_id');
-        await fetch('/api/push/unsubscribe', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-          },
-          body: JSON.stringify({
-            userId,
-            endpoint: subscription.endpoint,
-          }),
-        });
+        await apiClient.post('/push/unsubscribe', { endpoint: subscription.endpoint });
 
         setSubscribed(false);
       }

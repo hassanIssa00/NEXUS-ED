@@ -65,24 +65,10 @@ The project is built using a **Monorepo** architecture powered by `Turborepo` to
 
 ---
 
-## 🔑 5. Default Demo Accounts
-The production database has been seeded with the following demo accounts (Password for all accounts is `123456`):
+## 🔑 5. Accounts
+The repository does not provide default accounts or shared passwords. Create real accounts through the approved onboarding workflows, and provision initial administrator access securely outside Git.
 
-**Administration:**
-* Principal: `principal@nexusedu.sa`
-* Vice Principal: `vice.principal@nexusedu.sa`
-* System Admin: `admin@nexusedu.sa`
-
-**Teachers:**
-* Arabic Teacher: `arabic.teacher@nexusedu.sa`
-* Math Teacher: `math.teacher@nexusedu.sa`
-
-**Students:**
-* Student 1: `student1@nexusedu.sa`
-* Student 2: `student2@nexusedu.sa`
-
-**Parents:**
-* Parent of Student 1: `parent1@nexusedu.sa`
+Older setup files contained synthetic school records. The current setup no longer creates them, but this change does not establish whether those records were previously added to production. Inspect the live database and review any synthetic records before removing them.
 
 ---
 

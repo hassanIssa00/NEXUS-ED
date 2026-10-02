@@ -1,141 +1,78 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Award, BookOpen, CheckCircle2, FileText, Sparkles, Trophy, TrendingUp } from 'lucide-react'
+import { useEffect, useState } from 'react';
+import { BookOpen, CircleAlert, Loader2 } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+
+type Child = { id: string; name: string };
+type Grade = { id: string; subjectName: string; subjectCode?: string; grade: number; maxGrade: number; percentage: number; letterGrade: string; date: string };
 
 export default function ParentGradesPage() {
-  const [student, setStudent] = useState<any>(null)
-  const [certificates, setCertificates] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [children, setChildren] = useState<Child[]>([]);
+  const [studentId, setStudentId] = useState('');
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [average, setAverage] = useState<number | null>(null);
+  const [loadingChildren, setLoadingChildren] = useState(true);
+  const [loadingGrades, setLoadingGrades] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const { nexusBridge } = await import('@/lib/nexusDataBridge')
-        const s = nexusBridge.getStudentById('cls-std-2')
-        const certs = nexusBridge.getCertificates('cls-std-2')
-        setStudent(s)
-        setCertificates(certs)
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [])
+    let active = true;
+    apiClient.get('/dashboard/parent')
+      .then(({ data }) => {
+        if (!active) return;
+        const rows = Array.isArray(data?.children) ? data.children : [];
+        setChildren(rows);
+        setStudentId(rows[0]?.id || '');
+      })
+      .catch((reason) => { if (active) setError(reason?.response?.data?.message || 'تعذر تحميل ملفات الأبناء.'); })
+      .finally(() => { if (active) setLoadingChildren(false); });
+    return () => { active = false; };
+  }, []);
 
-  if (loading) {
-    return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <div className="w-12 h-12 rounded-full border-4 border-amber-500/20 border-t-amber-500 animate-spin" />
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!studentId) { setGrades([]); setAverage(null); return; }
+    let active = true;
+    setLoadingGrades(true);
+    setError('');
+    apiClient.get(`/grades/parent/${encodeURIComponent(studentId)}`)
+      .then(({ data }) => {
+        if (!active) return;
+        setGrades(Array.isArray(data?.grades) ? data.grades : []);
+        setAverage(typeof data?.summary?.averageGrade === 'number' ? data.summary.averageGrade : null);
+      })
+      .catch((reason) => { if (active) { setGrades([]); setAverage(null); setError(reason?.response?.data?.message || 'تعذر تحميل الدرجات المسجلة.'); } })
+      .finally(() => { if (active) setLoadingGrades(false); });
+    return () => { active = false; };
+  }, [studentId]);
 
-  const SUBJECTS = [
-    { name: 'اللغة العربية', grade: 95, teacher: 'د. إسماعيل عيسى', desc: 'قراءة، إملاء، وخط عربي', icon: '📖' },
-    { name: 'القرآن الكريم والتربية الإسلامية', grade: 98, teacher: 'د. إسماعيل عيسى', desc: 'حفظ وتلاوة وسلوك إسلامي', icon: '📿' },
-    { name: 'الرياضيات', grade: 92, teacher: 'د. إسماعيل عيسى', desc: 'العمليات الحسابية والتفكير المنطقي', icon: '🔢' },
-    { name: 'العلوم', grade: 94, teacher: 'د. إسماعيل عيسى', desc: 'استكشاف الطبيعة والتجارب العلمية', icon: '🔬' },
-  ]
+  const selectedChild = children.find((child) => child.id === studentId);
 
   return (
-    <div className="space-y-8 pb-16" dir="rtl">
-      {/* HERO */}
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-amber-500 via-orange-500 to-yellow-600 p-8 text-white shadow-2xl">
-        <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 backdrop-blur-md mb-3">
-            <Sparkles className="w-3.5 h-3.5 text-yellow-200" />
-            <span className="text-xs font-bold text-amber-100">الصف الأول الابتدائي • مدارس الإخلاص الأهلية</span>
-          </div>
-          <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight">كشف الدرجات والشهادات 🏆</h1>
-          <p className="text-amber-100 text-sm max-w-xl font-medium">
-            السجل الأكاديمي المعتمد للطالب <span className="font-bold underline">{student?.fullName || 'أحمد فيصل الغامدي'}</span> في الفصل الدراسي الحالي
-          </p>
-        </div>
-      </motion.div>
+    <main className="mx-auto max-w-5xl space-y-6 pb-10" dir="rtl">
+      <header className="flex items-center gap-3 border-b pb-5">
+        <BookOpen className="h-6 w-6 text-primary" />
+        <div><h1 className="text-2xl font-bold">الدرجات المسجلة</h1><p className="mt-1 text-sm text-muted-foreground">السجل مرتبط بدرجات الطالب المحفوظة في قاعدة بيانات المدرسة.</p></div>
+      </header>
 
-      {/* OVERVIEW STATS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'المعدل العام', val: `${student?.averageGrade || 95}%`, icon: '⭐', color: 'text-amber-600' },
-          { label: 'التقدير العام', val: 'ممتاز مرتفع', icon: '🎖️', color: 'text-emerald-600' },
-          { label: 'الترتيب في الفصل', val: 'الأول مكرر 🥇', icon: '🏆', color: 'text-purple-600' },
-          { label: 'الشهادات الممنوحة', val: `${certificates.length} شهادات`, icon: '📜', color: 'text-blue-600' },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-5 shadow-sm text-center">
-            <div className="text-2xl mb-1">{stat.icon}</div>
-            <p className={`text-2xl font-black ${stat.color} mb-0.5`}>{stat.val}</p>
-            <p className="text-xs text-gray-400 font-bold">{stat.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* SUBJECTS TRANSCRIPT */}
-      <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-gray-100 dark:border-white/5 rounded-3xl p-6 shadow-sm">
-        <h3 className="font-black text-gray-900 dark:text-white text-base mb-4 flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-amber-500" />
-          درجات المواد المقررة والتقييم المستمر
-        </h3>
-
-        <div className="space-y-4">
-          {SUBJECTS.map((sub, i) => (
-            <div key={i} className="p-4 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{sub.icon}</span>
-                  <div>
-                    <h4 className="font-black text-sm text-gray-900 dark:text-white">{sub.name}</h4>
-                    <p className="text-xs text-gray-400">معلم المادة: {sub.teacher} • {sub.desc}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-black text-emerald-600">{sub.grade} / 100</span>
-                  <span className="px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 text-xs font-black">
-                    ممتاز
-                  </span>
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              <div className="h-2 w-full bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full" style={{ width: `${sub.grade}%` }} />
-              </div>
+      {loadingChildren ? <div className="flex items-center justify-center gap-2 py-14 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />تحميل ملفات الأبناء...</div> : children.length === 0 ? <p className="rounded-md border p-6 text-sm text-muted-foreground">لا يوجد طالب مرتبط بحساب ولي الأمر.</p> : (
+        <>
+          <label className="block max-w-md space-y-2 text-sm font-medium">الطالب
+            <select className="w-full rounded-md border bg-background p-2.5" value={studentId} onChange={(event) => setStudentId(event.target.value)}>
+              {children.map((child) => <option key={child.id} value={child.id}>{child.name}</option>)}
+            </select>
+          </label>
+          {selectedChild && <div className="flex flex-wrap items-end justify-between gap-3"><h2 className="text-lg font-semibold">درجات {selectedChild.name}</h2>{average !== null && <p className="text-sm text-muted-foreground">المتوسط المسجل: <strong className="text-foreground">{average.toFixed(1)}%</strong></p>}</div>}
+          {error ? <p role="alert" className="flex items-center gap-2 rounded-md border border-destructive/30 p-4 text-sm text-destructive"><CircleAlert className="h-4 w-4" />{error}</p> : loadingGrades ? <div className="flex items-center justify-center gap-2 py-14 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />تحميل الدرجات...</div> : grades.length === 0 ? <p className="rounded-md border p-6 text-sm text-muted-foreground">لا توجد درجات مسجلة لهذا الطالب حتى الآن.</p> : (
+            <div className="overflow-x-auto rounded-md border bg-card">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-right text-muted-foreground"><tr><th className="px-4 py-3 font-medium">المادة</th><th className="px-4 py-3 font-medium">الدرجة</th><th className="px-4 py-3 font-medium">النسبة</th><th className="px-4 py-3 font-medium">التقدير</th><th className="px-4 py-3 font-medium">تاريخ التسجيل</th></tr></thead>
+                <tbody className="divide-y">{grades.map((grade) => <tr key={grade.id}><td className="px-4 py-3 font-medium">{grade.subjectName}</td><td className="px-4 py-3">{grade.grade} / {grade.maxGrade}</td><td className="px-4 py-3">{grade.percentage}%</td><td className="px-4 py-3">{grade.letterGrade}</td><td className="px-4 py-3 text-muted-foreground">{new Date(grade.date).toLocaleDateString('ar-SA')}</td></tr>)}</tbody>
+              </table>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* CERTIFICATES */}
-      {certificates.length > 0 && (
-        <div className="bg-white/80 dark:bg-[#1e1e2d]/80 backdrop-blur-xl border border-amber-200/60 dark:border-amber-500/20 rounded-3xl p-6 shadow-sm">
-          <h3 className="font-black text-gray-900 dark:text-white text-base mb-4 flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-amber-500" />
-            شهادات التقدير والشرف الصادرة
-          </h3>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            {certificates.map((c, i) => (
-              <div key={c.id || i} className="p-5 rounded-2xl bg-amber-50/60 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center text-2xl flex-shrink-0 text-white shadow-sm">
-                  🏆
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-black text-sm text-gray-900 dark:text-white truncate">{c.programTitle}</h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">{c.achievementText}</p>
-                  <div className="flex items-center justify-between mt-3 text-[11px]">
-                    <span className="font-mono text-amber-700 dark:text-amber-400 font-bold">كود: #{c.serialNumber || c.id}</span>
-                    <span className="text-gray-400">{new Date(c.createdAt).toLocaleDateString('ar-SA')}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+          )}
+        </>
       )}
-    </div>
-  )
+    </main>
+  );
 }

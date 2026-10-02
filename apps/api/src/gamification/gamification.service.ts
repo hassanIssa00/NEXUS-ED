@@ -129,18 +129,24 @@ export class GamificationService {
    */
   async getUserRank(
     userId: string,
+    schoolId?: string,
   ): Promise<{ rank: number; points: number; level: number; levelName: string; recentTransactions: any[] }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { totalXP: true, level: true },
+      select: { totalXP: true, level: true, schoolId: true },
     });
 
-    if (!user) {
+    if (!user || (schoolId && user.schoolId !== schoolId)) {
       return { rank: 0, points: 0, level: 1, levelName: 'Beginner (مبتدئ)', recentTransactions: [] };
     }
 
     const rank = await this.prisma.user.count({
-      where: { role: 'STUDENT', isActive: true, totalXP: { gt: user.totalXP } },
+      where: {
+        role: 'STUDENT',
+        isActive: true,
+        ...(schoolId ? { schoolId } : {}),
+        totalXP: { gt: user.totalXP },
+      },
     }) + 1;
 
     const recentTransactions = await this.prisma.xpTransaction.findMany({

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
 export interface SchoolSettings {
@@ -75,7 +76,7 @@ const DEFAULT_SETTINGS: SchoolSettings = {
     warningThreshold: 20,
   },
   reportSettings: {
-    schoolName: 'مدرسة المليون',
+    schoolName: '',
     headerText: 'بسم الله الرحمن الرحيم',
     footerText: 'نتمنى لكم التوفيق والنجاح',
     showRank: true,
@@ -87,104 +88,88 @@ const DEFAULT_SETTINGS: SchoolSettings = {
 
 @Injectable()
 export class SchoolSettingsService {
-  private readonly logger = new Logger(SchoolSettingsService.name);
-  private settings: SchoolSettings = DEFAULT_SETTINGS;
+  constructor(private readonly prisma: PrismaService) {}
 
-  constructor(private readonly prisma: PrismaService) {
-    this.loadSettings();
-  }
-
-  private async loadSettings() {
-    // In production, load from database
-    // For now, use defaults
-    this.logger.log('School settings loaded');
-  }
-
-  async getSettings(): Promise<SchoolSettings> {
-    return this.settings;
+  async getSettings(schoolId: string): Promise<SchoolSettings> {
+    if (!schoolId) throw new BadRequestException('The account is not assigned to a school');
+    const record = await this.prisma.auditLog.findFirst({
+      where: { schoolId, action: 'school.settings.updated', entityType: 'school-settings' },
+      orderBy: { createdAt: 'desc' },
+      select: { metadata: true },
+    });
+    return record?.metadata as unknown as SchoolSettings || DEFAULT_SETTINGS;
   }
 
   async updateSettings(
     updates: Partial<SchoolSettings>,
+    schoolId: string,
+    userId: string,
   ): Promise<SchoolSettings> {
-    this.settings = {
-      ...this.settings,
+    const current = await this.getSettings(schoolId);
+    const settings: SchoolSettings = {
+      ...current,
       ...updates,
       gradingSystem: {
-        ...this.settings.gradingSystem,
+        ...current.gradingSystem,
         ...(updates.gradingSystem || {}),
       },
       periodsConfig: {
-        ...this.settings.periodsConfig,
+        ...current.periodsConfig,
         ...(updates.periodsConfig || {}),
       },
       attendancePolicy: {
-        ...this.settings.attendancePolicy,
+        ...current.attendancePolicy,
         ...(updates.attendancePolicy || {}),
       },
       reportSettings: {
-        ...this.settings.reportSettings,
+        ...current.reportSettings,
         ...(updates.reportSettings || {}),
       },
     };
 
-    this.logger.log('School settings updated');
-    return this.settings;
+    await this.prisma.auditLog.create({
+      data: {
+        schoolId,
+        userId,
+        action: 'school.settings.updated',
+        entityType: 'school-settings',
+        entityId: schoolId,
+        metadata: settings as unknown as Prisma.InputJsonValue,
+      },
+    });
+    return settings;
   }
 
   async updateGradingSystem(
     config: Partial<SchoolSettings['gradingSystem']>,
+    schoolId: string,
+    userId: string,
   ): Promise<SchoolSettings> {
-    return this.updateSettings({
-      gradingSystem: { ...this.settings.gradingSystem, ...config },
-    });
+    return this.updateSettings({ gradingSystem: config as SchoolSettings['gradingSystem'] }, schoolId, userId);
   }
 
   async updatePeriodsConfig(
     config: Partial<SchoolSettings['periodsConfig']>,
+    schoolId: string,
+    userId: string,
   ): Promise<SchoolSettings> {
-    return this.updateSettings({
-      periodsConfig: { ...this.settings.periodsConfig, ...config },
-    });
+    return this.updateSettings({ periodsConfig: config as SchoolSettings['periodsConfig'] }, schoolId, userId);
   }
 
   async updateAttendancePolicy(
     config: Partial<SchoolSettings['attendancePolicy']>,
+    schoolId: string,
+    userId: string,
   ): Promise<SchoolSettings> {
-    return this.updateSettings({
-      attendancePolicy: { ...this.settings.attendancePolicy, ...config },
-    });
+    return this.updateSettings({ attendancePolicy: config as SchoolSettings['attendancePolicy'] }, schoolId, userId);
   }
 
   async updateReportSettings(
     config: Partial<SchoolSettings['reportSettings']>,
+    schoolId: string,
+    userId: string,
   ): Promise<SchoolSettings> {
-    return this.updateSettings({
-      reportSettings: { ...this.settings.reportSettings, ...config },
-    });
+    return this.updateSettings({ reportSettings: config as SchoolSettings['reportSettings'] }, schoolId, userId);
   }
 
-  // Helper methods
-  getGradeLetter(score: number): { grade: string; gradeAr: string } {
-    const scale = this.settings.gradingSystem.gradeScale.find(
-      (g) => score >= g.min && score <= g.max,
-    );
-    return scale
-      ? { grade: scale.grade, gradeAr: scale.gradeAr }
-      : { grade: 'N/A', gradeAr: 'غير محدد' };
-  }
-
-  isPassing(score: number): boolean {
-    return score >= this.settings.gradingSystem.passingScore;
-  }
-
-  isLate(minutesLate: number): boolean {
-    return minutesLate > this.settings.attendancePolicy.lateThreshold;
-  }
-
-  shouldNotifyParent(absenceDays: number): boolean {
-    const { maxAbsenceDays, warningThreshold } = this.settings.attendancePolicy;
-    const absencePercentage = (absenceDays / maxAbsenceDays) * 100;
-    return absencePercentage >= warningThreshold;
-  }
 }

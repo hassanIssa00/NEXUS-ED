@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { DrawerPanel } from '../sidebar/DrawerPanel';
-import { Bell, X } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api/client';
 
 interface Notification {
     id: string;
@@ -18,60 +19,53 @@ interface Notification {
 export function NotificationsDrawer() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadFailed, setLoadFailed] = useState(false);
 
     useEffect(() => {
-        // Mock data
-        setTimeout(() => {
-            setNotifications([
-                {
-                    id: '1',
-                    title: 'واجب جديد',
-                    body: 'تم إضافة واجب جديد في مادة الرياضيات',
-                    type: 'assignment',
-                    read: false,
-                    createdAt: new Date('2024-12-03T10:30:00')
-                },
-                {
-                    id: '2',
-                    title: 'تم تصحيح الاختبار',
-                    body: 'تم تصحيح اختبار العلوم. درجتك: 92/100',
-                    type: 'grade',
-                    read: false,
-                    createdAt: new Date('2024-12-02T14:00:00')
-                },
-                {
-                    id: '3',
-                    title: 'موعد تسليم قريب',
-                    body: 'موعد تسليم بحث العلوم بعد يومين',
-                    type: 'warning',
-                    read: true,
-                    createdAt: new Date('2024-12-01T09:00:00')
-                },
-                {
-                    id: '4',
-                    title: 'إعلان مهم',
-                    body: 'سيكون هناك اختبار نصفي الأسبوع القادم',
-                    type: 'info',
-                    read: true,
-                    createdAt: new Date('2024-11-30T11:00:00')
-                },
-            ]);
-            setLoading(false);
-        }, 500);
+        let active = true;
+        apiClient.get('/notifications').then(({ data }) => {
+            if (!active) return;
+            setNotifications((Array.isArray(data) ? data : []).map((item: any) => {
+                const rawType = String(item.type || '').toLowerCase();
+                const type: Notification['type'] = rawType.includes('assignment') ? 'assignment'
+                    : rawType.includes('grade') ? 'grade'
+                    : rawType.includes('warning') ? 'warning'
+                    : rawType.includes('error') ? 'error'
+                    : rawType.includes('success') ? 'success'
+                    : 'info';
+                return {
+                    id: item.id,
+                    title: item.title,
+                    body: item.body,
+                    type,
+                    read: Boolean(item.isRead),
+                    createdAt: new Date(item.createdAt),
+                };
+            }));
+        }).catch(() => {
+            if (active) setLoadFailed(true);
+        }).finally(() => {
+            if (active) setLoading(false);
+        });
+        return () => { active = false; };
     }, []);
 
-    const markAsRead = (id: string) => {
-        setNotifications(prev =>
-            prev.map(n => n.id === id ? { ...n, read: true } : n)
-        );
+    const markAsRead = async (id: string) => {
+        try {
+            await apiClient.post(`/notifications/${id}/read`);
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        } catch {
+            setLoadFailed(true);
+        }
     };
 
-    const deleteNotification = (id: string) => {
-        setNotifications(prev => prev.filter(n => n.id !== id));
-    };
-
-    const markAllAsRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    const markAllAsRead = async () => {
+        try {
+            await apiClient.post('/notifications/read-all');
+            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        } catch {
+            setLoadFailed(true);
+        }
     };
 
     const getTypeColor = (type: Notification['type']) => {
@@ -133,7 +127,7 @@ export function NotificationsDrawer() {
                 ) : notifications.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                         <Bell className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                        <p>لا توجد إشعارات</p>
+                        <p>{loadFailed ? 'تعذر تحميل الإشعارات من النظام' : 'لا توجد إشعارات مسجلة'}</p>
                     </div>
                 ) : (
                     <div className="space-y-2">
@@ -162,17 +156,6 @@ export function NotificationsDrawer() {
                                             {getRelativeTime(notification.createdAt)}
                                         </span>
                                     </div>
-                                    <Button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            deleteNotification(notification.id);
-                                        }}
-                                        variant="ghost"
-                                        size="icon"
-                                        className="flex-shrink-0"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </Button>
                                 </div>
                             </div>
                         ))}

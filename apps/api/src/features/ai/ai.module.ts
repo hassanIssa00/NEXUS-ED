@@ -11,9 +11,10 @@ import { AiGradingService } from './ai-grading.service';
 import { PrismaModule } from '../../core/database/prisma.module';
 import { EventsModule } from '../../gateway/events.module';
 import { GamificationModule } from '../../gamification/gamification.module';
+import { AnalyticsModule } from '../../analytics/analytics.module';
 
 @Module({
-  imports: [PrismaModule, ConfigModule, EventsModule, GamificationModule],
+  imports: [PrismaModule, ConfigModule, EventsModule, GamificationModule, AnalyticsModule],
   controllers: [AiTutorController],
   providers: [AiTutorService, AiExamService, AiAnalyticsService, AiParentService, AiPersonalTutorService, AiContentService, AiGradingService],
   exports: [AiTutorService, AiExamService, AiAnalyticsService, AiParentService, AiPersonalTutorService, AiContentService, AiGradingService],

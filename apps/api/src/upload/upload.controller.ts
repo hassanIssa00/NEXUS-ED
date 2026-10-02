@@ -119,8 +119,8 @@ export class UploadController {
   }
 
   @Get(':id')
-  async getFile(@Param('id') id: string) {
-    const file = await this.uploadService.getFile(id);
+  async getFile(@Param('id') id: string, @Request() req: any) {
+    const file = await this.uploadService.getFile(id, req.user.userId, req.user.role);
     if (!file) {
       throw new BadRequestException('File not found');
     }
@@ -129,8 +129,8 @@ export class UploadController {
 
   @Delete(':id')
   @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
-  async deleteFile(@Param('id') id: string) {
-    await this.uploadService.deleteFile(id);
+  async deleteFile(@Param('id') id: string, @Request() req: any) {
+    await this.uploadService.deleteFile(id, req.user.userId, req.user.role);
     return { message: 'File deleted successfully' };
   }
   @Post('pdf-to-text')

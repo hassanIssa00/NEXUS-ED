@@ -34,7 +34,7 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
         ))}
-      </div>
+      </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={signOut}>
         <Ionicons name="log-out" size={20} color="#FF3B30" />

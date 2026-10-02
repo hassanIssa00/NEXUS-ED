@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../core/database/prisma.service';
 import { GamificationService } from '../../gamification/gamification.service';
@@ -29,7 +29,7 @@ export class AiTutorService {
     history: { role: 'user' | 'assistant'; content: string }[] = [],
   ): Promise<string> {
     if (!this.openai) {
-      throw new Error('OpenAI API Key is not configured for AiTutor');
+      throw new ServiceUnavailableException('المعلم الذكي غير متاح؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
     }
 
     try {
@@ -86,7 +86,7 @@ export class AiTutorService {
       return responseText;
     } catch (error: any) {
       this.logger.error('OpenAI API Error: ' + error.message, error);
-      throw new Error('تعذر الاتصال بالذكاء الاصطناعي: ' + error.message);
+      throw new ServiceUnavailableException('تعذر الاتصال بخدمة المعلم الذكي الآن.');
     }
   }
 

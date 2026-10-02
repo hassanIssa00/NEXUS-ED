@@ -1,6 +1,8 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-const getAccessToken = () =>
-    localStorage.getItem('access_token') || localStorage.getItem('token');
+import { apiClient } from '@/lib/api/client';
+
+function unwrap<T>(response: { data: any }): T {
+    return (response.data?.data ?? response.data) as T;
+}
 
 export interface Assignment {
     id: string;
@@ -10,19 +12,9 @@ export interface Assignment {
     maxScore: number;
     attachments?: string[];
     subjectId: string;
-    subject?: {
-        id: string;
-        name: string;
-        code?: string;
-    };
-    teacher?: {
-        id: string;
-        name?: string;
-        email: string;
-    };
-    _count?: {
-        submissions: number;
-    };
+    subject?: { id: string; name: string; code?: string };
+    teacher?: { id: string; name?: string; email: string };
+    _count?: { submissions: number };
     submission?: Submission | null;
     createdAt: string;
     updatedAt: string;
@@ -32,15 +24,13 @@ export interface Submission {
     id: string;
     content?: string;
     attachments?: string[];
-    score?: number;
+    score?: number | null;
+    grade?: number | null;
     feedback?: string;
     assignmentId: string;
+    assignment?: Pick<Assignment, 'id' | 'title' | 'maxScore' | 'subjectId'>;
     studentId: string;
-    student?: {
-        id: string;
-        name?: string;
-        email: string;
-    };
+    student?: { id: string; name?: string | null; email: string };
     submittedAt: string;
     gradedAt?: string;
 }
@@ -66,197 +56,43 @@ export interface GradeSubmissionDto {
 
 class AssignmentServiceClass {
     async getAll(filters?: { subjectId?: string }): Promise<Assignment[]> {
-        const token = getAccessToken();
-        const params = new URLSearchParams();
-
-        if (filters?.subjectId) {
-            params.append('subjectId', filters.subjectId);
-        }
-
-        const response = await fetch(`${API_BASE_URL}/assignments?${params.toString()}`, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch assignments');
-        }
-
-        const json = await response.json();
-        return json.data ?? json;
+        return unwrap(await apiClient.get('/assignments', { params: filters }));
     }
 
     async getMyAssignments(): Promise<Assignment[]> {
-        const token = getAccessToken();
-
-        const response = await fetch(`${API_BASE_URL}/assignments/my`, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch my assignments');
-        }
-
-        const json = await response.json();
-        return json.data ?? json;
+        return unwrap(await apiClient.get('/assignments/my'));
     }
 
     async getStudentAssignments(): Promise<Assignment[]> {
-        const token = getAccessToken();
-
-        const response = await fetch(`${API_BASE_URL}/assignments/student`, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch student assignments');
-        }
-
-        const json = await response.json();
-        return json.data ?? json;
+        return unwrap(await apiClient.get('/assignments/student'));
     }
 
     async getById(id: string): Promise<Assignment> {
-        const token = getAccessToken();
-
-        const response = await fetch(`${API_BASE_URL}/assignments/${id}`, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch assignment');
-        }
-
-        const json = await response.json();
-        return json.data ?? json;
+        return unwrap(await apiClient.get(`/assignments/${id}`));
     }
 
     async create(data: CreateAssignmentDto): Promise<Assignment> {
-        const token = getAccessToken();
-
-        const response = await fetch(`${API_BASE_URL}/assignments`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to create assignment');
-        }
-
-        const json = await response.json();
-        return json.data ?? json;
+        return unwrap(await apiClient.post('/assignments', data));
     }
 
     async update(id: string, data: Partial<CreateAssignmentDto>): Promise<Assignment> {
-        const token = getAccessToken();
-
-        const response = await fetch(`${API_BASE_URL}/assignments/${id}`, {
-            method: 'PATCH',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to update assignment');
-        }
-
-        const json = await response.json();
-        return json.data ?? json;
+        return unwrap(await apiClient.patch(`/assignments/${id}`, data));
     }
 
     async delete(id: string): Promise<void> {
-        const token = getAccessToken();
-
-        const response = await fetch(`${API_BASE_URL}/assignments/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to delete assignment');
-        }
+        await apiClient.delete(`/assignments/${id}`);
     }
 
     async submit(id: string, data: SubmitAssignmentDto): Promise<Submission> {
-        const token = getAccessToken();
-
-        const response = await fetch(`${API_BASE_URL}/assignments/${id}/submit`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to submit assignment');
-        }
-
-        const json = await response.json();
-        return json.data ?? json;
+        return unwrap(await apiClient.post(`/assignments/${id}/submit`, data));
     }
 
     async getSubmissions(assignmentId: string): Promise<Submission[]> {
-        const token = getAccessToken();
-
-        const response = await fetch(`${API_BASE_URL}/assignments/${assignmentId}/submissions`, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch submissions');
-        }
-
-        const json = await response.json();
-        return json.data ?? json;
+        return unwrap(await apiClient.get(`/assignments/${assignmentId}/submissions`));
     }
 
     async gradeSubmission(submissionId: string, data: GradeSubmissionDto): Promise<Submission> {
-        const token = getAccessToken();
-
-        const response = await fetch(`${API_BASE_URL}/assignments/submissions/${submissionId}/grade`, {
-            method: 'PATCH',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to grade submission');
-        }
-
-        const json = await response.json();
-        return json.data ?? json;
+        return unwrap(await apiClient.patch(`/assignments/submissions/${submissionId}/grade`, data));
     }
 }
 

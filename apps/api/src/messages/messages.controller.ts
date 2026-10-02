@@ -13,6 +13,11 @@ export class MessagesController {
     return this.messagesService.getConversations(req.user.userId);
   }
 
+  @Get('contacts')
+  getContacts(@Request() req: any) {
+    return this.messagesService.getContacts(req.user.userId);
+  }
+
   @Post('start')
   startConversation(@Request() req: any, @Body() dto: StartConversationDto) {
     return this.messagesService.startDirectConversation(req.user.userId, dto.targetUserId);

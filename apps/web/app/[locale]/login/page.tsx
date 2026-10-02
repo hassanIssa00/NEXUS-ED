@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     GraduationCap, BookOpen, Users, Briefcase, UserPlus,
     HeartHandshake, Eye, Calculator, ArrowLeft, Sparkles,
-    Shield, Trophy, Brain, Zap, Rocket, Lock
+    Shield, Rocket, Lock
 } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { LanguageSwitcher } from '@/components/language-switcher';
@@ -18,10 +18,8 @@ const loginPortals = [
         icon: GraduationCap,
         color: 'from-[#00D1B2] to-[#059669]',
         highlight: '#00D1B2',
-        description: 'تابع دروسك وواجباتك ودرجاتك وتحدياتك اليومية',
+        description: 'اعرض الدروس والواجبات والدرجات المسجلة لحسابك',
         emoji: '🎓',
-        users: '+8,500 طالب',
-        tag: 'الأكثر استخداماً'
     },
     {
         id: 'teacher',
@@ -29,10 +27,8 @@ const loginPortals = [
         icon: BookOpen,
         color: 'from-[#3B82F6] to-[#2563EB]',
         highlight: '#3B82F6',
-        description: 'أدر فصولك وواجباتك وتحليلات أداء الطلاب',
+        description: 'اعرض الفصول المسندة إليك وتابع الواجبات وأعمال الطلاب',
         emoji: '📚',
-        users: '+1,200 معلم',
-        tag: 'AI مدعوم'
     },
     {
         id: 'parent',
@@ -40,10 +36,8 @@ const loginPortals = [
         icon: Users,
         color: 'from-[#F59E0B] to-[#D97706]',
         highlight: '#F59E0B',
-        description: 'تابع أداء ابنك وحضوره ودرجاته لحظة بلحظة',
+        description: 'تابع سجلات الحضور والدرجات للطلاب المرتبطين بحسابك',
         emoji: '👨‍👩‍👧',
-        users: '+3,200 ولي أمر',
-        tag: ''
     },
     {
         id: 'principal',
@@ -51,10 +45,8 @@ const loginPortals = [
         icon: Briefcase,
         color: 'from-[#8B5CF6] to-[#6D28D9]',
         highlight: '#8B5CF6',
-        description: 'إدارة شاملة للمدرسة مع تقارير الأداء والإحصاءات',
+        description: 'تابع سجلات المدرسة والتقارير المتاحة بحسب صلاحيات حسابك',
         emoji: '🏫',
-        users: '+85 قائد',
-        tag: ''
     },
     {
         id: 'vice_principal',
@@ -64,8 +56,6 @@ const loginPortals = [
         highlight: '#EC4899',
         description: 'متابعة شؤون المدرسة والجداول الدراسية وسجلات الطلاب',
         emoji: '📋',
-        users: '+120 وكيل',
-        tag: ''
     },
     {
         id: 'counselor',
@@ -75,8 +65,6 @@ const loginPortals = [
         highlight: '#14B8A6',
         description: 'دعم الطلاب ومتابعة حالاتهم ومعالجة الغيابات',
         emoji: '🤝',
-        users: '+340 مرشد',
-        tag: ''
     },
     {
         id: 'supervisor',
@@ -86,8 +74,6 @@ const loginPortals = [
         highlight: '#6366F1',
         description: 'مراقبة الأداء العام وضمان جودة التعليم في المدارس',
         emoji: '👁️',
-        users: '+280 مشرف',
-        tag: ''
     },
     {
         id: 'admin',
@@ -97,16 +83,32 @@ const loginPortals = [
         highlight: '#F43F5E',
         description: 'إدارة الشؤون المالية والإدارية والحسابات',
         emoji: '💼',
-        users: '+160 موظف',
-        tag: ''
+    },
+    {
+        id: 'accountant',
+        label: 'المحاسبة المالية',
+        icon: Calculator,
+        color: 'from-[#10B981] to-[#047857]',
+        highlight: '#10B981',
+        description: 'اعرض الفواتير والسجلات المالية المصرح بها لحسابك',
+        emoji: '💰',
+    },
+    {
+        id: 'hr',
+        label: 'الموارد البشرية',
+        icon: Users,
+        color: 'from-[#0F766E] to-[#0E7490]',
+        highlight: '#0F766E',
+        description: 'اعرض سجلات الموظفين المتاحة لحسابك',
+        emoji: '👥',
     },
 ];
 
 const platformFeatures = [
-    { icon: Brain, text: 'ذكاء اصطناعي متقدم', color: 'text-purple-500', bg: 'bg-purple-50' },
-    { icon: Trophy, text: '🏆 جائزة المليون ريال', color: 'text-yellow-500', bg: 'bg-yellow-50' },
-    { icon: Shield, text: 'بيانات آمنة 100%', color: 'text-green-500', bg: 'bg-green-50' },
-    { icon: Zap, text: 'واجهة فائقة السرعة', color: 'text-blue-500', bg: 'bg-blue-50' },
+    { icon: GraduationCap, text: 'حسابات الطلاب', color: 'text-teal-600', bg: 'bg-teal-50' },
+    { icon: BookOpen, text: 'حسابات المعلمين', color: 'text-blue-600', bg: 'bg-blue-50' },
+    { icon: Users, text: 'ربط ولي الأمر بالطلاب', color: 'text-amber-600', bg: 'bg-amber-50' },
+    { icon: Shield, text: 'بوابات إدارية بحسب الدور', color: 'text-rose-600', bg: 'bg-rose-50' },
 ];
 
 export default function GlobalLoginSelectorPage() {
@@ -183,10 +185,6 @@ export default function GlobalLoginSelectorPage() {
                                     <div className="text-5xl mb-4 animate-elastic">{activePortal.emoji}</div>
                                     <h3 className="text-2xl font-black text-slate-900 mb-2">{activePortal.label}</h3>
                                     <p className="text-slate-600 leading-relaxed mb-4">{activePortal.description}</p>
-                                    <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-100/80 rounded-xl border border-slate-200/60">
-                                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                        <span className="text-xs font-semibold text-slate-700">{activePortal.users} نشطون الآن</span>
-                                    </div>
                                 </motion.div>
                             ) : (
                                 <motion.div
@@ -300,13 +298,6 @@ export default function GlobalLoginSelectorPage() {
                                             <div className="absolute -top-10 -right-10 w-20 h-20 rounded-full opacity-0 group-hover:opacity-50 transition-all duration-500 blur-2xl"
                                                 style={{ backgroundColor: portal.highlight }} />
 
-                                            {/* Tag (if exists) */}
-                                            {portal.tag && (
-                                                <div className="absolute top-2 left-2 px-2 py-0.5 text-[9px] font-bold rounded-full text-white" style={{ backgroundColor: portal.highlight }}>
-                                                    {portal.tag}
-                                                </div>
-                                            )}
-
                                             {/* Icon with glow */}
                                             <div className="w-14 h-14 rounded-[16px] flex items-center justify-center transition-all duration-400 shadow-md group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-lg"
                                                 style={{ backgroundColor: `${portal.highlight}15` }}
@@ -360,13 +351,7 @@ export default function GlobalLoginSelectorPage() {
                                 تواصل مع الدعم الفني
                             </a>
                         </p>
-                        <div className="flex items-center justify-center gap-4 text-[10px] text-slate-300 font-medium mb-4">
-                            <span>🔒 SSL 256-bit</span>
-                            <span>•</span>
-                            <span>🇸🇦 خوادم سعودية</span>
-                            <span>•</span>
-                            <span>⚡ 99.9% Uptime</span>
-                        </div>
+                        <p className="mb-4 text-center text-[10px] text-slate-400">بوابة مدرسة الإخلاص الأهلية · جدة</p>
                         <div className="flex flex-col items-center justify-center gap-1 border-t border-white/5 pt-4">
                             <p className="text-center text-[11px] text-slate-400 font-medium">
                                 © 2026 Nexus EDU — جميع الحقوق محفوظة لمدارس الإخلاص الأهلية

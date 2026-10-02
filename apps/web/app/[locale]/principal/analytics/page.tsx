@@ -6,13 +6,11 @@ import { apiClient } from '@/lib/api/client'
 import { SocketProvider } from '@/lib/providers/socket-provider'
 import {
   BarChart3, TrendingUp, Users, Award, BookOpen, BrainCircuit,
-  Loader2, RefreshCw, AlertTriangle, CheckCircle2, Star, Target,
-  GraduationCap, Zap, Download
+  Loader2, RefreshCw, AlertTriangle, CheckCircle2, GraduationCap
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  ScatterChart, Scatter, ZAxis, LineChart, Line
+  AreaChart, Area
 } from 'recharts'
 
 function Section({ title, icon: Icon, color, children }: {
@@ -36,15 +34,36 @@ function AnalyticsInner() {
   const [loading, setLoading] = useState(true)
   const [aiInsight, setAiInsight] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
+  const [riskSummary, setRiskSummary] = useState<{ total: number; critical: number; high: number; medium: number; low: number; noAlerts: number } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      // Use admin dashboard for school-wide data
-      const [adminRes] = await Promise.all([
-        apiClient.get('/dashboard/admin').catch(() => ({ data: null })),
+      const [adminRes, classesRes] = await Promise.all([
+        apiClient.get('/dashboard/admin'),
+        apiClient.get('/classes'),
       ])
       setData(adminRes.data?.data ?? adminRes.data)
+      const classes = Array.isArray(classesRes.data) ? classesRes.data : []
+      const warningLists = await Promise.all(classes.map((schoolClass: any) =>
+        apiClient.get('/analytics/student/early-warnings', { params: { classId: schoolClass.id } })
+          .then(({ data }) => Array.isArray(data) ? data : [])
+      ))
+      const warningByStudent = new Map<string, string>()
+      const riskWeight: Record<string, number> = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 }
+      warningLists.flat().forEach((warning: any) => {
+        const current = warningByStudent.get(warning.studentId)
+        if (!current || riskWeight[warning.riskLevel] > riskWeight[current]) warningByStudent.set(warning.studentId, warning.riskLevel)
+      })
+      const total = classes.reduce((sum: number, schoolClass: any) => sum + (schoolClass._count?.students || 0), 0)
+      const counts = { total, critical: 0, high: 0, medium: 0, low: 0, noAlerts: Math.max(0, total - warningByStudent.size) }
+      warningByStudent.forEach((level) => {
+        if (level === 'CRITICAL') counts.critical++
+        else if (level === 'HIGH') counts.high++
+        else if (level === 'MEDIUM') counts.medium++
+        else counts.low++
+      })
+      setRiskSummary(counts)
     } catch { setData(null) }
     finally { setLoading(false) }
   }, [])
@@ -77,22 +96,12 @@ function AnalyticsInner() {
     name: e.label, إيرادات: e.value
   }))
 
-  const subjectRadar = [
-    { subject: 'القرآن الكريم', value: 94 },
-    { subject: 'لغتي الجميلة', value: 92 },
-    { subject: 'الرياضيات', value: 88 },
-    { subject: 'العلوم', value: 89 },
-    { subject: 'الحاسب والتقنية', value: 91 },
-    { subject: 'التربية الفنية والبدنية', value: 95 },
-  ]
-
-  // Risk student simulation
-  const riskData = [
-    { name: 'ممتازون', count: Math.floor((kpis.totalStudents || 100) * 0.35), color: '#22c55e' },
-    { name: 'جيدون', count: Math.floor((kpis.totalStudents || 100) * 0.40), color: '#3b82f6' },
-    { name: 'يحتاجون دعم', count: Math.floor((kpis.totalStudents || 100) * 0.17), color: '#f59e0b' },
-    { name: 'مخطر عليهم', count: Math.floor((kpis.totalStudents || 100) * 0.08), color: '#ef4444' },
-  ]
+  const riskData = riskSummary ? [
+    { name: 'مخاطر حرجة', count: riskSummary.critical, color: '#ef4444' },
+    { name: 'مخاطر عالية', count: riskSummary.high, color: '#f97316' },
+    { name: 'مخاطر متوسطة أو منخفضة', count: riskSummary.medium + riskSummary.low, color: '#f59e0b' },
+    { name: 'بدون تنبيه مسجل', count: riskSummary.noAlerts, color: '#22c55e' },
+  ] : []
 
   return (
     <div className="space-y-6 pb-10" dir="rtl">
@@ -109,9 +118,9 @@ function AnalyticsInner() {
             <p className="text-white/80 text-sm mb-4">تحليل شامل للأداء الأكاديمي، الحضور، والإيرادات</p>
             <div className="flex gap-3 flex-wrap">
               {[
-                { v: kpis.totalStudents || 0, l: 'طالب', c: '#a78bfa' },
-                { v: kpis.totalTeachers || 0, l: 'معلم', c: '#60a5fa' },
-                { v: `${(kpis.totalRevenue || 0).toLocaleString()}`, l: 'إيرادات', c: '#34d399' },
+                { v: kpis.totalStudents ?? '—', l: 'طالب', c: '#a78bfa' },
+                { v: kpis.totalTeachers ?? '—', l: 'معلم', c: '#60a5fa' },
+                { v: kpis.totalRevenue == null ? '—' : kpis.totalRevenue.toLocaleString(), l: 'إيرادات', c: '#34d399' },
               ].map((s, i) => (
                 <div key={i} className="bg-white/15 backdrop-blur-sm rounded-xl px-4 py-2">
                   <p className="font-extrabold text-lg" style={{ color: s.c }}>{s.v}</p>
@@ -152,10 +161,10 @@ function AnalyticsInner() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'إجمالي الطلاب', value: kpis.totalStudents || 0, icon: GraduationCap, color: '#8b5cf6', trend: '+5%' },
-          { label: 'المعلمون', value: kpis.totalTeachers || 0, icon: BookOpen, color: '#3b82f6', trend: '+2%' },
-          { label: 'الفصول', value: kpis.totalClasses || 0, icon: Users, color: '#14b8a6', trend: '0%' },
-          { label: 'الإيرادات', value: `${(kpis.totalRevenue || 0).toLocaleString()}`, icon: Award, color: '#22c55e', trend: '+8%' },
+          { label: 'إجمالي الطلاب', value: kpis.totalStudents ?? '—', icon: GraduationCap, color: '#8b5cf6' },
+          { label: 'المعلمون', value: kpis.totalTeachers ?? '—', icon: BookOpen, color: '#3b82f6' },
+          { label: 'الفصول', value: kpis.totalClasses ?? '—', icon: Users, color: '#14b8a6' },
+          { label: 'الإيرادات', value: kpis.totalRevenue == null ? '—' : kpis.totalRevenue.toLocaleString(), icon: Award, color: '#22c55e' },
         ].map((k, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
             whileHover={{ y: -3 }} className="bg-card border border-border rounded-2xl p-5">
@@ -163,7 +172,6 @@ function AnalyticsInner() {
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${k.color}15` }}>
                 <k.icon className="w-5 h-5" style={{ color: k.color }} />
               </div>
-              <span className={`text-xs font-bold ${k.trend.startsWith('+') ? 'text-emerald-600' : 'text-muted-foreground'}`}>{k.trend}</span>
             </div>
             <p className="text-2xl font-extrabold text-foreground">{k.value}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{k.label}</p>
@@ -209,20 +217,10 @@ function AnalyticsInner() {
         </Section>
       </div>
 
-      {/* Subject Radar + Student Risk */}
+      {/* Recorded early-warning summary */}
       <div className="grid lg:grid-cols-2 gap-5">
-        <Section title="الأداء الأكاديمي حسب المواد الدراسية" icon={Target} color="#3b82f6">
-          <ResponsiveContainer width="100%" height={240}>
-            <RadarChart data={subjectRadar}>
-              <PolarGrid stroke="hsl(var(--border))" />
-              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-              <Radar dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} strokeWidth={2} />
-            </RadarChart>
-          </ResponsiveContainer>
-        </Section>
-
         <Section title="توزيع مستويات الطلاب" icon={Users} color="#f59e0b">
-          <div className="space-y-3">
+          {riskSummary ? <div className="space-y-3">
             {riskData.map((d, i) => (
               <div key={i}>
                 <div className="flex justify-between text-sm mb-1">
@@ -232,46 +230,44 @@ function AnalyticsInner() {
                 <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                   <motion.div className="h-full rounded-full" style={{ backgroundColor: d.color }}
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.round((d.count / (kpis.totalStudents || 100)) * 100)}%` }}
+                    animate={{ width: `${riskSummary.total > 0 ? Math.round((d.count / riskSummary.total) * 100) : 0}%` }}
                     transition={{ duration: 1, delay: i * 0.1 }} />
                 </div>
               </div>
             ))}
-          </div>
-          <div className="mt-5 bg-amber-50 dark:bg-amber-900/20 rounded-2xl p-4 flex items-start gap-3">
+          </div> : <p className="py-10 text-center text-sm text-muted-foreground">تعذر تحميل تنبيهات الطلاب الفعلية.</p>}
+          {riskSummary && <div className="mt-5 bg-amber-50 dark:bg-amber-900/20 rounded-2xl p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
-                {riskData[3].count} طالب في وضع حرج
+                {riskSummary.critical} طالب لديهم تنبيه حرج
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 يُنصح بمراجعة ملفاتهم وتفعيل خطط التدخل المبكر.
               </p>
             </div>
-          </div>
+          </div>}
         </Section>
       </div>
 
       {/* System Health Summary */}
       <Section title="جودة النظام والأداء العام" icon={CheckCircle2} color="#10b981">
         <div className="grid sm:grid-cols-3 gap-4">
-          {[
-            { label: 'نسبة الحضور المتوقعة', value: '87%', status: 'good', icon: Star },
-            { label: 'متوسط الدرجات', value: '76%', status: 'warn', icon: Award },
-            { label: 'تسليم الواجبات', value: '91%', status: 'good', icon: CheckCircle2 },
-          ].map((s, i) => {
-            const isGood = s.status === 'good'
+          {(data?.systemHealth || []).map((s: any, i: number) => {
+            const isGood = s.status === 'healthy'
             return (
               <motion.div key={i} whileHover={{ y: -2 }}
                 className={`p-4 rounded-2xl border ${isGood ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10' : 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-900/10'}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <s.icon className={`w-4 h-4 ${isGood ? 'text-emerald-500' : 'text-amber-500'}`} />
-                  <p className="text-xs font-bold text-foreground">{s.label}</p>
+                  <CheckCircle2 className={`w-4 h-4 ${isGood ? 'text-emerald-500' : 'text-amber-500'}`} />
+                  <p className="text-xs font-bold text-foreground">{s.name}</p>
                 </div>
                 <p className={`text-2xl font-extrabold ${isGood ? 'text-emerald-600' : 'text-amber-600'}`}>{s.value}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{s.detail}</p>
               </motion.div>
             )
           })}
+          {!data?.systemHealth?.length && <p className="py-8 text-center text-sm text-muted-foreground">لا توجد مؤشرات خدمات مسجلة.</p>}
         </div>
       </Section>
     </div>

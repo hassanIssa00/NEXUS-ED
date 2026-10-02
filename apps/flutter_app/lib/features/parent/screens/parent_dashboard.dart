@@ -1,370 +1,274 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/routing/route_names.dart';
+import '../../../services/api_service.dart';
 
-class ParentDashboard extends StatelessWidget {
+class ParentDashboard extends StatefulWidget {
   const ParentDashboard({super.key});
 
   @override
+  State<ParentDashboard> createState() => _ParentDashboardState();
+}
+
+class _ParentDashboardState extends State<ParentDashboard> {
+  List<Map<String, dynamic>> _children = [];
+  String? _selectedId;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
+    try {
+      final response = await ApiService.instance.get('/dashboard/parent');
+      final payload = Map<String, dynamic>.from(response.data as Map);
+      final values = (payload['children'] as List<dynamic>? ?? const [])
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _children = values;
+        if (!values.any((child) => child['id'] == _selectedId)) {
+          _selectedId = values.isEmpty ? null : values.first['id']?.toString();
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'تعذر تحميل بيانات الأبناء المرتبطين بالحساب.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _linkStudent() async {
+    final controller = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('ربط طالب'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 16,
+          textCapitalization: TextCapitalization.characters,
+          textAlign: TextAlign.center,
+          decoration: const InputDecoration(labelText: 'رمز الربط', hintText: 'أدخل الرمز المكوّن من 16 حرفًا'),
+          onChanged: (value) {
+            final normalized = value.toUpperCase().replaceAll(RegExp(r'[^A-F0-9]'), '');
+            if (normalized != value) {
+              controller.value = TextEditingValue(text: normalized, selection: TextSelection.collapsed(offset: normalized.length));
+            }
+          },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('ربط')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (code == null || code.length != 16) return;
+
+    try {
+      final response = await ApiService.instance.post('/users/link-student', data: {'code': code});
+      final linked = Map<String, dynamic>.from(response.data as Map);
+      final studentId = (linked['student'] as Map?)?['id']?.toString();
+      await _load();
+      if (mounted && studentId != null && studentId.isNotEmpty) {
+        context.go(RouteNames.parentSurvey.replaceFirst(':studentId', Uri.encodeComponent(studentId)));
+      }
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر استخدام الرمز. تحقق من صلاحيته ومدرسته.')));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    Map<String, dynamic>? child;
+    for (final item in _children) {
+      if (item['id'] == _selectedId) {
+        child = item;
+        break;
+      }
+    }
+    final attendance = child?['attendance'] as Map<String, dynamic>?;
+    final selectedStudentId = child?['id']?.toString();
+    final grades = (child?['recentGrades'] as List<dynamic>? ?? const []);
+    final assignments = (child?['upcomingAssignments'] as List<dynamic>? ?? const []);
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: AppColors.backgroundDark,
         body: SafeArea(
-          bottom: false,
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top bar
-                Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Image.asset('assets/images/logo.jpeg', width: 44, height: 44, fit: BoxFit.cover),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('نكسس لأولياء الأمور', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
-                        Text('Nexus EDU — Parent', style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.35), letterSpacing: 2)),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Welcome Card
-                Container(
-                  width: double.infinity, padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF1A0F3C), Color(0xFF2D1B69), Color(0xFF3D2680)]),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFF7C3AED).withOpacity(0.15)),
-                    boxShadow: [BoxShadow(color: const Color(0xFF7C3AED).withOpacity(0.12), blurRadius: 30, offset: const Offset(0, 10))],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('مرحباً يا ولي الأمر 👨‍👩‍👧', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white)),
-                      const SizedBox(height: 8),
-                      Text('تابع تقدم أبنائك الدراسي', style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.7))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Children
-                const Text('أبنائي', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 100,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: const [
-                      _ChildChip(name: 'أحمد', selected: true, grade: 'الصف الثالث'),
-                      SizedBox(width: 10),
-                      _ChildChip(name: 'سارة', selected: false, grade: 'الصف الأول'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Stats
-                GridView.count(
-                  shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 1.55,
-                  children: const [
-                    _ParentStat(label: 'المعدل', value: '87%', icon: Icons.emoji_events_rounded, color: Color(0xFFFBBF24)),
-                    _ParentStat(label: 'الحضور', value: '92%', icon: Icons.calendar_today_rounded, color: Color(0xFF3B82F6)),
-                    _ParentStat(label: 'الواجبات المسلمة', value: '12/15', icon: Icons.assignment_turned_in_rounded, color: Color(0xFF10B981)),
-                    _ParentStat(label: 'الترتيب', value: '#3', icon: Icons.leaderboard_rounded, color: Color(0xFFA855F7)),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Activities
-                const Text('آخر النشاطات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
-                const SizedBox(height: 12),
-                ..._activities.map((a) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardDark, borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.borderDark),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40, height: 40,
-                        decoration: BoxDecoration(color: a.color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                        child: Center(child: Text(a.emoji, style: const TextStyle(fontSize: 20))),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(a.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
-                            const SizedBox(height: 2),
-                            Text(a.time, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.3))),
+          child: RefreshIndicator(
+            onRefresh: _load,
+            child: _loading && _children.isEmpty
+                ? ListView(children: [const SizedBox(height: 300), Center(child: CircularProgressIndicator())])
+                : _error != null && _children.isEmpty
+                    ? ListView(padding: const EdgeInsets.all(24), children: [
+                        const SizedBox(height: 170),
+                        const Icon(Icons.cloud_off_outlined, color: Colors.white54, size: 40),
+                        const SizedBox(height: 12),
+                        Center(child: Text(_error!, style: const TextStyle(color: Colors.white70))),
+                        Center(child: TextButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة'))),
+                      ])
+                    : ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
+                        children: [
+                          Row(children: [
+                            ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.asset('assets/images/logo.jpeg', width: 42, height: 42, fit: BoxFit.cover)),
+                            const SizedBox(width: 10),
+                            const Expanded(child: Text('بوابة ولي الأمر', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800))),
+                            IconButton(onPressed: _linkStudent, tooltip: 'ربط طالب', icon: const Icon(Icons.link, color: Colors.white70)),
+                            IconButton(onPressed: _load, tooltip: 'تحديث', icon: const Icon(Icons.refresh, color: Colors.white70)),
+                          ]),
+                          const SizedBox(height: 22),
+                          if (_children.isEmpty)
+                            Column(children: [
+                              _EmptyState(message: _error ?? 'لا توجد ملفات طلاب مرتبطة بهذا الحساب بعد.'),
+                              const SizedBox(height: 12),
+                              FilledButton.icon(onPressed: _linkStudent, icon: const Icon(Icons.link), label: const Text('إدخال رمز الطالب')),
+                            ])
+                          else ...[
+                            DropdownButtonFormField<String>(
+                              value: _selectedId,
+                              dropdownColor: AppColors.cardDark,
+                              decoration: InputDecoration(labelText: 'ملف الطالب', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: AppColors.cardDark, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.borderDark))),
+                              style: const TextStyle(color: Colors.white),
+                              items: _children.map((item) => DropdownMenuItem<String>(value: item['id'].toString(), child: Text(item['name']?.toString() ?? item['email']?.toString() ?? '', overflow: TextOverflow.ellipsis))).toList(),
+                              onChanged: (value) => setState(() => _selectedId = value),
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: selectedStudentId == null
+                                  ? null
+                                  : () => context.go(RouteNames.parentSurvey.replaceFirst(':studentId', Uri.encodeComponent(selectedStudentId))),
+                              icon: const Icon(Icons.assignment_outlined),
+                              label: const Text('استبيان ولي الأمر'),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(child?['className']?.toString() ?? 'لا يوجد فصل مسجل', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                            const SizedBox(height: 12),
+                            GridView.count(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 9,
+                              crossAxisSpacing: 9,
+                              childAspectRatio: 1.6,
+                              children: [
+                                _Metric(label: 'متوسط الدرجات', value: _percent(child?['averageGrade']), icon: Icons.grade_outlined),
+                                _Metric(label: 'الحضور المسجل', value: _percent(child?['attendanceRate']), icon: Icons.event_available_outlined),
+                                _Metric(label: 'سجلات الدرجات', value: '${child?['gradeRecordCount'] ?? '—'}', icon: Icons.assignment_turned_in_outlined),
+                                _Metric(label: 'واجبات قادمة', value: '${assignments.length}', icon: Icons.assignment_outlined),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            const _SectionTitle('الحضور المسجل'),
+                            if (attendance == null)
+                              const _EmptyLine('لا توجد سجلات حضور حتى الآن.')
+                            else
+                              _DataLine(title: 'حاضر', value: '${attendance['present'] ?? '—'}', icon: Icons.check_circle_outline),
+                            if (attendance != null) ...[
+                              _DataLine(title: 'غائب', value: '${attendance['absent'] ?? '—'}', icon: Icons.cancel_outlined),
+                              _DataLine(title: 'متأخر', value: '${attendance['late'] ?? '—'}', icon: Icons.schedule_outlined),
+                              _DataLine(title: 'بعذر', value: '${attendance['excused'] ?? '—'}', icon: Icons.event_busy_outlined),
+                            ],
+                            const SizedBox(height: 20),
+                            const _SectionTitle('آخر الدرجات المسجلة'),
+                            if (grades.isEmpty)
+                              const _EmptyLine('لا توجد درجات مسجلة بعد.')
+                            else
+                              ...grades.map((item) {
+                                final grade = Map<String, dynamic>.from(item as Map);
+                                return _DataLine(
+                                  title: grade['subject']?.toString() ?? '',
+                                  value: '${grade['recordedScore'] ?? '—'} / ${grade['recordedMaximum'] ?? '—'}',
+                                  icon: Icons.menu_book_outlined,
+                                );
+                              }),
+                            const SizedBox(height: 20),
+                            const _SectionTitle('الواجبات القادمة'),
+                            if (assignments.isEmpty)
+                              const _EmptyLine('لا توجد واجبات قادمة مسجلة.')
+                            else
+                              ...assignments.map((item) {
+                                final assignment = Map<String, dynamic>.from(item as Map);
+                                return _DataLine(
+                                  title: assignment['title']?.toString() ?? '',
+                                  value: assignment['submitted'] == true ? 'تم التسليم' : 'لم يتم التسليم',
+                                  icon: Icons.assignment_outlined,
+                                );
+                              }),
                           ],
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                )),
-                const SizedBox(height: 24),
-
-                // Subscription Button — FUNCTIONAL
-                GestureDetector(
-                  onTap: () => _showSubscriptionSheet(context),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF059669)]),
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [BoxShadow(color: const Color(0xFF10B981).withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 6))],
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.payment_rounded, color: Colors.white, size: 22),
-                        SizedBox(width: 10),
-                        Text('إدارة الاشتراكات والمدفوعات', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
     );
   }
 
-  // ═════════════════════════════════════
-  // SUBSCRIPTION MANAGEMENT SHEET
-  // ═════════════════════════════════════
-  static void _showSubscriptionSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: Container(
-          height: MediaQuery.of(context).size.height * 0.8,
-          decoration: const BoxDecoration(
-            color: Color(0xFF0F1A2E),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(2)))),
-                const SizedBox(height: 20),
-                const Center(child: Text('إدارة الاشتراكات 💳', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white))),
-                const SizedBox(height: 24),
-
-                // Current Plan
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF1A0F3C), Color(0xFF2D1B69)]),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFFBBF24).withOpacity(0.3)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('الباقة الذهبية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFFFBBF24))),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-                            child: const Text('نشط ✅', style: TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.w700)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text('تجديد تلقائي: 15 أبريل 2026', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5))),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          _PlanFeature(icon: Icons.check_circle, label: 'جميع المواد'),
-                          const SizedBox(width: 16),
-                          _PlanFeature(icon: Icons.check_circle, label: 'AI مساعد'),
-                          const SizedBox(width: 16),
-                          _PlanFeature(icon: Icons.check_circle, label: 'تقارير مفصلة'),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Payment History
-                const Text('سجل المدفوعات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
-                const SizedBox(height: 12),
-                _PaymentRecord(date: '15 مارس 2026', amount: '299 ر.س', status: 'مدفوع', isPaid: true),
-                _PaymentRecord(date: '15 فبراير 2026', amount: '299 ر.س', status: 'مدفوع', isPaid: true),
-                _PaymentRecord(date: '15 يناير 2026', amount: '299 ر.س', status: 'مدفوع', isPaid: true),
-                const SizedBox(height: 24),
-
-                // Plans
-                const Text('الباقات المتاحة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(child: _PlanCard(name: 'أساسي', price: '99', features: ['3 مواد', 'تقارير بسيطة'])),
-                    const SizedBox(width: 10),
-                    Expanded(child: _PlanCard(name: 'ذهبي', price: '299', features: ['كل المواد', 'AI + تقارير'], isActive: true)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _PlanCard(name: 'بريميوم', price: '499', features: ['كل شيء', '1-on-1 دعم'])),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  static String _percent(dynamic value) => value is num ? '${value.toStringAsFixed(1)}%' : '—';
 }
 
-// ═══════════════════════════════════════
-// WIDGETS
-// ═══════════════════════════════════════
+class _Metric extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  const _Metric({required this.label, required this.value, required this.icon});
 
-class _ChildChip extends StatelessWidget {
-  final String name, grade; final bool selected;
-  const _ChildChip({required this.name, required this.selected, required this.grade});
   @override
   Widget build(BuildContext context) => Container(
-    width: 120, padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: selected ? const Color(0xFF10B981).withOpacity(0.08) : AppColors.cardDark,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: selected ? const Color(0xFF10B981).withOpacity(0.3) : AppColors.borderDark, width: selected ? 2 : 1),
-    ),
-    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(colors: selected ? [const Color(0xFF0D9488), const Color(0xFF10B981)] : [const Color(0xFF3B82F6), const Color(0xFF6366F1)]),
-        ),
-        child: const Center(child: Text('👦', style: TextStyle(fontSize: 20))),
-      ),
-      const SizedBox(height: 6),
-      Text(name, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: selected ? const Color(0xFF10B981) : Colors.white)),
-      Text(grade, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.35))),
-    ]),
-  );
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(color: AppColors.cardDark, borderRadius: BorderRadius.circular(13), border: Border.all(color: AppColors.borderDark)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Icon(icon, color: const Color(0xFF34D399), size: 19),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+        ]),
+      );
 }
 
-class _ParentStat extends StatelessWidget {
-  final String label, value; final IconData icon; final Color color;
-  const _ParentStat({required this.label, required this.value, required this.icon, required this.color});
+class _SectionTitle extends StatelessWidget {
+  final String text;
+  const _SectionTitle(this.text);
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 7), child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)));
+}
+
+class _DataLine extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  const _DataLine({required this.title, required this.value, required this.icon});
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(color: AppColors.cardDark, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.borderDark)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Icon(icon, color: color, size: 24),
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.4))),
-      ]),
-    ]),
-  );
+        margin: const EdgeInsets.only(bottom: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(color: AppColors.cardDark, borderRadius: BorderRadius.circular(11), border: Border.all(color: AppColors.borderDark)),
+        child: Row(children: [Icon(icon, size: 18, color: const Color(0xFF34D399)), const SizedBox(width: 9), Expanded(child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))), Text(value, style: const TextStyle(color: Colors.white70, fontSize: 11))]),
+      );
 }
 
-class _PlanFeature extends StatelessWidget {
-  final IconData icon; final String label;
-  const _PlanFeature({required this.icon, required this.label});
+class _EmptyLine extends StatelessWidget {
+  final String text;
+  const _EmptyLine(this.text);
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Icon(icon, size: 14, color: const Color(0xFF10B981)),
-      const SizedBox(width: 4),
-      Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.6))),
-    ],
-  );
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(text, style: const TextStyle(color: Colors.white54, fontSize: 13)));
 }
 
-class _PaymentRecord extends StatelessWidget {
-  final String date, amount, status; final bool isPaid;
-  const _PaymentRecord({required this.date, required this.amount, required this.status, required this.isPaid});
+class _EmptyState extends StatelessWidget {
+  final String message;
+  const _EmptyState({required this.message});
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 8),
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(color: AppColors.cardDark, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.borderDark)),
-    child: Row(
-      children: [
-        Container(
-          width: 36, height: 36,
-          decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-          child: const Icon(Icons.receipt_long_rounded, color: Color(0xFF10B981), size: 18),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(date, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
-          Text(amount, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.4))),
-        ])),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-          child: Text(status, style: const TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.w700)),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(top: 130), child: Center(child: Column(children: [const Icon(Icons.people_outline, size: 40, color: Colors.white38), const SizedBox(height: 14), Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, height: 1.6))])));
 }
-
-class _PlanCard extends StatelessWidget {
-  final String name, price; final List<String> features; final bool isActive;
-  const _PlanCard({required this.name, required this.price, required this.features, this.isActive = false});
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: isActive ? const Color(0xFFFBBF24).withOpacity(0.08) : AppColors.cardDark,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: isActive ? const Color(0xFFFBBF24).withOpacity(0.3) : AppColors.borderDark),
-    ),
-    child: Column(
-      children: [
-        Text(name, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: isActive ? const Color(0xFFFBBF24) : Colors.white)),
-        const SizedBox(height: 4),
-        Text('$price ر.س', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isActive ? const Color(0xFFFBBF24) : Colors.white.withOpacity(0.6))),
-        Text('/شهر', style: TextStyle(fontSize: 9, color: Colors.white.withOpacity(0.3))),
-        const SizedBox(height: 8),
-        ...features.map((f) => Text(f, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4)))),
-      ],
-    ),
-  );
-}
-
-class _ActivityData {
-  final String title, time, emoji; final Color color;
-  const _ActivityData({required this.title, required this.time, required this.emoji, required this.color});
-}
-
-final _activities = [
-  _ActivityData(title: 'أحمد حصل على 95% في اختبار الرياضيات', time: 'منذ ساعة', emoji: '🎉', color: const Color(0xFF10B981)),
-  _ActivityData(title: 'أحمد سلم واجب الفيزياء', time: 'منذ 3 ساعات', emoji: '📄', color: const Color(0xFF3B82F6)),
-  _ActivityData(title: 'أحمد حضر حصة الكيمياء', time: 'اليوم 10:00 ص', emoji: '✅', color: const Color(0xFF0D9488)),
-  _ActivityData(title: 'تنبيه: لم يسلم واجب اللغة العربية', time: 'أمس', emoji: '⚠️', color: const Color(0xFFFBBF24)),
-];

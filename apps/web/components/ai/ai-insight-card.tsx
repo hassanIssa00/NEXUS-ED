@@ -7,8 +7,10 @@ import { apiClient } from '@/lib/api/client';
 import { useAuth } from '@/contexts/auth-context';
 
 interface Prediction {
-  predictedGrade: number;
-  confidence: number;
+  averageGrade: number;
+  gradeRecordCount: number;
+  attendanceRate: number | null;
+  attendanceRecordCount: number;
   riskFactors: string[];
   recommendations: string[];
 }
@@ -19,7 +21,10 @@ export function AiInsightCard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profile?.id) {
+      setLoading(false);
+      return;
+    }
 
     const fetchInsight = async () => {
       try {
@@ -48,7 +53,7 @@ export function AiInsightCard() {
 
   if (!prediction) return null;
 
-  const isGood = prediction.predictedGrade >= 80;
+  const isGood = prediction.averageGrade >= 80;
   const hasRisks = prediction.riskFactors.length > 0;
 
   return (
@@ -71,9 +76,9 @@ export function AiInsightCard() {
           </div>
         </div>
         <div className="flex flex-col items-end">
-          <span className="text-[10px] text-gray-500 font-medium">الدرجة المتوقعة</span>
+          <span className="text-[10px] text-gray-500 font-medium">متوسط الدرجات المسجل</span>
           <span className={`text-xl font-black ${isGood ? 'text-emerald-500' : 'text-amber-500'}`}>
-            {prediction.predictedGrade}%
+            {prediction.averageGrade}%
           </span>
         </div>
       </div>
@@ -103,6 +108,12 @@ export function AiInsightCard() {
             </div>
           </div>
         )}
+        <p className="text-[10px] text-gray-500">
+          {prediction.gradeRecordCount} سجل درجات
+          {prediction.attendanceRate === null
+            ? ' · لا توجد سجلات حضور'
+            : ` · الحضور ${prediction.attendanceRate}% من ${prediction.attendanceRecordCount} سجل`}
+        </p>
       </div>
     </motion.div>
   );

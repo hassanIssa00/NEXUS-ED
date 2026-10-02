@@ -39,8 +39,8 @@ export class AssignmentController {
 
   @Get()
   @Roles(Role.ADMIN, Role.TEACHER)
-  findAll(@Query() filters: AssignmentFilterDto) {
-    return this.assignmentService.findAll(filters);
+  findAll(@Query() filters: AssignmentFilterDto, @Request() req: any) {
+    return this.assignmentService.findAll(filters, req.user.userId);
   }
 
   @Get('my')
@@ -55,10 +55,16 @@ export class AssignmentController {
     return this.assignmentService.findByStudent(req.user.userId);
   }
 
+  @Get('submissions/my')
+  @Roles(Role.TEACHER)
+  findMySubmissions(@Request() req: any) {
+    return this.assignmentService.getTeacherSubmissions(req.user.userId);
+  }
+
   @Get(':id')
   @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
-  findOne(@Param('id') id: string) {
-    return this.assignmentService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req: any) {
+    return this.assignmentService.findOne(id, req.user.userId);
   }
 
   @Patch(':id')

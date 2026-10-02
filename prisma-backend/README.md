@@ -105,7 +105,7 @@ npm run db:generate
 # Run migrations
 npm run db:migrate
 
-# Seed database
+# Safe no-op; this command does not create default accounts or synthetic records
 npm run db:seed
 
 # (Optional) Open Prisma Studio
@@ -421,17 +421,12 @@ npm test
 
 Import collection: `postman_collection.json`
 
-### **Sample Requests**
+### **Requests**
 
 ```bash
-# Login as admin
-curl -X POST http://localhost:4000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@kfis.edu.sa","password":"admin123"}'
-
 # Create assignment
 curl -X POST http://localhost:4000/api/assignments \
-  -H "Authorization: Bearer <token>" \
+  -H "Authorization: Bearer <token-from-a-provisioned-account>" \
   -d '{"classId":"...","title":"Math Quiz"}'
 ```
 

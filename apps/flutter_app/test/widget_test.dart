@@ -18,5 +18,9 @@ void main() {
 
     // Verify that the app loads
     expect(find.byType(MaterialApp), findsOneWidget);
+
+    // Let the splash screen's scheduled entrance animations complete before teardown.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

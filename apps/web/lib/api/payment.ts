@@ -3,23 +3,26 @@ import { apiClient } from './client';
 export interface Invoice {
   id: string;
   amount: number;
+  currency: string;
   status: string;
-  description: string;
+  description: string | null;
   createdAt: string;
+  paidAt: string | null;
+  student: { id: string; name: string | null; email: string };
 }
 
-export interface InvoiceCheckoutResponse {
-  invoice: Invoice;
+export interface InvoiceIntentResponse {
+  invoiceId: string;
   clientSecret: string | null;
-  paymentIntentId: string;
+  id: string;
 }
 
 export const paymentApi = {
-  createIntent: (amount: number, currency = 'usd') => 
-    apiClient.post<{ clientSecret: string; id: string }>('/payments/create-intent', { amount, currency }),
+  createIntent: (invoiceId: string) =>
+    apiClient.post<InvoiceIntentResponse>('/payments/create-intent', { invoiceId }),
   
-  createInvoice: (amount: number, description: string) =>
-    apiClient.post<InvoiceCheckoutResponse>('/payments/invoices', { amount, description }),
+  createInvoice: (studentId: string, amount: number, description: string) =>
+    apiClient.post<Invoice>('/payments/invoices', { studentId, amount, description }),
     
   getHistory: () => 
     apiClient.get<Invoice[]>('/payments/history'),

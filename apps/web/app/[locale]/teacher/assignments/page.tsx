@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { assignmentService, Assignment, CreateAssignmentDto } from '@/lib/services/assignment.service';
-import { subjectService } from '@/lib/services/subject.service';
+import { apiClient } from '@/lib/api/client';
 import { UploadResponse } from '@/lib/services/upload.service';
 import FileUpload from '@/components/FileUpload';
 
@@ -41,50 +41,40 @@ export default function AssignmentsPage() {
     const fetchAssignments = async () => {
         setLoading(true);
         try {
-            const { nexusBridge } = await import('@/lib/nexusDataBridge');
-            const realHw = nexusBridge.getHomework();
-            const mapped: any[] = realHw.map(h => ({
-                id: h.id,
-                title: h.title,
-                description: h.instructions,
-                dueDate: h.dueDate,
-                maxScore: h.totalScore,
-                subject: { id: 's1', name: h.subject },
-                _count: { submissions: h.submissionsCount },
-                createdAt: h.createdAt,
-            }));
-            setAssignments(mapped);
+            setAssignments(await assignmentService.getMyAssignments());
         } catch (error) {
             console.error('Failed to fetch assignments', error);
+            setAssignments([]);
         } finally {
             setLoading(false);
         }
     };
 
     const fetchSubjects = async () => {
-        setSubjects([
-            { id: 'sub-1', name: 'لغتي العربية' },
-            { id: 'sub-2', name: 'القرآن الكريم' },
-            { id: 'sub-3', name: 'الرياضيات' },
-            { id: 'sub-4', name: 'العلوم' },
-        ]);
+        try {
+            const { data } = await apiClient.get('/subjects/teacher/my');
+            setSubjects(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('Failed to fetch teacher subjects', error);
+            setSubjects([]);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const { nexusBridge } = await import('@/lib/nexusDataBridge');
-            nexusBridge.saveHomework({
-                id: selectedAssignment ? selectedAssignment.id : `hw-${Date.now()}`,
-                title: formData.title,
-                subject: subjects.find(s => s.id === formData.subjectId)?.name || 'لغتي العربية',
-                grade: 'الصف الأول الابتدائي — الفئة (أ)',
-                instructions: formData.description || 'حل التمارين المطلوبة بدقة وعناية.',
-                dueDate: formData.dueDate || new Date().toISOString().slice(0, 10),
-                totalScore: formData.maxScore || 10,
-                submissionsCount: selectedAssignment ? (selectedAssignment as any)._count?.submissions || 0 : 0,
-                createdAt: new Date().toISOString(),
-            });
+            if (selectedAssignment) {
+                await assignmentService.update(selectedAssignment.id, {
+                    title: formData.title,
+                    description: formData.description,
+                    dueDate: formData.dueDate || undefined,
+                    maxScore: formData.maxScore,
+                    attachments: formData.attachments,
+                });
+            } else {
+                if (!formData.subjectId) throw new Error('اختر المادة قبل حفظ الواجب');
+                await assignmentService.create({ ...formData, dueDate: formData.dueDate || undefined });
+            }
             setIsModalOpen(false);
             resetForm();
             fetchAssignments();

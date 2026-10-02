@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient } from '@/lib/api/client'
 import { aiApi } from '@/lib/api/ai'
+import { assignmentService } from '@/lib/services/assignment.service'
 import {
   Check, X, Eye, Download, Sparkles, Loader2, Wand2, RefreshCw,
   ClipboardList, AlertCircle, CheckCircle2, Clock, BrainCircuit,
@@ -12,11 +13,11 @@ import {
 
 // ── AI Grading suggestion chip ─────────────────────────────
 function AiSuggestionBubble({ suggestion, onAccept }: {
-  suggestion: { score: number; feedback: string; confidence: number };
+  suggestion: { score: number; feedback: string; confidence?: number; maxScore: number };
   onAccept: (score: number, feedback: string) => void;
 }) {
-  const conf = suggestion.confidence ?? 0
-  const confColor = conf >= 0.85 ? '#22c55e' : conf >= 0.65 ? '#f59e0b' : '#ef4444'
+  const conf = suggestion.confidence
+  const confColor = conf === undefined ? '#64748b' : conf >= 0.85 ? '#22c55e' : conf >= 0.65 ? '#f59e0b' : '#ef4444'
   return (
     <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
       className="bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border border-violet-200 dark:border-violet-800 rounded-2xl p-4">
@@ -24,11 +25,9 @@ function AiSuggestionBubble({ suggestion, onAccept }: {
         <span className="text-xs font-bold text-violet-700 dark:text-violet-300 flex items-center gap-1">
           <Sparkles className="w-3 h-3" /> اقتراح AI
         </span>
-        <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: confColor, backgroundColor: `${confColor}15` }}>
-          ثقة: {Math.round(conf * 100)}%
-        </span>
+        {conf !== undefined && <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: confColor, backgroundColor: `${confColor}15` }}>ثقة: {Math.round(conf * 100)}%</span>}
       </div>
-      <p className="text-2xl font-extrabold text-violet-700 dark:text-violet-300 mb-1">{suggestion.score} / 100</p>
+      <p className="text-2xl font-extrabold text-violet-700 dark:text-violet-300 mb-1">{suggestion.score} / {suggestion.maxScore}</p>
       {suggestion.feedback && (
         <p className="text-xs text-muted-foreground line-clamp-3 mb-3">{suggestion.feedback}</p>
       )}
@@ -41,39 +40,41 @@ function AiSuggestionBubble({ suggestion, onAccept }: {
 }
 
 // ── Grade Modal ────────────────────────────────────────────
-function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; onSaved: (id: string) => void }) {
+function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; onSaved: (id: string, score: number) => void }) {
+  const maxScore = Number(sub.assignment?.maxScore) || 100
   const [score, setScore] = useState(sub.aiSuggestion?.score?.toString() ?? '')
   const [feedback, setFeedback] = useState(sub.aiSuggestion?.feedback ?? '')
   const [loading, setLoading] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState<any>(sub.aiSuggestion ?? null)
+  const [aiError, setAiError] = useState('')
 
   const runAi = async () => {
     setAiLoading(true)
+    setAiError('')
     try {
       const res = await aiApi.autoGrade(sub.id)
-      if (res.data?.success || res.data?.data) {
-        const s = res.data.data ?? res.data
-        setAiSuggestion({ score: s.score, feedback: s.feedback, confidence: s.confidence ?? 0.8 })
-      }
-    } catch { /* ignore */ }
+      const s = res.data?.data ?? res.data
+      if (typeof s?.score !== 'number') throw new Error('لم يرجع الخادم باقتراح تصحيح صالح')
+      setAiSuggestion({ score: s.score, feedback: s.feedback || '', confidence: s.confidence, maxScore })
+    } catch (error: any) { setAiError(error?.response?.data?.message || error?.message || 'تعذر الحصول على اقتراح التصحيح') }
     finally { setAiLoading(false) }
   }
 
   const save = async () => {
-    if (!score) return
+    const numericScore = Number(score)
+    if (!Number.isFinite(numericScore) || numericScore < 0 || numericScore > maxScore) return
     setLoading(true)
     try {
-      const { nexusBridge } = await import('@/lib/nexusDataBridge')
-      nexusBridge.gradeHomework(sub.id, Number(score), feedback)
-      onSaved(sub.id)
+      await assignmentService.gradeSubmission(sub.id, { score: numericScore, feedback })
+      onSaved(sub.id, numericScore)
       onClose()
     } catch (e: any) {
       alert('تعذر حفظ الدرجة')
     } finally { setLoading(false) }
   }
 
-  const pct = score ? Math.round((Number(score) / 100) * 100) : 0
+  const pct = score ? Math.round((Number(score) / maxScore) * 100) : 0
   const gradeColor = pct >= 85 ? '#22c55e' : pct >= 70 ? '#f59e0b' : '#ef4444'
   const gradeLetter = pct >= 95 ? 'A+' : pct >= 90 ? 'A' : pct >= 85 ? 'A-' : pct >= 80 ? 'B+' : pct >= 75 ? 'B' : pct >= 70 ? 'B-' : pct >= 60 ? 'C' : 'D'
 
@@ -113,12 +114,13 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
                 onAccept={(s, f) => { setScore(s.toString()); setFeedback(f) }} />
             )}
           </AnimatePresence>
+          {aiError && <p role="alert" className="text-sm text-destructive">{aiError}</p>}
 
           {/* Manual grade input */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground">الدرجة (من 100)</label>
+            <label className="text-xs font-bold text-foreground">الدرجة (من {maxScore})</label>
             <div className="flex items-center gap-3">
-              <input type="number" min={0} max={100} value={score} onChange={e => setScore(e.target.value)}
+              <input type="number" min={0} max={maxScore} value={score} onChange={e => setScore(e.target.value)}
                 className="flex-1 border border-border rounded-xl px-4 py-3 bg-muted text-foreground font-extrabold text-xl outline-none focus:border-teal-500 transition-colors" />
               {score && (
                 <div className="flex flex-col items-center w-16 h-16 rounded-2xl border-2 justify-center font-extrabold flex-shrink-0"
@@ -148,7 +150,7 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
 
           {/* Submit */}
           <div className="flex gap-3">
-            <button onClick={save} disabled={loading || !score}
+            <button onClick={save} disabled={loading || !score || Number(score) < 0 || Number(score) > maxScore}
               className="flex-1 bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-xl font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               {loading ? 'جاري الحفظ...' : 'رصد الدرجة'}
@@ -167,42 +169,41 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
 export default function GradingPage() {
   const [submissions, setSubmissions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [selected, setSelected] = useState<any>(null)
   const [filter, setFilter] = useState<'all' | 'pending' | 'graded'>('pending')
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError('')
     try {
-      const { nexusBridge } = await import('@/lib/nexusDataBridge')
-      const items = nexusBridge.getHomeworkSubmissions()
-      setSubmissions(items.map(s => ({
-        id: s.id,
-        assignment: { title: s.assignmentTitle, maxScore: 10 },
-        student: { name: s.studentName, email: 'student1@nexusedu.sa' },
-        submissionText: s.submissionText,
-        submittedAt: s.submittedAt,
-        grade: s.grade,
-        status: s.status === 'reviewed' ? 'graded' : 'pending',
-        feedback: s.feedback,
-      })))
-    } catch { setSubmissions([]) }
+      const { data } = await apiClient.get('/assignments/submissions/my')
+      const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []
+      setSubmissions(rows.map((item: any) => {
+        const grade = item.grade ?? item.score ?? null
+        return { ...item, grade, status: item.gradedAt || grade !== null ? 'graded' : 'pending' }
+      }))
+    } catch (error: any) {
+      setSubmissions([])
+      setLoadError(error?.response?.data?.message || 'تعذر تحميل التسليمات من الخادم.')
+    }
     finally { setLoading(false) }
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  const handleSaved = (id: string) => {
-    setSubmissions(prev => prev.map(s => s.id === id ? { ...s, grade: true, status: 'graded' } : s))
+  const handleSaved = (id: string, grade: number) => {
+    setSubmissions(prev => prev.map(s => s.id === id ? { ...s, grade, status: 'graded' } : s))
   }
 
   const filtered = submissions.filter(s => {
-    if (filter === 'pending') return !s.grade && s.status !== 'graded'
-    if (filter === 'graded') return s.grade || s.status === 'graded'
+    if (filter === 'pending') return s.grade == null && s.status !== 'graded'
+    if (filter === 'graded') return s.grade != null || s.status === 'graded'
     return true
   })
 
-  const pending = submissions.filter(s => !s.grade && s.status !== 'graded').length
-  const graded = submissions.filter(s => s.grade || s.status === 'graded').length
+  const pending = submissions.filter(s => s.grade == null && s.status !== 'graded').length
+  const graded = submissions.filter(s => s.grade != null || s.status === 'graded').length
 
   return (
     <div className="space-y-6 pb-10" dir="rtl">
@@ -238,7 +239,7 @@ export default function GradingPage() {
             </button>
             <div className="flex items-center gap-1 bg-white/10 rounded-xl px-3 py-2">
               <BrainCircuit className="w-4 h-4 text-yellow-300" />
-              <span className="text-xs font-bold text-white/90">AI Grading متاح</span>
+              <span className="text-xs font-bold text-white/90">اقتراح تصحيح عند تهيئة خدمة الذكاء الاصطناعي</span>
             </div>
           </div>
         </div>
@@ -260,6 +261,12 @@ export default function GradingPage() {
           <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
             className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full" />
         </div>
+      ) : loadError ? (
+        <div role="alert" className="flex flex-col items-center gap-3 py-16 bg-card border border-destructive/30 rounded-3xl text-center">
+          <AlertCircle className="w-12 h-12 text-destructive" />
+          <p className="font-bold text-foreground">تعذر تحميل التسليمات</p>
+          <p className="text-muted-foreground text-sm">{loadError}</p>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-16 bg-card border border-border rounded-3xl text-center">
           <CheckCircle2 className="w-16 h-16 text-teal-500" />
@@ -272,7 +279,7 @@ export default function GradingPage() {
         <div className="bg-card border border-border rounded-3xl overflow-hidden">
           <div className="divide-y divide-border/50">
             {filtered.map((sub, i) => {
-              const isGraded = sub.grade || sub.status === 'graded'
+              const isGraded = sub.grade != null || sub.status === 'graded'
               const timeAgo = sub.submittedAt
                 ? new Date(sub.submittedAt).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                 : '—'
@@ -307,7 +314,7 @@ export default function GradingPage() {
                     {isGraded ? (
                       <div className="flex items-center gap-2">
                         <span className="text-lg font-extrabold text-emerald-600">{sub.grade ?? '—'}</span>
-                        <span className="text-xs text-muted-foreground">/ 100</span>
+                        <span className="text-xs text-muted-foreground">/ {sub.assignment?.maxScore ?? 100}</span>
                         <div className="w-5 h-5 bg-emerald-50 dark:bg-emerald-900/20 rounded-full flex items-center justify-center">
                           <Check className="w-3 h-3 text-emerald-600" />
                         </div>

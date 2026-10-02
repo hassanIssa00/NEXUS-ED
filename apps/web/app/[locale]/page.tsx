@@ -1,19 +1,16 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence, useInView } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
 import {
     GraduationCap, BookOpen, Users, Award, ArrowLeft, CheckCircle,
-    Star, PlayCircle, Brain, BarChart3, Trophy, ShieldCheck,
+    Trophy, ShieldCheck, Brain,
     ChevronLeft, ChevronRight, Sparkles, Zap, Globe, Menu, X,
-    Smartphone, QrCode, TrendingUp, Medal, Target, Heart
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslations } from 'next-intl'
 import { LanguageSwitcher } from '@/components/language-switcher'
-import { VideoModal } from '@/components/ui/video-modal'
-import { AnimatedCounter } from '@/components/ui/animated-counter'
 
 // Hero Images for Carousel
 const heroImages = [
@@ -26,38 +23,31 @@ const heroImages = [
     { src: '/images/nexus-promo-07.webp', alt: 'إدارة واعية تصنع فرقاً حقيقياً - نكسس التعليمية' },
 ]
 
-// School partner logos (text-based for now)
-const schoolPartners = [
-    'مدارس الإخلاص الأهلية للبنين بجدة', 'مجمع الإخلاص التعليمي', 'مدارس الرواد النموذجية',
-    'مدارس دار الفكر بجدة', 'مدارس الأندلس الأهلية', 'مدارس الفلاح النموذجية',
-    'مدارس الفيصلية الأهلية', 'مدارس المنارات بجدة', 'مدارس الشاطئ النموذجية',
-]
-
 // How it works steps
 const howItWorksSteps = [
     {
         step: '01',
         icon: '📱',
-        title: 'سجّل مجاناً',
-        description: 'أنشئ حسابك في دقيقتين وأضف بياناتك الدراسية'
+        title: 'أنشئ الحساب',
+        description: 'سجّل بيانات الطالب أو ولي الأمر لإكمال التهيئة المطلوبة.'
     },
     {
         step: '02',
         icon: '🎯',
-        title: 'ابدأ رحلتك',
-        description: 'اختر مواضيعك وابدأ بالتحديات اليومية وحضور الدروس'
+        title: 'أكمل التهيئة',
+        description: 'أكمل ملف الطالب أو خطوات ولي الأمر بحسب نوع الحساب.'
     },
     {
         step: '03',
         icon: '⚡',
-        title: 'اكسب النقاط',
-        description: 'تصاعد في الترتيب عبر النقاط والإنجازات اليومية'
+        title: 'افتح خدماتك',
+        description: 'اعرض الصفوف والمواد والتكليفات المرتبطة بحسابك.'
     },
     {
         step: '04',
         icon: '🏆',
-        title: 'اربح الجائزة',
-        description: 'تنافس للفوز بجائزة المليون ريال السنوية الكبرى'
+        title: 'تابع تقدمك',
+        description: 'راجع الدرجات والحضور والسجلات المتاحة لحسابك.'
     },
 ]
 
@@ -66,15 +56,25 @@ export default function LandingPage() {
     const tCommon = useTranslations('common')
     const tAuth = useTranslations('auth')
     const [currentImage, setCurrentImage] = useState(0)
-    const [isVideoOpen, setIsVideoOpen] = useState(false)
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+    const reduceMotion = useReducedMotion()
 
     useEffect(() => {
-        const timer = setInterval(() => {
-            setCurrentImage((prev) => (prev + 1) % heroImages.length)
-        }, 5000)
-        return () => clearInterval(timer)
-    }, [])
+        if (reduceMotion) return
+        let timer: ReturnType<typeof setInterval> | undefined
+        const updateTimer = () => {
+            if (timer) clearInterval(timer)
+            if (document.visibilityState === 'visible') {
+                timer = setInterval(() => setCurrentImage((prev) => (prev + 1) % heroImages.length), 6000)
+            }
+        }
+        updateTimer()
+        document.addEventListener('visibilitychange', updateTimer)
+        return () => {
+            if (timer) clearInterval(timer)
+            document.removeEventListener('visibilitychange', updateTimer)
+        }
+    }, [reduceMotion])
 
     return (
         <div className="min-h-screen bg-white overflow-x-hidden force-light">
@@ -104,8 +104,6 @@ export default function LandingPage() {
                             <Link href="#features" className="hover:text-primary-500 transition-colors">{t('nav.features')}</Link>
                             <Link href="#how-it-works" className="hover:text-primary-500 transition-colors">كيف يعمل؟</Link>
                             <Link href="#stats" className="hover:text-primary-500 transition-colors">الإحصائيات</Link>
-                            <Link href="#testimonials" className="hover:text-primary-500 transition-colors">{t('nav.testimonials')}</Link>
-                            <Link href="#pricing" className="hover:text-primary-500 transition-colors">{t('nav.pricing')}</Link>
                         </nav>
                         <div className="flex items-center gap-3">
                             <LanguageSwitcher />
@@ -166,9 +164,7 @@ export default function LandingPage() {
                                 {[
                                     { href: '#features', label: 'المميزات' },
                                     { href: '#how-it-works', label: 'كيف يعمل؟' },
-                                    { href: '#stats', label: 'الإحصائيات' },
-                                    { href: '#testimonials', label: 'آراء المستخدمين' },
-                                    { href: '#pricing', label: 'الأسعار' },
+                                    { href: '#stats', label: 'إمكانيات المنصة' },
                                 ].map(item => (
                                     <Link
                                         key={item.href}
@@ -185,7 +181,7 @@ export default function LandingPage() {
                                     <Button variant="outline" className="w-full">تسجيل الدخول</Button>
                                 </Link>
                                 <Link href="/register" onClick={() => setIsMobileMenuOpen(false)}>
-                                    <Button className="w-full primary-btn">إنشاء حساب مجاني</Button>
+                                    <Button className="w-full primary-btn">إنشاء حساب</Button>
                                 </Link>
                             </div>
                         </motion.div>
@@ -256,29 +252,8 @@ export default function LandingPage() {
                                         </span>
                                     </Button>
                                 </Link>
-                                <Button onClick={() => setIsVideoOpen(true)} size="xl" variant="outline" className="bg-white/60 hover:bg-white/90 border-slate-200 backdrop-blur-sm text-slate-700 font-semibold hover-lift">
-                                    <PlayCircle className="ml-2 h-5 w-5" />
-                                    شاهد الفيديو التعريفي
-                                </Button>
                             </motion.div>
 
-                            {/* Trust indicators */}
-                            <div className="flex items-center gap-6 mt-10 pt-10 border-t border-slate-200">
-                                <div className="flex -space-x-3 space-x-reverse">
-                                    {[1, 2, 3, 4].map(i => (
-                                        <img key={i} src={`/images/avatar-${i}.webp`} alt="طالب" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm" />
-                                    ))}
-                                </div>
-                                <div>
-                                    <p className="font-bold text-slate-900 text-sm">+10,000 طالب مسجل</p>
-                                    <p className="text-xs text-slate-600">يثقون بمنصة نِكْسُس</p>
-                                </div>
-                                <div className="h-8 w-px bg-slate-200 mr-2" />
-                                <div className="flex items-center gap-1">
-                                    {[1,2,3,4,5].map(i => <Star key={i} className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />)}
-                                    <span className="text-xs text-slate-600 mr-1 font-medium">4.9/5</span>
-                                </div>
-                            </div>
                         </motion.div>
 
                         {/* Image Carousel */}
@@ -291,7 +266,7 @@ export default function LandingPage() {
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] nexus-gradient rounded-full blur-[100px] opacity-20"></div>
 
                             <div className="relative z-10 rounded-[16px] overflow-hidden h-[400px] lg:h-[500px] border border-white/10">
-                                <AnimatePresence mode="wait">
+                                <AnimatePresence initial={false} mode="sync">
                                     <motion.div
                                         key={`bg-${currentImage}`}
                                         initial={{ opacity: 0 }}
@@ -303,70 +278,39 @@ export default function LandingPage() {
                                     </motion.div>
                                 </AnimatePresence>
 
-                                <AnimatePresence mode="wait">
+                                <AnimatePresence initial={false} mode="sync">
                                     <motion.img
                                         key={currentImage}
                                         src={heroImages[currentImage]!.src}
                                         alt={heroImages[currentImage]!.alt}
-                                        initial={{ opacity: 0, x: 100 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: -100 }}
-                                        transition={{ duration: 0.5 }}
-                                        className="relative z-10 w-full h-full object-contain hero-img-bg"
+                                        initial={{ opacity: 0, scale: 1.015 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.8, ease: 'easeInOut' }}
+                                        className="absolute inset-0 z-10 w-full h-full object-contain hero-img-bg"
                                     />
                                 </AnimatePresence>
 
                                 {/* Carousel controls */}
                                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3">
-                                    <button onClick={() => setCurrentImage((prev) => (prev - 1 + heroImages.length) % heroImages.length)} className="glass-card rounded-full w-8 h-8 flex items-center justify-center hover:bg-white/10 transition-colors">
+                                    <button aria-label="الصورة السابقة" onClick={() => setCurrentImage((prev) => (prev - 1 + heroImages.length) % heroImages.length)} className="glass-card rounded-full w-8 h-8 flex items-center justify-center hover:bg-white/10 transition-colors">
                                         <ChevronRight className="w-4 h-4 text-slate-900" />
                                     </button>
                                     {heroImages.map((_, i) => (
                                         <button
                                             key={i}
+                                            aria-label={`عرض الصورة ${i + 1}`}
+                                            aria-current={i === currentImage}
                                             onClick={() => setCurrentImage(i)}
                                             className={`h-2 rounded-full transition-all ${i === currentImage ? 'bg-primary-500 w-8' : 'bg-white/30 w-2'}`}
                                         />
                                     ))}
-                                    <button onClick={() => setCurrentImage((prev) => (prev + 1) % heroImages.length)} className="glass-card rounded-full w-8 h-8 flex items-center justify-center hover:bg-white/10 transition-colors">
+                                    <button aria-label="الصورة التالية" onClick={() => setCurrentImage((prev) => (prev + 1) % heroImages.length)} className="glass-card rounded-full w-8 h-8 flex items-center justify-center hover:bg-white/10 transition-colors">
                                         <ChevronLeft className="w-4 h-4 text-slate-900" />
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Floating Cards */}
-                            <motion.div
-                                animate={{ y: [0, 12, 0] }}
-                                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                                className="absolute -bottom-4 -left-4 glass-card p-4 rounded-[16px] z-20"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="flex -space-x-2 space-x-reverse">
-                                        {[1, 2, 3].map(i => (
-                                            <img key={i} src={`/images/avatar-${i}.webp`} alt="طالب" className="w-8 h-8 rounded-full border-2 border-nexus-card object-cover" />
-                                        ))}
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-slate-900 text-sm">+10,000 طالب</p>
-                                        <p className="text-xs text-slate-600">يثقون بنا</p>
-                                    </div>
-                                </div>
-                            </motion.div>
-
-                            {/* Floating badge - Million prize */}
-                            <motion.div
-                                animate={{ y: [0, -10, 0], rotate: [-1, 1, -1] }}
-                                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                                className="absolute -top-4 -right-4 glass-card p-3 rounded-[16px] z-20 border border-yellow-200"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <span className="text-2xl">🏆</span>
-                                    <div>
-                                        <p className="font-black text-slate-900 text-sm leading-none">1,000,000</p>
-                                        <p className="text-xs text-yellow-600 font-semibold">ريال جائزة كبرى</p>
-                                    </div>
-                                </div>
-                            </motion.div>
                         </motion.div>
                     </div>
                 </div>
@@ -374,12 +318,16 @@ export default function LandingPage() {
 
 
 
-            {/* ═══════════ STATISTICS ═══════════ */}
+            {/* ═══════════ PLATFORM CAPABILITIES ═══════════ */}
             <section id="stats" className="py-24 relative overflow-hidden">
                 <div className="absolute inset-0 nexus-gradient opacity-[0.07]"></div>
                 <div className="container mx-auto px-6 relative z-10">
+                    <div className="mx-auto mb-12 max-w-2xl text-center">
+                        <h2 className="text-3xl font-bold text-slate-900">إمكانيات المنصة</h2>
+                        <p className="mt-3 text-slate-600">أدوات مرتبطة ببيانات الحساب المدرسي.</p>
+                    </div>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-                        {stats.map((stat, index) => (
+                        {capabilities.map((capability, index) => (
                             <motion.div
                                 key={index}
                                 initial={{ opacity: 0, y: 30, scale: 0.9 }}
@@ -389,12 +337,9 @@ export default function LandingPage() {
                                 className="text-center group cursor-pointer"
                             >
                                 <div className="w-16 h-16 mx-auto mb-4 rounded-[16px] glass-glow flex items-center justify-center group-hover:animate-bounce-subtle">
-                                    {stat.icon}
+                                    {capability.icon}
                                 </div>
-                                <div className="text-4xl lg:text-5xl font-bold animated-gradient-text mb-2">
-                                    <AnimatedCounter target={stat.rawValue} suffix={stat.suffix} prefix={stat.prefix} />
-                                </div>
-                                <p className="text-slate-600 font-medium">{stat.label}</p>
+                                <p className="text-lg font-semibold text-slate-800">{capability.label}</p>
                             </motion.div>
                         ))}
                     </div>
@@ -444,7 +389,7 @@ export default function LandingPage() {
                     <div className="text-center mt-12">
                         <Link href="/register">
                             <Button size="xl" className="primary-btn">
-                                ابدأ رحلتك الآن مجاناً
+                                افتح حسابك المدرسي
                                 <ArrowLeft className="mr-2 h-5 w-5 rotate-180" />
                             </Button>
                         </Link>
@@ -515,75 +460,15 @@ export default function LandingPage() {
                             </div>
                             <h2 className="text-4xl font-bold text-slate-900 mb-6">تعلم مخصص بالذكاء الاصطناعي</h2>
                             <p className="text-lg text-slate-600 leading-relaxed mb-8">
-                                محرك الذكاء الاصطناعي في نِكْسُس يحلل أنماط تعلم كل طالب ويقدم توصيات مخصصة لتحسين الأداء الأكاديمي. نظام تكيفي يتطور مع كل تفاعل.
+                                تساعد أدوات الذكاء الاصطناعي على تلخيص الدروس المحفوظة وتقديم إرشادات من الدرجات المتاحة، عند تهيئة خدمة الذكاء الاصطناعي.
                             </p>
                             <div className="grid grid-cols-2 gap-4">
-                                {['تحليل أنماط التعلم', 'توصيات مخصصة', 'تقارير ذكية', 'تنبؤ بالأداء'].map((item, i) => (
+                                {['تلخيص الدروس المحفوظة', 'أسئلة مراجعة من المحتوى', 'إرشادات من الدرجات المسجلة', 'الاستجابة عند توفر الخدمة'].map((item, i) => (
                                     <div key={i} className="flex items-center gap-3 p-3 glass-card">
                                         <CheckCircle className="w-5 h-5 text-primary-500 flex-shrink-0" />
                                         <span className="text-sm font-medium text-slate-900">{item}</span>
                                     </div>
                                 ))}
-                            </div>
-                        </motion.div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ═══════════ PERFORMANCE STATS ═══════════ */}
-            <section className="py-24">
-                <div className="container mx-auto px-6">
-                    <div className="grid lg:grid-cols-2 gap-16 items-center">
-                        <motion.div
-                            initial={{ opacity: 0, x: -50 }}
-                            whileInView={{ opacity: 1, x: 0 }}
-                            viewport={{ once: true }}
-                        >
-                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card text-primary-400 text-sm font-semibold mb-6">
-                                <BarChart3 className="w-4 h-4" />
-                                نتائج مثبتة
-                            </div>
-                            <h2 className="text-4xl font-bold text-slate-900 mb-6">تحسن ملموس في الأداء</h2>
-                            <p className="text-lg text-slate-600 leading-relaxed mb-8">
-                                المدارس التي تستخدم نِكْسُس شهدت تحسنًا ملحوظًا في أداء الطلاب ومشاركتهم. أرقام حقيقية تثبت فعالية المنصة.
-                            </p>
-                            <div className="space-y-5">
-                                {[
-                                    { label: 'تحسن في الدرجات', value: '35%', raw: 35, color: 'from-primary-500 to-primary-600' },
-                                    { label: 'زيادة في المشاركة', value: '60%', raw: 60, color: 'from-secondary-500 to-secondary-600' },
-                                    { label: 'رضا أولياء الأمور', value: '95%', raw: 95, color: 'from-primary-500 to-secondary-500' },
-                                ].map((item, i) => (
-                                    <div key={i}>
-                                        <div className="flex justify-between mb-2">
-                                            <span className="font-semibold text-slate-900 text-sm">{item.label}</span>
-                                            <span className="font-bold text-primary-500">
-                                                <AnimatedCounter target={item.raw} suffix="%" />
-                                            </span>
-                                        </div>
-                                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-                                            <motion.div
-                                                initial={{ width: 0 }}
-                                                whileInView={{ width: item.value }}
-                                                viewport={{ once: true }}
-                                                transition={{ duration: 1.5, delay: i * 0.2 }}
-                                                className={`h-full bg-gradient-to-r ${item.color} rounded-full`}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </motion.div>
-                        <motion.div
-                            initial={{ opacity: 0, x: 50 }}
-                            whileInView={{ opacity: 1, x: 0 }}
-                            viewport={{ once: true }}
-                            className="relative"
-                        >
-                            <div className="rounded-[20px] overflow-hidden h-[400px] relative border border-white/10 parallax-img shadow-2xl">
-                                <div className="absolute inset-0">
-                                    <img src="/images/nexus-promo-03.webp" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
-                                </div>
-                                <img src="/images/nexus-promo-03.webp" alt="تحسن ملموس في الأداء وإحصائيات الطلاب - نكسس EDU" className="relative z-10 w-full h-full object-contain" />
                             </div>
                         </motion.div>
                     </div>
@@ -618,10 +503,10 @@ export default function LandingPage() {
                             </div>
                             <h2 className="text-4xl font-bold text-slate-900 mb-6">لوحة المتصدرين والجوائز</h2>
                             <p className="text-lg text-slate-600 leading-relaxed mb-8">
-                                نظام تحفيزي متكامل يكافئ الطلاب على التميز والمشاركة. نقاط، شارات، ومسابقات تجعل التعلم ممتعًا ومحفزًا.
+                                اعرض نقاطك وشاراتك وترتيبك بناءً على النشاط المسجل في حسابك.
                             </p>
                             <div className="flex flex-wrap gap-3">
-                                {['🏆 مسابقات أسبوعية', '🎖️ شارات إنجاز', '💎 نقاط مكافأة', '🌟 جائزة المليون', '🔥 سلاسل يومية', '⚡ تحديات فورية'].map((badge, i) => (
+                                {['🏅 ترتيب الطلاب', '🎖️ شارات الإنجاز', '💎 نقاط النشاط'].map((badge, i) => (
                                     <motion.span
                                         key={i}
                                         initial={{ opacity: 0, scale: 0.8 }}
@@ -654,10 +539,10 @@ export default function LandingPage() {
                             </div>
                             <h2 className="text-4xl font-bold text-slate-900 mb-6">اطمئنان تام لأولياء الأمور</h2>
                             <p className="text-lg text-slate-600 leading-relaxed mb-8">
-                                لوحة مراقبة شاملة تمنح أولياء الأمور رؤية كاملة لأداء أبنائهم الأكاديمي والسلوكي. تقارير آنية وتنبيهات ذكية.
+                                يتابع ولي الأمر الدرجات والحضور والرسائل المسجلة للطلاب المرتبطين بحسابه.
                             </p>
                             <div className="grid grid-cols-2 gap-4">
-                                {['متابعة الدرجات', 'سجل الحضور', 'تنبيهات فورية', 'تقارير دورية'].map((item, i) => (
+                                {['درجات الطلاب المرتبطين', 'سجل الحضور', 'مراسلات المنصة', 'بيانات مسجلة في النظام'].map((item, i) => (
                                     <div key={i} className="flex items-center gap-3 p-3 glass-card">
                                         <CheckCircle className="w-5 h-5 text-secondary-400 flex-shrink-0" />
                                         <span className="text-sm font-medium text-slate-900">{item}</span>
@@ -693,14 +578,14 @@ export default function LandingPage() {
                             viewport={{ once: true }}
                         >
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card text-primary-400 text-sm font-semibold mb-6">
-                                🇸🇦 رؤية المملكة 2030
+                                مدرسة الإخلاص الأهلية
                             </div>
-                            <h2 className="text-4xl font-bold text-slate-900 mb-6">متوافق مع رؤية 2030</h2>
+                            <h2 className="text-4xl font-bold text-slate-900 mb-6">منظومة رقمية مدرسية</h2>
                             <p className="text-lg text-slate-600 leading-relaxed mb-8">
-                                نِكْسُس مصمم ليتوافق مع أهداف رؤية المملكة العربية السعودية 2030 في تطوير التعليم والتحول الرقمي. نساهم في بناء جيل مبتكر ومتمكن.
+                                تجمع المنصة خدمات المدرسة الرقمية في مكان واحد، مع إظهار البيانات بحسب الدور والارتباطات المسجلة لكل حساب.
                             </p>
                             <div className="grid grid-cols-2 gap-4">
-                                {['التحول الرقمي', 'جودة التعليم', 'تمكين الشباب', 'الابتكار'].map((item, i) => (
+                                {['حسابات المدرسة', 'بيانات مرتبطة', 'صلاحيات حسب الدور', 'خدمات رقمية'].map((item, i) => (
                                     <div key={i} className="flex items-center gap-3 p-3 glass-card rounded-[12px]">
                                         <CheckCircle className="w-5 h-5 text-primary-400 flex-shrink-0" />
                                         <span className="text-sm font-medium text-slate-900">{item}</span>
@@ -718,99 +603,9 @@ export default function LandingPage() {
                                 <div className="absolute inset-0">
                                     <img src="/images/nexus-promo-05.webp" alt="" className="w-full h-full object-cover blur-xl scale-110 opacity-30" />
                                 </div>
-                                <img src="/images/nexus-promo-05.webp" alt="متوافق مع رؤية المملكة 2030 - نكسس التعليمية" className="relative z-10 w-full h-full object-contain" />
+                                <img src="/images/nexus-promo-05.webp" alt="خدمات مدرسة الإخلاص الأهلية عبر نكسس" className="relative z-10 w-full h-full object-contain" />
                             </div>
                         </motion.div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ═══════════ TESTIMONIALS ═══════════ */}
-            <section id="testimonials" className="py-24 overflow-hidden">
-                <div className="container mx-auto px-6">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl lg:text-4xl font-bold text-slate-900 mb-4">
-                            {t('testimonials.title')}
-                        </h2>
-                        <p className="text-slate-600">ماذا يقول مجتمعنا التعليمي عن نِكْسُس</p>
-                    </div>
-
-                    <div className="grid md:grid-cols-3 gap-6">
-                        {[0, 1, 2].map((index) => (
-                            <motion.div
-                                key={index}
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                whileInView={{ opacity: 1, scale: 1 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: index * 0.15 }}
-                                whileHover={{ y: -6 }}
-                                className="glass-card p-6"
-                            >
-                                <div className="flex gap-1 mb-4">
-                                    {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />)}
-                                </div>
-                                <p className="text-slate-600 mb-6 leading-relaxed">"{t(`testimonials.items.${index}.content`)}"</p>
-                                <div className="flex items-center gap-3 pt-4 border-t border-slate-200">
-                                    <div className="w-10 h-10 rounded-full nexus-gradient flex items-center justify-center text-white font-bold text-sm shadow-md">
-                                        {t(`testimonials.items.${index}.author`).charAt(0)}
-                                    </div>
-                                    <div>
-                                        <h4 className="font-semibold text-slate-900 text-sm">{t(`testimonials.items.${index}.author`)}</h4>
-                                        <p className="text-xs text-slate-600">{t(`testimonials.items.${index}.role`)}</p>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* ═══════════ APP DOWNLOAD ═══════════ */}
-            <section className="py-24 bg-slate-50/60">
-                <div className="container mx-auto px-6">
-                    <div className="rounded-[24px] overflow-hidden relative premium-card p-12 lg:p-16">
-                        <div className="absolute top-0 right-0 w-64 h-64 nexus-gradient rounded-full blur-[100px] opacity-10 -translate-y-1/2 translate-x-1/2" />
-                        <div className="absolute bottom-0 left-0 w-64 h-64 nexus-gradient rounded-full blur-[100px] opacity-10 translate-y-1/2 -translate-x-1/2" />
-
-                        <div className="relative z-10 grid lg:grid-cols-2 gap-12 items-center">
-                            <div>
-                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-50 text-primary-600 text-sm font-semibold mb-6 border border-primary-100">
-                                    <Smartphone className="w-4 h-4" />
-                                    تطبيق الجوال
-                                </div>
-                                <h2 className="text-3xl lg:text-4xl font-bold text-slate-900 mb-4">
-                                    تعلّم في أي وقت وأي مكان
-                                </h2>
-                                <p className="text-lg text-slate-600 leading-relaxed mb-8">
-                                    حمّل تطبيق نِكْسُس على هاتفك واستمر في رحلتك التعليمية أينما كنت. متاح على iOS وAndroid.
-                                </p>
-                                <div className="flex flex-wrap gap-3">
-                                    <button className="flex items-center gap-3 px-5 py-3 bg-slate-900 text-white rounded-[14px] hover:bg-slate-800 transition-colors">
-                                        <span className="text-2xl">🍎</span>
-                                        <div className="text-right">
-                                            <p className="text-xs text-slate-400">حمّل من</p>
-                                            <p className="font-bold text-sm">App Store</p>
-                                        </div>
-                                    </button>
-                                    <button className="flex items-center gap-3 px-5 py-3 bg-slate-900 text-white rounded-[14px] hover:bg-slate-800 transition-colors">
-                                        <span className="text-2xl">🤖</span>
-                                        <div className="text-right">
-                                            <p className="text-xs text-slate-400">حمّل من</p>
-                                            <p className="font-bold text-sm">Google Play</p>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="flex items-center justify-center">
-                                <div className="w-48 h-48 glass-card rounded-[24px] flex items-center justify-center text-center p-6">
-                                    <div>
-                                        <div className="text-5xl mb-3">📱</div>
-                                        <p className="text-sm font-semibold text-slate-700">امسح QR</p>
-                                        <p className="text-xs text-slate-500 mt-1">للتحميل الفوري</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </section>
@@ -871,36 +666,22 @@ export default function LandingPage() {
                             <p className="text-slate-600 max-w-sm leading-relaxed mb-8">
                                 {t('footer.description')}
                             </p>
-                            <div className="flex gap-3">
-                                {[
-                                    { label: 'X', href: '#' },
-                                    { label: 'In', href: '#' },
-                                    { label: 'Fb', href: '#' },
-                                ].map((social, i) => (
-                                    <a key={i} href={social.href} className="w-10 h-10 rounded-full glass-card flex items-center justify-center text-slate-600 hover:text-primary-500 hover:border-primary-500/50 transition-all text-sm font-semibold">
-                                        {social.label}
-                                    </a>
-                                ))}
-                            </div>
                         </div>
 
                         <div>
                             <h4 className="text-slate-900 font-semibold mb-6">{t('footer.quickLinks')}</h4>
                             <ul className="space-y-3">
-                                <li><Link href="#" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('footer.about')}</Link></li>
-                                <li><Link href="#" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('footer.features')}</Link></li>
-                                <li><Link href="#" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('footer.pricing')}</Link></li>
-                                <li><Link href="#" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('footer.blog')}</Link></li>
+                                <li><Link href="#features" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('footer.features')}</Link></li>
+                                <li><Link href="#how-it-works" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">كيف تعمل المنصة</Link></li>
+                                <li><Link href="/login" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">تسجيل الدخول</Link></li>
                             </ul>
                         </div>
 
                         <div>
                             <h4 className="text-slate-900 font-semibold mb-6">{t('footer.support')}</h4>
                             <ul className="space-y-3">
-                                <li><Link href="#" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('footer.helpCenter')}</Link></li>
-                                <li><Link href="#" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('footer.privacy')}</Link></li>
-                                <li><Link href="#" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('footer.terms')}</Link></li>
-                                <li><Link href="#" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('footer.contact')}</Link></li>
+                                <li><Link href="/register" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">إنشاء حساب</Link></li>
+                                <li><Link href="#stats" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">إمكانيات المنصة</Link></li>
                             </ul>
                         </div>
                     </div>
@@ -922,23 +703,15 @@ export default function LandingPage() {
                 </div>
             </footer>
 
-            {/* Video Modal */}
-            <VideoModal
-                isOpen={isVideoOpen}
-                onClose={() => setIsVideoOpen(false)}
-                videoSrc="/videos/intro.mp4"
-                title="الفيديو التعريفي لنِكْسُس EDU"
-                poster="/images/nexus-promo-04.webp"
-            />
         </div>
     )
 }
 
-const stats = [
-    { rawValue: 10000, prefix: '+', suffix: '', label: 'طالب مسجل', icon: <Users className="w-7 h-7 text-primary-500" /> },
-    { rawValue: 500, prefix: '+', suffix: '', label: 'معلم متميز', icon: <GraduationCap className="w-7 h-7 text-primary-500" /> },
-    { rawValue: 200, prefix: '+', suffix: '', label: 'مادة دراسية', icon: <BookOpen className="w-7 h-7 text-primary-500" /> },
-    { rawValue: 98, prefix: '', suffix: '%', label: 'نسبة الرضا', icon: <Award className="w-7 h-7 text-primary-500" /> },
+const capabilities = [
+    { icon: <Users className="w-7 h-7 text-primary-500" />, label: 'الفصول الدراسية' },
+    { icon: <BookOpen className="w-7 h-7 text-primary-500" />, label: 'المواد والواجبات' },
+    { icon: <CheckCircle className="w-7 h-7 text-primary-500" />, label: 'الحضور والدرجات' },
+    { icon: <Award className="w-7 h-7 text-primary-500" />, label: 'التقارير المدرسية' },
 ]
 
 const features = [

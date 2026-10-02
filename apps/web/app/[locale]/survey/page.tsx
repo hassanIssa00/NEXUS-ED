@@ -1,240 +1,156 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { HeartHandshake, CheckCircle2, Sparkles, ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
+import { ArrowRight, CheckCircle2, HeartHandshake, LoaderCircle, ShieldCheck } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
 
-interface SurveySection {
-  id: string;
-  title: string;
-  icon: string;
-  questions: {
-    id: string;
-    text: string;
-    options: string[];
-  }[];
-}
-
-const SURVEY_SECTIONS: SurveySection[] = [
+const sections = [
   {
-    id: 'general',
-    title: 'معلومات عامة وصحية',
-    icon: '🩺',
+    title: 'صحة الطالب وعاداته',
     questions: [
-      { id: 'q1', text: 'ما هو عمر الطفل الحالي؟', options: ['6 سنوات', '7 سنوات', 'أخرى'] },
-      { id: 'q2', text: 'هل يعاني الطفل من أي حساسية غذائية أو أمراض مزمنة؟', options: ['لا توجد ولله الحمد', 'نعم، حساسية طعام', 'نعم، حالة صحية تحتاج متابعة'] },
-      { id: 'q3', text: 'كم ساعة ينام الطفل يومياً في المتوسط؟', options: ['9 إلى 10 ساعات (كافٍ جداً)', '7 إلى 8 ساعات', 'أقل من 7 ساعات'] },
-      { id: 'q4', text: 'كم الوقت التقريبي الذي يقضيه الطفل أمام الشاشات والأجهزة يومياً؟', options: ['أقل من ساعة', 'ساعة إلى ساعتين', 'أكثر من ساعتين'] },
+      { id: 'q1', text: 'ما عمر الطالب الحالي؟', options: ['أقل من 6 سنوات', '6 إلى 10 سنوات', '11 إلى 15 سنة', 'أكثر من 15 سنة'] },
+      { id: 'q2', text: 'هل توجد حالة صحية أو حساسية تحتاج المدرسة إلى معرفتها؟', options: ['لا توجد', 'حساسية طعام', 'حالة صحية تحتاج متابعة'] },
+      { id: 'q3', text: 'كم ساعة ينام الطالب في المتوسط؟', options: ['9 إلى 10 ساعات', '7 إلى 8 ساعات', 'أقل من 7 ساعات'] },
+      { id: 'q4', text: 'ما متوسط الوقت اليومي أمام الشاشات؟', options: ['أقل من ساعة', 'ساعة إلى ساعتين', 'أكثر من ساعتين'] },
     ],
   },
   {
-    id: 'language',
-    title: 'المهارات اللغوية والقراءة',
-    icon: '📖',
+    title: 'التواصل والقراءة',
     questions: [
-      { id: 'q5', text: 'هل يستطيع الطفل التعبير عن نفسه بطلاقة وجمل واضحة؟', options: ['نعم بطلاقة تامة', 'نعم ولكن يحتاج تشجيعاً', 'بصعوبة أحياناً'] },
-      { id: 'q6', text: 'هل يحب الطفل الاستماع إلى القصص والكتب المصورة؟', options: ['يحبها كثيراً وبشغف', 'يحبها باعتدال', 'يفضل الألعاب والحركة'] },
-      { id: 'q7', text: 'هل يواجه صعوبة في نطق بعض الحروف الهجائية؟', options: ['لا، مخارج الحروف سليمة', 'أحياناً في بعض الحروف', 'نعم، توجد صعوبة ملحوظة'] },
+      { id: 'q5', text: 'كيف يعبّر الطالب عن نفسه؟', options: ['بطلاقة', 'يحتاج إلى تشجيع', 'يواجه صعوبة أحياناً'] },
+      { id: 'q6', text: 'ما مدى اهتمامه بالقصص والكتب؟', options: ['اهتمام كبير', 'اهتمام متوسط', 'يفضل أنشطة أخرى'] },
+      { id: 'q7', text: 'هل توجد صعوبات في نطق بعض الحروف؟', options: ['لا توجد', 'أحياناً', 'توجد صعوبة ملحوظة'] },
     ],
   },
   {
-    id: 'social',
-    title: 'المهارات الاجتماعية والتواصل',
-    icon: '🤝',
+    title: 'التفاعل والتعلّم',
     questions: [
-      { id: 'q8', text: 'كيف يتعامل الطفل مع أقرانه وزملائه الجدد؟', options: ['يتعرف ويكون صداقات بسهولة', 'خجول في البداية ثم يندمج', 'يفضل اللعب الفردي'] },
-      { id: 'q9', text: 'هل يتقبل الطفل توجيهات وإرشادات المعلم والوالدين بسهولة؟', options: ['غالباً وبمرونة', 'أحياناً ويحتاج إقناعاً', 'يبدي بعض العناد'] },
-      { id: 'q10', text: 'هل يستطيع الطفل انتظار دوره في الطابور والأنشطة الجماعية؟', options: ['نعم بكل هدوء', 'يحتاج تذكيراً بسيطاً', 'يجد صعوبة في الانتظار'] },
+      { id: 'q8', text: 'كيف يتعامل الطالب مع زملائه الجدد؟', options: ['يندمج بسهولة', 'يحتاج وقتاً للاندماج', 'يفضل الأنشطة الفردية'] },
+      { id: 'q9', text: 'كيف يستجيب للتوجيهات؟', options: ['بمرونة غالباً', 'يحتاج إلى تذكير', 'يحتاج إلى متابعة إضافية'] },
+      { id: 'q10', text: 'كيف ينتظر دوره في الأنشطة الجماعية؟', options: ['بهدوء', 'يحتاج تذكيراً بسيطاً', 'يجد صعوبة في الانتظار'] },
+      { id: 'q11', text: 'كيف يركز في نشاط تعليمي قصير؟', options: ['يركز باستمرار', 'يتشتت أحياناً', 'يحتاج فواصل حركة'] },
+      { id: 'q12', text: 'كيف يتعامل مع مسألة أو نشاط صعب؟', options: ['يحاول مرة أخرى', 'يطلب المساعدة', 'ينزعج ويحتاج تشجيعاً'] },
+      { id: 'q13', text: 'كيف يلتزم بالروتين المنزلي؟', options: ['ملتزم غالباً', 'يحتاج تذكيراً', 'يحتاج متابعة مستمرة'] },
     ],
   },
   {
-    id: 'behavior',
-    title: 'السلوك والانتباه والتركيز',
-    icon: '🧠',
+    title: 'الشراكة الأسرية',
     questions: [
-      { id: 'q11', text: 'كيف تقيم قدرة الطفل على الجلوس والتركيز في مهمة تعليمية لمدة 20 دقيقة؟', options: ['ممتازة ومركز', 'جيدة مع قليل من التشتت', 'يحتاج حركة مستمرة'] },
-      { id: 'q12', text: 'كيف تكون ردة فعل الطفل عند مواجهة صعوبة في حل مسألة أو نشاط؟', options: ['يحاول مرة أخرى بهدوء', 'يطلب المساعدة فوراً', 'ينزعج ويحبط سريعاً'] },
-      { id: 'q13', text: 'هل يلتزم الطفل بالروتين اليومي المنزلي (النوم، الاستيقاظ، المذاكرة)؟', options: ['ملتزم جداً', 'ملتزم في الغالب', 'يحتاج متابعة حثيثة'] },
-    ],
-  },
-  {
-    id: 'academic',
-    title: 'بيئة الدعم المنزلي والمذاكرة',
-    icon: '🏠',
-    questions: [
-      { id: 'q14', text: 'من هو المسؤول المباشر عن متابعة واجبات الطفل في المنزل؟', options: ['الأب والأم معاً', 'الأم غالباً', 'الأب غالباً', 'معلم خاص / طرف آخر'] },
-      { id: 'q15', text: 'ما هو التوقع والهدف الأهم بالنسبة لكم كولي أمر من هذا الفصل الدراسي؟', options: ['التميز الأكاديمي وحفظ القرآن', 'بناء الشخصية والثقة بالنفس', 'إتقان مهارات القراءة والكتابة والرياضيات', 'جميع ما سبق'] },
+      { id: 'q14', text: 'من يتابع واجبات الطالب في المنزل غالباً؟', options: ['الأب والأم معاً', 'الأم غالباً', 'الأب غالباً', 'شخص آخر'] },
+      { id: 'q15', text: 'ما الهدف الأهم للأسرة هذا الفصل؟', options: ['التحصيل الدراسي', 'بناء الشخصية والثقة', 'تنمية المهارات الأساسية', 'جميع ما سبق'] },
     ],
   },
 ];
 
-export default function SurveyPage() {
+function SurveyForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const studentId = searchParams.get('student') || 'cls-std-2';
-
-  const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
+  const studentId = searchParams.get('student');
+  const [sectionIndex, setSectionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
 
-  const currentSection = SURVEY_SECTIONS[currentSectionIdx];
+  const section = sections[sectionIndex];
+  const complete = section.questions.every((question) => answers[question.id]);
 
-  const handleSelect = (questionId: string, option: string) => {
-    setAnswers(prev => ({ ...prev, [questionId]: option }));
-  };
-
-  const isSectionComplete = currentSection.questions.every(q => answers[q.id]);
-
-  const handleNext = () => {
-    if (currentSectionIdx < SURVEY_SECTIONS.length - 1) {
-      setCurrentSectionIdx(prev => prev + 1);
-    } else {
-      finishSurvey();
+  const moveForward = async () => {
+    setError('');
+    if (sectionIndex < sections.length - 1) {
+      setSectionIndex((index) => index + 1);
+      return;
     }
-  };
-
-  const handlePrev = () => {
-    if (currentSectionIdx > 0) {
-      setCurrentSectionIdx(prev => prev - 1);
+    if (!studentId) {
+      setError('اختر ملف الطالب من بوابة ولي الأمر ثم أعد فتح الاستبيان.');
+      return;
     }
-  };
+    if (!consent) {
+      setError('يلزم تأكيد موافقتك قبل إرسال الإجابات.');
+      return;
+    }
 
-  const finishSurvey = async () => {
     setSubmitting(true);
     try {
-      const { nexusBridge } = await import('@/lib/nexusDataBridge');
-      
-      // Save observation for teacher & counselor
-      nexusBridge.saveObservation({
-        studentId,
-        studentName: 'أحمد فيصل الغامدي',
-        authorName: 'ولي أمر الطالب',
-        authorRole: 'ولي أمر',
-        text: 'أكمل ولي الأمر استبيان القياس التربوي الشامل بنجاح، مما يعكس اهتماماً ودعماً أسرياً عالياً.',
-        category: 'guidance',
-        severity: 'positive',
-      });
-
-      window.dispatchEvent(new CustomEvent('nexus:data-changed'));
+      await apiClient.post('/users/parent-survey', { studentId, answers, consent });
       setSubmitted(true);
-    } catch (e) {
-      console.error(e);
+    } catch (submitError: any) {
+      const message = submitError?.response?.data?.message;
+      setError(Array.isArray(message) ? message.join('، ') : message || 'تعذر حفظ الاستبيان. لم يتم اعتماد أي إجابة.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0f1015] flex items-center justify-center p-4" dir="rtl">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-2xl bg-white/90 dark:bg-[#1e1e2d]/90 backdrop-blur-2xl border border-gray-100 dark:border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
-        
-        {!submitted ? (
-          <div>
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 text-xs font-bold mb-3">
-                <HeartHandshake className="w-3.5 h-3.5" />
-                <span>الخطوة 3 من 3: استبيان الشراكة الأسرية</span>
-              </div>
-              <h1 className="text-2xl font-black text-gray-900 dark:text-white">
-                استبيان ولي الأمر التربوي والنفسي
-              </h1>
-              <p className="text-xs text-gray-500 mt-1">
-                معلوماتك تساعد د. إسماعيل عيسى والموجه الطلابي في تفصيل الخطة الأكاديمية والتربوية لابنك
-              </p>
-            </div>
-
-            {/* Stepper */}
-            <div className="flex gap-2 mb-8">
-              {SURVEY_SECTIONS.map((sec, idx) => (
-                <div key={sec.id} className="flex-1 text-center">
-                  <div className={`h-2 rounded-full mb-1.5 transition-all ${
-                    idx === currentSectionIdx
-                      ? 'bg-amber-500'
-                      : idx < currentSectionIdx
-                      ? 'bg-emerald-500'
-                      : 'bg-gray-100 dark:bg-white/10'
-                  }`} />
-                  <span className={`text-[10px] font-bold block truncate ${
-                    idx === currentSectionIdx ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'
-                  }`}>{sec.title}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Current Section Questions */}
-            <div className="space-y-6 mb-8">
-              <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100 dark:border-white/5">
-                <span className="text-2xl">{currentSection.icon}</span>
-                <h3 className="font-black text-base text-gray-900 dark:text-white">{currentSection.title}</h3>
-              </div>
-
-              {currentSection.questions.map((q, qi) => (
-                <div key={q.id} className="space-y-2.5">
-                  <label className="text-xs font-black text-gray-800 dark:text-gray-200 block">
-                    {qi + 1}. {q.text}
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {q.options.map(opt => {
-                      const isSelected = answers[q.id] === opt;
-                      return (
-                        <button key={opt} type="button" onClick={() => handleSelect(q.id, opt)}
-                          className={`p-3 rounded-2xl border text-right text-xs font-bold transition-all ${
-                            isSelected
-                              ? 'border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-500/30'
-                              : 'border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:border-amber-300'
-                          }`}>
-                          {opt}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Navigation Buttons */}
-            <div className="flex items-center justify-between gap-4">
-              <button onClick={handlePrev} disabled={currentSectionIdx === 0}
-                className="px-5 py-3 rounded-2xl border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 font-bold text-xs disabled:opacity-40 flex items-center gap-1.5">
-                <ArrowRight className="w-4 h-4" />
-                <span>السابق</span>
-              </button>
-
-              <button onClick={handleNext} disabled={!isSectionComplete || submitting}
-                className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-sm shadow-lg shadow-amber-500/30 disabled:opacity-40 flex items-center justify-center gap-2">
-                {submitting ? (
-                  <div className="w-5 h-5 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                ) : (
-                  <>
-                    <span>{currentSectionIdx === SURVEY_SECTIONS.length - 1 ? 'إرسال الاستبيان واعتماد الملف' : 'المحور التالي'}</span>
-                    <ArrowLeft className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </div>
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-[#0f1015]" dir="rtl">
+      <section className="w-full max-w-3xl rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#1e1e2d] md:p-8">
+        {submitted ? (
+          <div className="py-8 text-center">
+            <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
+            <h1 className="mt-4 text-2xl font-black text-gray-900 dark:text-white">تم حفظ الاستبيان</h1>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600 dark:text-gray-300">أُرسلت الإجابات إلى قاعدة بيانات المدرسة، ويمكن للمختصين المخولين مراجعتها ضمن ملف الطالب.</p>
+            <button type="button" onClick={() => router.push('/parent')} className="mt-6 rounded-lg bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800">العودة إلى بوابة ولي الأمر</button>
           </div>
         ) : (
-          /* Confirmation Screen */
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-6">
-            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 mx-auto flex items-center justify-center text-white text-4xl shadow-xl shadow-emerald-500/30 mb-5">
-              <CheckCircle2 className="w-10 h-10" />
+          <>
+            <header className="border-b border-gray-200 pb-5 dark:border-white/10">
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"><HeartHandshake className="h-5 w-5" /></span>
+                <div>
+                  <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">ملف الطالب · استبيان ولي الأمر</p>
+                  <h1 className="mt-1 text-xl font-black text-gray-900 dark:text-white">معلومات تساعد المدرسة على المتابعة</h1>
+                  <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">تُحفظ إجاباتك للطالب المرتبط بالحساب، ولا تمثل تشخيصاً طبياً أو نفسياً.</p>
+                </div>
+              </div>
+              <div className="mt-5 grid grid-cols-4 gap-2" aria-label={`المحور ${sectionIndex + 1} من ${sections.length}`}>
+                {sections.map((item, index) => <div key={item.title} className={`h-1.5 rounded-full ${index <= sectionIndex ? 'bg-emerald-600' : 'bg-gray-200 dark:bg-white/10'}`} />)}
+              </div>
+              <p className="mt-2 text-xs font-semibold text-gray-500">المحور {sectionIndex + 1} من {sections.length}: {section.title}</p>
+            </header>
+
+            <div className="space-y-6 py-6">
+              {section.questions.map((question, questionIndex) => (
+                <fieldset key={question.id} className="space-y-3">
+                  <legend className="text-sm font-bold text-gray-900 dark:text-white">{questionIndex + 1}. {question.text}</legend>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {question.options.map((option) => {
+                      const selected = answers[question.id] === option;
+                      return <button key={option} type="button" aria-pressed={selected} onClick={() => setAnswers((current) => ({ ...current, [question.id]: option }))} className={`min-h-11 rounded-lg border px-3 py-2 text-right text-sm font-medium transition ${selected ? 'border-emerald-700 bg-emerald-50 text-emerald-900 dark:border-emerald-400 dark:bg-emerald-500/10 dark:text-emerald-100' : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/5'}`}>
+                        {option}
+                      </button>;
+                    })}
+                  </div>
+                </fieldset>
+              ))}
+
+              {sectionIndex === sections.length - 1 && (
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-4 text-sm leading-6 dark:border-white/10">
+                  <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} className="mt-1 h-4 w-4 accent-emerald-700" />
+                  <span className="flex gap-2 text-gray-700 dark:text-gray-200"><ShieldCheck className="mt-1 h-4 w-4 shrink-0 text-emerald-700" /> أوافق على مشاركة هذه الإجابات مع المختصين المخولين بالمدرسة لأغراض دعم الطالب ومتابعته.</span>
+                </label>
+              )}
             </div>
 
-            <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-2">شكراً لك! تم اعتماد الاستبيان بنجاح</h2>
-            <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
-              تم تسليم استبيان ولي الأمر بنجاح إلى د. إسماعيل عيسى والموجه الطلابي لمتابعة مسيرة ابنك الأكاديمية والتربوية.
-            </p>
-
-            <button onClick={() => router.push('/parent')}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-sm shadow-xl shadow-amber-500/30">
-              الدخول إلى بوابة ولي الأمر الآن 👨‍👩‍👧‍👦
-            </button>
-          </motion.div>
+            {error && <p role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+            <footer className="flex items-center gap-3 border-t border-gray-200 pt-4 dark:border-white/10">
+              <button type="button" disabled={sectionIndex === 0 || submitting} onClick={() => setSectionIndex((index) => Math.max(0, index - 1))} className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-700 disabled:opacity-40 dark:border-white/10 dark:text-gray-200">السابق</button>
+              <button type="button" disabled={!complete || submitting || (sectionIndex === sections.length - 1 && !consent)} onClick={() => void moveForward()} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
+                {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {sectionIndex === sections.length - 1 ? 'حفظ الاستبيان' : 'المحور التالي'}
+                {!submitting && sectionIndex < sections.length - 1 ? <ArrowRight className="h-4 w-4" /> : null}
+              </button>
+            </footer>
+          </>
         )}
-      </motion.div>
-    </div>
+      </section>
+    </main>
   );
+}
+
+export default function SurveyPage() {
+  return <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-gray-500">جارٍ تحميل الاستبيان...</div>}><SurveyForm /></Suspense>;
 }

@@ -173,81 +173,31 @@ function SubjectRow({ grade, idx }: { grade: any; idx: number }) {
 export default function StudentGradesPage() {
   const [grades, setGrades] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [liveGrade, setLiveGrade] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'name' | 'grade' | 'recent'>('grade')
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError('')
     try {
-      const res = await apiClient.get('/grades/my')
-      const raw = res.data?.data || res.data || []
-      let mapped = Array.isArray(raw)
-        ? raw.map((g: any) => ({
+      const res = await apiClient.get('/grades')
+      const raw = Array.isArray(res.data?.grades) ? res.data.grades : []
+      const mapped = raw.map((g: any) => ({
             id: g.id,
-            name: g.subject?.name || g.subjectName || 'مادة',
-            code: g.subject?.code || g.subjectCode || '',
+            name: g.subjectName || 'مادة',
+            code: g.subjectCode || '',
             teacher: g.teacher?.name || g.teacherName || '',
-            score: g.score ?? g.grade ?? 0,
-            maxScore: g.maxScore ?? g.maxGrade ?? 100,
-            pct: Math.round(((g.score ?? g.grade ?? 0) / (g.maxScore ?? g.maxGrade ?? 100)) * 100),
-            assignments: g.assignments || [],
-            createdAt: g.createdAt,
+            score: g.grade ?? 0,
+            maxScore: g.maxGrade ?? 100,
+            pct: g.percentage ?? 0,
+            assignments: [],
+            createdAt: g.date,
           }))
-        : []
-
-      if (mapped.length === 0) {
-        const { nexusBridge } = await import('@/lib/nexusDataBridge')
-        const hwSubs = nexusBridge.getHomeworkSubmissions().filter(s => s.studentId === 'cls-std-2')
-        mapped = [
-          {
-            id: 'g-1',
-            name: 'اللغة العربية',
-            code: 'ARB-101',
-            teacher: 'د. إسماعيل عيسى',
-            score: 95,
-            maxScore: 100,
-            pct: 95,
-            assignments: hwSubs.filter(s => s.assignmentTitle?.includes('عربي') || s.assignmentTitle?.includes('إملاء')).map(s => ({ title: s.assignmentTitle, score: s.grade || 95, maxScore: 100, date: s.submittedAt })),
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'g-2',
-            name: 'القرآن الكريم والتربية الإسلامية',
-            code: 'ISL-101',
-            teacher: 'د. إسماعيل عيسى',
-            score: 98,
-            maxScore: 100,
-            pct: 98,
-            assignments: [{ title: 'حفظ وتلاوة سورة الفاتحة وقصار السور', score: 98, maxScore: 100, date: new Date().toISOString() }],
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'g-3',
-            name: 'الرياضيات',
-            code: 'MTH-101',
-            teacher: 'د. إسماعيل عيسى',
-            score: 92,
-            maxScore: 100,
-            pct: 92,
-            assignments: [{ title: 'تمارين الجمع والعد التصاعدي', score: 92, maxScore: 100, date: new Date().toISOString() }],
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'g-4',
-            name: 'العلوم',
-            code: 'SCI-101',
-            teacher: 'د. إسماعيل عيسى',
-            score: 94,
-            maxScore: 100,
-            pct: 94,
-            assignments: [{ title: 'استكشاف الكائنات الحية والبيئة', score: 94, maxScore: 100, date: new Date().toISOString() }],
-            createdAt: new Date().toISOString(),
-          },
-        ]
-      }
       setGrades(mapped)
     } catch {
-      // Fallback
+      setGrades([])
+      setLoadError('تعذر تحميل سجلات الدرجات من المدرسة.')
     } finally {
       setLoading(false)
     }
@@ -383,6 +333,7 @@ export default function StudentGradesPage() {
           </div>
         </div>
 
+        {loadError && <p role="alert" className="mb-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{loadError}</p>}
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="w-8 h-8 animate-spin text-violet-500" />

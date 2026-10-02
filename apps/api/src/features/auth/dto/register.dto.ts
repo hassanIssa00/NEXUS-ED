@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsEnum, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsIn, IsOptional, MaxLength, Matches } from 'class-validator';
 import { Role } from '../../../shared/enums/roles.enum';
 
 export class RegisterDto {
@@ -10,7 +10,7 @@ export class RegisterDto {
     password: string;
 
     @IsString()
-    @IsEnum(Role)
+    @IsIn([Role.STUDENT, Role.PARENT])
     role: Role;
 
     @IsOptional()
@@ -20,5 +20,8 @@ export class RegisterDto {
 
     @IsOptional()
     @IsString()
-    schoolId?: string;
+    @MaxLength(30)
+    @Matches(/^[+0-9()\-\s]{7,30}$/)
+    phone?: string;
+
 }

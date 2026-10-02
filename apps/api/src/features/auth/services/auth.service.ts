@@ -2,8 +2,9 @@ import {
     Injectable,
     UnauthorizedException,
     ConflictException,
-    InternalServerErrorException,
     BadRequestException,
+    InternalServerErrorException,
+    ServiceUnavailableException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -13,12 +14,11 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
+import { ChangePasswordDto } from '../dto/change-password.dto';
 
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '7d';
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const DEFAULT_SCHOOL_ID = 'default-school';
-const DEFAULT_SCHOOL_SLUG = 'default-school';
 
 @Injectable()
 export class AuthService {
@@ -27,29 +27,6 @@ export class AuthService {
         private jwtService: JwtService,
         private configService: ConfigService,
     ) { }
-
-    private async ensureDefaultSchool() {
-        if (!('school' in this.prisma) || !this.prisma.school) {
-            return {
-                id: DEFAULT_SCHOOL_ID,
-                slug: DEFAULT_SCHOOL_SLUG,
-                name: 'Default School',
-                isActive: true,
-            };
-        }
-
-        return this.prisma.school.upsert({
-            where: { slug: DEFAULT_SCHOOL_SLUG },
-            update: { isActive: true },
-            create: {
-                id: DEFAULT_SCHOOL_ID,
-                name: 'Default School',
-                slug: DEFAULT_SCHOOL_SLUG,
-                description: 'Backfilled school for legacy data and local onboarding',
-                isActive: true,
-            },
-        });
-    }
 
     private async createAuditLog(data: {
         schoolId?: string | null;
@@ -75,30 +52,37 @@ export class AuthService {
         });
     }
 
-    private isPlatformAdmin(role: string): boolean {
-        return role === 'ADMIN';
-    }
+    private async resolvePublicSchoolId(): Promise<string> {
+        const configuredId = process.env.PUBLIC_SCHOOL_ID?.trim();
+        const configuredSlug = process.env.PUBLIC_SCHOOL_SLUG?.trim();
 
-    private async resolveSchoolId(role: string, schoolId?: string): Promise<string | null> {
-        if (schoolId) {
+        if (configuredId) {
             const school = await this.prisma.school.findUnique({
-                where: { id: schoolId },
+                where: { id: configuredId },
                 select: { id: true, isActive: true },
             });
-
-            if (!school?.isActive) {
-                throw new BadRequestException('School not found or inactive');
-            }
-
+            if (!school?.isActive) throw new ServiceUnavailableException('Public registration is not configured for an active school');
             return school.id;
         }
 
-        const defaultSchool = await this.ensureDefaultSchool();
-        if (this.isPlatformAdmin(role)) {
-            return defaultSchool.id;
+        if (configuredSlug) {
+            const school = await this.prisma.school.findUnique({
+                where: { slug: configuredSlug },
+                select: { id: true, isActive: true },
+            });
+            if (!school?.isActive) throw new ServiceUnavailableException('Public registration is not configured for an active school');
+            return school.id;
         }
 
-        return defaultSchool.id;
+        const activeSchools = await this.prisma.school.findMany({
+            where: { isActive: true },
+            select: { id: true },
+            take: 2,
+        });
+        if (activeSchools.length !== 1) {
+            throw new ServiceUnavailableException('Configure PUBLIC_SCHOOL_ID or PUBLIC_SCHOOL_SLUG before enabling public registration');
+        }
+        return activeSchools[0].id;
     }
 
     private buildAuthPayload(user: {
@@ -124,6 +108,7 @@ export class AuthService {
         role: string;
         name: string | null;
         schoolId: string | null;
+        phone?: string | null;
     }) {
         return {
             id: user.id,
@@ -132,12 +117,14 @@ export class AuthService {
             role: user.role,
             name: user.name ?? user.email,
             schoolId: user.schoolId,
+            phone: user.phone ?? null,
         };
     }
 
     async register(registerDto: RegisterDto) {
+        const email = registerDto.email.trim().toLowerCase();
         const existingUser = await this.prisma.user.findUnique({
-            where: { email: registerDto.email },
+            where: { email },
         });
 
         if (existingUser) {
@@ -145,17 +132,15 @@ export class AuthService {
         }
 
         const hashedPassword = await bcrypt.hash(registerDto.password, 10);
-        const schoolId = await this.resolveSchoolId(
-            registerDto.role,
-            registerDto.schoolId,
-        );
+        const schoolId = await this.resolvePublicSchoolId();
 
         const user = await this.prisma.user.create({
             data: {
-                email: registerDto.email,
+                email,
                 password: hashedPassword,
                 role: registerDto.role,
-                name: registerDto.name || registerDto.email.split('@')[0],
+                name: registerDto.name?.trim() || email.split('@')[0],
+                phone: registerDto.phone,
                 schoolId,
             },
         });
@@ -177,12 +162,16 @@ export class AuthService {
     }
 
     async login(loginDto: LoginDto) {
-        console.log(`🔐 محاولة دخول: ${loginDto.email}`);
+        const email = loginDto.email.trim().toLowerCase();
         const user = await this.prisma.user.findUnique({
-            where: { email: loginDto.email },
+            where: { email },
         });
 
         if (!user) {
+            throw new UnauthorizedException('Invalid credentials');
+        }
+
+        if (!user.isActive) {
             throw new UnauthorizedException('Invalid credentials');
         }
 
@@ -195,7 +184,7 @@ export class AuthService {
             throw new UnauthorizedException('Invalid credentials');
         }
 
-        const schoolId = user.schoolId ?? (await this.ensureDefaultSchool()).id;
+        const schoolId = user.schoolId;
         const payload = this.buildAuthPayload({
             id: user.id,
             email: user.email,
@@ -227,8 +216,44 @@ export class AuthService {
                 role: user.role,
                 name: user.name,
                 schoolId,
+                phone: user.phone,
             }),
         };
+    }
+
+    async changePassword(userId: string, dto: ChangePasswordDto) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, password: true, schoolId: true },
+        });
+
+        if (!user || !(await bcrypt.compare(dto.currentPassword, user.password))) {
+            throw new UnauthorizedException('Current password is incorrect');
+        }
+
+        if (await bcrypt.compare(dto.newPassword, user.password)) {
+            throw new BadRequestException('Choose a password different from the current one');
+        }
+
+        const password = await bcrypt.hash(dto.newPassword, 10);
+        const revokedAt = new Date();
+        await this.prisma.$transaction([
+            this.prisma.user.update({ where: { id: user.id }, data: { password } }),
+            this.prisma.refreshToken.updateMany({
+                where: { userId: user.id, revokedAt: null },
+                data: { revokedAt },
+            }),
+        ]);
+
+        await this.createAuditLog({
+            schoolId: user.schoolId,
+            userId: user.id,
+            action: 'auth.password_changed',
+            entityType: 'user',
+            entityId: user.id,
+        });
+
+        return { message: 'Password changed. Sign in again on your other devices.' };
     }
 
     private getRefreshSecret(): string {
@@ -297,10 +322,10 @@ export class AuthService {
 
             const user = await this.prisma.user.findUnique({
                 where: { id: payload.sub },
-                select: { id: true, email: true, role: true, name: true, schoolId: true },
+                select: { id: true, email: true, role: true, name: true, schoolId: true, isActive: true },
             });
 
-            if (!user) {
+            if (!user?.isActive) {
                 throw new UnauthorizedException('User not found');
             }
 
@@ -342,7 +367,7 @@ export class AuthService {
     async validateUser(userId: string) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
-            select: { id: true, email: true, role: true, name: true, schoolId: true, isActive: true },
+            select: { id: true, email: true, role: true, name: true, schoolId: true, phone: true, isActive: true },
         });
 
         if (!user?.isActive) {

@@ -23,6 +23,8 @@ model School {
   assignments Assignment[]
   lessons     Lesson[]
   auditLogs   AuditLog[]
+  parentSurveys ParentSurvey[]
+  placementAssessmentAttempts PlacementAssessmentAttempt[]
 }
 
 model User {
@@ -36,7 +38,7 @@ model User {
   avatar           String?
   name             String?
   phone            String?
-  behaviorScore    Float?                    @default(75)
+  behaviorScore    Float?
   emailVerified    Boolean                   @default(false)
   firstName        String?
   isActive         Boolean                   @default(true)
@@ -78,6 +80,11 @@ model User {
   smartProfile     SmartStudentProfile?
   skillMasteries   StudentSkillMastery[]
   xpTransactions   XpTransaction[]
+  studentProfile   StudentProfile?
+  studentLinkCodes StudentLinkCode[]
+  parentSurveys    ParentSurvey[] @relation("ParentSurveyParent")
+  childSurveys     ParentSurvey[] @relation("ParentSurveyStudent")
+  placementAssessmentAttempts PlacementAssessmentAttempt[]
 
   @@index([role])
   @@index([isActive])
@@ -107,6 +114,67 @@ model ParentStudent {
   student   User   @relation("StudentToParent", fields: [studentId], references: [id])
 
   @@unique([parentId, studentId])
+}
+
+model StudentProfile {
+  userId      String   @id
+  gradeLevel  Int
+  dateOfBirth DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StudentLinkCode {
+  id           String    @id @default(uuid())
+  studentId    String
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  redeemedAt   DateTime?
+  redeemedById String?
+  createdAt    DateTime  @default(now())
+  student      User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, redeemedAt, expiresAt])
+}
+
+model PlacementAssessmentAttempt {
+  id             String   @id @default(uuid())
+  schoolId       String
+  studentId      String
+  gradeLevel     Int
+  assessmentKey  String
+  answers        Json
+  questionSnapshot Json
+  correctCount   Int
+  questionCount  Int
+  score           Float
+  completedAt     DateTime @default(now())
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student         User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, assessmentKey])
+  @@index([schoolId, completedAt])
+  @@index([studentId, completedAt])
+}
+
+model ParentSurvey {
+  id        String   @id @default(uuid())
+  schoolId  String
+  parentId  String
+  studentId String
+  answers   Json
+  consentedAt DateTime
+  consentVersion String @default("parent-survey-v1")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  parent    User     @relation("ParentSurveyParent", fields: [parentId], references: [id], onDelete: Cascade)
+  student   User     @relation("ParentSurveyStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId])
+  @@index([schoolId, updatedAt])
+  @@index([studentId])
 }
 
 model Class {
@@ -219,6 +287,7 @@ model Assignment {
   subject     Subject      @relation(fields: [subjectId], references: [id])
   teacher     User         @relation(fields: [teacherId], references: [id])
   submissions Submission[]
+  grades      Grade[]
 
   @@index([schoolId])
 }
@@ -243,6 +312,7 @@ model Submission {
 
 model Grade {
   id        String   @id @default(uuid())
+  assignmentId String?
   score     Float
   studentId String
   comments  String?
@@ -253,6 +323,9 @@ model Grade {
   updatedAt DateTime @updatedAt
   student   User     @relation(fields: [studentId], references: [id])
   subject   Subject  @relation(fields: [subjectId], references: [id])
+  assignment Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  @@unique([assignmentId, studentId])
 }
 
 model Attendance {

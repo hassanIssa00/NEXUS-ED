@@ -31,6 +31,24 @@ export class MillionJourneyService {
     };
   }
 
+  async getUserBadges(userId: string) {
+    const achievements = await this.prisma.userAchievement.findMany({
+      where: { userId },
+      orderBy: { unlockedAt: 'desc' },
+      select: {
+        id: true,
+        achievementId: true,
+        unlockedAt: true,
+        achievement: { select: { key: true, name: true, description: true, icon: true, xpReward: true, category: true } },
+      },
+    });
+    return achievements.map(({ achievementId, unlockedAt, ...achievement }) => ({
+      ...achievement,
+      badgeId: achievementId,
+      earnedAt: unlockedAt,
+    }));
+  }
+
   async checkAndUnlockMilestones(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');

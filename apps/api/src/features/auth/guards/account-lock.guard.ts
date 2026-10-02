@@ -23,7 +23,7 @@ export class AccountLockGuard implements CanActivate {
             return true;
         }
 
-        const key = `lockout:${email}`;
+        const key = `lockout:${String(email).trim().toLowerCase()}`;
         const attempts = await this.cacheManager.get<number>(key) || 0;
 
         if (attempts >= this.MAX_ATTEMPTS) {

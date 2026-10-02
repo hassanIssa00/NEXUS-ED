@@ -363,18 +363,17 @@ supabase secrets set SUPABASE_ANON_KEY=<your-anon-key>
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
 ```
 
-### Step 8: Seed Database
+### Step 8: Configure Storage (No Demo Records)
 
 ```bash
-# Apply seed data
+# Creates storage buckets and policies only; does not create school or user records
 psql -h <db-host> -U postgres -d postgres -f supabase/seed.sql
 ```
 
 ### Step 9: Configure Storage
 
 In Supabase Dashboard → Storage:
-- Create buckets as defined in `seed.sql`
-- Upload bucket policies
+- The SQL script creates buckets and policies; it does not create users, classes, grades, or other school records.
 
 ## 📡 API Examples
 

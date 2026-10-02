@@ -1,9 +1,13 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { TeacherAutomationService } from './teacher-automation.service';
 import { JwtAuthGuard } from '../../infrastructure/guards/auth.guard';
+import { RolesGuard } from '../../auth/roles.guard';
+import { Roles } from '../../auth/roles.decorator';
+import { Role } from '../../auth/role.enum';
 
 @Controller('teacher/automation')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.TEACHER)
 export class TeacherAutomationController {
   constructor(private readonly automationService: TeacherAutomationService) {}
 

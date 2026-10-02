@@ -11,13 +11,14 @@ class RouteNames {
 
   // Student — Main Tabs
   static const String studentDashboard = '/student';
+  static const String studentProfileSetup = '/student/setup';
+  static const String studentAssessment = '/student/assessment';
   static const String studentSubjects = '/student/subjects';
   static const String studentAiTutor = '/student/ai-tutor';
   static const String studentLeaderboard = '/student/leaderboard';
   static const String studentProfile = '/student/profile';
 
   // Student — Sub Screens
-  static const String studentCourseDetails = '/student/course-details';
   static const String studentLessons = '/student/lessons';
   static const String studentAssignments = '/student/assignments';
   static const String studentGrades = '/student/grades';
@@ -29,7 +30,6 @@ class RouteNames {
   static const String studentSettings = '/student/settings';
   static const String studentNotifications = '/student/notifications';
   static const String studentAchievements = '/student/achievements';
-  static const String studentQuiz = '/student/quiz';
   static const String studentAnalytics = '/student/analytics';
   static const String studentSubscription = '/student/subscription';
 
@@ -45,6 +45,7 @@ class RouteNames {
 
   // Parent
   static const String parentDashboard = '/parent';
+  static const String parentSurvey = '/parent/survey/:studentId';
   static const String parentChildProgress = '/parent/child-progress';
   static const String parentPayments = '/parent/payments';
   static const String parentNotifications = '/parent/notifications';

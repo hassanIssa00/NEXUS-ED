@@ -1,109 +1,41 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/auth-context';
+import { ArrowRight, CircleAlert, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
 import { classSessionApi, ClassSession } from '@/lib/api/class-session';
-import { LiveClassRoom } from '@/components/class/live-class-room';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function LiveClassPage() {
   const params = useParams() as { id: string };
-  const classId = params?.id || '';
-  
-  const { user, profile } = useAuth();
   const router = useRouter();
-  
+  const classId = params?.id || '';
   const [session, setSession] = useState<ClassSession | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
-  const fetchSession = async () => {
+  const load = useCallback(async () => {
+    if (!classId) return;
+    setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      setError(null);
-      const res = await classSessionApi.getActive(classId as string);
-      setSession(res.data);
-      
-      // Mark attendance if session active and user is student
-      if (res.data && user?.role === 'STUDENT') {
-        classSessionApi.markAttendance(classId as string, res.data.id).catch(console.error);
-      }
-    } catch (err: any) {
-      console.error(err);
-      setError('Failed to load session details');
+      const response = await classSessionApi.getActive(classId);
+      setSession(response.data ?? null);
+    } catch (reason: any) {
+      setSession(null);
+      setError(reason?.response?.data?.message || 'لا يمكن تحميل الجلسة لهذا الحساب.');
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    if (classId) {
-      fetchSession();
-    }
   }, [classId]);
 
-  if (loading) {
-    return <div className="h-screen w-full flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-  }
+  useEffect(() => { void load(); }, [load]);
 
-  // Teacher functionality: Start Session if none active?
-  const isTeacher = user?.role === 'TEACHER';
-
-  const handleStartSession = async () => {
-     try {
-       setLoading(true);
-       const res = await classSessionApi.start(classId as string, 'Live Class');
-       setSession(res.data);
-     } catch (err) {
-       console.error("Failed to start", err);
-     } finally {
-       setLoading(false);
-     }
-  };
-
-  if (!session) {
-    return (
-      <div className="h-screen w-full flex flex-col items-center justify-center p-4 bg-muted/20">
-        <Card className="w-full max-w-md text-center">
-          <CardHeader>
-            <CardTitle>No Active Live Class</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="mb-6 text-muted-foreground">
-              There is currently no live session started for this class.
-            </p>
-            
-            {isTeacher ? (
-              <Button onClick={handleStartSession} className="w-full">
-                Start Live Session Now
-              </Button>
-            ) : (
-              <Button variant="outline" onClick={fetchSession} className="w-full gap-2">
-                <RefreshCw className="h-4 w-4" />
-                Check Again
-              </Button>
-            )}
-            
-            <Button variant="ghost" onClick={() => router.back()} className="mt-2 w-full">
-              Go Back
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Active Session Found
   return (
-    <LiveClassRoom
-      roomName={`MillionPlatform-${classId}`}
-      userName={profile?.full_name || 'Guest'}
-      email={user?.email}
-      title={session.title}
-      onEnd={() => router.back()}
-    />
+    <main className="mx-auto flex min-h-[65vh] max-w-xl flex-col justify-center gap-5 p-6" dir="rtl">
+      <header><h1 className="text-2xl font-bold">جلسة الفصل</h1>{session && <p className="mt-2 text-muted-foreground">{session.title}</p>}</header>
+      {loading ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />التحقق من الجلسة...</div> : error ? <p role="alert" className="flex items-center gap-2 rounded-md border border-destructive/30 p-4 text-sm text-destructive"><CircleAlert className="h-4 w-4" />{error}</p> : !session ? <p className="rounded-md border p-4 text-sm text-muted-foreground">لا توجد جلسة مباشرة لهذا الفصل.</p> : session.meetingUrl ? <section className="space-y-3 rounded-md border bg-card p-5"><p className="text-sm">تبدأ الجلسة في {new Date(session.startTime).toLocaleString('ar-SA')}</p><a href={session.meetingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"><ExternalLink className="h-4 w-4" />دخول الاجتماع</a></section> : <p className="rounded-md border p-4 text-sm text-muted-foreground">رابط الاجتماع غير متاح.</p>}
+      <div className="flex gap-2"><Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className="ml-2 h-4 w-4" />تحديث</Button><Button variant="ghost" onClick={() => router.back()}><ArrowRight className="ml-2 h-4 w-4" />رجوع</Button></div>
+    </main>
   );
 }

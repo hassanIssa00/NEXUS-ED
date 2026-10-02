@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 
@@ -19,24 +19,31 @@ export class AiAnalyticsService {
     if (apiKey && apiKey !== 'sk_placeholder') {
       this.openai = new OpenAI({ apiKey });
       this.logger.log('OpenAI Service initialized for Analytics');
-    } else {
-      this.logger.warn('OPENAI_API_KEY not found or invalid. Using Mock AI Service for Analytics.');
     }
   }
 
   async generateStudentInsights(studentData: any): Promise<StudentInsight> {
+    if (!studentData.grades?.length && studentData.attendanceRate === null && !studentData.ungradedSubmissions) {
+      return {
+        strengths: [],
+        weaknesses: [],
+        recommendedTopics: [],
+        encouragementMessage: 'لا توجد درجات أو سجلات حضور كافية لإعداد تحليل حتى الآن.',
+      };
+    }
     if (!this.openai) {
-      return this.getMockResponse(studentData);
+      throw new ServiceUnavailableException('خدمة التحليل الذكي غير متاحة؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
     }
 
     try {
       const systemPrompt = `You are an expert Arabic educational counselor.
       Analyze the following student performance data and provide actionable insights.
       
-      Student Name: ${studentData.name}
       Grades: ${JSON.stringify(studentData.grades)}
-      Missing Assignments: ${studentData.missingAssignments}
-      Attendance Rate: ${studentData.attendanceRate}%
+      Submissions Awaiting a Grade: ${studentData.ungradedSubmissions ?? 'غير متاح'}
+      Attendance Rate: ${studentData.attendanceRate === null ? 'غير متاح' : `${studentData.attendanceRate}%`}
+
+      لا تعتبر التسليمات التي تنتظر التصحيح واجبات غير مسلمة. لا تستنتج بيانات غير موجودة، واذكر نقص البيانات في النتيجة.
 
       Respond ONLY with a valid JSON object matching this structure (in Arabic):
       {
@@ -53,33 +60,19 @@ export class AiAnalyticsService {
         response_format: { type: 'json_object' },
       });
 
-      const responseContent = completion.choices[0].message.content || '{}';
-      
-      try {
-        const parsed = JSON.parse(responseContent);
-        return {
-          strengths: parsed.strengths || [],
-          weaknesses: parsed.weaknesses || [],
-          recommendedTopics: parsed.recommendedTopics || [],
-          encouragementMessage: parsed.encouragementMessage || 'أنت تقوم بعمل رائع، استمر!'
-        };
-      } catch (e) {
-        this.logger.error('Failed to parse AI JSON response', e);
-        return this.getMockResponse(studentData);
+      const responseContent = completion.choices[0]?.message?.content;
+      if (!responseContent) throw new Error('Empty AI response');
+      const parsed = JSON.parse(responseContent);
+      if (!Array.isArray(parsed.strengths) || !Array.isArray(parsed.weaknesses) ||
+          !Array.isArray(parsed.recommendedTopics) || typeof parsed.encouragementMessage !== 'string' ||
+          ![...parsed.strengths, ...parsed.weaknesses, ...parsed.recommendedTopics].every((value) => typeof value === 'string')) {
+        throw new Error('AI response did not match the expected schema');
       }
+      return parsed as StudentInsight;
 
     } catch (error) {
-      this.logger.error('OpenAI API Error during analytics generation', error);
-      return this.getMockResponse(studentData);
+      this.logger.error('AI analytics generation failed', error instanceof Error ? error.message : String(error));
+      throw new ServiceUnavailableException('تعذر إنشاء التحليل الآن. لم يتم إرجاع نتيجة بديلة غير مبنية على بيانات.');
     }
-  }
-
-  private getMockResponse(studentData: any): StudentInsight {
-    return {
-      strengths: ['المشاركة في الفصل', 'تسليم الواجبات في الوقت المحدد أحياناً'],
-      weaknesses: ['تأخير في تسليم بعض الواجبات', 'درجات الرياضيات تحتاج للتحسين'],
-      recommendedTopics: ['مراجعة جداول الضرب', 'تنظيم الوقت'],
-      encouragementMessage: `نحن نؤمن بقدراتك يا ${studentData.name}! قليل من التركيز وسوف تحقق أعلى الدرجات.`
-    };
   }
 }

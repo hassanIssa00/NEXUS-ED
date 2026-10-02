@@ -17,12 +17,10 @@ import { LessonModule } from './lesson/lesson.module';
 import { AssignmentModule } from './assignment/assignment.module';
 import { MillionModule } from './features/million/million.module';
 import { ExamModule } from './features/exams/exam.module';
-import { ChatModule } from './features/chat/chat.module';
 import { ContentModule } from './features/content/content.module';
 import { GamesModule } from './features/games/games.module';
 import { QRAttendanceModule } from './features/qr-attendance/qr-attendance.module';
 import { ParentPortalModule } from './features/parent-portal/parent-portal.module';
-import { AdminPortalModule } from './features/admin-portal/admin-portal.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { MillionSimpleModule } from './features/million-simple/million-simple.module';
 import { HealthModule } from './health/health.module';
@@ -44,6 +42,7 @@ import { AiContentGeneratorModule } from './features/ai-content-generator/ai-con
 import { MillionJourneyModule } from './features/million-journey/million-journey.module';
 import { MessagesModule } from './messages/messages.module';
 import { ProfileModule } from './profile/profile.module';
+import { PlacementAssessmentModule } from './placement-assessment/placement-assessment.module';
 
 @Module({
   imports: [
@@ -70,12 +69,10 @@ import { ProfileModule } from './profile/profile.module';
     AssignmentModule,
     MillionModule,
     ExamModule,
-    ChatModule,
     ContentModule,
     GamesModule,
     QRAttendanceModule,
     ParentPortalModule,
-    AdminPortalModule,
     AttendanceModule,
     MillionSimpleModule,
     HealthModule,
@@ -93,6 +90,7 @@ import { ProfileModule } from './profile/profile.module';
     MillionJourneyModule,
     MessagesModule,
     ProfileModule,
+    PlacementAssessmentModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: CustomThrottlerGuard },

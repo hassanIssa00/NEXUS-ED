@@ -11,7 +11,9 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
+    "postcss": "^8.5.28",
     "prettier": "^3.6.2",
+    "tailwindcss": "^3.4.19",
     "turbo": "^2.6.1",
     "typescript": "5.9.2"
   },
@@ -24,6 +26,15 @@
     "packages/*"
   ],
   "dependencies": {
-    "next": "^16.0.10"
+    "@grpc/grpc-js": "1.14.5",
+    "next": "^16.3.8",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.14.5",
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "1.14.5"
+    }
   }
 }

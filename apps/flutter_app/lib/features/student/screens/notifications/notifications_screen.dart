@@ -1,130 +1,157 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
-import 'package:go_router/go_router.dart';
+import '../../../../services/api_service.dart';
 
-/// Notifications Screen
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  List<Map<String, dynamic>> _notifications = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
+    try {
+      final response = await ApiService.instance.get('/notifications');
+      final records = (response.data as List<dynamic>)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+      if (mounted) setState(() => _notifications = records);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'تعذر تحميل الإشعارات من النظام.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _markAllRead() async {
+    try {
+      await ApiService.instance.post('/notifications/read-all');
+      if (mounted) setState(() => _notifications = _notifications.map((item) => {...item, 'isRead': true}).toList());
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تحديث الإشعارات.')));
+    }
+  }
+
+  Future<void> _markRead(int index) async {
+    final item = _notifications[index];
+    if (item['isRead'] == true) return;
+    final id = item['id']?.toString();
+    if (id == null || id.isEmpty) return;
+    try {
+      await ApiService.instance.post('/notifications/$id/read');
+      if (mounted) setState(() => _notifications[index] = {...item, 'isRead': true});
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تحديث حالة الإشعار.')));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final unreadCount = _notifications.where((item) => item['isRead'] != true).length;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: AppColors.backgroundDark,
-        body: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => context.pop(),
-                      child: Container(
-                        width: 44, height: 44,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    const Text('الإشعارات', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text('مسح الكل', style: TextStyle(color: Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.w600)),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Notifications List
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: _notifications.length,
-                  itemBuilder: (_, i) => _NotificationTile(notification: _notifications[i]),
-                ),
-              ),
-            ],
-          ),
+        appBar: AppBar(
+          title: const Text('الإشعارات'),
+          backgroundColor: AppColors.backgroundDark,
+          foregroundColor: Colors.white,
+          actions: [
+            IconButton(onPressed: _load, tooltip: 'تحديث', icon: const Icon(Icons.refresh)),
+            TextButton(onPressed: unreadCount == 0 ? null : _markAllRead, child: const Text('قراءة الكل')),
+          ],
         ),
+        body: _loading && _notifications.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null && _notifications.isEmpty
+                ? _LoadError(message: _error!, onRetry: _load)
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: _notifications.isEmpty
+                        ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: const [SizedBox(height: 220), Center(child: Text('لا توجد إشعارات مسجلة.'))])
+                        : ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 30),
+                            itemCount: _notifications.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final item = _notifications[index];
+                              final read = item['isRead'] == true;
+                              final color = _typeColor(item['type']?.toString());
+                              return Material(
+                                color: read ? AppColors.cardDark : color.withOpacity(0.09),
+                                borderRadius: BorderRadius.circular(12),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () => _markRead(index),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: read ? AppColors.borderDark : color.withOpacity(0.24))),
+                                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      Icon(_typeIcon(item['type']?.toString()), color: color, size: 22),
+                                      const SizedBox(width: 11),
+                                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                        Text(item['title']?.toString() ?? 'إشعار', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.white)),
+                                        const SizedBox(height: 4),
+                                        Text(item['body']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.68), height: 1.45)),
+                                        const SizedBox(height: 6),
+                                        Text(_date(item['createdAt']), style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.42))),
+                                      ])),
+                                      if (!read) Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 4), decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                                    ]),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
       ),
     );
   }
+
+  static Color _typeColor(String? type) {
+    switch (type?.toUpperCase()) {
+      case 'WARNING': return AppColors.warning;
+      case 'GRADE': return AppColors.primary;
+      case 'REMINDER': return AppColors.info;
+      case 'SUCCESS': return AppColors.success;
+      default: return AppColors.textHint;
+    }
+  }
+
+  static IconData _typeIcon(String? type) {
+    switch (type?.toUpperCase()) {
+      case 'WARNING': return Icons.warning_amber_outlined;
+      case 'GRADE': return Icons.grade_outlined;
+      case 'REMINDER': return Icons.event_outlined;
+      case 'SUCCESS': return Icons.check_circle_outline;
+      default: return Icons.notifications_none;
+    }
+  }
+
+  static String _date(dynamic raw) {
+    final date = DateTime.tryParse(raw?.toString() ?? '');
+    if (date == null) return 'وقت غير محدد';
+    return '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}  ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
 }
 
-class _NotifData {
-  final IconData icon;
-  final Color color;
-  final String title, body, time;
-  final bool isNew;
-  const _NotifData({required this.icon, required this.color, required this.title, required this.body, required this.time, this.isNew = false});
-}
-
-final List<_NotifData> _notifications = [
-  _NotifData(icon: Icons.assignment_turned_in_rounded, color: const Color(0xFF10B981), title: 'واجب جديد', body: 'تم إضافة واجب جديد في مادة الرياضيات — المعادلات التربيعية', time: 'منذ 5 دقائق', isNew: true),
-  _NotifData(icon: Icons.emoji_events_rounded, color: const Color(0xFFFBBF24), title: 'إنجاز جديد! 🏆', body: 'مبروك! حصلت على وسام "المتفوق" لتسليمك 5 واجبات متتالية', time: 'منذ ساعة', isNew: true),
-  _NotifData(icon: Icons.quiz_rounded, color: const Color(0xFFA855F7), title: 'اختبار غداً', body: 'تذكير: اختبار الفيزياء — الحركة والقوة، غداً الساعة 10 صباحاً', time: 'منذ 3 ساعات', isNew: true),
-  _NotifData(icon: Icons.trending_up_rounded, color: const Color(0xFF3B82F6), title: 'تحديث الدرجات', body: 'تم تحديث درجتك في الكيمياء إلى A — ممتاز!', time: 'أمس'),
-  _NotifData(icon: Icons.calendar_today_rounded, color: const Color(0xFFEF4444), title: 'تغيير في الجدول', body: 'تم تعديل موعد حصة اللغة الإنجليزية ليوم الخميس', time: 'قبل يومين'),
-  _NotifData(icon: Icons.smart_toy_rounded, color: const Color(0xFF7C3AED), title: 'نصيحة AI', body: 'بناءً على أدائك، ننصحك بمراجعة الفصل الثالث في الفيزياء', time: 'قبل 3 أيام'),
-  _NotifData(icon: Icons.group_rounded, color: const Color(0xFF0D9488), title: 'رسالة من المعلم', body: 'أ. أحمد: أحسنتم في الاختبار الأخير، استمروا!', time: 'قبل 4 أيام'),
-];
-
-class _NotificationTile extends StatelessWidget {
-  final _NotifData notification;
-  const _NotificationTile({required this.notification});
-
+class _LoadError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _LoadError({required this.message, required this.onRetry});
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: notification.isNew ? notification.color.withOpacity(0.05) : AppColors.cardDark,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: notification.isNew ? notification.color.withOpacity(0.15) : AppColors.borderDark),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: notification.color.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-            child: Icon(notification.icon, color: notification.color, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(child: Text(notification.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.white))),
-                    if (notification.isNew)
-                      Container(
-                        width: 8, height: 8,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: notification.color),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(notification.body, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5), height: 1.4)),
-                const SizedBox(height: 6),
-                Text(notification.time, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.25))),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(message, textAlign: TextAlign.center), TextButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة'))])));
 }

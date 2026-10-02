@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Mic, Square, Play, Pause, Trash2, Send, Loader2, RefreshCw } from 'lucide-react';
+import { Mic, Square, Play, Pause, Trash2, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { uploadFile } from '@/lib/api/files';
 
@@ -21,9 +21,9 @@ export function VoiceRecorder({
   maxDuration = 120, // 2 minutes default
 }: VoiceRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [playbackProgress, setPlaybackProgress] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -37,6 +37,8 @@ export function VoiceRecorder({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     return () => {
@@ -46,10 +48,11 @@ export function VoiceRecorder({
 
   const cleanup = () => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-    if (mediaRecorderRef.current && isRecording) {
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
     if (audioContextRef.current) audioContextRef.current.close();
   };
@@ -57,6 +60,7 @@ export function VoiceRecorder({
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
       
       // Setup Visualizer
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -79,13 +83,14 @@ export function VoiceRecorder({
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
         setAudioBlob(blob);
         const url = URL.createObjectURL(blob);
+        audioUrlRef.current = url;
         setAudioUrl(url);
         setIsRecording(false);
-        setIsPaused(false);
         stopVisualizer();
         
         // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current = null;
       };
 
       mediaRecorder.start(100); // Collect 100ms chunks
@@ -117,7 +122,7 @@ export function VoiceRecorder({
     const dataArray = new Uint8Array(bufferLength);
     
     const draw = () => {
-      if (!isRecording) return;
+      if (mediaRecorderRef.current?.state !== 'recording') return;
       
       animationRef.current = requestAnimationFrame(draw);
       analyserRef.current!.getByteFrequencyData(dataArray);
@@ -175,10 +180,12 @@ export function VoiceRecorder({
 
   const handleReset = () => {
     setAudioBlob(null);
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = null;
     setAudioUrl(null);
     setDuration(0);
     setIsPlaying(false);
+    setPlaybackProgress(0);
   };
 
   const handleUpload = async () => {
@@ -214,15 +221,18 @@ export function VoiceRecorder({
             <canvas ref={canvasRef} width={300} height={60} className="w-full h-full" />
           ) : audioUrl ? (
             <div className="flex items-center gap-2 w-full px-4">
-               <audio
+                <audio
                 ref={audioPlayerRef}
                 src={audioUrl}
-                onEnded={() => setIsPlaying(false)}
+                onTimeUpdate={(event) => {
+                  const player = event.currentTarget;
+                  setPlaybackProgress(player.duration > 0 ? player.currentTime / player.duration : 0);
+                }}
+                onEnded={() => { setIsPlaying(false); setPlaybackProgress(1); }}
                 className="hidden"
               />
-              <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-700 rounded full">
-                {/* Fake waveform for static state */}
-                <div className="w-full h-full bg-blue-500 rounded-full opacity-50"></div>
+              <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-700 rounded-full" role="progressbar" aria-label="موضع تشغيل التسجيل" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(playbackProgress * 100)}>
+                <div className="h-full bg-blue-500 rounded-full transition-[width]" style={{ width: `${playbackProgress * 100}%` }} />
               </div>
             </div>
           ) : (

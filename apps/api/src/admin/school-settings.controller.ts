@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Body, UseGuards, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -6,67 +6,76 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '../auth/role.enum';
+import { RolesGuard } from '../auth/roles.guard';
 import {
   SchoolSettingsService,
   SchoolSettings,
 } from './school-settings.service';
 
 @ApiTags('School Settings')
-@Controller('api/admin/settings')
+@Controller('admin/settings')
 @ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class SchoolSettingsController {
   constructor(private readonly settingsService: SchoolSettingsService) {}
 
   @Get()
-  @UseGuards(AuthGuard('jwt'))
+  @Roles(Role.ADMIN, Role.PRINCIPAL)
   @ApiOperation({ summary: 'Get all school settings' })
   @ApiResponse({ status: 200, description: 'School settings retrieved' })
-  async getSettings(): Promise<SchoolSettings> {
-    return this.settingsService.getSettings();
+  async getSettings(@Req() req: any): Promise<SchoolSettings> {
+    return this.settingsService.getSettings(req.user.schoolId);
   }
 
   @Put()
-  @UseGuards(AuthGuard('jwt'))
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Update school settings' })
   async updateSettings(
     @Body() updates: Partial<SchoolSettings>,
+    @Req() req: any,
   ): Promise<SchoolSettings> {
-    return this.settingsService.updateSettings(updates);
+    return this.settingsService.updateSettings(updates, req.user.schoolId, req.user.userId);
   }
 
   @Put('grading')
-  @UseGuards(AuthGuard('jwt'))
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Update grading system settings' })
   async updateGradingSystem(
     @Body() config: Partial<SchoolSettings['gradingSystem']>,
+    @Req() req: any,
   ): Promise<SchoolSettings> {
-    return this.settingsService.updateGradingSystem(config);
+    return this.settingsService.updateGradingSystem(config, req.user.schoolId, req.user.userId);
   }
 
   @Put('periods')
-  @UseGuards(AuthGuard('jwt'))
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Update periods configuration' })
   async updatePeriodsConfig(
     @Body() config: Partial<SchoolSettings['periodsConfig']>,
+    @Req() req: any,
   ): Promise<SchoolSettings> {
-    return this.settingsService.updatePeriodsConfig(config);
+    return this.settingsService.updatePeriodsConfig(config, req.user.schoolId, req.user.userId);
   }
 
   @Put('attendance')
-  @UseGuards(AuthGuard('jwt'))
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Update attendance policy' })
   async updateAttendancePolicy(
     @Body() config: Partial<SchoolSettings['attendancePolicy']>,
+    @Req() req: any,
   ): Promise<SchoolSettings> {
-    return this.settingsService.updateAttendancePolicy(config);
+    return this.settingsService.updateAttendancePolicy(config, req.user.schoolId, req.user.userId);
   }
 
   @Put('reports')
-  @UseGuards(AuthGuard('jwt'))
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Update report settings' })
   async updateReportSettings(
     @Body() config: Partial<SchoolSettings['reportSettings']>,
+    @Req() req: any,
   ): Promise<SchoolSettings> {
-    return this.settingsService.updateReportSettings(config);
+    return this.settingsService.updateReportSettings(config, req.user.schoolId, req.user.userId);
   }
 }

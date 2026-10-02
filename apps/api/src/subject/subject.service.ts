@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateSubjectDto, UpdateSubjectDto } from './dto/create-subject.dto';
 
@@ -6,24 +6,52 @@ import { CreateSubjectDto, UpdateSubjectDto } from './dto/create-subject.dto';
 export class SubjectService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createSubjectDto: CreateSubjectDto) {
-    return this.prisma.subject.create({ data: createSubjectDto });
+  private requireSchool(schoolId?: string) {
+    if (!schoolId) throw new ForbiddenException('The account is not assigned to a school');
+    return schoolId;
   }
 
-  async findAll() {
+  private async assertClass(classId: string, schoolId: string) {
+    const classroom = await this.prisma.class.findFirst({
+      where: { id: classId, schoolId },
+      select: { id: true },
+    });
+    if (!classroom) throw new NotFoundException('Class not found in this school');
+  }
+
+  private async assertTeacher(teacherId: string | undefined, schoolId: string) {
+    if (!teacherId) return;
+    const teacher = await this.prisma.user.findFirst({
+      where: { id: teacherId, schoolId, role: 'TEACHER', isActive: true },
+      select: { id: true },
+    });
+    if (!teacher) throw new NotFoundException('Teacher not found in this school');
+  }
+
+  async create(data: CreateSubjectDto, schoolId?: string) {
+    const scopedSchoolId = this.requireSchool(schoolId);
+    await this.assertClass(data.classId, scopedSchoolId);
+    await this.assertTeacher(data.teacherId, scopedSchoolId);
+    return this.prisma.subject.create({ data: { ...data, schoolId: scopedSchoolId } });
+  }
+
+  async findAll(schoolId?: string) {
+    const scopedSchoolId = this.requireSchool(schoolId);
     return this.prisma.subject.findMany({
+      where: { schoolId: scopedSchoolId },
       include: {
-        class: { select: { name: true } },
-        teacher: { select: { name: true, email: true } },
+        class: { select: { id: true, name: true } },
+        teacher: { select: { id: true, name: true, email: true } },
         _count: { select: { lessons: true, assignments: true } },
       },
+      orderBy: { name: 'asc' },
     });
   }
 
-  /** Returns subjects for a student via their enrollment → class → subjects */
-  async findByStudent(studentId: string) {
+  async findByStudent(studentId: string, schoolId?: string) {
+    const scopedSchoolId = this.requireSchool(schoolId);
     const enrollments = await this.prisma.enrollment.findMany({
-      where: { studentId },
+      where: { studentId, class: { schoolId: scopedSchoolId } },
       include: {
         class: {
           include: {
@@ -48,32 +76,26 @@ export class SubjectService {
       },
     });
 
-    const subjectMap = new Map<string, any>();
-
+    const subjects = new Map<string, any>();
     for (const enrollment of enrollments) {
-      const cls = enrollment.class as any;
-      const subjects =
-        cls.classSubjects?.map((cs: any) => cs.subject) ??
-        cls.subjects ??
-        [];
-      for (const subject of subjects) {
-        if (subject && !subjectMap.has(subject.id)) {
-          subjectMap.set(subject.id, {
-            ...subject,
-            className: cls.name,
-            classId: enrollment.classId,
-          });
-        }
+      const classroom = enrollment.class as typeof enrollment.class & { classSubjects?: any[] };
+      const linkedSubjects = classroom.classSubjects?.length
+        ? classroom.classSubjects.map((item) => item.subject)
+        : classroom.subjects;
+      for (const subject of linkedSubjects) {
+        subjects.set(subject.id, { ...subject, className: classroom.name, classId: classroom.id });
       }
     }
-
-    return Array.from(subjectMap.values());
+    return Array.from(subjects.values());
   }
 
-  /** Returns subjects taught by a specific teacher */
-  async findByTeacher(teacherId: string) {
+  async findByTeacher(teacherId: string, schoolId?: string) {
+    const scopedSchoolId = this.requireSchool(schoolId);
     return this.prisma.subject.findMany({
-      where: { teacherId },
+      where: {
+        schoolId: scopedSchoolId,
+        OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }],
+      },
       include: {
         class: { select: { id: true, name: true } },
         _count: { select: { lessons: true, assignments: true } },
@@ -82,20 +104,46 @@ export class SubjectService {
     });
   }
 
-  async findOne(id: string) {
-    const subject = await this.prisma.subject.findUnique({
-      where: { id },
-      include: { class: true, teacher: true, lessons: true, assignments: true },
+  async findOne(id: string, actorId: string, role: string, schoolId?: string) {
+    const scopedSchoolId = this.requireSchool(schoolId);
+    const subject = await this.prisma.subject.findFirst({
+      where: { id, schoolId: scopedSchoolId },
+      include: {
+        class: { select: { id: true, name: true } },
+        teacher: { select: { id: true, name: true, email: true } },
+        classSubjects: { select: { teacherId: true } },
+        lessons: true,
+        assignments: true,
+      },
     });
-    if (!subject) throw new NotFoundException(`Subject with ID ${id} not found`);
+    if (!subject) throw new NotFoundException('Subject not found');
+
+    if (role === 'TEACHER') {
+      const assigned = subject.teacherId === actorId || subject.classSubjects.some((item) => item.teacherId === actorId);
+      if (!assigned) throw new ForbiddenException('You do not have access to this subject');
+    } else if (role === 'STUDENT') {
+      const enrollment = await this.prisma.enrollment.findFirst({
+        where: { studentId: actorId, classId: subject.classId, class: { schoolId: scopedSchoolId } },
+        select: { id: true },
+      });
+      if (!enrollment) throw new ForbiddenException('You do not have access to this subject');
+    }
     return subject;
   }
 
-  async update(id: string, updateSubjectDto: UpdateSubjectDto) {
-    return this.prisma.subject.update({ where: { id }, data: updateSubjectDto });
+  async update(id: string, data: UpdateSubjectDto, schoolId?: string) {
+    const scopedSchoolId = this.requireSchool(schoolId);
+    const subject = await this.prisma.subject.findFirst({ where: { id, schoolId: scopedSchoolId }, select: { id: true } });
+    if (!subject) throw new NotFoundException('Subject not found');
+    await this.assertClass(data.classId, scopedSchoolId);
+    await this.assertTeacher(data.teacherId, scopedSchoolId);
+    return this.prisma.subject.update({ where: { id }, data });
   }
 
-  async remove(id: string) {
+  async remove(id: string, schoolId?: string) {
+    const scopedSchoolId = this.requireSchool(schoolId);
+    const subject = await this.prisma.subject.findFirst({ where: { id, schoolId: scopedSchoolId }, select: { id: true } });
+    if (!subject) throw new NotFoundException('Subject not found');
     return this.prisma.subject.delete({ where: { id } });
   }
 }

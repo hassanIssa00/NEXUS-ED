@@ -1,157 +1,93 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../core/database/prisma.service';
-import { EventsGateway } from '../../gateway/events.gateway';
 import OpenAI from 'openai';
-// Try importing pdf-parse safely
-let pdfParse: any;
-try {
-  pdfParse = require('pdf-parse');
-} catch (e) {
-  console.warn('pdf-parse not installed yet');
+
+export interface AiGradeSuggestion {
+  score: number;
+  feedback: string;
+  maxScore: number;
 }
 
 @Injectable()
 export class AiGradingService {
   private readonly logger = new Logger(AiGradingService.name);
-  private openai: OpenAI;
+  private readonly openai: OpenAI | null;
 
-  constructor(
-    private prisma: PrismaService,
-    private configService: ConfigService,
-    private eventsGateway: EventsGateway,
-  ) {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (apiKey) {
-      this.openai = new OpenAI({ apiKey });
-    }
+  constructor(private readonly prisma: PrismaService, configService: ConfigService) {
+    const apiKey = configService.get<string>('OPENAI_API_KEY');
+    this.openai = apiKey && apiKey !== 'sk_placeholder' ? new OpenAI({ apiKey }) : null;
   }
 
-  async gradeSubmission(submissionId: string) {
-    if (!this.openai) {
-      this.logger.warn('OpenAI API key not configured. Skipping AI grading.');
-      return;
-    }
+  async suggestGrade(submissionId: string, actorId: string, actorRole: string): Promise<AiGradeSuggestion> {
+    if (!this.openai) throw new ServiceUnavailableException('اقتراح التصحيح غير متاح؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
 
-    try {
-      const submission = await this.prisma.submission.findUnique({
+    const [actor, submission] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: actorId }, select: { id: true, role: true, schoolId: true } }),
+      this.prisma.submission.findUnique({
         where: { id: submissionId },
         include: {
-          assignment: true,
-          student: {
-            select: { id: true, name: true }
-          }
-        }
-      });
+          assignment: { include: { subject: { select: { teacherId: true, classId: true } } } },
+          student: { select: { id: true } },
+        },
+      }),
+    ]);
+    if (!actor || !submission) throw new NotFoundException('التسليم غير موجود');
+    if (!actor.schoolId || actor.schoolId !== submission.assignment.schoolId) {
+      throw new ForbiddenException('لا تملك صلاحية الوصول إلى هذا التسليم');
+    }
+    if (actorRole === 'TEACHER' &&
+        submission.assignment.teacherId !== actorId &&
+        submission.assignment.subject.teacherId !== actorId) {
+      throw new ForbiddenException('هذا التسليم غير مسند إليك');
+    }
+    if (actorRole !== 'TEACHER' && actorRole !== 'ADMIN') {
+      throw new ForbiddenException('لا تملك صلاحية اقتراح درجة');
+    }
+    if (submission.gradedAt) throw new BadRequestException('تم تصحيح هذا التسليم بالفعل');
+    if (submission.attachments.length) {
+      throw new BadRequestException('لا يمكن اقتراح درجة لهذا التسليم آليًا لوجود مرفقات غير قابلة للتحليل؛ راجعها يدويًا.');
+    }
+    const answer = submission.content?.trim();
+    if (!answer) throw new BadRequestException('لا يحتوي التسليم على إجابة نصية قابلة للتحليل');
+    if (answer.length > 20000) throw new BadRequestException('الإجابة أطول من الحد المدعوم لاقتراح التصحيح');
 
-      if (!submission) throw new Error('Submission not found');
+    const maxScore = submission.assignment.maxScore;
+    const systemPrompt = `أنت مساعد للمعلم تقترح درجة أولية فقط، ولا تصدر حكم قبول أو نتيجة نهائية.
+قيّم الإجابة وفق وصف الواجب والدرجة القصوى، ولا تفترض محتوى غير موجود. إذا كانت التعليمات أو الإجابة غير كافية، أشر إلى ذلك في الملاحظات.
+أرجع كائن JSON فقط بهذا الشكل: {"grade": رقم, "feedback_ar": نص قصير, "strengths": [نصوص], "weaknesses": [نصوص]}.`;
+    const input = JSON.stringify({
+      assignmentTitle: submission.assignment.title,
+      assignmentDescription: submission.assignment.description,
+      maxScore,
+      studentAnswer: answer,
+    });
 
-      // Skip if already graded
-      if (submission.gradedAt) return submission;
-
-      let extractedText = submission.content || '';
-
-      // We skip downloading/parsing attachments for this MVP, but we mock the logic
-      if (submission.attachments && submission.attachments.length > 0) {
-        extractedText += '\n[Student attached files which are not fully parsed in this MVP iteration.]';
-      }
-
-      const prompt = `
-أنت معلم خبير ومتعاطف في مدرسة الإخلاص الأهلية. 
-يرجى تصحيح إجابة الطالب التالية بناءً على وصف الواجب.
-
-**بيانات الواجب:**
-العنوان: ${submission.assignment.title}
-الوصف: ${submission.assignment.description}
-الدرجة القصوى: ${submission.assignment.maxScore}
-
-**إجابة الطالب (${submission.student.name}):**
-${extractedText}
-
-يرجى إرجاع النتيجة كـ JSON حصراً بالصيغة التالية (بدون أي نصوص إضافية):
-{
-  "grade": <رقم من 0 إلى الدرجة القصوى>,
-  "feedback_ar": "<رسالة تشجيعية ودافئة للطالب توضح له ما أبدع فيه وما يمكن تحسينه>",
-  "strengths": ["نقطة قوة 1", "نقطة قوة 2"],
-  "weaknesses": ["نقطة ضعف 1"]
-}`;
-
+    try {
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4o',
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: input }],
         response_format: { type: 'json_object' },
         temperature: 0.2,
       });
-
-      const resultText = response.choices[0].message.content;
-      if (!resultText) throw new Error('Empty response from OpenAI');
-
-      const aiResult = JSON.parse(resultText);
-
-      // Update submission with AI Grade
-      const updatedSubmission = await this.prisma.submission.update({
-        where: { id: submissionId },
-        data: {
-          grade: aiResult.grade,
-          score: aiResult.grade,
-          feedback: JSON.stringify({
-            text: aiResult.feedback_ar,
-            strengths: aiResult.strengths,
-            weaknesses: aiResult.weaknesses,
-            isAiGenerated: true,
-          }),
-          gradedAt: new Date(),
-        },
-      });
-
-      // Award XP via GamificationService (triggers WebSocket + level-up detection)
-      const percentage = (aiResult.grade / (submission.assignment.maxScore || 100)) * 100;
-      let earnedXP = 0;
-      if (percentage >= 90) earnedXP = 50;
-      else if (percentage >= 75) earnedXP = 30;
-      else if (percentage >= 60) earnedXP = 10;
-
-      if (earnedXP > 0) {
-        // Gracefully skip if GamificationService not injected
-        try {
-          // Note: XP is also handled by AutoGradingService; this is only if AiGradingService is called directly
-          await this.prisma.user.update({
-            where: { id: submission.studentId },
-            data: { totalXP: { increment: earnedXP } },
-          });
-        } catch (xpErr) {
-          this.logger.warn('Could not award XP from AiGradingService', xpErr);
-        }
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error('Empty AI response');
+      const result = JSON.parse(content);
+      if (typeof result.grade !== 'number' || !Number.isFinite(result.grade) ||
+          result.grade < 0 || result.grade > maxScore || typeof result.feedback_ar !== 'string' ||
+          !Array.isArray(result.strengths) || !result.strengths.every((value: unknown) => typeof value === 'string') ||
+          !Array.isArray(result.weaknesses) || !result.weaknesses.every((value: unknown) => typeof value === 'string')) {
+        throw new Error('Invalid AI grading response');
       }
-
-      // Notify Teacher and Student
-      this.eventsGateway.emitAssignmentGraded(submission.assignment.teacherId, {
-        submissionId: submission.id,
-        studentName: submission.student.name,
-        grade: aiResult.grade,
-      });
-
-      this.eventsGateway.emitNotification(submission.studentId, {
-        title: 'تم تصحيح الواجب',
-        message: `تم تصحيح الواجب: ${submission.assignment.title}`,
-        type: 'grade',
-      });
-
-      this.logger.log(`Submission ${submissionId} graded automatically.`);
-      return updatedSubmission;
-
+      const feedback = [
+        result.feedback_ar.trim(),
+        result.strengths.length ? `نقاط القوة: ${result.strengths.join('، ')}` : '',
+        result.weaknesses.length ? `نقاط للتحسين: ${result.weaknesses.join('، ')}` : '',
+      ].filter(Boolean).join('\n');
+      return { score: Math.round(result.grade * 100) / 100, feedback, maxScore };
     } catch (error) {
-      this.logger.error(`Failed to auto-grade submission ${submissionId}`, error);
-      // Fallback
-      await this.prisma.submission.update({
-        where: { id: submissionId },
-        data: {
-          feedback: JSON.stringify({
-            text: 'حدث خطأ أثناء التصحيح التلقائي. سيقوم المعلم بمراجعة الواجب قريباً.',
-            isAiGenerated: false
-          })
-        }
-      });
+      this.logger.error('AI grading suggestion failed', error instanceof Error ? error.message : String(error));
+      throw new ServiceUnavailableException('تعذر إنشاء اقتراح تصحيح الآن. لم يتم حفظ أي درجة.');
     }
   }
 }

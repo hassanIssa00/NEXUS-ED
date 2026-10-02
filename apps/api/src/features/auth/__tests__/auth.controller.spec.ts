@@ -107,8 +107,9 @@ describe('AuthController', () => {
                 'refresh123',
                 expect.objectContaining({
                     httpOnly: true,
-                    sameSite: 'strict',
+                    sameSite: 'lax',
                     path: '/',
+                    secure: false,
                 }),
             );
             expect(result).toEqual({
@@ -141,8 +142,9 @@ describe('AuthController', () => {
                 'next-refresh-token',
                 expect.objectContaining({
                     httpOnly: true,
-                    sameSite: 'strict',
+                    sameSite: 'lax',
                     path: '/',
+                    secure: false,
                 }),
             );
             expect(result).toEqual({ access_token: 'new-access-token' });
@@ -163,7 +165,11 @@ describe('AuthController', () => {
             const result = await controller.logout(req, res);
 
             expect(service.revokeRefreshToken).toHaveBeenCalledWith('refresh123');
-            expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
+            expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
+                path: '/',
+                secure: false,
+                sameSite: 'lax',
+            });
             expect(result).toEqual({ message: 'Logged out successfully' });
         });
     });

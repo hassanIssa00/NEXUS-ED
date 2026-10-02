@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Storage Service — Secure storage for auth tokens and user data
 /// Moved from core/storage/secure_storage.dart to services layer
@@ -7,20 +8,18 @@ class StorageService {
   static const _refreshTokenKey = 'refresh_token';
   static const _userIdKey = 'user_id';
   static const _userRoleKey = 'user_role';
-  static const _demoModeKey = 'demo_mode';
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
   // ═══════════════════════════════════════════
   // ACCESS TOKEN
   // ═══════════════════════════════════════════
 
   static Future<void> saveAccessToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_accessTokenKey, token);
+    await _secureStorage.write(key: _accessTokenKey, value: token);
   }
 
   static Future<String?> getAccessToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_accessTokenKey);
+    return _secureStorage.read(key: _accessTokenKey);
   }
 
   // ═══════════════════════════════════════════
@@ -28,13 +27,11 @@ class StorageService {
   // ═══════════════════════════════════════════
 
   static Future<void> saveRefreshToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_refreshTokenKey, token);
+    await _secureStorage.write(key: _refreshTokenKey, value: token);
   }
 
   static Future<String?> getRefreshToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_refreshTokenKey);
+    return _secureStorage.read(key: _refreshTokenKey);
   }
 
   // ═══════════════════════════════════════════
@@ -62,34 +59,22 @@ class StorageService {
   }
 
   // ═══════════════════════════════════════════
-  // DEMO MODE
-  // ═══════════════════════════════════════════
-
-  static Future<void> setDemoMode(bool isDemoMode) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_demoModeKey, isDemoMode);
-  }
-
-  static Future<bool> isDemoMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_demoModeKey) ?? false;
-  }
-
   // ═══════════════════════════════════════════
   // UTILITIES
   // ═══════════════════════════════════════════
 
   static Future<bool> hasTokens() async {
-    final token = await getAccessToken();
-    return token != null && token.isNotEmpty;
+    final accessToken = await getAccessToken();
+    if (accessToken != null && accessToken.isNotEmpty) return true;
+    final refreshToken = await getRefreshToken();
+    return refreshToken != null && refreshToken.isNotEmpty;
   }
 
   static Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_accessTokenKey);
-    await prefs.remove(_refreshTokenKey);
+    await _secureStorage.delete(key: _accessTokenKey);
+    await _secureStorage.delete(key: _refreshTokenKey);
     await prefs.remove(_userIdKey);
     await prefs.remove(_userRoleKey);
-    await prefs.remove(_demoModeKey);
   }
 }

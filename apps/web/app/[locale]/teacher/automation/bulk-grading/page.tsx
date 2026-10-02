@@ -1,287 +1,150 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { BarChart3, CheckCircle, Save, ArrowLeft, Search, Filter, AlertCircle, Sparkles } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import Link from 'next/link'
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { ArrowRight, Loader2, Save } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-// Mock Data
-const classes = [
-    { id: '10-a', name: 'الصف 10 - أ' },
-    { id: '10-b', name: 'الصف 10 - ب' },
-    { id: '11-a', name: 'الصف 11 - أ' },
-]
-
-const assignments = [
-    { id: 'exam-1', name: 'اختبار الفترة الأولى - رياضيات' },
-    { id: 'hw-5', name: 'واجب الفصل الثالث' },
-    { id: 'project-1', name: 'المشروع الفصلي' },
-]
-
-const initialStudents = [
-    { id: 1, name: 'أحمد سعيد المولد', status: 'pending', grade: '', participation: '', behavior: '' },
-    { id: 2, name: 'سالم عبدالله الشهري', status: 'pending', grade: '', participation: '', behavior: '' },
-    { id: 3, name: 'فهد محمد الدوسري', status: 'pending', grade: '', participation: '', behavior: '' },
-    { id: 4, name: 'خالد عبدالعزيز الغامدي', status: 'pending', grade: '', participation: '', behavior: '' },
-    { id: 5, name: 'عبدالرحمن طارق الزهراني', status: 'pending', grade: '', participation: '', behavior: '' },
-    { id: 6, name: 'عمر حسن المالكي', status: 'pending', grade: '', participation: '', behavior: '' },
-]
+interface Assignment { id: string; title: string; maxScore: number; subject?: { name?: string } }
+interface Submission { id: string; grade?: number | null; score?: number | null; feedback?: string | null; student?: { name?: string | null; email: string } }
 
 export default function BulkGradingAutomation() {
-    const [selectedClass, setSelectedClass] = useState<string>('')
-    const [selectedAssignment, setSelectedAssignment] = useState<string>('')
-    const [students, setStudents] = useState(initialStudents)
-    const [defaultGrade, setDefaultGrade] = useState('10')
-    const [defaultParticipation, setDefaultParticipation] = useState('متاز')
-    const [defaultBehavior, setDefaultBehavior] = useState('ممتاز')
-    const [isSaving, setIsSaving] = useState(false)
-    const [isSaved, setIsSaved] = useState(false)
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignmentId, setAssignmentId] = useState('');
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [scores, setScores] = useState<Record<string, string>>({});
+  const [feedback, setFeedback] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
 
-    // Bulk action handler
-    const applyBulkGrades = () => {
-        setStudents(students.map(s => ({
-            ...s,
-            grade: s.grade || defaultGrade,
-            participation: s.participation || defaultParticipation,
-            behavior: s.behavior || defaultBehavior,
-            status: 'graded'
-        })))
+  useEffect(() => {
+    let active = true;
+    apiClient.get('/assignments/my').then(({ data }) => {
+      if (active) setAssignments(Array.isArray(data) ? data : []);
+    }).catch(() => {
+      if (active) setLoadFailed(true);
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const loadSubmissions = async (id: string) => {
+    if (!id) return;
+    setLoadingSubmissions(true);
+    setNotice('');
+    try {
+      const { data } = await apiClient.get(`/assignments/${id}/submissions`);
+      const rows: Submission[] = Array.isArray(data) ? data : [];
+      setSubmissions(rows);
+      setScores(Object.fromEntries(rows.map((item) => [item.id, String(item.grade ?? item.score ?? '')])));
+      setFeedback(Object.fromEntries(rows.map((item) => [item.id, item.feedback || ''])));
+      setLoadFailed(false);
+    } catch {
+      setSubmissions([]);
+      setLoadFailed(true);
+    } finally {
+      setLoadingSubmissions(false);
+    }
+  };
+
+  const handleAssignmentChange = (id: string) => {
+    setAssignmentId(id);
+    setSubmissions([]);
+    void loadSubmissions(id);
+  };
+
+  const selectedAssignment = assignments.find((item) => item.id === assignmentId);
+
+  const saveGrades = async () => {
+    if (!selectedAssignment) return;
+    const changed = submissions.filter((item) => {
+      const value = scores[item.id]?.trim();
+      return value !== '' && Number(value) !== Number(item.grade ?? item.score ?? NaN);
+    });
+    if (changed.some((item) => {
+      const value = Number(scores[item.id]);
+      return !Number.isFinite(value) || value < 0 || value > selectedAssignment.maxScore;
+    })) {
+      setNotice(`أدخل درجات من 0 إلى ${selectedAssignment.maxScore}.`);
+      return;
+    }
+    if (changed.length === 0) {
+      setNotice('لا توجد درجات جديدة للحفظ.');
+      return;
     }
 
-    const updateStudent = (id: number, field: string, value: string) => {
-        setStudents(students.map(s => s.id === id ? { ...s, [field]: value, status: 'graded' } : s))
+    setSaving(true);
+    let savedCount = 0;
+    try {
+      for (const item of changed) {
+        await apiClient.patch(`/assignments/submissions/${item.id}/grade`, {
+          score: Number(scores[item.id]),
+          feedback: feedback[item.id] || undefined,
+        });
+        savedCount += 1;
+      }
+      setNotice(`تم حفظ ${savedCount} درجة في النظام.`);
+      await loadSubmissions(assignmentId);
+    } catch {
+      setNotice(savedCount ? `تم حفظ ${savedCount} درجة، وتعذر حفظ بقية التغييرات.` : 'تعذر حفظ الدرجات.');
+      setLoadFailed(true);
+    } finally {
+      setSaving(false);
     }
+  };
 
-    const handleSave = () => {
-        setIsSaving(true)
-        setTimeout(() => {
-            setIsSaving(false)
-            setIsSaved(true)
-            setTimeout(() => setIsSaved(false), 3000)
-        }, 1500)
-    }
+  return (
+    <main className="mx-auto max-w-5xl space-y-6 pb-10">
+      <header className="flex items-center gap-4">
+        <Link href="/teacher/automation"><Button variant="outline" size="icon" aria-label="العودة"><ArrowRight className="h-4 w-4" /></Button></Link>
+        <div><h1 className="text-2xl font-bold">رصد الدرجات</h1><p className="mt-1 text-sm text-muted-foreground">تعديل وحفظ درجات التسليمات الفعلية للتكليفات المسندة لك.</p></div>
+      </header>
 
-    return (
-        <div className="space-y-6 max-w-6xl mx-auto pb-10">
-            {/* Header */}
-            <div className="flex items-center gap-4 mb-6">
-                <Link href="/teacher/automation">
-                    <Button variant="outline" size="icon" className="rounded-full shadow-sm hover:bg-muted">
-                        <ArrowLeft className="w-5 h-5 text-muted-foreground" />
-                    </Button>
-                </Link>
-                <div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
-                            <BarChart3 className="w-5 h-5 text-white" />
-                        </div>
-                        <h1 className="text-2xl font-bold text-foreground">الرصد الجماعي السريع</h1>
-                    </div>
-                    <p className="text-muted-foreground text-sm mt-1 mr-14">أتمتة رصد الدرجات والمهارات للفصل كاملاً بضغطة زر وتصديرها مباشرة للأنظمة الرسمية.</p>
-                </div>
-            </div>
+      {loadFailed && <p role="alert" className="text-sm text-destructive">تعذر تحميل بعض البيانات من النظام.</p>}
 
-            {/* Selection Controls */}
-            <Card className="border-border shadow-sm bg-card">
-                <CardContent className="p-6">
-                    <div className="grid md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-foreground">الفصل الدراسي</label>
-                            <Select value={selectedClass} onValueChange={setSelectedClass}>
-                                <SelectTrigger className="h-10 rounded-md mt-1 border-border focus:ring-emerald-500">
-                                    <SelectValue placeholder="اختر الفصل..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-foreground">الاختبار أو الواجب</label>
-                            <Select value={selectedAssignment} onValueChange={setSelectedAssignment}>
-                                <SelectTrigger className="h-10 rounded-md mt-1 border-border focus:ring-emerald-500">
-                                    <SelectValue placeholder="اختر الاختبار أو الواجب..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {assignments.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+      <Card>
+        <CardContent className="max-w-xl space-y-2 p-5">
+          <label className="text-sm font-medium">الواجب</label>
+          <Select value={assignmentId} onValueChange={handleAssignmentChange}>
+            <SelectTrigger><SelectValue placeholder={loading ? 'جاري التحميل...' : 'اختر واجبًا مسندًا لك'} /></SelectTrigger>
+            <SelectContent>{assignments.map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent>
+          </Select>
+          {!loading && assignments.length === 0 && <p className="text-sm text-muted-foreground">لا توجد تكليفات مسجلة لهذا الحساب.</p>}
+        </CardContent>
+      </Card>
 
-            {selectedClass && selectedAssignment && (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="space-y-6"
-                >
-                    {/* Automation Toolbar */}
-                    <div className="bg-emerald-50 dark:bg-emerald-950/20 p-5 rounded-xl border border-emerald-200 dark:border-emerald-900/50 flex flex-col md:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-emerald-900 dark:text-emerald-400 whitespace-nowrap">الدرجة الافتراضية:</span>
-                                <Input type="number" className="w-20 font-bold bg-background" value={defaultGrade} onChange={(e) => setDefaultGrade(e.target.value)} />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-emerald-900 dark:text-emerald-400 whitespace-nowrap">المشاركة:</span>
-                                <Select value={defaultParticipation} onValueChange={setDefaultParticipation}>
-                                    <SelectTrigger className="w-28 bg-background font-bold">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="ممتاز">ممتاز</SelectItem>
-                                        <SelectItem value="جيد جداً">جيد جداً</SelectItem>
-                                        <SelectItem value="جيد">جيد</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-emerald-900 dark:text-emerald-400 whitespace-nowrap">السلوك:</span>
-                                <Select value={defaultBehavior} onValueChange={setDefaultBehavior}>
-                                    <SelectTrigger className="w-28 bg-background font-bold">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="ممتاز">ممتاز</SelectItem>
-                                        <SelectItem value="جيد جداً">جيد جداً</SelectItem>
-                                        <SelectItem value="جيد">جيد</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <Button 
-                            onClick={applyBulkGrades}
-                            className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm h-10 px-6 rounded-md shrink-0 transition-transform active:scale-95"
-                        >
-                            <Sparkles className="w-4 h-4 ml-2" />
-                            رصد للكل بضغطة
-                        </Button>
-                    </div>
-
-                    {/* Students List */}
-                    <Card className="border-border shadow-sm overflow-hidden bg-card">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-right">
-                                <thead className="bg-muted/50 border-b border-border">
-                                    <tr>
-                                        <th className="p-4 text-sm font-semibold text-muted-foreground w-12 text-center">#</th>
-                                        <th className="p-4 text-sm font-semibold text-muted-foreground">اسم الطالب</th>
-                                        <th className="p-4 text-sm font-semibold text-muted-foreground w-32">الدرجة (من 10)</th>
-                                        <th className="p-4 text-sm font-semibold text-muted-foreground w-40">المشاركة</th>
-                                        <th className="p-4 text-sm font-semibold text-muted-foreground w-40">السلوك</th>
-                                        <th className="p-4 text-sm font-semibold text-muted-foreground w-28">الحالة</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                    {students.map((student, index) => (
-                                        <tr key={student.id} className="hover:bg-muted/30 transition-colors">
-                                            <td className="p-4 text-muted-foreground text-center text-sm">{index + 1}</td>
-                                            <td className="p-4 font-semibold text-foreground flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
-                                                    {student.name.charAt(0)}
-                                                </div>
-                                                <span className="text-sm">{student.name}</span>
-                                            </td>
-                                            <td className="p-4">
-                                                <Input 
-                                                    type="number" 
-                                                    value={student.grade} 
-                                                    onChange={(e) => updateStudent(student.id, 'grade', e.target.value)}
-                                                    className={`w-full font-bold text-center h-9 ${student.grade ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20' : ''}`}
-                                                />
-                                            </td>
-                                            <td className="p-4">
-                                                <Select value={student.participation} onValueChange={(v) => updateStudent(student.id, 'participation', v)}>
-                                                    <SelectTrigger className={`h-9 ${student.participation ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 font-semibold' : ''}`}>
-                                                        <SelectValue placeholder="اختر..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="ممتاز">ممتاز</SelectItem>
-                                                        <SelectItem value="جيد جداً">جيد جداً</SelectItem>
-                                                        <SelectItem value="جيد">جيد</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </td>
-                                            <td className="p-4">
-                                                <Select value={student.behavior} onValueChange={(v) => updateStudent(student.id, 'behavior', v)}>
-                                                    <SelectTrigger className={`h-9 ${student.behavior ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 font-semibold' : ''}`}>
-                                                        <SelectValue placeholder="اختر..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="ممتاز">ممتاز</SelectItem>
-                                                        <SelectItem value="جيد جداً">جيد جداً</SelectItem>
-                                                        <SelectItem value="جيد">جيد</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </td>
-                                            <td className="p-4">
-                                                {student.status === 'pending' ? (
-                                                    <Badge variant="secondary" className="text-muted-foreground border-border font-medium">قيد الانتظار</Badge>
-                                                ) : (
-                                                    <Badge className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 border-none font-medium">تم الرصد ✓</Badge>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
-
-                    {/* Floating Save Action */}
-                    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
-                        <AnimatePresence>
-                            {(students.some(s => s.status === 'graded') && !isSaved) && (
-                                <motion.div
-                                    initial={{ y: 100, opacity: 0 }}
-                                    animate={{ y: 0, opacity: 1 }}
-                                    exit={{ y: 100, opacity: 0 }}
-                                    className="bg-foreground text-background p-3 pl-4 pr-5 rounded-full shadow-2xl flex items-center gap-5 border border-border"
-                                >
-                                    <div className="font-semibold text-sm flex items-center gap-2">
-                                        <AlertCircle className="w-4 h-4 text-emerald-400" />
-                                        لديك تغييرات غير محفوظة ({students.filter(s => s.status === 'graded').length} طلاب)
-                                    </div>
-                                    <Button 
-                                        onClick={handleSave}
-                                        disabled={isSaving}
-                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-full h-9 px-6 min-w-[120px]"
-                                    >
-                                        {isSaving ? (
-                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                        ) : (
-                                            <>
-                                                <Save className="w-4 h-4 ml-1.5" />
-                                                حفظ النظام
-                                            </>
-                                        )}
-                                    </Button>
-                                </motion.div>
-                            )}
-
-                            {isSaved && (
-                                <motion.div
-                                    initial={{ y: 100, scale: 0.9, opacity: 0 }}
-                                    animate={{ y: 0, scale: 1, opacity: 1 }}
-                                    exit={{ y: 100, scale: 0.9, opacity: 0 }}
-                                    className="bg-emerald-600 text-white p-4 rounded-full shadow-2xl flex items-center gap-2 font-semibold border-2 border-emerald-500"
-                                >
-                                    <CheckCircle className="w-5 h-5" />
-                                    تم الرصد والحفظ بنجاح!
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </motion.div>
-            )}
-        </div>
-    )
+      {assignmentId && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div><CardTitle className="text-base">التسليمات</CardTitle><p className="mt-1 text-sm text-muted-foreground">{selectedAssignment?.subject?.name || ''} · الحد الأعلى {selectedAssignment?.maxScore ?? '—'}</p></div>
+            <Button onClick={saveGrades} disabled={saving || loadingSubmissions || !submissions.length}>
+              {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />}
+              حفظ الدرجات
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {loadingSubmissions ? <p className="py-8 text-center text-sm text-muted-foreground">جاري تحميل التسليمات...</p>
+              : submissions.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">لا توجد تسليمات مسجلة لهذا الواجب.</p>
+              : <div className="divide-y">{submissions.map((item) => (
+                <div key={item.id} className="grid gap-3 py-4 sm:grid-cols-[1fr_120px_2fr] sm:items-center">
+                  <div><p className="font-medium">{item.student?.name || item.student?.email || 'اسم غير متاح'}</p><p className="text-xs text-muted-foreground">{item.student?.email}</p></div>
+                  <Input aria-label={`درجة ${item.student?.name || item.student?.email || ''}`} type="number" min={0} max={selectedAssignment?.maxScore} value={scores[item.id] ?? ''} onChange={(event) => setScores((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="الدرجة" />
+                  <Input aria-label="ملاحظات التصحيح" value={feedback[item.id] ?? ''} onChange={(event) => setFeedback((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="ملاحظة اختيارية" />
+                 </div>
+               ))}
+               </div>}
+              {notice && <p role="status" className="mt-4 text-sm text-muted-foreground">{notice}</p>}
+          </CardContent>
+        </Card>
+      )}
+    </main>
+  );
 }

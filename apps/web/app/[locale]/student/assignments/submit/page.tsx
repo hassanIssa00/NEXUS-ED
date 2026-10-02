@@ -129,7 +129,7 @@ export default function SubmitAssignmentPage() {
 
             toast({
                 title: '✅ تم التسليم بنجاح!',
-                description: 'تم إرسال إجابتك. سيبدأ التصحيح الذكي قريباً.',
+                description: 'تم إرسال إجابتك. ستظهر الدرجة بعد مراجعة المعلم.',
             });
 
             setTimeout(() => router.push('/student/assignments'), 1500);

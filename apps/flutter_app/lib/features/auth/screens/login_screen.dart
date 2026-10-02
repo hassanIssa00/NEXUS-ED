@@ -19,7 +19,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
-  bool _rememberMe = false;
 
   late AnimationController _bgController;
   late AnimationController _formController;
@@ -28,7 +27,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   late AnimationController _logoController;
   late Animation<double> _logoScale;
 
-  int _selectedDemoIndex = -1;
 
   @override
   void initState() {
@@ -59,20 +57,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     super.dispose();
   }
 
-  void _fillDemoCredentials(String role, int index) {
-    final credentials = {
-      'student': {'email': 'student@school.com', 'password': 'password123'},
-      'teacher': {'email': 'teacher@kfis.edu.sa', 'password': 'password123'},
-      'parent': {'email': 'parent1@example.com', 'password': 'password123'},
-      'admin': {'email': 'admin@test.com', 'password': 'password123'},
-    };
-    setState(() {
-      _selectedDemoIndex = index;
-      _emailController.text = credentials[role]!['email']!;
-      _passwordController.text = credentials[role]!['password']!;
-    });
-  }
-
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -85,6 +69,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       switch (role) {
         case 'admin':
         case 'administrator':
+        case 'principal':
+        case 'vice_principal':
           context.go(RouteNames.adminDashboard);
           break;
         case 'teacher':
@@ -93,17 +79,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         case 'parent':
           context.go(RouteNames.parentDashboard);
           break;
-        default:
+        case 'student':
           context.go(RouteNames.studentDashboard);
+          break;
+        default:
+          await ref.read(authProvider.notifier).logout();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('هذا الدور لا يملك واجهة موبايل مهيأة بعد. تواصل مع إدارة المدرسة.')),
+            );
+          }
       }
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
               Icon(Icons.error_outline, color: Colors.white, size: 20),
               SizedBox(width: 10),
-              Text('فشل تسجيل الدخول — تحقق من البيانات'),
+              Text(ref.read(authProvider).errorMessage ?? 'فشل تسجيل الدخول — تحقق من البيانات'),
             ],
           ),
           backgroundColor: const Color(0xFFDC2626),
@@ -208,50 +202,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Demo accounts section
-                                  Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [const Color(0xFFF59E0B).withOpacity(0.08), const Color(0xFFF59E0B).withOpacity(0.03)],
-                                      ),
-                                      borderRadius: BorderRadius.circular(18),
-                                      border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.12)),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(6),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFF59E0B).withOpacity(0.15),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: const Icon(Icons.auto_awesome, color: Color(0xFFFBBF24), size: 16),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            const Text('حسابات تجريبية', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFFFBBF24))),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          children: [
-                                            _DemoChip(emoji: '📚', label: 'طالب', selected: _selectedDemoIndex == 0, onTap: () => _fillDemoCredentials('student', 0)),
-                                            const SizedBox(width: 8),
-                                            _DemoChip(emoji: '👨‍🏫', label: 'معلم', selected: _selectedDemoIndex == 1, onTap: () => _fillDemoCredentials('teacher', 1)),
-                                            const SizedBox(width: 8),
-                                            _DemoChip(emoji: '👨‍👩‍👧', label: 'ولي أمر', selected: _selectedDemoIndex == 2, onTap: () => _fillDemoCredentials('parent', 2)),
-                                            const SizedBox(width: 8),
-                                            _DemoChip(emoji: '🛡️', label: 'مدير', selected: _selectedDemoIndex == 3, onTap: () => _fillDemoCredentials('admin', 3)),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 24),
-
                                   // Email field
                                   _buildFieldLabel('البريد الإلكتروني', Icons.mail_outline_rounded),
                                   const SizedBox(height: 8),
@@ -293,43 +243,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     },
                                   ),
                                   const SizedBox(height: 14),
-
-                                  // Remember me + Forgot
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      GestureDetector(
-                                        onTap: () => setState(() => _rememberMe = !_rememberMe),
-                                        child: Row(
-                                          children: [
-                                            AnimatedContainer(
-                                              duration: const Duration(milliseconds: 200),
-                                              width: 20, height: 20,
-                                              decoration: BoxDecoration(
-                                                borderRadius: BorderRadius.circular(6),
-                                                color: _rememberMe ? const Color(0xFF10B981) : Colors.transparent,
-                                                border: Border.all(
-                                                  color: _rememberMe ? const Color(0xFF10B981) : Colors.white.withOpacity(0.2),
-                                                  width: 1.5,
-                                                ),
-                                              ),
-                                              child: _rememberMe
-                                                  ? const Icon(Icons.check, size: 14, color: Colors.white)
-                                                  : null,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text('تذكرني', style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.4))),
-                                          ],
-                                        ),
-                                      ),
-                                      TextButton(
-                                        onPressed: () {},
-                                        style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero),
-                                        child: const Text('نسيت كلمة المرور؟', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF10B981))),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 24),
 
                                   // Login Button
                                   SizedBox(
@@ -453,45 +366,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         errorStyle: const TextStyle(fontSize: 11),
       ),
       validator: validator,
-    );
-  }
-}
-
-// ═════════════════════════════════════════════
-// DEMO CHIP
-// ═════════════════════════════════════════════
-class _DemoChip extends StatelessWidget {
-  final String emoji, label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _DemoChip({required this.emoji, required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected ? const Color(0xFF10B981).withOpacity(0.12) : Colors.white.withOpacity(0.04),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected ? const Color(0xFF10B981).withOpacity(0.4) : Colors.white.withOpacity(0.06),
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: Column(
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 20)),
-              const SizedBox(height: 4),
-              Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: selected ? const Color(0xFF10B981) : Colors.white.withOpacity(0.5))),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

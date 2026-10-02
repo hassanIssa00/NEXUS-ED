@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { randomUUID } from 'crypto';
+import { Role } from '../auth/role.enum';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -18,9 +20,13 @@ export class UploadService {
       process.env.SUPABASE_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+    if (process.env.NODE_ENV === 'production' && (!supabaseUrl || !supabaseKey)) {
+      throw new ServiceUnavailableException('Cloud file storage is not configured');
+    }
+
     // Generate unique filename
     const ext = originalName.split('.').pop()?.toLowerCase() || 'bin';
-    const uniqueFilename = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${ext}`;
+    const uniqueFilename = `${randomUUID()}.${ext}`;
 
     // If Supabase is configured, try to upload there
     if (supabaseUrl && supabaseKey) {
@@ -42,11 +48,14 @@ export class UploadService {
           return { url: publicUrl, filename: uniqueFilename };
         }
 
-        const errorText = await response.text();
-        this.logger.warn(`Supabase upload failed (${response.status}): ${errorText}. Falling back to local storage.`);
+        this.logger.warn(`Supabase upload failed with status ${response.status}.`);
       } catch (error) {
-        this.logger.warn(`Supabase upload error: ${error}. Falling back to local storage.`);
+        this.logger.warn('Supabase upload request failed.');
       }
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      throw new ServiceUnavailableException('Cloud file storage is unavailable');
     }
 
     // Fallback: save locally
@@ -131,19 +140,45 @@ export class UploadService {
     });
   }
 
-  async getFile(id: string) {
-    return this.prisma.file.findUnique({
+  private async findAccessibleFile(id: string, actorId: string, actorRole: Role) {
+    const file = await this.prisma.file.findUnique({
       where: { id },
       include: {
         uploadedBy: {
           select: {
             id: true,
+            schoolId: true,
             email: true,
             name: true,
           },
         },
       },
     });
+
+    if (!file) {
+      throw new NotFoundException('File not found');
+    }
+
+    if (file.uploadedById === actorId) {
+      return file;
+    }
+
+    if (actorRole === Role.ADMIN) {
+      const actor = await this.prisma.user.findUnique({
+        where: { id: actorId },
+        select: { schoolId: true, isActive: true },
+      });
+
+      if (actor?.isActive && (!actor.schoolId || actor.schoolId === file.uploadedBy.schoolId)) {
+        return file;
+      }
+    }
+
+    throw new NotFoundException('File not found');
+  }
+
+  async getFile(id: string, actorId: string, actorRole: Role) {
+    return this.findAccessibleFile(id, actorId, actorRole);
   }
 
   async getUserFiles(userId: string) {
@@ -153,27 +188,10 @@ export class UploadService {
     });
   }
 
-  async deleteFile(id: string): Promise<void> {
-    try {
-      const file = await this.prisma.file.findUnique({
-        where: { id },
-      });
-
-      if (!file) {
-        throw new Error('File not found');
-      }
-
-      // Delete from storage (Supabase or local)
-      await this.deleteFromSupabase(file.url);
-
-      // Delete from database
-      await this.prisma.file.delete({
-        where: { id },
-      });
-    } catch (error) {
-      this.logger.error('Failed to delete file:', error);
-      throw new Error('Failed to delete file');
-    }
+  async deleteFile(id: string, actorId: string, actorRole: Role): Promise<void> {
+    const file = await this.findAccessibleFile(id, actorId, actorRole);
+    await this.deleteFromSupabase(file.url);
+    await this.prisma.file.delete({ where: { id } });
   }
 
   validateFileSize(size: number, maxSize: number = 10): boolean {
