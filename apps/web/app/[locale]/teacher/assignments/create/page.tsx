@@ -134,7 +134,7 @@ export default function CreateAssignmentPage() {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 if (uploadRes.data && uploadRes.data.url) {
-                    uploadedFileUrls.push(uploadRes.data.url);
+                    uploadedFileUrls.push(uploadRes.data.reference);
                 }
             }
 

@@ -2,6 +2,7 @@ import { TestingModule, Test } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AssignmentService } from './assignment.service';
 import { PrismaService } from '../prisma.service';
+import { UploadService } from '../upload/upload.service';
 
 describe('AssignmentService', () => {
   let service: AssignmentService;
@@ -25,10 +26,18 @@ describe('AssignmentService', () => {
     grade: { upsert: jest.fn() },
     $transaction: jest.fn((operations) => Promise.all(operations)),
   };
+  const uploadService = {
+    getOwnedFileReference: jest.fn(),
+    getSignedUrlsForReferences: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [AssignmentService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        AssignmentService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: UploadService, useValue: uploadService },
+      ],
     }).compile();
     service = module.get(AssignmentService);
     jest.clearAllMocks();
@@ -39,6 +48,10 @@ describe('AssignmentService', () => {
       isActive: true,
     }));
     prisma.file.findMany.mockResolvedValue([]);
+    uploadService.getOwnedFileReference.mockImplementation((value: string) => Promise.resolve(value));
+    uploadService.getSignedUrlsForReferences.mockImplementation((values: string[]) =>
+      Promise.resolve(values.map(() => 'https://storage.test/temporary-file')),
+    );
   });
 
   it('creates a teacher assignment only for their active school subject', async () => {
@@ -52,6 +65,28 @@ describe('AssignmentService', () => {
     expect(prisma.assignment.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ teacherId: 'teacher-1', schoolId: 'school-1', classId: 'class-1', maxScore: 100 }),
     }));
+  });
+
+  it('persists stable file references and returns only signed attachment links', async () => {
+    prisma.subject.findUnique.mockResolvedValue({
+      id: 'subject-1', name: 'Math', code: 'M', teacherId: 'teacher-1', schoolId: 'school-1', classId: 'class-1',
+    });
+    prisma.assignment.create.mockResolvedValue({ id: 'assignment-1', attachments: ['file:file-1'] });
+    uploadService.getOwnedFileReference.mockResolvedValue('file:file-1');
+
+    await expect(service.create({
+      title: 'Quiz',
+      subjectId: 'subject-1',
+      attachments: ['file:file-1'],
+    }, 'teacher-1')).resolves.toMatchObject({
+      id: 'assignment-1',
+      attachments: ['https://storage.test/temporary-file'],
+    });
+
+    expect(prisma.assignment.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ attachments: ['file:file-1'] }),
+    }));
+    expect(uploadService.getOwnedFileReference).toHaveBeenCalledWith('file:file-1', 'teacher-1', 'school-1', false);
   });
 
   it('rejects a teacher who does not own the subject', async () => {

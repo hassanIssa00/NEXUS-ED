@@ -9,6 +9,7 @@ import {
 } from './dto/assignment.dto';
 import { EventsGateway } from '../gateway/events.gateway';
 import { GamificationService } from '../gamification/gamification.service';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class AssignmentService {
@@ -16,7 +17,53 @@ export class AssignmentService {
     private prisma: PrismaService,
     @Optional() private eventsGateway: EventsGateway,
     @Optional() private gamification: GamificationService,
+    @Optional() private uploadService?: UploadService,
   ) {}
+
+  private async ownedFileReferences(
+    values: string[] | undefined,
+    actor: { id: string; role: string; schoolId: string | null },
+  ): Promise<string[]> {
+    if (!values?.length) return [];
+    if (this.uploadService) {
+      return Promise.all(values.map((value) => this.uploadService!.getOwnedFileReference(
+        value,
+        actor.id,
+        actor.schoolId,
+        actor.role === 'ADMIN',
+      )));
+    }
+
+    const records = await this.prisma.file.findMany({
+      where: {
+        url: { in: values },
+        ...(actor.role === 'ADMIN' && actor.schoolId
+          ? { uploadedBy: { schoolId: actor.schoolId } }
+          : { uploadedById: actor.id }),
+      },
+      select: { url: true },
+    });
+    if (new Set(records.map((record) => record.url)).size !== new Set(values).size) {
+      throw new ForbiddenException('Every attachment must be uploaded by your account');
+    }
+    return values;
+  }
+
+  private async signAttachmentFields<T>(value: T): Promise<T> {
+    if (!this.uploadService || value === null || value === undefined) return value;
+    if (Array.isArray(value)) {
+      return Promise.all(value.map((item) => this.signAttachmentFields(item))) as Promise<T>;
+    }
+    if (typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return value;
+
+    const entries = await Promise.all(Object.entries(value as Record<string, unknown>).map(async ([key, item]) => {
+      if (key === 'attachments' && Array.isArray(item)) {
+        return [key, await this.uploadService!.getSignedUrlsForReferences(item.map(String))];
+      }
+      return [key, await this.signAttachmentFields(item)];
+    }));
+    return Object.fromEntries(entries) as T;
+  }
 
   private async createAuditLog(params: {
     action: string;
@@ -65,17 +112,6 @@ export class AssignmentService {
     }
   }
 
-  private async assertOwnedAttachments(urls: string[] | undefined, ownerId: string) {
-    if (!urls?.length) return;
-    const records = await this.prisma.file.findMany({
-      where: { url: { in: urls }, uploadedById: ownerId },
-      select: { url: true },
-    });
-    if (new Set(records.map((record) => record.url)).size !== new Set(urls).size) {
-      throw new ForbiddenException('Every attachment must be uploaded by your account');
-    }
-  }
-
   async create(data: CreateAssignmentDto, teacherId: string) {
     const actor = await this.getActiveActor(teacherId);
     if (actor.role !== 'TEACHER' && actor.role !== 'ADMIN') {
@@ -105,11 +141,12 @@ export class AssignmentService {
     if (!assignedTeacher?.isActive || assignedTeacher.role !== 'TEACHER' || assignedTeacher.schoolId !== actor.schoolId) {
       throw new ForbiddenException('The subject teacher is not an active teacher in this school');
     }
-    await this.assertOwnedAttachments(data.attachments, actor.id);
+    const attachments = await this.ownedFileReferences(data.attachments, actor);
 
     const assignment = await this.prisma.assignment.create({
       data: {
         ...data,
+        attachments,
         teacherId: assignedTeacherId,
         schoolId: subject.schoolId,
         classId: subject.classId,
@@ -157,7 +194,7 @@ export class AssignmentService {
       });
     }
 
-    return assignment;
+    return this.signAttachmentFields(assignment);
   }
 
   async findAll(filters: { subjectId?: string; teacherId?: string } = {}, actorId: string) {
@@ -173,7 +210,7 @@ export class AssignmentService {
       where.subjectId = filters.subjectId;
     }
 
-    return this.prisma.assignment.findMany({
+    const assignments = await this.prisma.assignment.findMany({
       where,
       include: {
         subject: {
@@ -198,12 +235,13 @@ export class AssignmentService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    return this.signAttachmentFields(assignments);
   }
 
   async findByTeacher(teacherId: string) {
     const actor = await this.getActiveActor(teacherId);
     if (actor.role !== 'TEACHER') throw new ForbiddenException('Teacher account required');
-    return this.prisma.assignment.findMany({
+    const assignments = await this.prisma.assignment.findMany({
       where: { teacherId: actor.id, schoolId: actor.schoolId },
       include: {
         subject: {
@@ -221,6 +259,7 @@ export class AssignmentService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    return this.signAttachmentFields(assignments);
   }
 
   async findByStudent(studentId: string) {
@@ -296,11 +335,12 @@ export class AssignmentService {
       dedupedAssignments.set(assignment.id, assignment);
     });
 
-    return Array.from(dedupedAssignments.values()).sort((a, b) => {
+    const result = Array.from(dedupedAssignments.values()).sort((a, b) => {
       const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
       const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
       return aDate - bDate;
     });
+    return this.signAttachmentFields(result);
   }
 
   async findOne(id: string, actorId: string) {
@@ -309,7 +349,7 @@ export class AssignmentService {
       const allowed = await this.findByStudent(actor.id);
       const studentAssignment = allowed.find((item) => item.id === id);
       if (!studentAssignment) throw new NotFoundException('Assignment not found');
-      return studentAssignment;
+      return this.signAttachmentFields(studentAssignment);
     }
     const assignment = await this.prisma.assignment.findUnique({
       where: { id },
@@ -347,7 +387,7 @@ export class AssignmentService {
     }
     this.assertAssignmentManager(actor, assignment);
 
-    return assignment;
+    return this.signAttachmentFields(assignment);
   }
 
   async update(id: string, data: UpdateAssignmentDto, actorId: string) {
@@ -362,9 +402,17 @@ export class AssignmentService {
 
     this.assertAssignmentManager(actor, assignment);
 
+    const attachments = data.attachments === undefined
+      ? undefined
+      : await this.ownedFileReferences(data.attachments, actor);
+
     const updatedAssignment = await this.prisma.assignment.update({
       where: { id },
-      data: { ...data, dueDate: data.dueDate ? new Date(data.dueDate) : data.dueDate },
+      data: {
+        ...data,
+        ...(attachments === undefined ? {} : { attachments }),
+        dueDate: data.dueDate ? new Date(data.dueDate) : data.dueDate,
+      },
       include: {
         subject: true,
         teacher: {
@@ -386,7 +434,7 @@ export class AssignmentService {
       },
     });
 
-    return updatedAssignment;
+    return this.signAttachmentFields(updatedAssignment);
   }
 
   async delete(id: string, actorId: string) {
@@ -430,7 +478,7 @@ export class AssignmentService {
     }
     const assignment = (await this.findByStudent(studentId)).find((item) => item.id === assignmentId);
     if (!assignment) throw new NotFoundException('Assignment not found');
-    await this.assertOwnedAttachments(data.attachments, actor.id);
+    const attachments = await this.ownedFileReferences(data.attachments, actor);
 
     // Check if already submitted
     const existing = await this.prisma.submission.findUnique({
@@ -451,7 +499,7 @@ export class AssignmentService {
         where: { id: existing.id },
         data: {
           content: data.content?.trim() || null,
-          attachments: data.attachments || [],
+          attachments,
           submittedAt: new Date(),
           grade: null,
           score: null,
@@ -475,7 +523,7 @@ export class AssignmentService {
           },
         });
 
-        return submission;
+        return this.signAttachmentFields(submission);
       });
     }
 
@@ -484,7 +532,7 @@ export class AssignmentService {
         assignmentId,
         studentId,
         content: data.content?.trim() || null,
-        attachments: data.attachments || [],
+        attachments,
       },
     });
 
@@ -510,7 +558,7 @@ export class AssignmentService {
       await this.gamification.awardXp(studentId, xpAward, reason, submission.id);
     }
 
-    return submission;
+    return this.signAttachmentFields(submission);
   }
 
   async getSubmissions(assignmentId: string, teacherId: string) {
@@ -525,7 +573,7 @@ export class AssignmentService {
 
     this.assertAssignmentManager(actor, assignment);
 
-    return this.prisma.submission.findMany({
+    const submissions = await this.prisma.submission.findMany({
       where: { assignmentId },
       include: {
         student: {
@@ -538,12 +586,13 @@ export class AssignmentService {
       },
       orderBy: { submittedAt: 'desc' },
     });
+    return this.signAttachmentFields(submissions);
   }
 
   async getTeacherSubmissions(teacherId: string) {
     const actor = await this.getActiveActor(teacherId);
     if (actor.role !== 'TEACHER') throw new ForbiddenException('Teacher account required');
-    return this.prisma.submission.findMany({
+    const submissions = await this.prisma.submission.findMany({
       where: { assignment: { teacherId: actor.id, schoolId: actor.schoolId } },
       include: {
         student: { select: { id: true, name: true, email: true } },
@@ -551,6 +600,7 @@ export class AssignmentService {
       },
       orderBy: { submittedAt: 'desc' },
     });
+    return this.signAttachmentFields(submissions);
   }
 
   async gradeSubmission(

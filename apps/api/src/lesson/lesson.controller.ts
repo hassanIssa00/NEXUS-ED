@@ -46,8 +46,8 @@ export class LessonController {
 
   @Get()
   @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
-  findAll(@Query() filters: LessonFilterDto) {
-    return this.lessonService.findAll(filters);
+  findAll(@Query() filters: LessonFilterDto, @Request() req: RequestWithUser) {
+    return this.lessonService.findAll(filters, req.user.userId);
   }
 
   @Get('my')
@@ -58,8 +58,8 @@ export class LessonController {
 
   @Get(':id')
   @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
-  findOne(@Param('id') id: string) {
-    return this.lessonService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req: RequestWithUser) {
+    return this.lessonService.findOne(id, req.user.userId);
   }
 
   @Patch(':id')

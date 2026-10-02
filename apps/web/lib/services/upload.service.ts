@@ -3,10 +3,12 @@ const getAccessToken = () =>
     localStorage.getItem('access_token') || localStorage.getItem('token');
 
 export interface UploadResponse {
+    id: string;
+    reference: string;
     filename: string;
     originalName: string;
     size: number;
-    mimetype: string;
+    mimeType: string;
     url: string;
 }
 

@@ -9,9 +9,10 @@ import { AssignmentTemplateService } from './assignment-template.service';
 import { AssignmentTemplateController } from './assignment-template.controller';
 import { EventsModule } from '../gateway/events.module';
 import { GamificationModule } from '../gamification/gamification.module';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
-  imports: [ConfigModule, EventsModule, GamificationModule],
+  imports: [ConfigModule, EventsModule, GamificationModule, UploadModule],
   controllers: [AssignmentController, AssignmentTemplateController],
   providers: [
     AssignmentService,

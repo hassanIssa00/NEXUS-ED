@@ -112,7 +112,7 @@ export default function SubmitAssignmentPage() {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
                 if (uploadRes.data?.url) {
-                    fileUrls.push(uploadRes.data.url);
+                    fileUrls.push(uploadRes.data.reference);
                 }
                 setUploadProgress(Math.round(((i + 1) / (files.length || 1)) * 70));
             }

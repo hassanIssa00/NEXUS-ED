@@ -72,6 +72,7 @@ export interface RubricResult {
 }
 
 import { EventsGateway } from '../gateway/events.gateway';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class AutoGradingService {
@@ -81,6 +82,7 @@ export class AutoGradingService {
     private prisma: PrismaService,
     private eventsGateway: EventsGateway,
     @Optional() private configService?: ConfigService,
+    @Optional() private uploadService?: UploadService,
   ) {
     const apiKey = configService?.get<string>('OPENAI_API_KEY') || process.env.OPENAI_API_KEY;
     if (apiKey && apiKey !== 'sk_placeholder') {
@@ -268,8 +270,11 @@ export class AutoGradingService {
       ];
 
       const attachments = (submission.attachments as string[]) || [];
-      for (const url of attachments) {
-        if (/\.(png|jpg|jpeg|gif|webp)$/i.test(url)) {
+      const attachmentUrls = this.uploadService
+        ? await this.uploadService.getSignedUrlsForReferences(attachments)
+        : attachments;
+      for (const url of attachmentUrls) {
+        if (/\.(png|jpg|jpeg|gif|webp)(?:\?|$)/i.test(url)) {
           contentParts.push({ type: 'image_url', image_url: { url, detail: 'low' } });
         } else {
           contentParts.push({ type: 'text', text: `[مرفق: ${url}]` });

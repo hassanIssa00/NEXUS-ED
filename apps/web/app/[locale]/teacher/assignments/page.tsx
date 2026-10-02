@@ -120,7 +120,7 @@ export default function AssignmentsPage() {
     };
 
     const handleFilesUploaded = (files: UploadResponse[]) => {
-        const urls = files.map((f) => f.url);
+        const urls = files.map((f) => f.reference);
         setFormData({ ...formData, attachments: [...(formData.attachments || []), ...urls] });
     };
 
@@ -302,7 +302,7 @@ export default function AssignmentsPage() {
                                                         className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded"
                                                     >
                                                         <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                                                            {url.split('/').pop()}
+                                                            {url.startsWith('file:') ? `${tAssign('files')} ${index + 1}` : url.split('/').pop()}
                                                         </span>
                                                         <button
                                                             type="button"

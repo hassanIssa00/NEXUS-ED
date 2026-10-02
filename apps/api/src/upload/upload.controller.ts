@@ -42,7 +42,7 @@ export class UploadController {
     const userId = req.user.userId;
 
     // Upload to Supabase Storage
-    const { url, filename } = await this.uploadService.uploadToSupabase(
+    const { url, filename, storagePath } = await this.uploadService.uploadToSupabase(
       file.buffer,
       file.originalname,
       file.mimetype,
@@ -54,16 +54,17 @@ export class UploadController {
       file.mimetype,
       file.size,
       userId,
-      url,
+      storagePath,
     );
 
     return {
       id: savedFile.id,
+      reference: `file:${savedFile.id}`,
       filename: savedFile.filename,
       originalName: savedFile.originalName,
       size: savedFile.size,
       mimeType: savedFile.mimeType,
-      url: savedFile.url,
+      url,
       createdAt: savedFile.createdAt,
     };
   }
@@ -84,7 +85,7 @@ export class UploadController {
     const savedFiles = await Promise.all(
       files.map(async (file) => {
         // Upload to Supabase Storage
-        const { url, filename } = await this.uploadService.uploadToSupabase(
+        const { url, filename, storagePath } = await this.uploadService.uploadToSupabase(
           file.buffer,
           file.originalname,
           file.mimetype,
@@ -96,26 +97,28 @@ export class UploadController {
           file.mimetype,
           file.size,
           userId,
-          url,
+          storagePath,
         );
       }),
     );
 
-    return savedFiles.map((file: any) => ({
+    return Promise.all(savedFiles.map(async (file: any) => ({
       id: file.id,
+      reference: `file:${file.id}`,
       filename: file.filename,
       originalName: file.originalName,
       size: file.size,
       mimeType: file.mimeType,
-      url: file.url,
+      url: await this.uploadService.getSignedUrlForReference(`file:${file.id}`),
       createdAt: file.createdAt,
-    }));
+    })));
   }
 
   @Get('my-files')
   async getMyFiles(@Request() req: any) {
     const userId = req.user.userId;
-    return this.uploadService.getUserFiles(userId);
+    const files = await this.uploadService.getUserFiles(userId);
+    return files.map((file) => ({ ...file, reference: `file:${file.id}` }));
   }
 
   @Get(':id')
@@ -124,7 +127,7 @@ export class UploadController {
     if (!file) {
       throw new BadRequestException('File not found');
     }
-    return file;
+    return { ...file, reference: `file:${file.id}` };
   }
 
   @Delete(':id')
