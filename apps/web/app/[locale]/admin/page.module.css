@@ -1,0 +1,73 @@
+.report {
+  position: relative;
+  isolation: isolate;
+}
+
+.printHeader {
+  display: none;
+}
+
+@media print {
+  .report {
+    max-width: none !important;
+    padding: 0 !important;
+    color: #111827 !important;
+  }
+
+  .report::before {
+    position: fixed;
+    z-index: -1;
+    inset: 36% 0 auto;
+    color: rgb(79 70 229 / 7%);
+    content: 'NEXUS EDU';
+    font-size: 64px;
+    font-weight: 800;
+    text-align: center;
+    transform: rotate(-28deg);
+  }
+
+  .printHeader {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    border-bottom: 2px solid #4f46e5;
+    padding-bottom: 12px;
+  }
+
+  .printHeader img {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+  }
+
+  .printHeader p,
+  .printHeader time {
+    margin: 0;
+    color: #475569;
+    font-size: 10px;
+  }
+
+  .printHeader time {
+    margin-inline-start: auto;
+  }
+
+  .actions,
+  .accounts,
+  .report :global(a),
+  .report :global(button) {
+    display: none !important;
+  }
+
+  .report :global([class*='rounded-lg'][class*='border']) {
+    break-inside: avoid;
+    border-color: #cbd5e1 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+  }
+}

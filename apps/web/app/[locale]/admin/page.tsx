@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Activity, AlertCircle, BookOpen, Download, FileText, RefreshCw, School, Users } from 'lucide-react';
+import { Activity, AlertCircle, BookOpen, FileText, Printer, RefreshCw, School, Users } from 'lucide-react';
 import { dashboardApi, type AdminDashboardResponse } from '@/lib/api/dashboard';
 import { apiClient } from '@/lib/api/client';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import styles from './page.module.css';
 
 type Account = { id: string; name?: string | null; firstName?: string | null; lastName?: string | null; email: string; role: string; isActive: boolean; createdAt: string };
 
@@ -20,11 +21,12 @@ export default function AdminDashboardPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
+    setData(null);
+    setAccounts([]);
     try {
       const [dashboard, userList] = await Promise.all([
         dashboardApi.getAdminDashboard(),
@@ -41,30 +43,20 @@ export default function AdminDashboardPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const exportReport = async () => {
-    setExporting(true);
-    try {
-      const { data: file } = await apiClient.get('/admin/dashboard/export/pdf', { params: { type: 'full' }, responseType: 'blob' });
-      const url = URL.createObjectURL(file);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'school-admin-report.json';
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (reason: any) {
-      setError(reason?.response?.data?.message || 'تعذر تصدير التقرير.');
-    } finally {
-      setExporting(false);
-    }
-  };
+  const exportReport = () => window.print();
 
   const kpis = data?.kpis;
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 pb-10" dir="rtl">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+    <main className={`${styles.report} mx-auto max-w-7xl space-y-6 pb-10`} dir="rtl">
+      <div className={styles.printHeader}>
+        <img src="/nexus_emblem_transparent.png" alt="Nexus EDU" />
+        <div><strong>Nexus EDU</strong><p>التقرير الإداري للمدرسة</p></div>
+        <time>{new Date().toLocaleString('ar-SA')}</time>
+      </div>
+      <header className={`flex flex-wrap items-end justify-between gap-3 ${styles.actions}`}>
         <div><h1 className="text-2xl font-bold">لوحة إدارة المدرسة</h1><p className="mt-1 text-sm text-muted-foreground">ملخص الحسابات والسجلات المحفوظة لمدرستك.</p></div>
-        <div className="flex gap-2"><Button variant="outline" onClick={load} disabled={loading}><RefreshCw className={`ml-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />تحديث</Button><Button variant="outline" onClick={exportReport} disabled={exporting || !data}><Download className="ml-2 h-4 w-4" />تصدير تقرير</Button></div>
+        <div className="flex gap-2"><Button variant="outline" onClick={load} disabled={loading}><RefreshCw className={`ml-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />تحديث</Button><Button variant="outline" onClick={exportReport} disabled={loading || !data}><Printer className="ml-2 h-4 w-4" />طباعة / حفظ PDF</Button></div>
       </header>
 
       {error && <p role="alert" className="flex items-start gap-2 text-sm text-destructive"><AlertCircle className="mt-0.5 h-4 w-4" />{error}</p>}
@@ -96,7 +88,7 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={styles.accounts}>
           <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Users className="h-4 w-4" />الحسابات المسجلة</CardTitle></CardHeader>
           <CardContent className="p-0">
             {loading ? <p className="p-5 text-sm text-muted-foreground">تحميل الحسابات...</p> : accounts.length === 0 ? <p className="p-5 text-sm text-muted-foreground">لا توجد حسابات في المدرسة.</p> : <div className="max-h-[360px] overflow-auto"><table className="w-full text-sm"><thead className="sticky top-0 bg-muted"><tr><th className="p-3 text-right font-semibold">الاسم</th><th className="p-3 text-right font-semibold">الدور</th><th className="p-3 text-right font-semibold">الحالة</th></tr></thead><tbody className="divide-y">{accounts.map((account) => <tr key={account.id}><td className="p-3"><span className="block font-medium">{account.name || [account.firstName, account.lastName].filter(Boolean).join(' ') || account.email}</span><span className="block text-xs text-muted-foreground">{account.email}</span></td><td className="p-3">{roleLabels[account.role] || account.role}</td><td className="p-3">{account.isActive ? 'مفعّل' : 'موقوف'}</td></tr>)}</tbody></table></div>}

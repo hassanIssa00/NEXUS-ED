@@ -55,17 +55,15 @@ export class AdminDashboardController {
     return this.dashboardService.getClassActivity(this.schoolId(req));
   }
 
-  @Get('export/pdf')
+  @Get('export/data')
   @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
-  @ApiOperation({ summary: 'Export admin report as PDF' })
+  @ApiOperation({ summary: 'Export school-scoped admin report data as JSON' })
   @ApiQuery({ name: 'type', enum: ['overview', 'teachers', 'classes', 'full'] })
-  async exportPDF(
+  async exportData(
     @Query('type') type: 'overview' | 'teachers' | 'classes' | 'full',
     @Res() res: Response,
     @Req() req: any,
   ) {
-    // For now, return JSON data that can be converted to PDF on frontend
-    // Later: integrate with PDFKit for server-side PDF generation
     let data: any;
 
     switch (type) {
@@ -88,10 +86,10 @@ export class AdminDashboardController {
         break;
     }
 
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="admin-report-${type}-${Date.now()}.json"`,
+      `attachment; filename="nexus-admin-report-${type}-${Date.now()}.json"`,
     );
     res.json(data);
   }
