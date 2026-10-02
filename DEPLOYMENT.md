@@ -12,6 +12,13 @@ Do not deploy from the monorepo root with the Vercel CLI: local Android and
 Turbo build artifacts can make that upload unnecessarily large. Configure a
 separate backend deployment for changes under `apps/api`.
 
+### Production readiness gates
+
+- Vercel currently has no production environment variables. Authentication requires a verified HTTPS `NEXT_PUBLIC_API_URL` or configured Supabase URL and anon key. Sign-in and self-registration remain disabled until a provider is configured.
+- The Railway API URL in the older system documentation returned `404` at `/api/health`; verify the live Nexus API URL and deploy `apps/api` separately before enabling school workflows.
+- Private assignment storage is not verified in Supabase. Complete the bucket and server-only key steps in `docs/NEXUS_PRIVATE_FILE_STORAGE.md` before enabling uploads.
+- `apps/mobile` is an Expo starter, not a feature-complete Nexus mobile client or a Google Play release. It needs its own implementation and release validation.
+
 # Million Platform - دليل النشر على VPS
 
 ## المتطلبات

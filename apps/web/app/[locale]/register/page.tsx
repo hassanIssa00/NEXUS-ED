@@ -7,12 +7,13 @@ import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
 import { User, Mail, Lock, Phone, GraduationCap, Users, ArrowLeft, Sparkles, AlertCircle } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/language-switcher';
-import { useAuth } from '@/contexts/auth-context';
+import { isAuthenticationConfigured, useAuth } from '@/contexts/auth-context';
 
 export default function RegisterPage() {
   const router = useRouter();
   const locale = useLocale();
   const { signUp } = useAuth();
+  const authConfigured = isAuthenticationConfigured();
   const [accountType, setAccountType] = useState<'parent' | 'student'>('parent');
 
   // Form Fields
@@ -27,6 +28,11 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!authConfigured) {
+      setError('إنشاء الحساب غير متاح حاليًا. يُرجى التواصل مع إدارة المدرسة.');
+      return;
+    }
 
     if (!fullName.trim()) {
       setError('يرجى كتابة الاسم كاملاً');
@@ -116,6 +122,13 @@ export default function RegisterPage() {
             <div className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 text-xs font-bold flex items-center gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {!authConfigured && (
+            <div role="status" className="mb-4 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>إنشاء الحساب غير متاح حاليًا. يُرجى التواصل مع إدارة المدرسة.</span>
             </div>
           )}
 
@@ -210,7 +223,7 @@ export default function RegisterPage() {
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !authConfigured}
                 className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-black text-sm shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {loading ? (

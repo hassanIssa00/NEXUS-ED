@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth, type UserRole } from '@/contexts/auth-context';
+import { isAuthenticationConfigured, useAuth, type UserRole } from '@/contexts/auth-context';
 import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,6 +23,8 @@ const roleMapping: Record<string, { label: string; color: string; emailPrefix: s
     hr: { label: 'الموارد البشرية', color: '#0F766E', emailPrefix: 'hr', gradient: 'from-teal-900/80 via-cyan-900/80 to-teal-950/80', icon: UserCheck, features: ['سجلات الموظفين المتاحة', 'بيانات الحسابات الإدارية', 'المعلومات المرتبطة بالصلاحية'], welcomeEmoji: '👥', bgImage: '/images/auth/admin.webp' },
 };
 
+const particleSizes = [4, 6, 5, 8, 4, 7];
+
 export default function RoleLoginPage() {
     const params = useParams();
     const role = (params?.role as string) || '';
@@ -34,6 +36,7 @@ export default function RoleLoginPage() {
     const [focusedField, setFocusedField] = useState<string | null>(null);
     
     const { signIn } = useAuth();
+    const authConfigured = isAuthenticationConfigured();
     const router = useRouter();
     const { toast } = useToast();
     const t = useTranslations('auth.login');
@@ -58,6 +61,7 @@ export default function RoleLoginPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!authConfigured) return;
         setLoading(true);
 
         try {
@@ -121,8 +125,8 @@ export default function RoleLoginPage() {
                         {[...Array(6)].map((_, i) => (
                             <div key={i} className="absolute rounded-full bg-white/20 animate-float" 
                                  style={{ 
-                                     width: `${3 + Math.random() * 5}px`, 
-                                     height: `${3 + Math.random() * 5}px`,
+                                     width: `${particleSizes[i]}px`,
+                                     height: `${particleSizes[i]}px`,
                                      left: `${10 + i * 15}%`,
                                      top: `${20 + i * 10}%`,
                                      animationDelay: `${i * 0.8}s`,
@@ -268,6 +272,13 @@ export default function RoleLoginPage() {
 
 
 
+                        {!authConfigured && (
+                            <div role="status" className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                                <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                                <p>تسجيل الدخول غير متاح حاليًا. يُرجى التواصل مع إدارة المدرسة.</p>
+                            </div>
+                        )}
+
                         <form onSubmit={handleSubmit} className="space-y-5">
                             {/* Email */}
                             <motion.div 
@@ -313,16 +324,16 @@ export default function RoleLoginPage() {
                                     <input type="checkbox" className="w-[18px] h-[18px] rounded-md transition-transform group-hover:scale-105 border-2 border-slate-300" style={{ accentColor: roleConfig.color }} />
                                     <span className="text-[13px] font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">تذكر بياناتي</span>
                                 </label>
-                                <Link href="/forgot-password" className="text-[13px] font-bold hover:brightness-110 transition-all hover:underline" style={{ color: roleConfig.color }}>
-                                    نسيت كلمة المرور؟
-                                </Link>
+                                <a href="https://wa.me/201098810794" target="_blank" rel="noopener noreferrer" className="text-[13px] font-bold hover:brightness-110 transition-all hover:underline" style={{ color: roleConfig.color }}>
+                                    نسيت كلمة المرور؟ تواصل مع الدعم
+                                </a>
                             </div>
 
                             <motion.button 
                                 type="submit" 
-                                disabled={loading} 
-                                whileHover={{ scale: loading ? 1 : 1.02, y: loading ? 0 : -2 }}
-                                whileTap={{ scale: 0.98 }}
+                                disabled={loading || !authConfigured}
+                                whileHover={{ scale: loading || !authConfigured ? 1 : 1.02, y: loading || !authConfigured ? 0 : -2 }}
+                                whileTap={{ scale: loading || !authConfigured ? 1 : 0.98 }}
                                 className="w-full h-[52px] rounded-2xl text-white font-bold text-[16px] transition-all duration-300 disabled:opacity-50 disabled:hover:translate-y-0 flex items-center justify-center gap-2 mt-2 magnetic-btn" 
                                 style={{ background: `linear-gradient(135deg, ${roleConfig.color}, ${roleConfig.color}cc)`, boxShadow: `0 10px 25px -5px ${roleConfig.color}50` }}
                             >
@@ -343,44 +354,6 @@ export default function RoleLoginPage() {
                             </motion.button>
                         </form>
 
-                        {/* Social Login Divider */}
-                        <div className="flex items-center gap-4 my-6">
-                            <div className="flex-1 h-[1px] bg-slate-200"></div>
-                            <span className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">أو سجل دخول بـ</span>
-                            <div className="flex-1 h-[1px] bg-slate-200"></div>
-                        </div>
-
-                        {/* Social Login Buttons */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <motion.button 
-                                type="button" 
-                                whileHover={{ y: -2, scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="flex items-center justify-center gap-2.5 h-[48px] rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 transition-all duration-200 hover:shadow-md hover:border-slate-300 group"
-                            >
-                                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                                </svg>
-                                <span className="text-[14px] font-bold text-slate-700 group-hover:text-slate-900">Google</span>
-                            </motion.button>
-                            <motion.button 
-                                type="button" 
-                                whileHover={{ y: -2, scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="flex items-center justify-center gap-2.5 h-[48px] rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 transition-all duration-200 hover:shadow-md hover:border-slate-300 group"
-                            >
-                                <svg className="w-5 h-5" viewBox="0 0 23 23">
-                                    <path fill="#f35325" d="M1 1h10v10H1z"/>
-                                    <path fill="#81bc06" d="M12 1h10v10H12z"/>
-                                    <path fill="#05a6f0" d="M1 12h10v10H1z"/>
-                                    <path fill="#ffba08" d="M12 12h10v10H12z"/>
-                                </svg>
-                                <span className="text-[14px] font-bold text-slate-700 group-hover:text-slate-900">Microsoft</span>
-                            </motion.button>
-                        </div>
                     </motion.div>
 
                     {/* Footer */}

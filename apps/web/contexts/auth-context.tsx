@@ -96,6 +96,10 @@ function getApiBaseUrl(): string | null {
     return apiUrl ? apiUrl.replace(/\/$/, '') : null;
 }
 
+export function isAuthenticationConfigured(): boolean {
+    return Boolean(getApiBaseUrl() || supabase);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);

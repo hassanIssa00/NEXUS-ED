@@ -227,7 +227,7 @@ export default function GlobalLoginSelectorPage() {
                     {/* Footer */}
                     <div className="relative z-10 flex items-center gap-2 text-xs text-slate-400 border-t border-slate-200 pt-6 mt-6">
                         <Lock className="w-3.5 h-3.5 text-green-500" />
-                        <span>بيانات محمية ومشفرة بالكامل • خوادم سعودية</span>
+                        <span>بوابات دخول مخصصة بحسب أدوار المدرسة</span>
                     </div>
                 </div>
 
