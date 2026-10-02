@@ -136,7 +136,17 @@ export class PlacementAssessmentService {
       this.prisma.placementAssessmentAttempt.count({ where }),
     ]);
     return {
-      items: items.map(({ answers: _answers, ...item }) => ({ ...item, studentName: this.studentName(item.student) })),
+      items: items.map((item) => ({
+        id: item.id,
+        studentId: item.studentId,
+        gradeLevel: item.gradeLevel,
+        assessmentKey: item.assessmentKey,
+        correctCount: item.correctCount,
+        questionCount: item.questionCount,
+        score: item.score,
+        completedAt: item.completedAt,
+        studentName: this.studentName(item.student),
+      })),
       page: safePage,
       limit: safeLimit,
       total,
