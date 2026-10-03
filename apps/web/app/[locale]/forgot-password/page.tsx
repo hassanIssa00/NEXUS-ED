@@ -110,7 +110,7 @@ export default function ForgotPasswordPage() {
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">
             {stage === "request"
-              ? "أرسل رمزًا إلى بريد حساب الطالب أو ولي الأمر."
+              ? "أدخل بريد حساب الطالب أو ولي الأمر لإرسال تعليمات الاستعادة المتاحة لحسابه."
               : stage === "verify"
                 ? `أدخل الرمز المرسل إلى ${email} واختر كلمة مرور جديدة.`
                 : delivery === "link"
