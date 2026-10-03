@@ -36,6 +36,14 @@ separate backend deployment for changes under `apps/api`.
 
 These checks are a point-in-time verification, not a guarantee of complete security. Do not enable student or parent accounts until the API/auth provider, production secrets, storage policy, and Firebase ownership are confirmed and smoke-tested against the actual school deployment.
 
+### Firebase update — 2026-10-03
+
+- The unused `prayer002` Firebase project was deleted at the user's request.
+- Created Firebase project `nexus-edu-ikhlas-jeddah-2026` on the no-cost Spark plan and registered the `Nexus EDU Web` client. Google Analytics and Gemini were left disabled.
+- Provisioned the default Standard Cloud Firestore database in `me-central2` (Dammam), starting in production mode with all client reads and writes denied. The database is empty and is not connected to the current Prisma/PostgreSQL API.
+- Updated `firestore.rules` to deny all client access until a verified Firebase identity, role, school scope, and ownership model exists. Do not deploy a more permissive policy without rules tests.
+- The actual school API still has no verified production PostgreSQL connection or live API service. See [the free-infrastructure status](docs/NEXUS_FREE_INFRASTRUCTURE_STATUS.md) before entering real school data.
+
 # Million Platform - دليل النشر على VPS
 
 ## المتطلبات
