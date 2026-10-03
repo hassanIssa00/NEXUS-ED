@@ -11,6 +11,50 @@ class ApiConstants {
     defaultValue: 'http://10.0.2.2:4000/api',
   );
 
+  static bool get hasProductionBaseUrl => isSafeProductionBaseUrl(baseUrl);
+
+  static bool isSafeProductionBaseUrl(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment) {
+      return false;
+    }
+
+    final host = uri.host.toLowerCase();
+    if (host == 'localhost' ||
+        host.endsWith('.localhost') ||
+        host.endsWith('.local') ||
+        host.contains(':')) {
+      return false;
+    }
+
+    final octets = host.split('.');
+    if (octets.length == 4) {
+      final address = octets.map(int.tryParse).toList();
+      if (address.any((part) => part == null || part < 0 || part > 255)) {
+        return false;
+      }
+
+      final first = address[0]!;
+      final second = address[1]!;
+      if (first == 0 ||
+          first == 10 ||
+          first == 127 ||
+          (first == 169 && second == 254) ||
+          (first == 172 && second >= 16 && second <= 31) ||
+          (first == 192 && second == 168) ||
+          first >= 224) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   // ═══════════════════════════════════════════
   // AUTH ENDPOINTS
   // ═══════════════════════════════════════════

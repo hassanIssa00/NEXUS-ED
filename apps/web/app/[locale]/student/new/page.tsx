@@ -5,6 +5,8 @@ import { useRouter } from '@/i18n/routing';
 import { CalendarDays, Check, Copy, GraduationCap, Link2, LoaderCircle, ShieldCheck, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api/client';
+import { getCurrentUser } from '@/lib/firebase/auth';
+import { getStudentOnboardingProfile, linkParentWithStudentCode, saveStudentOnboarding } from '@/lib/firebase/registration';
 
 const gradeOptions = [
   { value: 0, label: 'رياض الأطفال / التمهيدي' },
@@ -48,10 +50,14 @@ export default function StudentNewPage() {
       return;
     }
     if (profile.role === 'student') {
-      apiClient.get('/users/me/student-profile').then(({ data }) => {
+      const firebaseUser = getCurrentUser();
+      const loadProfile = firebaseUser?.uid === profile.id
+        ? getStudentOnboardingProfile().then((data) => ({ data }))
+        : apiClient.get('/users/me/student-profile');
+      loadProfile.then(({ data }) => {
         if (data) {
-          setGradeLevel(String(data.gradeLevel));
-          setDateOfBirth(data.dateOfBirth ? String(data.dateOfBirth).slice(0, 10) : '');
+          if (data.gradeLevel !== null && data.gradeLevel !== undefined) setGradeLevel(String(data.gradeLevel));
+          if (data.dateOfBirth) setDateOfBirth(String(data.dateOfBirth).slice(0, 10));
         }
       }).catch(() => setError('تعذر تحميل ملف الطالب الحالي.'));
     }
@@ -64,15 +70,30 @@ export default function StudentNewPage() {
 
     try {
       if (isStudent) {
-        await apiClient.put('/users/me/student-profile', {
-          gradeLevel: Number(gradeLevel),
-          ...(dateOfBirth ? { dateOfBirth: new Date(`${dateOfBirth}T00:00:00.000Z`).toISOString() } : {}),
-        });
-        const { data } = await apiClient.post('/users/student-link-code');
-        setLinkCode(data.code);
+        const firebaseUser = getCurrentUser();
+        if (firebaseUser?.uid === profile?.id) {
+          const code = await saveStudentOnboarding(
+            Number(gradeLevel),
+            dateOfBirth ? new Date(`${dateOfBirth}T00:00:00.000Z`).toISOString() : undefined,
+          );
+          setLinkCode(code);
+        } else {
+          await apiClient.put('/users/me/student-profile', {
+            gradeLevel: Number(gradeLevel),
+            ...(dateOfBirth ? { dateOfBirth: new Date(`${dateOfBirth}T00:00:00.000Z`).toISOString() } : {}),
+          });
+          const { data } = await apiClient.post('/users/student-link-code');
+          setLinkCode(data.code);
+        }
       } else if (isParent) {
-        const { data } = await apiClient.post('/users/link-student', { code: linkCode.trim() });
-        router.push(`/survey?student=${encodeURIComponent(data.student.id)}`);
+        const firebaseUser = getCurrentUser();
+        if (firebaseUser?.uid === profile?.id) {
+          const studentId = await linkParentWithStudentCode(linkCode);
+          router.push(`/survey?student=${encodeURIComponent(studentId)}`);
+        } else {
+          const { data } = await apiClient.post('/users/link-student', { code: linkCode.trim() });
+          router.push(`/survey?student=${encodeURIComponent(data.student.id)}`);
+        }
       } else {
         router.replace('/login');
       }
@@ -149,13 +170,13 @@ export default function StudentNewPage() {
                 رمز ربط الطالب
                 <span className="relative block">
                   <Link2 className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                  <input required autoComplete="one-time-code" inputMode="text" maxLength={16} minLength={16} value={linkCode} onChange={(event) => setLinkCode(event.target.value.toUpperCase().replace(/[^A-F0-9]/g, ''))} placeholder="مثال: 8F2A1C6D9B4E7301" dir="ltr" className="w-full rounded-lg border border-gray-200 bg-white py-3 pe-10 ps-3 text-center font-mono text-lg tracking-widest dark:border-white/10 dark:bg-white/5" />
+                  <input required autoComplete="one-time-code" inputMode="text" maxLength={32} minLength={32} value={linkCode} onChange={(event) => setLinkCode(event.target.value.toUpperCase().replace(/[^A-F0-9]/g, ''))} placeholder="أدخل رمز الربط المكوّن من 32 خانة" dir="ltr" className="w-full rounded-lg border border-gray-200 bg-white py-3 pe-10 ps-3 text-center font-mono text-lg tracking-widest dark:border-white/10 dark:bg-white/5" />
                 </span>
                 <span className="block text-xs font-normal text-gray-500">الرمز صالح لمدة 7 أيام ويُستخدم مرة واحدة.</span>
               </label>
             )}
 
-            <button type="submit" disabled={saving || (isParent && linkCode.length !== 16)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={saving || (isParent && linkCode.length !== 32)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50">
               {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isStudent ? <GraduationCap className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
               {saving ? 'جارٍ الحفظ...' : isStudent ? 'حفظ الملف وإصدار رمز ولي الأمر' : 'ربط الطالب والمتابعة'}
             </button>
@@ -173,10 +194,17 @@ export default function StudentNewPage() {
                 </button>
               </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <button type="button" onClick={() => router.push('/assessment')} className="w-full rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white hover:bg-teal-800">بدء الاختبار التشخيصي</button>
-              <button type="button" onClick={() => router.push('/student')} className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/10">الدخول إلى لوحة الطالب</button>
-            </div>
+            {profile?.status === 'pending' ? (
+              <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                <p>احتفظ برمز الربط وشاركه مع ولي أمرك. تبقى لوحة الطالب والاختبار مغلقين إلى أن تعتمد المدرسة الحساب وتنشر اختبارًا فعليًا.</p>
+                <button type="button" onClick={() => router.push('/account/pending')} className="font-bold underline underline-offset-4">عرض حالة الحساب</button>
+              </div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button type="button" onClick={() => router.push('/assessment')} className="w-full rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white hover:bg-teal-800">بدء الاختبار التشخيصي</button>
+                <button type="button" onClick={() => router.push('/student')} className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/10">الدخول إلى لوحة الطالب</button>
+              </div>
+            )}
           </div>
         )}
       </section>

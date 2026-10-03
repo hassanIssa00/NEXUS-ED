@@ -7,6 +7,7 @@ export interface EmailOptions {
   subject: string;
   html: string;
   text?: string;
+  fromName?: string;
 }
 
 @Injectable()
@@ -16,6 +17,10 @@ export class EmailService {
 
   constructor() {
     this.initializeTransporter();
+  }
+
+  isConfigured(): boolean {
+    return Boolean(process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim());
   }
 
   private initializeTransporter() {
@@ -56,7 +61,7 @@ export class EmailService {
 
     try {
       const mailOptions = {
-        from: `${process.env.SMTP_FROM_NAME || 'منصة المليون'} <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`,
+        from: `${options.fromName || process.env.SMTP_FROM_NAME || 'Nexus EDU'} <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`,
         to: options.to,
         subject: options.subject,
         text: options.text,
@@ -64,10 +69,10 @@ export class EmailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Email sent to ${options.to}: ${info.messageId}`);
+      this.logger.log(`Email sent successfully: ${info.messageId}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send email to ${options.to}:`, error);
+      this.logger.error('Failed to send email:', error);
       return false;
     }
   }

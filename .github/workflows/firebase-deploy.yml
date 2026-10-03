@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Verify Firebase targets and closed rules
+      - name: Verify Firebase targets and rule parity
         run: |
           node <<'NODE'
           const fs = require('node:fs');
@@ -29,13 +29,21 @@ jobs:
               throw new Error(`${file} must target ${expectedProject}`);
             }
           }
-          for (const file of ['firestore.rules', 'firebase/firestore.rules', 'storage.rules', 'firebase/storage.rules']) {
+          const primaryFirestoreRules = fs.readFileSync('firestore.rules', 'utf8').trim();
+          const firebaseFirestoreRules = fs.readFileSync('firebase/firestore.rules', 'utf8').trim();
+          if (primaryFirestoreRules !== firebaseFirestoreRules) {
+            throw new Error('Root and Firebase Firestore rules must be identical');
+          }
+          if (!primaryFirestoreRules.includes('match /{document=**}')) {
+            throw new Error('Firestore rules must include a deny-by-default catch-all');
+          }
+          for (const file of ['storage.rules', 'firebase/storage.rules']) {
             const rules = fs.readFileSync(file, 'utf8');
             if (!/allow read, write: if false;/.test(rules)) {
-              throw new Error(`${file} must remain deny-all until reviewed`);
+              throw new Error(`${file} must remain deny-all until Storage authorization is implemented`);
             }
           }
-          console.log('Firebase targets are Nexus and client rules remain deny-all.');
+          console.log('Firebase targets, Firestore rule parity, and closed Storage rules verified.');
           NODE
 
       - name: Verify Cloud Functions cannot be deployed on Spark

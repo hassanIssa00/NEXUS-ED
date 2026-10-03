@@ -5,6 +5,9 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
 import { ArrowRight, CheckCircle2, HeartHandshake, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
+import { useAuth } from '@/contexts/auth-context';
+import { getCurrentUser } from '@/lib/firebase/auth';
+import { saveParentSurvey } from '@/lib/firebase/registration';
 
 const sections = [
   {
@@ -47,6 +50,7 @@ const sections = [
 function SurveyForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { profile } = useAuth();
   const studentId = searchParams.get('student');
   const [sectionIndex, setSectionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -75,7 +79,12 @@ function SurveyForm() {
 
     setSubmitting(true);
     try {
-      await apiClient.post('/users/parent-survey', { studentId, answers, consent });
+      const firebaseUser = getCurrentUser();
+      if (firebaseUser?.uid === profile?.id) {
+        await saveParentSurvey(studentId, answers, consent);
+      } else {
+        await apiClient.post('/users/parent-survey', { studentId, answers, consent });
+      }
       setSubmitted(true);
     } catch (submitError: any) {
       const message = submitError?.response?.data?.message;
@@ -93,7 +102,7 @@ function SurveyForm() {
             <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
             <h1 className="mt-4 text-2xl font-black text-gray-900 dark:text-white">تم حفظ الاستبيان</h1>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600 dark:text-gray-300">أُرسلت الإجابات إلى قاعدة بيانات المدرسة، ويمكن للمختصين المخولين مراجعتها ضمن ملف الطالب.</p>
-            <button type="button" onClick={() => router.push('/parent')} className="mt-6 rounded-lg bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800">العودة إلى بوابة ولي الأمر</button>
+            <button type="button" onClick={() => router.push(profile?.status === 'pending' ? '/account/pending' : '/parent')} className="mt-6 rounded-lg bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800">{profile?.status === 'pending' ? 'متابعة حالة الحساب' : 'العودة إلى بوابة ولي الأمر'}</button>
           </div>
         ) : (
           <>

@@ -5,15 +5,16 @@ import Link from 'next/link';
 import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, Phone, GraduationCap, Users, ArrowLeft, Sparkles, AlertCircle } from 'lucide-react';
+import { User, Mail, Lock, Phone, GraduationCap, Users, ArrowLeft, Sparkles, AlertCircle, Globe2 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/language-switcher';
-import { isAuthenticationConfigured, useAuth } from '@/contexts/auth-context';
+import { isAuthenticationConfigured, isGoogleAuthenticationConfigured, useAuth } from '@/contexts/auth-context';
 
 export default function RegisterPage() {
   const router = useRouter();
   const locale = useLocale();
-  const { signUp } = useAuth();
+  const { signUp, signInWithGoogle } = useAuth();
   const authConfigured = isAuthenticationConfigured();
+  const googleConfigured = isGoogleAuthenticationConfigured();
   const [accountType, setAccountType] = useState<'parent' | 'student'>('parent');
 
   // Form Fields
@@ -63,6 +64,20 @@ export default function RegisterPage() {
     } catch (err: any) {
       console.error(err);
       setError(err?.message || 'حدث خطأ أثناء إنشاء الحساب');
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const result = await signInWithGoogle(accountType);
+      if (result.isNewUser) router.push(`/student/new?flow=${accountType}`);
+      else router.push(`/${result.role}`);
+    } catch (err: any) {
+      setError(err?.message || 'تعذر المتابعة باستخدام Google.');
+    } finally {
       setLoading(false);
     }
   };
@@ -237,6 +252,25 @@ export default function RegisterPage() {
               </button>
             </div>
           </form>
+
+          {googleConfigured && authConfigured && (
+            <>
+              <div className="my-5 flex items-center gap-3 text-xs text-gray-400">
+                <span className="h-px flex-1 bg-gray-200" />
+                <span>أو</span>
+                <span className="h-px flex-1 bg-gray-200" />
+              </div>
+              <button
+                type="button"
+                onClick={handleGoogleSignUp}
+                disabled={loading}
+                className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                <Globe2 className="h-4 w-4 text-blue-600" />
+                المتابعة باستخدام Google كـ{accountType === 'parent' ? 'ولي أمر' : 'طالب'}
+              </button>
+            </>
+          )}
 
           <div className="mt-6 text-center text-xs text-gray-500">
             لديك حساب بالفعل؟{' '}

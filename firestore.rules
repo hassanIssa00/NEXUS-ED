@@ -2,8 +2,217 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Firestore is not yet a client data source for Nexus; deny until verified
-    // role, school-scope, and record-ownership rules are implemented.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function userRole(uid) {
+      return get(userPath(uid)).data.role;
+    }
+
+    function hasRole(role) {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && userRole(request.auth.uid) == role;
+    }
+
+    function isBootstrapAdmin() {
+      return signedIn()
+        && request.auth.token.email == 'hassan.issa.eng@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isBootstrapAdmin() || hasRole('admin');
+    }
+
+    function validSelfProfile(uid) {
+      return signedIn()
+        && uid == request.auth.uid
+        && request.resource.data.keys().hasAll([
+          'uid', 'email', 'full_name', 'role', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'email', 'full_name', 'role', 'status', 'phone',
+          'avatar_url', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.uid == uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.full_name is string
+        && request.resource.data.full_name.size() > 0
+        && request.resource.data.full_name.size() <= 120
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.status == 'pending'
+        && request.resource.data.role in ['student', 'parent'];
+    }
+
+    function validBootstrapProfile(uid) {
+      return isBootstrapAdmin()
+        && uid == request.auth.uid
+        && request.resource.data.keys().hasAll([
+          'uid', 'email', 'full_name', 'role', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'email', 'full_name', 'role', 'status', 'phone',
+          'avatar_url', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.uid == uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.full_name is string
+        && request.resource.data.full_name.size() > 0
+        && request.resource.data.full_name.size() <= 120
+        && request.resource.data.role == 'admin'
+        && request.resource.data.status == 'active'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function codePath(code) {
+      return /databases/$(database)/documents/studentLinkCodes/$(code);
+    }
+
+    function linkPath(parentUid, studentUid) {
+      return /databases/$(database)/documents/parentStudentLinks/$(parentUid + '_' + studentUid);
+    }
+
+    function isParentOf(studentUid) {
+      return hasRole('parent')
+        && request.auth.token.email_verified == true
+        && exists(linkPath(request.auth.uid, studentUid))
+        && get(linkPath(request.auth.uid, studentUid)).data.studentUid == studentUid;
+    }
+
+    function validSurveyAnswer(answers, key) {
+      return answers[key] is string
+        && answers[key].size() > 0
+        && answers[key].size() <= 100;
+    }
+
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin() || isParentOf(uid));
+      allow list: if isAdmin();
+      allow create: if validSelfProfile(uid) || validBootstrapProfile(uid) || isAdmin();
+      allow update: if isAdmin() || (
+        signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.uid == uid
+        && resource.data.role in ['student', 'parent']
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'full_name', 'phone', 'avatar_url', 'gradeLevel',
+          'dateOfBirth', 'onboardingComplete', 'updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && (resource.data.role == 'student' || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'gradeLevel', 'dateOfBirth', 'onboardingComplete'
+        ]))
+        && (!('gradeLevel' in request.resource.data) || (
+          request.resource.data.gradeLevel is int
+          && request.resource.data.gradeLevel >= 0
+          && request.resource.data.gradeLevel <= 12
+        ))
+        && (!('dateOfBirth' in request.resource.data) || (
+          request.resource.data.dateOfBirth is string
+          && request.resource.data.dateOfBirth.size() <= 32
+        ))
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /studentLinkCodes/{code} {
+      allow get: if signedIn()
+        && resource.data.expiresAt is timestamp
+        && resource.data.expiresAt > request.time
+        && (isAdmin() || hasRole('parent') || resource.data.studentUid == request.auth.uid);
+      allow list: if false;
+      allow create: if hasRole('student')
+        && code.matches('^[A-F0-9]{32}$')
+        && request.resource.data.keys().hasOnly(['studentUid', 'createdAt', 'expiresAt'])
+        && request.resource.data.studentUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(7, 'd');
+      allow update: if false;
+      allow delete: if hasRole('parent')
+        && existsAfter(linkPath(request.auth.uid, resource.data.studentUid))
+        && getAfter(linkPath(request.auth.uid, resource.data.studentUid)).data.linkCode == code;
+    }
+
+    match /parentStudentLinks/{linkId} {
+      allow get, list: if isAdmin()
+        || (hasRole('parent') && resource.data.parentUid == request.auth.uid)
+        || (hasRole('student') && resource.data.studentUid == request.auth.uid);
+      allow create: if hasRole('parent')
+        && request.resource.data.keys().hasOnly([
+          'parentUid', 'studentUid', 'linkCode', 'createdAt'
+        ])
+        && request.resource.data.parentUid == request.auth.uid
+        && request.resource.data.studentUid is string
+        && request.resource.data.linkCode is string
+        && linkId == request.auth.uid + '_' + request.resource.data.studentUid
+        && exists(codePath(request.resource.data.linkCode))
+        && get(codePath(request.resource.data.linkCode)).data.studentUid == request.resource.data.studentUid
+        && get(codePath(request.resource.data.linkCode)).data.expiresAt > request.time
+        && !existsAfter(codePath(request.resource.data.linkCode))
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if isAdmin();
+    }
+
+    match /parentSurveys/{surveyId} {
+      allow get, list: if isAdmin()
+        || hasRole('counselor')
+        || (hasRole('parent') && resource.data.parentUid == request.auth.uid);
+      allow create: if hasRole('parent')
+        && request.resource.data.keys().hasAll([
+          'parentUid', 'studentUid', 'answers', 'consent', 'consentVersion', 'submittedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'parentUid', 'studentUid', 'answers', 'consent', 'consentVersion', 'submittedAt'
+        ])
+        && request.resource.data.parentUid == request.auth.uid
+        && request.resource.data.studentUid is string
+        && surveyId == request.auth.uid + '_' + request.resource.data.studentUid
+        && isParentOf(request.resource.data.studentUid)
+        && request.resource.data.consent == true
+        && request.resource.data.consentVersion == 'nexus-parent-survey-v1'
+        && request.resource.data.submittedAt == request.time
+        && request.resource.data.answers is map
+        && request.resource.data.answers.keys().hasAll([
+          'q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8',
+          'q9', 'q10', 'q11', 'q12', 'q13', 'q14', 'q15'
+        ])
+        && request.resource.data.answers.keys().hasOnly([
+          'q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8',
+          'q9', 'q10', 'q11', 'q12', 'q13', 'q14', 'q15'
+        ])
+        && validSurveyAnswer(request.resource.data.answers, 'q1')
+        && validSurveyAnswer(request.resource.data.answers, 'q2')
+        && validSurveyAnswer(request.resource.data.answers, 'q3')
+        && validSurveyAnswer(request.resource.data.answers, 'q4')
+        && validSurveyAnswer(request.resource.data.answers, 'q5')
+        && validSurveyAnswer(request.resource.data.answers, 'q6')
+        && validSurveyAnswer(request.resource.data.answers, 'q7')
+        && validSurveyAnswer(request.resource.data.answers, 'q8')
+        && validSurveyAnswer(request.resource.data.answers, 'q9')
+        && validSurveyAnswer(request.resource.data.answers, 'q10')
+        && validSurveyAnswer(request.resource.data.answers, 'q11')
+        && validSurveyAnswer(request.resource.data.answers, 'q12')
+        && validSurveyAnswer(request.resource.data.answers, 'q13')
+        && validSurveyAnswer(request.resource.data.answers, 'q14')
+        && validSurveyAnswer(request.resource.data.answers, 'q15');
+      allow update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

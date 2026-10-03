@@ -12,7 +12,7 @@ import { auth, isFirebaseConfigured } from './config'
  */
 export async function signIn(email: string, password: string) {
     try {
-        if (!isFirebaseConfigured) throw new Error('Firebase is not configured for Nexus.')
+        if (!isFirebaseConfigured || !auth) throw new Error('Firebase is not configured for Nexus.')
         const userCredential = await signInWithEmailAndPassword(auth, email, password)
         return {
             user: userCredential.user,
@@ -28,7 +28,7 @@ export async function signIn(email: string, password: string) {
  */
 export async function signUp(email: string, password: string) {
     try {
-        if (!isFirebaseConfigured) throw new Error('Firebase is not configured for Nexus.')
+        if (!isFirebaseConfigured || !auth) throw new Error('Firebase is not configured for Nexus.')
         const userCredential = await createUserWithEmailAndPassword(auth, email, password)
         return {
             user: userCredential.user,
@@ -44,7 +44,7 @@ export async function signUp(email: string, password: string) {
  */
 export async function signOut() {
     try {
-        if (!isFirebaseConfigured) return
+        if (!isFirebaseConfigured || !auth) return
         await firebaseSignOut(auth)
     } catch (error: any) {
         throw new Error(error.message || 'Sign out failed')
@@ -55,14 +55,14 @@ export async function signOut() {
  * Get current user
  */
 export function getCurrentUser(): User | null {
-    return isFirebaseConfigured ? auth.currentUser : null
+    return isFirebaseConfigured && auth ? auth.currentUser : null
 }
 
 /**
  * Listen to auth state changes
  */
 export function onAuthChange(callback: (user: User | null) => void) {
-    if (!isFirebaseConfigured) return () => undefined
+    if (!isFirebaseConfigured || !auth) return () => undefined
     return onAuthStateChanged(auth, callback)
 }
 
@@ -70,7 +70,7 @@ export function onAuthChange(callback: (user: User | null) => void) {
  * Get current user token
  */
 export async function getAuthToken(): Promise<string | null> {
-    if (!isFirebaseConfigured) return null
+    if (!isFirebaseConfigured || !auth) return null
     const user = auth.currentUser
     if (!user) return null
     return await user.getIdToken()

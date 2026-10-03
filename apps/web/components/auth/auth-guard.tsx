@@ -18,7 +18,30 @@ const ROLE_ROUTES: Record<UserRole, string> = {
     hr: '/hr',
 };
 
-const PUBLIC_ROUTES = ['/login', '/register', '/pricing'];
+const PUBLIC_ROUTES = ['/login', '/register', '/pricing', '/verify-email'];
+const SHARED_ROLE_ROUTES: Array<{ path: string; roles: UserRole[]; exact?: boolean }> = [
+    { path: '/student/new', roles: ['student', 'parent'] },
+    { path: '/survey', roles: ['parent'], exact: true },
+    { path: '/assessment', roles: ['student'], exact: true },
+];
+const PENDING_ACCOUNT_ROUTES = ['/student/new', '/survey', '/account/pending', '/verify-email'];
+
+function matchesRoute(pathname: string, route: string) {
+    return pathname === route || pathname.startsWith(`${route}/`);
+}
+
+function isPublicPath(pathname: string) {
+    return PUBLIC_ROUTES.some((route) =>
+        pathname === route || pathname.endsWith(route) || pathname.includes(`${route}/`)
+    ) || pathname === '/' || Boolean(pathname.match(/^\/[a-z]{2}$/));
+}
+
+function canAccessRoute(pathname: string, role: UserRole) {
+    const roleRoute = ROLE_ROUTES[role];
+    return Boolean(roleRoute && matchesRoute(pathname, roleRoute))
+        || SHARED_ROLE_ROUTES.some(({ path, roles, exact }) => roles.includes(role) && (exact ? pathname === path : matchesRoute(pathname, path)))
+        || pathname === '/account/pending';
+}
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
     const { user, profile, loading } = useAuth();
@@ -29,9 +52,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         if (loading) return;
 
         // Check if current path is a public route or landing page
-        const isPublicRoute = PUBLIC_ROUTES.some((route) =>
-            pathname === route || pathname.endsWith(route) || pathname.includes(`${route}/`)
-        ) || pathname === '/' || pathname.match(/^\/[a-z]{2}$/);
+        const isPublicRoute = isPublicPath(pathname);
 
         // If not authenticated and trying to access protected route
         if (!user && !isPublicRoute) {
@@ -42,6 +63,17 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         // If authenticated and on login/register, redirect to dashboard
         const isAuthPage = pathname.includes('/login') || pathname.includes('/register');
 
+        if (user && profile?.emailVerified === false && !matchesRoute(pathname, '/verify-email')) {
+            router.replace('/verify-email');
+            return;
+        }
+
+        if (user && profile?.status === 'pending'
+            && !PENDING_ACCOUNT_ROUTES.some((route) => matchesRoute(pathname, route))) {
+            router.replace('/account/pending');
+            return;
+        }
+
         if (user && profile && isAuthPage) {
             const dashboardRoute = ROLE_ROUTES[profile.role];
             router.push(dashboardRoute || '/student');
@@ -50,10 +82,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
         // Check role-based access
         if (user && profile && !isPublicRoute) {
-            const allowedRoute = ROLE_ROUTES[profile.role];
-
-            if (allowedRoute && !pathname.startsWith(allowedRoute)) {
-                router.push(allowedRoute);
+            if (!canAccessRoute(pathname, profile.role)) {
+                router.push(ROLE_ROUTES[profile.role]);
             }
         }
     }, [user, profile, loading, pathname, router]);
@@ -65,6 +95,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
             </div>
         );
+    }
+
+    const isPendingVerification = user && profile?.emailVerified === false && !matchesRoute(pathname, '/verify-email');
+    const isPendingApproval = user && profile?.status === 'pending'
+        && !PENDING_ACCOUNT_ROUTES.some((route) => matchesRoute(pathname, route));
+    const isWrongRole = user && profile && !canAccessRoute(pathname, profile.role)
+        && !isPublicPath(pathname);
+
+    if (isPendingVerification || isPendingApproval || isWrongRole) {
+        return <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">جارٍ توجيهك إلى الصفحة المناسبة...</div>;
     }
 
     return <>{children}</>;

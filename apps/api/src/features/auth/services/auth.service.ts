@@ -3,22 +3,39 @@ import {
     UnauthorizedException,
     ConflictException,
     BadRequestException,
+    ForbiddenException,
     InternalServerErrorException,
     ServiceUnavailableException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { createHash } from 'crypto';
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../core/database/prisma.service';
+import { EmailService } from '../../../notifications/email.service';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
+import { GoogleLoginDto } from '../dto/google-login.dto';
+import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
+import { ConfirmPasswordResetDto } from '../dto/confirm-password-reset.dto';
+import { Role } from '../../../shared/enums/roles.enum';
+import { GoogleIdentityService } from './google-identity.service';
 
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '7d';
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = 10 * 60 * 1000;
+const PASSWORD_RESET_REQUEST_WINDOW_MS = 15 * 60 * 1000;
+const PASSWORD_RESET_MAX_REQUESTS = 3;
+const PASSWORD_RESET_MAX_ATTEMPTS = 5;
+const PASSWORD_RESET_RESPONSE = 'لو البريد مرتبط بحساب طالب أو ولي أمر، هيوصلك رمز إعادة التعيين.';
+const INVALID_RESET_CODE = 'رمز التحقق غير صالح أو انتهت صلاحيته.';
+
+function isPublicAccountRole(role: string): boolean {
+    return role === 'STUDENT' || role === 'PARENT';
+}
 
 @Injectable()
 export class AuthService {
@@ -26,6 +43,8 @@ export class AuthService {
         private prisma: PrismaService,
         private jwtService: JwtService,
         private configService: ConfigService,
+        private emailService: EmailService,
+        private googleIdentityService: GoogleIdentityService,
     ) { }
 
     private async createAuditLog(data: {
@@ -122,6 +141,10 @@ export class AuthService {
     }
 
     async register(registerDto: RegisterDto) {
+        if (registerDto.role !== Role.STUDENT && registerDto.role !== Role.PARENT) {
+            throw new ForbiddenException('Staff accounts must be created by school administration');
+        }
+
         const email = registerDto.email.trim().toLowerCase();
         const existingUser = await this.prisma.user.findUnique({
             where: { email },
@@ -159,6 +182,230 @@ export class AuthService {
 
         const { password, ...result } = user;
         return result;
+    }
+
+    async loginWithGoogle(dto: GoogleLoginDto) {
+        if (!isPublicAccountRole(String(dto.role))) {
+            throw new ForbiddenException('Google sign-in is only available to students and parents');
+        }
+
+        const identity = await this.googleIdentityService.verifyIdToken(dto.idToken);
+        const provider = 'google';
+        let user = await this.prisma.authIdentity.findUnique({
+            where: { provider_providerSubject: { provider, providerSubject: identity.subject } },
+            include: { user: true },
+        }).then((record) => record?.user ?? null);
+        let isNewUser = false;
+
+        if (user) {
+            if (!user.isActive || String(user.role) !== String(dto.role)) {
+                throw new UnauthorizedException('Google account does not match this portal');
+            }
+        } else {
+            const existingUser = await this.prisma.user.findUnique({ where: { email: identity.email } });
+            if (existingUser) {
+                if (
+                    !existingUser.isActive
+                    || String(existingUser.role) !== String(dto.role)
+                    || !isPublicAccountRole(String(existingUser.role))
+                ) {
+                    throw new UnauthorizedException('Google account does not match this portal');
+                }
+
+                user = await this.prisma.$transaction(async (transaction) => {
+                    await transaction.authIdentity.create({
+                        data: { provider, providerSubject: identity.subject, userId: existingUser.id },
+                    });
+                    return transaction.user.update({
+                        where: { id: existingUser.id },
+                        data: {
+                            emailVerified: true,
+                            ...(identity.picture && !existingUser.avatar ? { avatar: identity.picture } : {}),
+                        },
+                    });
+                });
+            } else {
+                const schoolId = await this.resolvePublicSchoolId();
+                const password = await bcrypt.hash(randomBytes(48).toString('hex'), 12);
+                user = await this.prisma.$transaction(async (transaction) => {
+                    const createdUser = await transaction.user.create({
+                        data: {
+                            email: identity.email,
+                            password,
+                            role: dto.role,
+                            name: identity.name,
+                            avatar: identity.picture,
+                            emailVerified: true,
+                            schoolId,
+                        },
+                    });
+                    await transaction.authIdentity.create({
+                        data: { provider, providerSubject: identity.subject, userId: createdUser.id },
+                    });
+                    return createdUser;
+                });
+                isNewUser = true;
+            }
+        }
+
+        const payload = this.buildAuthPayload({
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            name: user.name,
+            schoolId: user.schoolId,
+        });
+        const accessToken = await this.jwtService.signAsync(payload);
+        const refreshToken = await this.issueRefreshToken(user.id);
+
+        await this.createAuditLog({
+            schoolId: user.schoolId,
+            userId: user.id,
+            action: isNewUser ? 'auth.google_register' : 'auth.google_login',
+            entityType: 'session',
+            entityId: user.id,
+            metadata: { role: user.role },
+        });
+
+        return {
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            is_new_user: isNewUser,
+            user: this.buildSafeUser({
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                name: user.name,
+                schoolId: user.schoolId,
+                phone: user.phone,
+            }),
+        };
+    }
+
+    async requestPasswordReset(dto: RequestPasswordResetDto) {
+        if (!this.emailService.isConfigured()) {
+            throw new ServiceUnavailableException('Email delivery is not configured');
+        }
+
+        const email = dto.email.trim().toLowerCase();
+        const user = await this.prisma.user.findUnique({ where: { email } });
+        if (!user || !user.isActive || !isPublicAccountRole(String(user.role))) {
+            return { message: PASSWORD_RESET_RESPONSE };
+        }
+
+        const now = new Date();
+        const recentCount = await this.prisma.passwordResetCode.count({
+            where: {
+                userId: user.id,
+                createdAt: { gt: new Date(now.getTime() - PASSWORD_RESET_REQUEST_WINDOW_MS) },
+            },
+        });
+        if (recentCount >= PASSWORD_RESET_MAX_REQUESTS) {
+            return { message: PASSWORD_RESET_RESPONSE };
+        }
+
+        await this.prisma.passwordResetCode.updateMany({
+            where: { userId: user.id, consumedAt: null },
+            data: { consumedAt: now },
+        });
+        await this.prisma.passwordResetCode.deleteMany({
+            where: { userId: user.id, createdAt: { lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
+        });
+
+        const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+        const codeHash = this.hashPasswordResetCode(user.id, code);
+        const resetCode = await this.prisma.passwordResetCode.create({
+            data: {
+                userId: user.id,
+                codeHash,
+                expiresAt: new Date(now.getTime() + PASSWORD_RESET_TTL_MS),
+            },
+        });
+
+        const sent = await this.emailService.sendEmail({
+            to: user.email,
+            fromName: 'Nexus EDU',
+            subject: 'رمز إعادة تعيين كلمة المرور - نكسس',
+            text: `رمز إعادة تعيين كلمة المرور هو ${code}. صالح لمدة 10 دقائق. إذا لم تطلبه فتجاهل هذه الرسالة.`,
+            html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#172033"><h2>إعادة تعيين كلمة المرور</h2><p>استخدم الرمز التالي لإعادة تعيين كلمة مرور حسابك في نكسس:</p><p style="font-size:30px;font-weight:700;letter-spacing:8px" dir="ltr">${code}</p><p>الرمز صالح لمدة 10 دقائق، ويُستخدم مرة واحدة.</p><p>إذا لم تطلب إعادة التعيين، تجاهل هذه الرسالة.</p></div>`,
+        });
+
+        if (!sent) {
+            await this.prisma.passwordResetCode.update({
+                where: { id: resetCode.id },
+                data: { consumedAt: now },
+            });
+            throw new ServiceUnavailableException('Email delivery is temporarily unavailable');
+        }
+
+        return { message: PASSWORD_RESET_RESPONSE };
+    }
+
+    async confirmPasswordReset(dto: ConfirmPasswordResetDto) {
+        const email = dto.email.trim().toLowerCase();
+        const user = await this.prisma.user.findUnique({ where: { email } });
+        if (!user || !user.isActive || !isPublicAccountRole(String(user.role))) {
+            throw new BadRequestException(INVALID_RESET_CODE);
+        }
+
+        const now = new Date();
+        const resetCode = await this.prisma.passwordResetCode.findFirst({
+            where: {
+                userId: user.id,
+                consumedAt: null,
+                expiresAt: { gt: now },
+                attempts: { lt: PASSWORD_RESET_MAX_ATTEMPTS },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        if (!resetCode) throw new BadRequestException(INVALID_RESET_CODE);
+
+        const expectedHash = Buffer.from(resetCode.codeHash, 'hex');
+        const actualHash = Buffer.from(this.hashPasswordResetCode(user.id, dto.code), 'hex');
+        if (expectedHash.length !== actualHash.length || !timingSafeEqual(expectedHash, actualHash)) {
+            await this.prisma.passwordResetCode.updateMany({
+                where: { id: resetCode.id, attempts: { lt: PASSWORD_RESET_MAX_ATTEMPTS }, consumedAt: null },
+                data: { attempts: { increment: 1 } },
+            });
+            throw new BadRequestException(INVALID_RESET_CODE);
+        }
+
+        const password = await bcrypt.hash(dto.newPassword, 12);
+        await this.prisma.$transaction(async (transaction) => {
+            const consumed = await transaction.passwordResetCode.updateMany({
+                where: {
+                    id: resetCode.id,
+                    consumedAt: null,
+                    expiresAt: { gt: now },
+                    attempts: { lt: PASSWORD_RESET_MAX_ATTEMPTS },
+                },
+                data: { consumedAt: now },
+            });
+            if (consumed.count !== 1) throw new BadRequestException(INVALID_RESET_CODE);
+            await transaction.user.update({
+                where: { id: user.id },
+                data: { password, emailVerified: true },
+            });
+            await transaction.refreshToken.updateMany({
+                where: { userId: user.id, revokedAt: null },
+                data: { revokedAt: now },
+            });
+        });
+
+        await this.createAuditLog({
+            schoolId: user.schoolId,
+            userId: user.id,
+            action: 'auth.password_reset_completed',
+            entityType: 'user',
+            entityId: user.id,
+        });
+
+        return { message: 'تم تغيير كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.' };
+    }
+
+    private hashPasswordResetCode(userId: string, code: string): string {
+        const secret = this.configService.getOrThrow<string>('JWT_SECRET');
+        return createHmac('sha256', secret).update(`${userId}:${code}`).digest('hex');
     }
 
     async login(loginDto: LoginDto) {

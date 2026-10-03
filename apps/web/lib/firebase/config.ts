@@ -21,6 +21,6 @@ const app = isFirebaseConfigured
     ? getApps().find((existingApp) => existingApp.name === 'nexus') || initializeApp(firebaseConfig, 'nexus')
     : null;
 
-export const auth = (app ? getAuth(app) : null) as Auth;
-export const db = (app ? getFirestore(app) : null) as Firestore;
-export const storage = (app ? getStorage(app) : null) as FirebaseStorage;
+export const auth: Auth | null = app ? getAuth(app) : null;
+export const db: Firestore | null = app ? getFirestore(app) : null;
+export const storage: FirebaseStorage | null = app ? getStorage(app) : null;

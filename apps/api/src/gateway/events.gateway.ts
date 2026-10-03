@@ -10,6 +10,52 @@ import {
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Logger } from '@nestjs/common';
+import { PrismaService } from '../core/database/prisma.service';
+import { Role } from '../shared/enums/roles.enum';
+import { getJwtSecret } from '../config/jwt';
+
+function isAllowedFrontendOrigin(origin?: string) {
+  if (!origin) return true;
+  const configuredOrigins =
+    process.env.FRONTEND_URL ||
+    (process.env.NODE_ENV === 'production'
+      ? ''
+      : 'http://localhost:3002,http://localhost:3000');
+  return configuredOrigins
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .includes(origin);
+}
+
+const SCHOOL_STAFF_ROLES = new Set<string>([
+  Role.ADMIN,
+  Role.PRINCIPAL,
+  Role.VICE_PRINCIPAL,
+  Role.COUNSELOR,
+  Role.SUPERVISOR,
+]);
+
+interface AuthSocketUser {
+  userId: string;
+  role: string;
+  schoolId: string;
+}
+
+interface SocketAccessTokenPayload {
+  sub?: unknown;
+  userId?: unknown;
+  id?: unknown;
+  schoolId?: unknown;
+}
+
+function setSocketUser(client: Socket, user: AuthSocketUser) {
+  (client.data as unknown as { user: AuthSocketUser }).user = user;
+}
+
+function getSocketUser(client: Socket) {
+  return (client.data as unknown as { user: AuthSocketUser }).user;
+}
 
 /**
  * Platform-wide real-time events gateway.
@@ -21,7 +67,11 @@ import { Logger } from '@nestjs/common';
  *   school:{schoolId}  – school-wide broadcasts
  */
 @WebSocketGateway({
-  cors: { origin: '*', credentials: true },
+  cors: {
+    origin: (origin, callback) =>
+      callback(null, isAllowedFrontendOrigin(origin)),
+    credentials: true,
+  },
   namespace: 'events',
 })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -32,42 +82,67 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // Map of userId → socket ids (a user can have multiple tabs open)
   private userSocketMap = new Map<string, Set<string>>();
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   // ─────────────────────────────────────────
   // Connection lifecycle
   // ─────────────────────────────────────────
   async handleConnection(client: Socket) {
     try {
-      const token =
+      const token: unknown =
         client.handshake.auth?.token ||
         client.handshake.headers?.authorization?.split(' ')[1];
 
-      if (!token) {
+      if (typeof token !== 'string' || !token) {
         client.disconnect(true);
         return;
       }
 
-      const secret = process.env.JWT_SECRET || 'secret';
-      const payload = this.jwtService.verify(token, { secret });
-      client.data.user = payload;
+      const payload = this.jwtService.verify<SocketAccessTokenPayload>(token, {
+        secret: getJwtSecret(),
+      });
+      const userId = [payload.sub, payload.userId, payload.id].find(
+        (value): value is string =>
+          typeof value === 'string' && value.length > 0,
+      );
+      if (!userId) {
+        client.disconnect(true);
+        return;
+      }
 
-      const userId: string = payload.sub || payload.userId || payload.id;
-      const schoolId: string | undefined = payload.schoolId;
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, role: true, schoolId: true, isActive: true },
+      });
+      const tokenSchoolId =
+        typeof payload.schoolId === 'string' ? payload.schoolId : null;
+      if (!user?.isActive || user.schoolId !== tokenSchoolId) {
+        client.disconnect(true);
+        return;
+      }
+
+      setSocketUser(client, {
+        userId: user.id,
+        role: user.role,
+        schoolId: user.schoolId,
+      });
+      const schoolId = user.schoolId;
 
       // Personal room
-      client.join(`user:${userId}`);
+      await client.join(`user:${userId}`);
 
       // School room
       if (schoolId) {
-        client.join(`school:${schoolId}`);
+        await client.join(`school:${schoolId}`);
       }
 
       // Track sockets per user
-      if (!this.userSocketMap.has(userId)) {
-        this.userSocketMap.set(userId, new Set());
-      }
-      this.userSocketMap.get(userId)!.add(client.id);
+      const userSockets = this.userSocketMap.get(userId) ?? new Set<string>();
+      userSockets.add(client.id);
+      this.userSocketMap.set(userId, userSockets);
 
       this.logger.log(`[CONNECT] user:${userId} socket:${client.id}`);
 
@@ -80,10 +155,13 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   handleDisconnect(client: Socket) {
-    const userId = client.data.user?.sub || client.data.user?.userId;
-    if (userId && this.userSocketMap.has(userId)) {
-      this.userSocketMap.get(userId)!.delete(client.id);
-      if (this.userSocketMap.get(userId)!.size === 0) {
+    const socketUser = getSocketUser(client);
+    const userId = socketUser?.userId;
+    if (userId) {
+      const userSockets = this.userSocketMap.get(userId);
+      if (!userSockets) return;
+      userSockets.delete(client.id);
+      if (userSockets.size === 0) {
         this.userSocketMap.delete(userId);
       }
     }
@@ -94,20 +172,70 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // Client → Server: Join class rooms
   // ─────────────────────────────────────────
   @SubscribeMessage('joinClass')
-  handleJoinClass(
+  async handleJoinClass(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { classId: string },
+    @MessageBody() data: { classId?: unknown },
   ) {
-    client.join(`class:${data.classId}`);
-    return { event: 'classJoined', data: { classId: data.classId } };
+    const user = getSocketUser(client);
+    const classId =
+      typeof data?.classId === 'string' ? data.classId.trim() : '';
+    if (
+      !user ||
+      !user.userId ||
+      !classId ||
+      classId.length > 128 ||
+      !user.schoolId
+    ) {
+      return { event: 'classJoinDenied', data: { classId: classId || null } };
+    }
+
+    const access = this.classAccessWhere(user.userId, user.role);
+    if (!access) return { event: 'classJoinDenied', data: { classId } };
+
+    const enrolledClass = await this.prisma.class.findFirst({
+      where: {
+        id: classId,
+        schoolId: user.schoolId,
+        ...(access.length ? { OR: access } : {}),
+      },
+      select: { id: true },
+    });
+    if (!enrolledClass) return { event: 'classJoinDenied', data: { classId } };
+
+    await client.join(`class:${classId}`);
+    return { event: 'classJoined', data: { classId } };
   }
 
   @SubscribeMessage('leaveClass')
-  handleLeaveClass(
+  async handleLeaveClass(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { classId: string },
   ) {
-    client.leave(`class:${data.classId}`);
+    if (typeof data?.classId === 'string' && data.classId.length <= 128) {
+      await client.leave(`class:${data.classId}`);
+    }
+  }
+
+  private classAccessWhere(userId: string, role: string) {
+    if (role === 'STUDENT')
+      return [{ students: { some: { studentId: userId } } }];
+    if (role === 'PARENT') {
+      return [
+        {
+          students: {
+            some: { student: { parents: { some: { parentId: userId } } } },
+          },
+        },
+      ];
+    }
+    if (role === 'TEACHER') {
+      return [
+        { teacherId: userId },
+        { classSubjects: { some: { teacherId: userId } } },
+      ];
+    }
+    if (SCHOOL_STAFF_ROLES.has(role)) return [];
+    return null;
   }
 
   // ─────────────────────────────────────────
@@ -146,7 +274,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /** Broadcast a school-wide announcement */
   emitSchoolAnnouncement(schoolId: string, announcement: Record<string, any>) {
-    this.server.to(`school:${schoolId}`).emit('school_announcement', announcement);
+    this.server
+      .to(`school:${schoolId}`)
+      .emit('school_announcement', announcement);
     this.logger.log(`[EMIT] school_announcement → school:${schoolId}`);
   }
 
@@ -158,7 +288,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /** Check if a user is currently online */
   isUserOnline(userId: string): boolean {
-    return this.userSocketMap.has(userId) && this.userSocketMap.get(userId)!.size > 0;
+    return (
+      this.userSocketMap.has(userId) && this.userSocketMap.get(userId).size > 0
+    );
   }
 
   /** Get count of connected users */

@@ -14,14 +14,20 @@ import {
 import { db } from './config'
 import { getCurrentUser } from './auth'
 
+function requireDb() {
+    if (!db) throw new Error('Firebase is not configured for Nexus.')
+    return db
+}
+
 /**
  * Get user's grades
  */
 export async function getGrades() {
+    const firestore = requireDb()
     const user = getCurrentUser()
     if (!user) throw new Error('User not authenticated')
 
-    const gradesRef = collection(db, 'grades')
+    const gradesRef = collection(firestore, 'grades')
     const q = query(gradesRef, where('userId', '==', user.uid))
     const snapshot = await getDocs(q)
 
@@ -35,10 +41,11 @@ export async function getGrades() {
  * Get user's assignments
  */
 export async function getAssignments() {
+    const firestore = requireDb()
     const user = getCurrentUser()
     if (!user) throw new Error('User not authenticated')
 
-    const assignmentsRef = collection(db, 'assignments')
+    const assignmentsRef = collection(firestore, 'assignments')
     const snapshot = await getDocs(assignmentsRef)
 
     return snapshot.docs.map((doc) => ({
@@ -55,6 +62,7 @@ export async function submitAssignment(
     response: string,
     fileUrls: string[]
 ) {
+    const firestore = requireDb()
     const user = getCurrentUser()
     if (!user) throw new Error('User not authenticated')
 
@@ -68,7 +76,7 @@ export async function submitAssignment(
         status: 'submitted'
     }
 
-    const submissionsRef = collection(db, 'submissions')
+    const submissionsRef = collection(firestore, 'submissions')
     const docRef = await addDoc(submissionsRef, submissionData)
 
     return {
@@ -81,10 +89,11 @@ export async function submitAssignment(
  * Get user's submissions
  */
 export async function getMySubmissions() {
+    const firestore = requireDb()
     const user = getCurrentUser()
     if (!user) throw new Error('User not authenticated')
 
-    const submissionsRef = collection(db, 'submissions')
+    const submissionsRef = collection(firestore, 'submissions')
     const q = query(
         submissionsRef,
         where('userId', '==', user.uid),
@@ -102,10 +111,11 @@ export async function getMySubmissions() {
  * Get user's attendance
  */
 export async function getAttendance() {
+    const firestore = requireDb()
     const user = getCurrentUser()
     if (!user) throw new Error('User not authenticated')
 
-    const attendanceRef = collection(db, 'attendance')
+    const attendanceRef = collection(firestore, 'attendance')
     const q = query(attendanceRef, where('userId', '==', user.uid))
     const snapshot = await getDocs(q)
 

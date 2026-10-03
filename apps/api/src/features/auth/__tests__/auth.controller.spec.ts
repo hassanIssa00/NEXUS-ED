@@ -13,6 +13,9 @@ describe('AuthController', () => {
 
     const mockAuthService = {
         register: jest.fn(),
+        loginWithGoogle: jest.fn(),
+        requestPasswordReset: jest.fn(),
+        confirmPasswordReset: jest.fn(),
         login: jest.fn(),
         refreshAccessToken: jest.fn(),
         revokeRefreshToken: jest.fn(),
@@ -120,6 +123,50 @@ describe('AuthController', () => {
                     role: Role.STUDENT,
                 },
             });
+        });
+    });
+
+    describe('Google sign-in and password reset', () => {
+        it('sets the refresh cookie after Google identity exchange', async () => {
+            mockAuthService.loginWithGoogle.mockResolvedValue({
+                access_token: 'google-access',
+                refresh_token: 'google-refresh',
+                is_new_user: true,
+                user: { id: '1', email: 'student@example.com', role: Role.STUDENT },
+            });
+            const res = mockResponse();
+
+            const result = await controller.googleLogin(
+                { idToken: 'google-id-token', role: Role.STUDENT } as any,
+                res,
+            );
+
+            expect(service.loginWithGoogle).toHaveBeenCalledWith({
+                idToken: 'google-id-token', role: Role.STUDENT,
+            });
+            expect(res.cookie).toHaveBeenCalledWith(
+                'refresh_token',
+                'google-refresh',
+                expect.objectContaining({ httpOnly: true, path: '/' }),
+            );
+            expect(result).not.toHaveProperty('refresh_token');
+            expect(result).toHaveProperty('is_new_user', true);
+        });
+
+        it('routes password reset requests to the auth service', async () => {
+            const dto = { email: 'student@example.com' };
+            mockAuthService.requestPasswordReset.mockResolvedValue({ message: 'generic response' });
+
+            await expect(controller.requestPasswordReset(dto as any)).resolves.toEqual({ message: 'generic response' });
+            expect(service.requestPasswordReset).toHaveBeenCalledWith(dto);
+        });
+
+        it('routes reset code confirmation to the auth service', async () => {
+            const dto = { email: 'student@example.com', code: '123456', newPassword: 'new-password-123' };
+            mockAuthService.confirmPasswordReset.mockResolvedValue({ message: 'updated' });
+
+            await expect(controller.confirmPasswordReset(dto as any)).resolves.toEqual({ message: 'updated' });
+            expect(service.confirmPasswordReset).toHaveBeenCalledWith(dto);
         });
     });
 

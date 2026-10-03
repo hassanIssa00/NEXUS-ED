@@ -7,10 +7,13 @@ import { AuthController } from './controllers/auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AccountLockGuard } from './guards/account-lock.guard';
 import { getJwtSecret } from '../../config/jwt';
+import { NotificationModule } from '../../notifications/notification.module';
+import { GoogleIdentityService } from './services/google-identity.service';
 
 @Module({
     imports: [
         PassportModule,
+        NotificationModule,
         JwtModule.registerAsync({
             inject: [ConfigService],
             useFactory: (config: ConfigService) => ({
@@ -19,7 +22,7 @@ import { getJwtSecret } from '../../config/jwt';
             }),
         }),
     ],
-    providers: [AuthService, JwtStrategy, AccountLockGuard],
+    providers: [AuthService, JwtStrategy, AccountLockGuard, GoogleIdentityService],
     controllers: [AuthController],
     exports: [AuthService],
 })

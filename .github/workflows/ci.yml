@@ -21,6 +21,12 @@ jobs:
           node-version: "20"
           cache: "npm"
 
+      - name: Setup Java for Firebase emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
@@ -39,6 +45,9 @@ jobs:
 
       - name: Type Check
         run: npm run check-types
+
+      - name: Test Firestore security rules
+        run: npx --yes firebase-tools@15.26.0 emulators:exec --project demo-nexus-rules --only firestore "npm run test:security --workspace=web"
 
       - name: Lint
         run: npm run lint

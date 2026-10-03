@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../core/constants/api_constants.dart';
 import 'storage_service.dart';
 
@@ -46,7 +47,8 @@ class _AuthInterceptor extends Interceptor {
   bool _isRefreshing = false;
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+  void onRequest(
+      RequestOptions options, RequestInterceptorHandler handler) async {
     final noAuthEndpoints = [
       ApiConstants.login,
       ApiConstants.mobileLogin,
@@ -82,12 +84,14 @@ class _AuthInterceptor extends Interceptor {
             final newToken = response.data['access_token'];
             await StorageService.saveAccessToken(newToken);
             final rotatedRefreshToken = response.data['refresh_token'];
-            if (rotatedRefreshToken is String && rotatedRefreshToken.isNotEmpty) {
+            if (rotatedRefreshToken is String &&
+                rotatedRefreshToken.isNotEmpty) {
               await StorageService.saveRefreshToken(rotatedRefreshToken);
             }
 
             err.requestOptions.headers['Authorization'] = 'Bearer $newToken';
-            final retryResponse = await ApiService.instance.fetch(err.requestOptions);
+            final retryResponse =
+                await ApiService.instance.fetch(err.requestOptions);
             _isRefreshing = false;
             return handler.resolve(retryResponse);
           }
@@ -105,19 +109,30 @@ class _AuthInterceptor extends Interceptor {
 class _LoggingInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    print('🌐 REQUEST: ${options.method} ${options.uri}');
+    if (kDebugMode) {
+      debugPrint('HTTP ${options.method} ${options.path}');
+    }
     handler.next(options);
   }
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    print('✅ RESPONSE [${response.statusCode}]: ${response.requestOptions.uri}');
+    if (kDebugMode) {
+      debugPrint(
+        'HTTP ${response.statusCode} ${response.requestOptions.path}',
+      );
+    }
     handler.next(response);
   }
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    print('❌ ERROR [${err.response?.statusCode}]: ${err.requestOptions.uri}');
+    if (kDebugMode) {
+      debugPrint(
+        'HTTP ${err.response?.statusCode ?? 'network-error'} '
+        '${err.requestOptions.path}',
+      );
+    }
     handler.next(err);
   }
 }

@@ -68,6 +68,8 @@ model User {
   notifications    Notification[]
   achievements     UserAchievement[]
   refreshTokens    RefreshToken[]
+  authIdentities   AuthIdentity[]
+  passwordResetCodes PasswordResetCode[]
   auditLogs        AuditLog[]
   gameScores       GameScore[]
   gameSessions     GameSession[]
@@ -104,6 +106,33 @@ model RefreshToken {
   @@index([userId])
   @@index([expiresAt])
   @@index([revokedAt])
+}
+
+model AuthIdentity {
+  id              String   @id @default(uuid())
+  provider        String
+  providerSubject String
+  userId          String
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@unique([provider, userId])
+  @@index([userId])
+}
+
+model PasswordResetCode {
+  id         String    @id @default(uuid())
+  userId     String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model ParentStudent {

@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { isAuthenticationConfigured, useAuth, type UserRole } from '@/contexts/auth-context';
+import { isAuthenticationConfigured, isGoogleAuthenticationConfigured, useAuth, type UserRole } from '@/contexts/auth-context';
 import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Mail, Lock, AlertCircle, Shield, GraduationCap, BookOpen, Users, UserCheck, Eye, Settings, CreditCard, Sparkles, CheckCircle, Calculator } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Mail, Lock, AlertCircle, Shield, GraduationCap, BookOpen, Users, UserCheck, Eye, Settings, CreditCard, Sparkles, CheckCircle, Calculator, Globe2 } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 
 const roleMapping: Record<string, { label: string; color: string; emailPrefix: string; gradient: string; icon: any; features: string[]; welcomeEmoji: string; bgImage: string }> = {
@@ -35,8 +35,9 @@ export default function RoleLoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState<string | null>(null);
     
-    const { signIn } = useAuth();
+    const { signIn, signInWithGoogle } = useAuth();
     const authConfigured = isAuthenticationConfigured();
+    const googleConfigured = isGoogleAuthenticationConfigured();
     const router = useRouter();
     const { toast } = useToast();
     const t = useTranslations('auth.login');
@@ -83,6 +84,28 @@ export default function RoleLoginPage() {
                 ? 'نوع الحساب لا يطابق بوابة الدخول المختارة.'
                 : tAuth('loginFailed');
             toast({ variant: 'destructive', title: '❌ خطأ', description });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleSignIn = async () => {
+        if (role !== 'student' && role !== 'parent') return;
+        setLoading(true);
+        try {
+            const result = await signInWithGoogle(role);
+            toast({ title: 'تم تسجيل الدخول', description: 'مرحبًا بك في نكسس.' });
+            if (result.isNewUser) {
+                router.push(`/${locale}/student/new?flow=${result.role}`);
+            } else {
+                router.push(`/${locale}/${result.role}`);
+            }
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'تعذر تسجيل الدخول',
+                description: error?.message || 'حاول مرة أخرى أو استخدم البريد وكلمة المرور.',
+            });
         } finally {
             setLoading(false);
         }
@@ -324,9 +347,15 @@ export default function RoleLoginPage() {
                                     <input type="checkbox" className="w-[18px] h-[18px] rounded-md transition-transform group-hover:scale-105 border-2 border-slate-300" style={{ accentColor: roleConfig.color }} />
                                     <span className="text-[13px] font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">تذكر بياناتي</span>
                                 </label>
-                                <a href="https://wa.me/201098810794" target="_blank" rel="noopener noreferrer" className="text-[13px] font-bold hover:brightness-110 transition-all hover:underline" style={{ color: roleConfig.color }}>
-                                    نسيت كلمة المرور؟ تواصل مع الدعم
-                                </a>
+                                {role === 'student' || role === 'parent' ? (
+                                    <Link href={`/${locale}/forgot-password?role=${role}`} className="text-[13px] font-bold hover:brightness-110 transition-all hover:underline" style={{ color: roleConfig.color }}>
+                                        نسيت كلمة المرور؟
+                                    </Link>
+                                ) : (
+                                    <a href="https://wa.me/201098810794" target="_blank" rel="noopener noreferrer" className="text-[13px] font-bold hover:brightness-110 transition-all hover:underline" style={{ color: roleConfig.color }}>
+                                        تواصل مع الدعم
+                                    </a>
+                                )}
                             </div>
 
                             <motion.button 
@@ -353,6 +382,34 @@ export default function RoleLoginPage() {
                                 )}
                             </motion.button>
                         </form>
+
+                        {googleConfigured && (role === 'student' || role === 'parent') && (
+                            <>
+                                <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
+                                    <span className="h-px flex-1 bg-slate-200" />
+                                    <span>أو</span>
+                                    <span className="h-px flex-1 bg-slate-200" />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleGoogleSignIn}
+                                    disabled={loading}
+                                    className="flex h-[50px] w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                    <Globe2 className="h-4 w-4 text-blue-600" />
+                                    المتابعة باستخدام Google
+                                </button>
+                            </>
+                        )}
+
+                        {(role === 'student' || role === 'parent') && (
+                            <p className="mt-5 text-center text-sm text-slate-500">
+                                ليس لديك حساب؟{' '}
+                                <Link href={`/${locale}/register`} className="font-bold hover:underline" style={{ color: roleConfig.color }}>
+                                    إنشاء حساب طالب أو ولي أمر
+                                </Link>
+                            </p>
+                        )}
 
                     </motion.div>
 

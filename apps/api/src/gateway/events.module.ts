@@ -2,6 +2,7 @@ import { Module, Global } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventsGateway } from './events.gateway';
+import { getJwtSecret } from '../config/jwt';
 
 @Global()
 @Module({
@@ -10,7 +11,7 @@ import { EventsGateway } from './events.gateway';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') || 'secret',
+        secret: config.get<string>('JWT_SECRET') || getJwtSecret(),
       }),
     }),
   ],

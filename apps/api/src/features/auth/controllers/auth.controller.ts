@@ -24,6 +24,9 @@ import { Roles } from '../../../infrastructure/decorators/roles.decorator';
 import { RolesGuard } from '../../../auth/roles.guard';
 import { Role } from '../../../shared/enums/roles.enum';
 import { AccountLockGuard } from '../guards/account-lock.guard';
+import { GoogleLoginDto } from '../dto/google-login.dto';
+import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
+import { ConfirmPasswordResetDto } from '../dto/confirm-password-reset.dto';
 
 const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
@@ -37,6 +40,36 @@ export class AuthController {
     @Post('register')
     async register(@Body() registerDto: RegisterDto) {
         return this.authService.register(registerDto);
+    }
+
+    @Post('google')
+    @Throttle({ short: { limit: 5, ttl: 60000 } })
+    async googleLogin(
+        @Body() dto: GoogleLoginDto,
+        @Res({ passthrough: true }) res: Response,
+    ) {
+        const result = await this.authService.loginWithGoogle(dto);
+        const isProduction = process.env.NODE_ENV === 'production';
+        res.cookie('refresh_token', result.refresh_token, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
+            path: '/',
+        });
+        const { refresh_token, ...responseData } = result;
+        return responseData;
+    }
+
+    @Post('password-reset/request')
+    @Throttle({ short: { limit: 3, ttl: 15 * 60 * 1000 } })
+    requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+        return this.authService.requestPasswordReset(dto);
+    }
+
+    @Post('password-reset/confirm')
+    @Throttle({ short: { limit: 5, ttl: 5 * 60 * 1000 } })
+    confirmPasswordReset(@Body() dto: ConfirmPasswordResetDto) {
+        return this.authService.confirmPasswordReset(dto);
     }
 
     @Post('change-password')

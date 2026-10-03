@@ -1,9 +1,24 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import {
+    createUserWithEmailAndPassword,
+    deleteUser,
+    GoogleAuthProvider,
+    onAuthStateChanged as onFirebaseAuthStateChanged,
+    sendPasswordResetEmail,
+    sendEmailVerification,
+    signInWithEmailAndPassword,
+    signInWithPopup,
+    signOut as firebaseSignOut,
+    updateProfile,
+    type User as FirebaseUser,
+} from 'firebase/auth';
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { auth as firebaseAuth, db as firebaseDb, isFirebaseConfigured } from '@/lib/firebase/config';
 
 export type UserRole =
     | 'student'
@@ -25,6 +40,10 @@ interface UserProfile {
     role: UserRole;
     avatar_url?: string;
     phone?: string;
+    status?: string;
+    gradeLevel?: number;
+    emailVerified?: boolean;
+    onboardingComplete?: boolean;
 }
 
 interface AuthContextType {
@@ -33,6 +52,7 @@ interface AuthContextType {
     session: Session | null;
     loading: boolean;
     signIn: (email: string, password: string, expectedRole?: UserRole) => Promise<UserRole>;
+    signInWithGoogle: (role: 'student' | 'parent') => Promise<{ role: 'student' | 'parent'; isNewUser: boolean }>;
     signUp: (
         email: string,
         password: string,
@@ -40,6 +60,8 @@ interface AuthContextType {
         role: UserRole,
         phone?: string
     ) => Promise<void>;
+    requestPasswordReset: (email: string, role?: 'student' | 'parent') => Promise<'code' | 'link'>;
+    confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<void>;
     signOut: () => Promise<void>;
 }
 
@@ -47,6 +69,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const ACCESS_TOKEN_STORAGE_KEY = 'access_token';
 const LEGACY_DEMO_KEYS = ['is_demo', 'demo_profile', 'nexus_user', 'nexus_role'];
+const BOOTSTRAP_ADMIN_EMAIL = 'hassan.issa.eng@gmail.com';
 
 const API_ROLE_TO_APP_ROLE: Record<string, UserRole> = {
     STUDENT: 'student',
@@ -78,8 +101,34 @@ function createApiUser(id: string, email: string): User {
     } as User;
 }
 
+function createFirebaseAppUser(user: FirebaseUser): User {
+    return {
+        id: user.uid,
+        email: user.email,
+        app_metadata: {},
+        user_metadata: { full_name: user.displayName ?? '' },
+        aud: 'authenticated',
+        created_at: user.metadata.creationTime ?? new Date().toISOString(),
+    } as User;
+}
+
 function normalizeApiRole(role: string | undefined): UserRole | null {
     return API_ROLE_TO_APP_ROLE[role?.toUpperCase() ?? ''] ?? null;
+}
+
+async function promoteVerifiedBootstrapAdmin(user: FirebaseUser): Promise<void> {
+    if (!firebaseDb || !user.emailVerified || user.email?.toLowerCase() !== BOOTSTRAP_ADMIN_EMAIL) return;
+
+    const profileRef = doc(firebaseDb, 'users', user.uid);
+    const snapshot = await getDoc(profileRef);
+    const currentRole = normalizeApiRole(snapshot.data()?.role);
+    if (!snapshot.exists() || (currentRole !== 'student' && currentRole !== 'parent')) return;
+
+    await updateDoc(profileRef, {
+        role: 'admin',
+        status: 'active',
+        updatedAt: serverTimestamp(),
+    });
 }
 
 function getApiBaseUrl(): string | null {
@@ -97,7 +146,11 @@ function getApiBaseUrl(): string | null {
 }
 
 export function isAuthenticationConfigured(): boolean {
-    return Boolean(getApiBaseUrl() || supabase);
+    return Boolean(getApiBaseUrl() || supabase || (isFirebaseConfigured && firebaseAuth && firebaseDb));
+}
+
+export function isGoogleAuthenticationConfigured(): boolean {
+    return Boolean(isFirebaseConfigured && firebaseAuth && firebaseDb && !supabase);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -105,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
+    const isProvisioningFirebaseUser = useRef(false);
     const router = useRouter();
 
     const clearLocalApiSession = () => {
@@ -256,6 +310,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const fetchFirebaseProfile = async (userId: string): Promise<UserProfile | null> => {
+        if (!firebaseDb) return null;
+
+        try {
+            const snapshot = await getDoc(doc(firebaseDb, 'users', userId));
+            if (!snapshot.exists()) return null;
+
+            const authUser = firebaseAuth?.currentUser;
+            if (authUser?.uid === userId) {
+                await promoteVerifiedBootstrapAdmin(authUser);
+            }
+
+            const freshSnapshot = await getDoc(doc(firebaseDb, 'users', userId));
+            if (!freshSnapshot.exists()) return null;
+
+            const data = freshSnapshot.data();
+            const role = normalizeApiRole(data.role);
+            if (!role || data.status === 'disabled') return null;
+
+            const nextProfile: UserProfile = {
+                id: userId,
+                email: String(data.email ?? ''),
+                full_name: String(data.full_name ?? data.email ?? ''),
+                role,
+                avatar_url: typeof data.avatar_url === 'string' ? data.avatar_url : undefined,
+                phone: typeof data.phone === 'string' ? data.phone : undefined,
+                status: typeof data.status === 'string' ? data.status : undefined,
+                gradeLevel: typeof data.gradeLevel === 'number' ? data.gradeLevel : undefined,
+                onboardingComplete: data.onboardingComplete === true,
+                emailVerified: authUser?.uid === userId ? authUser.emailVerified : undefined,
+            };
+            setProfile(nextProfile);
+            return nextProfile;
+        } catch (error) {
+            console.error('Error fetching Firebase profile:', error);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         let isActive = true;
 
@@ -277,26 +372,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
-            if (!supabase) {
+            if (supabase) {
+                const {
+                    data: { session: nextSession },
+                } = await supabase.auth.getSession();
+
+                if (!isActive) return;
+
+                setSession(nextSession);
+                setUser(nextSession?.user ?? null);
+                if (nextSession?.user) await fetchSupabaseProfile(nextSession.user.id);
+                else setLoading(false);
+                return;
+            }
+
+            const nextFirebaseUser = firebaseAuth?.currentUser;
+            if (!nextFirebaseUser) {
                 setLoading(false);
                 return;
             }
 
-            const {
-                data: { session: nextSession },
-            } = await supabase.auth.getSession();
-
-            if (!isActive) {
-                return;
-            }
-
-            setSession(nextSession);
-            setUser(nextSession?.user ?? null);
-
-            if (nextSession?.user) {
-                await fetchSupabaseProfile(nextSession.user.id);
-            } else {
-                setLoading(false);
+            setUser(createFirebaseAppUser(nextFirebaseUser));
+            setSession(null);
+            const nextProfile = await fetchFirebaseProfile(nextFirebaseUser.uid);
+            if (!nextProfile && isActive) {
+                setUser(null);
+                if (firebaseAuth) await firebaseSignOut(firebaseAuth).catch(() => undefined);
             }
         };
 
@@ -308,33 +409,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         });
 
-        if (!supabase) {
-            return () => {
-                isActive = false;
-            };
-        }
-
         const {
             data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-            if (sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)) {
-                return;
-            }
-
+        } = supabase?.auth.onAuthStateChange((_event, nextSession) => {
+            if (sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)) return;
             setSession(nextSession);
             setUser(nextSession?.user ?? null);
-            if (nextSession?.user) {
-                fetchSupabaseProfile(nextSession.user.id);
-            } else {
+            if (nextSession?.user) void fetchSupabaseProfile(nextSession.user.id);
+            else {
                 setProfile(null);
                 setLoading(false);
             }
-        });
+        }) ?? { data: { subscription: null } };
+
+        const unsubscribeFirebase = firebaseAuth
+            ? onFirebaseAuthStateChanged(firebaseAuth, (nextUser) => {
+                if (sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) || supabase || isProvisioningFirebaseUser.current) return;
+                if (!nextUser) {
+                    setUser(null);
+                    setProfile(null);
+                    setSession(null);
+                    setLoading(false);
+                    return;
+                }
+
+                setUser(createFirebaseAppUser(nextUser));
+                setSession(null);
+                void fetchFirebaseProfile(nextUser.uid).then((nextProfile) => {
+                    if (!nextProfile) {
+                        setUser(null);
+                        if (firebaseAuth) void firebaseSignOut(firebaseAuth);
+                    }
+                });
+            })
+            : () => undefined;
 
         return () => {
             isActive = false;
-            subscription.unsubscribe();
+            subscription?.unsubscribe();
+            unsubscribeFirebase();
         };
+        // Auth restoration runs once per provider mount, not when helper identities change.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const signIn = async (email: string, password: string, expectedRole?: UserRole): Promise<UserRole> => {
@@ -418,6 +534,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return profile.role;
             }
 
+            if (isFirebaseConfigured && firebaseAuth) {
+                clearLocalApiSession();
+                const credential = await signInWithEmailAndPassword(firebaseAuth, email, password);
+                const nextProfile = await fetchFirebaseProfile(credential.user.uid);
+
+                if (!nextProfile) {
+                    await firebaseSignOut(firebaseAuth);
+                    setUser(null);
+                    setProfile(null);
+                    throw new Error('NEXUS_PROFILE_NOT_PROVISIONED');
+                }
+                if (expectedRole && nextProfile.role !== expectedRole) {
+                    await firebaseSignOut(firebaseAuth);
+                    setUser(null);
+                    setProfile(null);
+                    throw new Error('PORTAL_ROLE_MISMATCH');
+                }
+
+                setAuthenticatedState(createFirebaseAppUser(credential.user), nextProfile);
+                return nextProfile.role;
+            }
+
             throw new Error('Authentication services are not configured');
         } catch (error: any) {
             console.error('Login error:', error);
@@ -465,9 +603,192 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
+            if (isFirebaseConfigured && firebaseAuth && firebaseDb) {
+                if (role !== 'student' && role !== 'parent') {
+                    throw new Error('إنشاء حسابات الموظفين متاح لإدارة المدرسة فقط.');
+                }
+
+                isProvisioningFirebaseUser.current = true;
+                try {
+                    const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+                    let profileCreated = false;
+                    try {
+                        await updateProfile(credential.user, { displayName: fullName });
+                        await sendEmailVerification(credential.user);
+                        await setDoc(doc(firebaseDb, 'users', credential.user.uid), {
+                            uid: credential.user.uid,
+                            email: credential.user.email,
+                            full_name: fullName,
+                            role,
+                            status: 'pending',
+                            ...(phone ? { phone } : {}),
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp(),
+                        });
+                        profileCreated = true;
+
+                        const nextProfile = await fetchFirebaseProfile(credential.user.uid);
+                        if (!nextProfile) throw new Error('NEXUS_PROFILE_NOT_PROVISIONED');
+                        setAuthenticatedState(createFirebaseAppUser(credential.user), nextProfile);
+                        return;
+                    } catch (error) {
+                        if (profileCreated) await firebaseSignOut(firebaseAuth).catch(() => undefined);
+                        else await deleteUser(credential.user).catch(() => undefined);
+                        throw error;
+                    }
+                } finally {
+                    isProvisioningFirebaseUser.current = false;
+                }
+            }
+
             throw new Error('خدمة إنشاء الحساب غير متاحة حالياً. حاول مرة أخرى لاحقاً.');
         } catch (error: any) {
             throw new Error(error.message || 'حدث خطأ في إنشاء الحساب');
+        }
+    };
+
+    const signInWithGoogle = async (role: 'student' | 'parent') => {
+        if (role !== 'student' && role !== 'parent') {
+            throw new Error('تسجيل Google متاح للطالب وولي الأمر فقط.');
+        }
+        if (!isFirebaseConfigured || !firebaseAuth || !firebaseDb || supabase) {
+            throw new Error('تسجيل Google غير مهيأ حاليًا.');
+        }
+
+        isProvisioningFirebaseUser.current = true;
+        let firebaseUserSignedIn = false;
+        try {
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
+            const credential = await signInWithPopup(firebaseAuth, provider);
+            firebaseUserSignedIn = true;
+            if (!credential.user.email || !credential.user.emailVerified) {
+                throw new Error('يلزم استخدام حساب Google ببريد إلكتروني موثّق.');
+            }
+
+            const apiBaseUrl = getApiBaseUrl();
+            if (apiBaseUrl) {
+                const googleCredential = GoogleAuthProvider.credentialFromResult(credential);
+                if (!googleCredential?.idToken) throw new Error('تعذر التحقق من حساب Google.');
+
+                const response = await fetch(`${apiBaseUrl}/auth/google`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken: googleCredential.idToken, role: APP_ROLE_TO_API_ROLE[role] }),
+                    credentials: 'include',
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.message || 'تعذر تسجيل الدخول باستخدام Google.');
+
+                const apiRole = normalizeApiRole(data.user?.role);
+                if (apiRole !== role || !data.access_token || !data.user?.id || !data.user?.email) {
+                    throw new Error('بيانات الحساب لا تطابق بوابة الدخول المختارة.');
+                }
+
+                sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, data.access_token);
+                await firebaseSignOut(firebaseAuth);
+                setAuthenticatedState(
+                    createApiUser(data.user.id, data.user.email),
+                    {
+                        id: data.user.id,
+                        email: data.user.email,
+                        full_name: data.user.name || data.user.email,
+                        role: apiRole,
+                        phone: data.user.phone,
+                    },
+                );
+                return { role, isNewUser: data.is_new_user === true };
+            }
+
+            const profileRef = doc(firebaseDb, 'users', credential.user.uid);
+            let profileSnapshot = await getDoc(profileRef);
+            let isNewUser = false;
+            if (!profileSnapshot.exists()) {
+                const fullName = (credential.user.displayName || credential.user.email).trim().slice(0, 120);
+                await setDoc(profileRef, {
+                    uid: credential.user.uid,
+                    email: credential.user.email,
+                    full_name: fullName,
+                    role,
+                    status: 'pending',
+                    ...(credential.user.photoURL ? { avatar_url: credential.user.photoURL } : {}),
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                });
+                profileSnapshot = await getDoc(profileRef);
+                isNewUser = true;
+            }
+
+            const profileData = profileSnapshot.data();
+            const profileRole = normalizeApiRole(profileData?.role);
+            if (!profileData || profileData.status === 'disabled' || (profileRole !== 'student' && profileRole !== 'parent')) {
+                throw new Error('الحساب غير مهيأ كطالب أو ولي أمر. تواصل مع إدارة المدرسة.');
+            }
+            if (profileRole !== role) throw new Error('هذا الحساب لا يطابق بوابة الدخول المختارة.');
+
+            const nextProfile = await fetchFirebaseProfile(credential.user.uid);
+            if (!nextProfile) throw new Error('تعذر تحميل ملف الحساب.');
+            setAuthenticatedState(createFirebaseAppUser(credential.user), nextProfile);
+            return { role, isNewUser };
+        } catch (error) {
+            if (firebaseUserSignedIn) await firebaseSignOut(firebaseAuth).catch(() => undefined);
+            throw error;
+        } finally {
+            isProvisioningFirebaseUser.current = false;
+        }
+    };
+
+    const requestPasswordReset = async (email: string, role: 'student' | 'parent' = 'student'): Promise<'code' | 'link'> => {
+        const normalizedEmail = email.trim().toLowerCase();
+        const apiBaseUrl = getApiBaseUrl();
+        if (apiBaseUrl) {
+            const response = await fetch(`${apiBaseUrl}/auth/password-reset/request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: normalizedEmail }),
+            });
+            if (!response.ok) throw new Error('تعذر طلب رمز التحقق حاليًا. حاول لاحقًا.');
+            return 'code';
+        }
+
+        if (supabase) {
+            const locale = window.location.pathname.split('/').filter(Boolean)[0] || 'ar';
+            const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+                redirectTo: `${window.location.origin}/${locale}/reset-password?role=${role}`,
+            });
+            if (error) throw error;
+            return 'link';
+        }
+
+        if (firebaseAuth && isFirebaseConfigured) {
+            firebaseAuth.languageCode = 'ar';
+            const locale = window.location.pathname.split('/').filter(Boolean)[0] || 'ar';
+            try {
+                await sendPasswordResetEmail(firebaseAuth, normalizedEmail, {
+                    url: `${window.location.origin}/${locale}/login`,
+                    handleCodeInApp: false,
+                });
+            } catch (error: any) {
+                if (error?.code !== 'auth/user-not-found') throw error;
+            }
+            return 'link';
+        }
+
+        throw new Error('خدمة استعادة كلمة المرور غير مهيأة حاليًا.');
+    };
+
+    const confirmPasswordReset = async (email: string, code: string, newPassword: string) => {
+        const apiBaseUrl = getApiBaseUrl();
+        if (!apiBaseUrl) throw new Error('استعادة كلمة المرور بالرمز غير مهيأة حاليًا.');
+
+        const response = await fetch(`${apiBaseUrl}/auth/password-reset/confirm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email.trim().toLowerCase(), code: code.trim(), newPassword }),
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || 'رمز التحقق غير صالح أو انتهت صلاحيته.');
         }
     };
 
@@ -484,6 +805,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (supabase) {
                 await supabase.auth.signOut().catch(() => undefined);
+            }
+
+            if (firebaseAuth) {
+                await firebaseSignOut(firebaseAuth).catch(() => undefined);
             }
 
             clearLocalApiSession();
@@ -509,7 +834,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session,
         loading,
         signIn,
+        signInWithGoogle,
         signUp,
+        requestPasswordReset,
+        confirmPasswordReset,
         signOut,
     };
 
