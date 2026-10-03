@@ -164,6 +164,13 @@ describe('AuthService', () => {
             expect(result.access_token).toEqual('access-token');
             expect(result.refresh_token).toEqual('refresh-token');
             expect(result.user.id).toEqual(user.id);
+            expect(mockJwtService.signAsync.mock.calls[1][0]).toEqual(
+                expect.objectContaining({
+                    sub: user.id,
+                    type: 'refresh',
+                    jti: expect.stringMatching(/^[a-f0-9]{32}$/),
+                }),
+            );
             expect(mockPrismaService.refreshToken.create).toHaveBeenCalledWith(
                 expect.objectContaining({
                     data: expect.objectContaining({

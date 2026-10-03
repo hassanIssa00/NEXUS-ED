@@ -518,7 +518,11 @@ export class AuthService {
     }
 
     private async issueRefreshToken(userId: string): Promise<string> {
-        const payload = { sub: userId, type: 'refresh' };
+        const payload = {
+            sub: userId,
+            type: 'refresh',
+            jti: randomBytes(16).toString('hex'),
+        };
         const refreshToken = await this.jwtService.signAsync(payload, {
             secret: this.getRefreshSecret(),
             expiresIn: REFRESH_TOKEN_TTL,
