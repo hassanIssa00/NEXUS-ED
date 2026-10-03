@@ -68,12 +68,13 @@ is a privacy/compliance gate, not a claim that the current setup is unlawful.
   warnings. Starting the Next.js dev server and the web `check-types`/build
   remain blocked on this Windows machine by the `@swc/core` native binding/cache
   error, so no successful local web server or production build is claimed.
-- Latest GitHub CI for `49805d5` (2026-10-03): dependency install, Prisma
-  generation, Type Check, and Firestore emulator security tests pass. Lint fails
-  on the existing backlog (7,164 problems: 5,254 errors and 1,910 warnings), so
-  that run skipped API tests and builds. The workflow now runs tests/builds before
-  lint; the next CI run will verify that ordering. The Firebase safeguards
-  workflow passes but only validates deployment safeguards.
+- GitHub CI run `0db7813` (2026-10-03): dependency install, Prisma generation,
+  Type Check, Firestore emulator tests, API tests, API build, and web build all
+  passed. Lint was still running at the last check. The preceding completed lint
+  run reported the existing backlog (7,164 problems: 5,254 errors and 1,910
+  warnings). The workflow now runs tests/builds before lint, so lint no longer
+  masks their results. The Firebase safeguards workflow passes but only
+  validates deployment safeguards.
 - Firestore rules: emulator security checks pass; Firebase CLI dry-run compiled
   the rules, and the scoped rules were then released to the Nexus project.
 - Web: direct `tsc --noEmit` passes. The scripted Next check/build remains blocked
@@ -98,14 +99,17 @@ is a privacy/compliance gate, not a claim that the current setup is unlawful.
   has no production API URL, signed APK/AAB, final Android application ID, or
   Play-release verification; its dependency audit reports 35 advisories (23 high,
   12 moderate). It is not ready for Google Play.
-- Latest observed Vercel production deployment: Ready at commit `49805d5`, with
-  alias `https://nexus.masarplatform.org`. The live student Google login CTA is
+- Production deployment smoke test on 2026-10-03: Ready with alias
+  `https://nexus.masarplatform.org`. The live student Google login CTA is
   present, and all ten role login routes plus registration, recovery, and
   verification routes return HTTP 200. This is route/build smoke testing only:
   no real account, reset email, enrollment, or database workflow was exercised.
   `/api/health` still returns HTTP 404. Six public Firebase client variables are
   configured in Vercel Production and Preview. Firestore rules and Firebase Auth
   providers were deployed separately.
+- The public site currently returns HSTS and frame/referrer protections, but no
+  Content-Security-Policy header. This is not a complete security audit or a
+  claim of complete protection.
 - The Vercel deployment inspection identifies the production alias as `git-master`
   and its Next.js route functions as `iad1`. The linked repo is
   `hassanIssa00/NEXUS-ED`; its production branch is `master`, while GitHub's
