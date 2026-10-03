@@ -70,10 +70,9 @@ is a privacy/compliance gate, not a claim that the current setup is unlawful.
   error, so no successful local web server or production build is claimed.
 - GitHub CI run `0db7813` (2026-10-03): dependency install, Prisma generation,
   Type Check, Firestore emulator tests, API tests, API build, and web build all
-  passed. Lint was still running at the last check. The preceding completed lint
-  run reported the existing backlog (7,164 problems: 5,254 errors and 1,910
-  warnings). The workflow now runs tests/builds before lint, so lint no longer
-  masks their results. The Firebase safeguards workflow passes but only
+  passed. Lint failed on the existing backlog (7,164 problems: 5,254 errors and
+  1,910 warnings). The workflow now runs tests/builds before lint, so lint no
+  longer masks their results. The Firebase safeguards workflow passes but only
   validates deployment safeguards.
 - Firestore rules: emulator security checks pass; Firebase CLI dry-run compiled
   the rules, and the scoped rules were then released to the Nexus project.
