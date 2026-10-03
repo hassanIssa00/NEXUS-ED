@@ -15,7 +15,6 @@ import { UploadModule } from './upload/upload.module';
 import { GradeModule } from './grade/grade.module';
 import { LessonModule } from './lesson/lesson.module';
 import { AssignmentModule } from './assignment/assignment.module';
-import { MillionModule } from './features/million/million.module';
 import { ExamModule } from './features/exams/exam.module';
 import { ContentModule } from './features/content/content.module';
 import { GamesModule } from './features/games/games.module';
@@ -67,7 +66,6 @@ import { PlacementAssessmentModule } from './placement-assessment/placement-asse
     GradeModule,
     LessonModule,
     AssignmentModule,
-    MillionModule,
     ExamModule,
     ContentModule,
     GamesModule,

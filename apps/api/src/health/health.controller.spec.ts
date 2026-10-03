@@ -1,28 +1,49 @@
-import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { ServiceUnavailableException } from '@nestjs/common';
 import { HealthController } from './health.controller';
-import { Role } from '../auth/role.enum';
-import { RolesGuard } from '../auth/roles.guard';
 
-describe('HealthController access', () => {
-  it.each(['metrics', 'detailed'] as const)(
-    '%s requires an authenticated administrator',
-    (route) => {
-      const handler = HealthController.prototype[route];
-      const guards = Reflect.getMetadata(GUARDS_METADATA, handler);
+describe('HealthController', () => {
+  const metrics = {
+    getHealthStatus: jest.fn(),
+    getMetrics: jest.fn(),
+  };
+  let controller: HealthController;
 
-      expect(guards).toHaveLength(2);
-      expect(typeof guards[0].prototype.canActivate).toBe('function');
-      expect(guards[1]).toBe(RolesGuard);
-      expect(Reflect.getMetadata('roles', handler)).toEqual([Role.ADMIN]);
-    },
-  );
+  beforeEach(() => {
+    jest.clearAllMocks();
+    controller = new HealthController(metrics as never);
+  });
 
-  it.each(['live', 'ready'] as const)(
-    '%s remains available to infrastructure probes',
-    (route) => {
-      const handler = HealthController.prototype[route];
+  it('returns ready only when all readiness checks are healthy', async () => {
+    metrics.getHealthStatus.mockResolvedValue({
+      status: 'healthy',
+      checks: { database: true },
+    });
 
-      expect(Reflect.getMetadata(GUARDS_METADATA, handler)).toBeUndefined();
-    },
-  );
+    await expect(controller.ready()).resolves.toMatchObject({
+      status: 'ready',
+      checks: { database: true },
+    });
+  });
+
+  it('uses HTTP 503 semantics when readiness checks fail', async () => {
+    metrics.getHealthStatus.mockResolvedValue({
+      status: 'unhealthy',
+      checks: { database: false },
+    });
+
+    await expect(controller.ready()).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('does not report the general health endpoint as healthy when the database is unavailable', async () => {
+    metrics.getHealthStatus.mockResolvedValue({
+      status: 'unhealthy',
+      checks: { database: false },
+    });
+
+    await expect(controller.check()).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
 });

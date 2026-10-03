@@ -33,7 +33,7 @@ export class ReportService {
     this.logger.log(
       `Created certificate job ${job.id} for student ${studentId}`,
     );
-    return { jobId: job.id as string };
+    return { jobId: job.id };
   }
 
   /**
@@ -62,7 +62,7 @@ export class ReportService {
     this.logger.log(
       `Created attendance report job ${job.id} for class ${classId}`,
     );
-    return { jobId: job.id as string };
+    return { jobId: job.id };
   }
 
   /**
@@ -88,7 +88,7 @@ export class ReportService {
     });
 
     this.logger.log(`Created grades report job ${job.id} for class ${classId}`);
-    return { jobId: job.id as string };
+    return { jobId: job.id };
   }
 
   /**

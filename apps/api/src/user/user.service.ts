@@ -390,13 +390,13 @@ export class UserService {
     return this.prisma.$transaction(async (tx) => {
       const survey = await tx.parentSurvey.upsert({
         where: { parentId_studentId: { parentId, studentId } },
-        create: { parentId, studentId, schoolId: parent.schoolId!, answers, consentedAt: new Date() },
+        create: { parentId, studentId, schoolId: parent.schoolId, answers, consentedAt: new Date() },
         update: { schoolId: parent.schoolId, answers, consentedAt: new Date(), consentVersion: 'parent-survey-v1' },
         select: { id: true, studentId: true, updatedAt: true, consentedAt: true, consentVersion: true },
       });
       await tx.auditLog.create({
         data: {
-          schoolId: parent.schoolId!,
+          schoolId: parent.schoolId,
           userId: parentId,
           action: 'parent_survey.submitted',
           entityType: 'parent_survey',

@@ -108,6 +108,7 @@ jobs:
           sleep 12
           readiness="$(curl --fail --silent http://127.0.0.1:4000/api/health/ready)"
           printf '%s' "$readiness" | jq --exit-status '.status == "ready"'
+          node apps/api/scripts/auth-smoke.mjs
 
       - name: Build production API containers
         run: |

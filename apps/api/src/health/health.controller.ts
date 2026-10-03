@@ -1,4 +1,9 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  ServiceUnavailableException,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { MetricsService } from './metrics.service';
@@ -15,6 +20,14 @@ export class HealthController {
   @ApiOperation({ summary: 'Basic health check' })
   async check() {
     const health = await this.metricsService.getHealthStatus();
+    if (health.status !== 'healthy') {
+      throw new ServiceUnavailableException({
+        status: health.status,
+        timestamp: new Date().toISOString(),
+        checks: health.checks,
+      });
+    }
+
     return {
       status: health.status,
       timestamp: new Date().toISOString(),
@@ -26,8 +39,16 @@ export class HealthController {
   @ApiOperation({ summary: 'Readiness check for Kubernetes' })
   async ready() {
     const health = await this.metricsService.getHealthStatus();
+    if (health.status !== 'healthy') {
+      throw new ServiceUnavailableException({
+        status: 'not_ready',
+        timestamp: new Date().toISOString(),
+        checks: health.checks,
+      });
+    }
+
     return {
-      status: health.status === 'healthy' ? 'ready' : 'not_ready',
+      status: 'ready',
       timestamp: new Date().toISOString(),
       checks: health.checks,
     };

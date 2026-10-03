@@ -3,7 +3,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ReportController } from './report.controller';
 import { ReportService } from './report.service';
 import { ScheduledReportService } from './scheduled-report.service';
-import { PrismaService } from '../prisma.service';
 import { NotificationModule } from '../notifications/notification.module';
 import { QueueModule } from '../queue/queue.module';
 
@@ -14,7 +13,7 @@ import { QueueModule } from '../queue/queue.module';
     QueueModule, // Removed dependency for now
   ],
   controllers: [ReportController],
-  providers: [ReportService, ScheduledReportService, PrismaService],
+  providers: [ReportService, ScheduledReportService],
   exports: [ReportService, ScheduledReportService],
 })
 export class ReportModule {}

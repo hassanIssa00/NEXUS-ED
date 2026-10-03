@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { QrAttendanceController } from './qr-attendance.controller';
 import { QrAttendanceService } from './qr-attendance.service';
-import { PrismaService } from '../../prisma.service';
 
 /**
  * QR Attendance Module
@@ -9,7 +8,7 @@ import { PrismaService } from '../../prisma.service';
  */
 @Module({
   controllers: [QrAttendanceController],
-  providers: [QrAttendanceService, PrismaService],
+  providers: [QrAttendanceService],
   exports: [QrAttendanceService],
 })
 export class QRAttendanceModule {}

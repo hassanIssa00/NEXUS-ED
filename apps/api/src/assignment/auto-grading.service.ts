@@ -269,7 +269,7 @@ export class AutoGradingService {
         },
       ];
 
-      const attachments = (submission.attachments as string[]) || [];
+      const attachments = (submission.attachments) || [];
       const attachmentUrls = this.uploadService
         ? await this.uploadService.getSignedUrlsForReferences(attachments)
         : attachments;

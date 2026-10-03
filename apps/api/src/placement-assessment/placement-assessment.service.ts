@@ -211,7 +211,7 @@ export class PlacementAssessmentService {
     if (!student || student.role !== 'STUDENT') throw new NotFoundException('ملف الطالب غير موجود');
     if (!student.schoolId) throw new ForbiddenException('حساب الطالب غير مرتبط بمدرسة');
     if (!student.studentProfile) throw new BadRequestException('أكمل بيانات الصف الدراسي قبل بدء الاختبار');
-    return { ...student, schoolId: student.schoolId as string, studentProfile: student.studentProfile };
+    return { ...student, schoolId: student.schoolId, studentProfile: student.studentProfile };
   }
 
   private assessmentKeyForGrade(gradeLevel: number): PlacementGradeKey {

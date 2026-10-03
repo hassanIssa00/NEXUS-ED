@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ClassService } from './class.service';
 import { ClassController } from './class.controller';
-import { PrismaService } from '../prisma.service';
 
 import { ClassSessionController } from './class-session.controller';
 import { ClassSessionAttendanceController } from './class-session-attendance.controller';
@@ -16,6 +15,6 @@ import { GamificationModule } from '../gamification/gamification.module';
     ClassSessionController,
     ClassSessionAttendanceController,
   ],
-  providers: [ClassService, ClassSessionService, PrismaService],
+  providers: [ClassService, ClassSessionService],
 })
 export class ClassModule {}

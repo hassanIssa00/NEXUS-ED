@@ -26,7 +26,7 @@ export class AssignmentService {
   ): Promise<string[]> {
     if (!values?.length) return [];
     if (this.uploadService) {
-      return Promise.all(values.map((value) => this.uploadService!.getOwnedFileReference(
+      return Promise.all(values.map((value) => this.uploadService.getOwnedFileReference(
         value,
         actor.id,
         actor.schoolId,
@@ -58,7 +58,7 @@ export class AssignmentService {
 
     const entries = await Promise.all(Object.entries(value as Record<string, unknown>).map(async ([key, item]) => {
       if (key === 'attachments' && Array.isArray(item)) {
-        return [key, await this.uploadService!.getSignedUrlsForReferences(item.map(String))];
+        return [key, await this.uploadService.getSignedUrlsForReferences(item.map(String))];
       }
       return [key, await this.signAttachmentFields(item)];
     }));

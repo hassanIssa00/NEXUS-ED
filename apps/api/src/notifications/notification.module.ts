@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { NotificationController } from './notification.controller';
 import { SmartNotificationService } from './smart-notification.service';
-import { PrismaService } from '../prisma.service';
 import { EmailService } from './email.service';
 
 import { WebPushService } from './web-push.service';
@@ -16,7 +15,6 @@ import { WhatsAppController } from './whatsapp.controller';
     EmailService,
     WebPushService,
     WhatsAppService,
-    PrismaService,
   ],
   exports: [
     SmartNotificationService,

@@ -72,7 +72,7 @@ export class AiExamService {
       if (!Array.isArray(questions) || questions.length !== request.questionCount || !questions.every((question) => this.isValidQuestion(question))) {
         throw new Error('AI response did not match the requested exam schema');
       }
-      return questions as GeneratedQuestion[];
+      return questions;
 
     } catch (error) {
       this.logger.error('AI exam generation failed', error instanceof Error ? error.message : String(error));

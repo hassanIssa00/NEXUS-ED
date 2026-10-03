@@ -51,7 +51,7 @@ export class CacheService {
           if (!this.tagMap.has(tag)) {
             this.tagMap.set(tag, new Set());
           }
-          this.tagMap.get(tag)!.add(key);
+          this.tagMap.get(tag).add(key);
         }
       }
 

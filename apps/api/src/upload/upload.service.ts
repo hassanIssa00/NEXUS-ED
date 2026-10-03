@@ -257,7 +257,7 @@ export class UploadService {
       }>;
       const signedByPath = new Map(signedEntries
         .filter((entry) => entry.path && entry.signedURL)
-        .map((entry) => [entry.path!, entry.signedURL!]));
+        .map((entry) => [entry.path, entry.signedURL]));
 
       for (const entry of entries) {
         const signedUrl = signedByPath.get(entry.objectPath);

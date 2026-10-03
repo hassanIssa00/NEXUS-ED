@@ -84,7 +84,7 @@ export class GamificationService {
     limit: number = 10,
   ): Promise<LeaderboardEntry[]> {
     try {
-      let whereClause: any = { role: 'STUDENT', isActive: true };
+      const whereClause: any = { role: 'STUDENT', isActive: true };
 
       if (scope === 'school' && entityId) {
         whereClause.schoolId = entityId;

@@ -27,7 +27,7 @@ export class MessagesService {
     const accessible = await Promise.all(conversations.map(async (conversation) => {
       if (conversation.type !== 'direct' || conversation.participants.length !== 2) return null;
       try {
-        await this.assertDirectPairAccess(conversation.participants[0]!.userId, conversation.participants[1]!.userId);
+        await this.assertDirectPairAccess(conversation.participants[0].userId, conversation.participants[1].userId);
         return conversation;
       } catch (error) {
         if (error instanceof ForbiddenException) return null;
@@ -167,7 +167,7 @@ export class MessagesService {
       throw new ForbiddenException('This conversation type is not enabled');
     }
 
-    await this.assertDirectPairAccess(conversation.participants[0]!.userId, conversation.participants[1]!.userId);
+    await this.assertDirectPairAccess(conversation.participants[0].userId, conversation.participants[1].userId);
     return participant;
   }
 
@@ -176,7 +176,7 @@ export class MessagesService {
       where: { id: { in: [firstUserId, secondUserId] } },
       select: { id: true, role: true, schoolId: true, isActive: true },
     });
-    if (users.length !== 2 || users.some((user) => !user.isActive || !user.schoolId) || users[0]!.schoolId !== users[1]!.schoolId) {
+    if (users.length !== 2 || users.some((user) => !user.isActive || !user.schoolId) || users[0].schoolId !== users[1].schoolId) {
       throw new ForbiddenException('Conversation participants must be active users in the same school');
     }
 
@@ -186,7 +186,7 @@ export class MessagesService {
       throw new ForbiddenException('Direct conversations are limited to a student or parent and an assigned teacher');
     }
 
-    const schoolId = studentOrParent.schoolId!;
+    const schoolId = studentOrParent.schoolId;
     const enrollmentFilter = studentOrParent.role === Role.STUDENT
       ? { studentId: studentOrParent.id, student: { schoolId } }
       : { student: { schoolId, parents: { some: { parentId: studentOrParent.id } } } };

@@ -14,7 +14,7 @@ import millionService from './million.service';
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
     const { title, type, settings } = req.body;
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     const room = await millionService.createRoom(userId, title, type, settings);
 
@@ -38,7 +38,7 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
 export const joinRoom = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId } = req.body;
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     const room = await millionService.joinRoom(userId, roomId);
 
@@ -68,7 +68,7 @@ export const joinRoom = async (req: AuthRequest, res: Response) => {
 export const leaveRoom = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId } = req.body;
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     await millionService.leaveRoom(userId, roomId);
 
@@ -92,7 +92,7 @@ export const leaveRoom = async (req: AuthRequest, res: Response) => {
 export const startRound = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId } = req.body;
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     const round = await millionService.startRound(roomId, userId);
 
@@ -121,7 +121,7 @@ export const startRound = async (req: AuthRequest, res: Response) => {
 export const submitAnswer = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId, questionId, chosenIndex, timeTaken } = req.body;
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     const result = await millionService.submitAnswer(
       userId,
@@ -158,7 +158,7 @@ export const getRoom = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId } = req.params;
 
-    const room = await millionService.getRoom(roomId as string);
+    const room = await millionService.getRoom(roomId);
 
     res.status(200).json({
       success: true,
@@ -185,7 +185,7 @@ export const getLeaderboard = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId } = req.params;
 
-    const leaderboard = await millionService.getLeaderboard(roomId as string);
+    const leaderboard = await millionService.getLeaderboard(roomId);
 
     res.status(200).json({
       success: true,
@@ -210,14 +210,14 @@ export const getUserHistory = async (req: AuthRequest, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
 
     // Only allow users to view their own history (or admins)
-    if (userId !== req.user!.id && req.user!.role !== 'admin') {
+    if (userId !== req.user.id && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         error: 'Forbidden: Can only view own history',
       });
     }
 
-    const history = await millionService.getUserHistory(userId as string, limit);
+    const history = await millionService.getUserHistory(userId, limit);
 
     res.status(200).json({
       success: true,
@@ -240,7 +240,7 @@ export const getRoundQuestions = async (req: AuthRequest, res: Response) => {
   try {
     const { roundId } = req.params;
 
-    const questions = await millionService.getRoundQuestions(roundId as string);
+    const questions = await millionService.getRoundQuestions(roundId);
 
     res.status(200).json({
       success: true,

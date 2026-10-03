@@ -187,7 +187,7 @@ export class NotificationController {
       });
       const classIds = subjects
         .filter((s) => s.classId)
-        .map((s) => s.classId as string);
+        .map((s) => s.classId);
       if (classIds.length > 0) {
         const enrollments = await this.prisma.enrollment.findMany({
           where: { classId: { in: classIds } },
@@ -203,7 +203,7 @@ export class NotificationController {
       });
       const classIds = subjects
         .filter((s) => s.classId)
-        .map((s) => s.classId as string);
+        .map((s) => s.classId);
       if (classIds.length > 0) {
         const enrollments = await this.prisma.enrollment.findMany({
           where: { classId: { in: classIds } },

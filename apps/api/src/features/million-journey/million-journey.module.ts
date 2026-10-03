@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MillionJourneyController } from './million-journey.controller';
 import { MillionJourneyService } from './million-journey.service';
-import { PrismaService } from '../../prisma.service';
 
 /**
  * Million Journey Module
@@ -9,7 +8,7 @@ import { PrismaService } from '../../prisma.service';
  */
 @Module({
   controllers: [MillionJourneyController],
-  providers: [MillionJourneyService, PrismaService],
+  providers: [MillionJourneyService],
   exports: [MillionJourneyService],
 })
 export class MillionJourneyModule {}

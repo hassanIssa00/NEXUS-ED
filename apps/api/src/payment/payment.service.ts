@@ -268,7 +268,7 @@ export class PaymentService {
       case 'payment_intent.requires_action':
       case 'payment_intent.processing':
       case 'payment_intent.created': {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const paymentIntent = event.data.object;
         await this.syncInvoiceFromPaymentIntent(paymentIntent);
         break;
       }
