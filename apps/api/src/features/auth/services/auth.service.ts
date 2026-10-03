@@ -6,6 +6,7 @@ import {
     ForbiddenException,
     InternalServerErrorException,
     ServiceUnavailableException,
+    Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -39,6 +40,8 @@ function isPublicAccountRole(role: string): boolean {
 
 @Injectable()
 export class AuthService {
+    private readonly logger = new Logger(AuthService.name);
+
     constructor(
         private prisma: PrismaService,
         private jwtService: JwtService,
@@ -549,15 +552,18 @@ export class AuthService {
     }
 
     async refreshAccessToken(refreshToken: string) {
+        let stage = 'verify';
         try {
             const payload = await this.jwtService.verifyAsync(refreshToken, {
                 secret: this.getRefreshSecret(),
             });
 
+            stage = 'validate claims';
             if (payload.type !== 'refresh') {
                 throw new UnauthorizedException('Invalid token type');
             }
 
+            stage = 'find stored session';
             const tokenHash = this.hashRefreshToken(refreshToken);
             const storedToken = await this.prisma.refreshToken.findUnique({
                 where: { tokenHash },
@@ -567,6 +573,7 @@ export class AuthService {
                 throw new UnauthorizedException('Refresh token has been revoked');
             }
 
+            stage = 'find active user';
             const user = await this.prisma.user.findUnique({
                 where: { id: payload.sub },
                 select: { id: true, email: true, role: true, name: true, schoolId: true, isActive: true },
@@ -576,6 +583,7 @@ export class AuthService {
                 throw new UnauthorizedException('User not found');
             }
 
+            stage = 'rotate stored session';
             await this.prisma.refreshToken.update({
                 where: { tokenHash },
                 data: { revokedAt: new Date() },
@@ -591,6 +599,7 @@ export class AuthService {
             const accessToken = await this.jwtService.signAsync(newPayload);
             const nextRefreshToken = await this.issueRefreshToken(user.id);
 
+            stage = 'write audit event';
             await this.createAuditLog({
                 schoolId: user.schoolId,
                 userId: user.id,
@@ -607,6 +616,9 @@ export class AuthService {
                 refresh_token: nextRefreshToken,
             };
         } catch (error) {
+            this.logger.warn(
+                `Refresh token rejected during ${stage} (${error instanceof UnauthorizedException ? 'unauthorized' : error instanceof Error ? error.name : 'unknown error'})`,
+            );
             throw new UnauthorizedException('Invalid refresh token');
         }
     }
