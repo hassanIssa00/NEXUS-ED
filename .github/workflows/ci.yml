@@ -49,9 +49,6 @@ jobs:
       - name: Test Firestore security rules
         run: npx --yes firebase-tools@15.26.0 emulators:exec --project demo-nexus-rules --only firestore "npm run test:security --workspace=web"
 
-      - name: Lint
-        run: npm run lint
-
       - name: Run Tests
         run: cd apps/api && npm run test:cov
 
@@ -70,3 +67,7 @@ jobs:
           NEXT_TELEMETRY_DISABLED: 1
           NEXT_PUBLIC_API_URL: http://localhost:3001/api
           NEXT_PUBLIC_ENABLE_DEMO_AUTH: false
+
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: npm run lint

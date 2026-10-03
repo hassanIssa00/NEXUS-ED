@@ -35,11 +35,11 @@ been applied to a live database and school workflows have not been smoke-tested
 against one. Both previously documented Railway API health URLs returned HTTP 404 on
 2026-10-03. The public login route returns HTTP 200, while `/api/health` on the
 web domain returns 404; a rendered login page is not evidence that authentication
-or database operations work. Although Firebase Auth providers and public client
-configuration are now enabled, the current live web deployment still needs a
-successful Git-based rebuild before it can serve the local auth changes. Vercel
-has no production API URL, and the active NestJS/Prisma API still has no verified
-production PostgreSQL connection.
+or database operations work. Firebase Auth providers and public client
+configuration are enabled, and the Next.js changes have deployed. Vercel has no
+production API URL, and the active NestJS/Prisma API still has no verified
+production PostgreSQL connection. Student/parent Firebase signup can create only
+pending identities; it is not a school enrollment or a connected academic record.
 
 The latest Vercel deployment inspection also shows the Next.js route functions
 running in `iad1` (US East). Firestore's Saudi region does not change where those
@@ -68,11 +68,12 @@ is a privacy/compliance gate, not a claim that the current setup is unlawful.
   warnings. Starting the Next.js dev server and the web `check-types`/build
   remain blocked on this Windows machine by the `@swc/core` native binding/cache
   error, so no successful local web server or production build is claimed.
-- Latest GitHub CI for `5c1219e` (2026-10-03): Type Check passes. Lint fails on
-  the existing API-wide backlog (7,183 problems: 5,253 errors and 1,930
-  warnings); CI consequently skips tests and both builds. Local API tests/build
-  above are separate checks. The Firebase safeguards workflow on the same commit
-  passes but only validates deployment safeguards.
+- Latest GitHub CI for `49805d5` (2026-10-03): dependency install, Prisma
+  generation, Type Check, and Firestore emulator security tests pass. Lint fails
+  on the existing backlog (7,164 problems: 5,254 errors and 1,910 warnings), so
+  that run skipped API tests and builds. The workflow now runs tests/builds before
+  lint; the next CI run will verify that ordering. The Firebase safeguards
+  workflow passes but only validates deployment safeguards.
 - Firestore rules: emulator security checks pass; Firebase CLI dry-run compiled
   the rules, and the scoped rules were then released to the Nexus project.
 - Web: direct `tsc --noEmit` passes. The scripted Next check/build remains blocked
@@ -97,13 +98,14 @@ is a privacy/compliance gate, not a claim that the current setup is unlawful.
   has no production API URL, signed APK/AAB, final Android application ID, or
   Play-release verification; its dependency audit reports 35 advisories (23 high,
   12 moderate). It is not ready for Google Play.
-- Latest observed Vercel production deployment: Ready, but it predates the local
-  sign-in changes. The public login route responds HTTP 200; `/api/health`
-  responds HTTP 404. Six public Firebase client variables have since been set in
-  Vercel Production and Preview, but no successful app deployment has consumed
-  them. Production account and data workflows remain unverified and are not ready
-  for school use. Firestore rules and Firebase Auth provider settings were
-  deployed separately.
+- Latest observed Vercel production deployment: Ready at commit `49805d5`, with
+  alias `https://nexus.masarplatform.org`. The live student Google login CTA is
+  present, and all ten role login routes plus registration, recovery, and
+  verification routes return HTTP 200. This is route/build smoke testing only:
+  no real account, reset email, enrollment, or database workflow was exercised.
+  `/api/health` still returns HTTP 404. Six public Firebase client variables are
+  configured in Vercel Production and Preview. Firestore rules and Firebase Auth
+  providers were deployed separately.
 - The Vercel deployment inspection identifies the production alias as `git-master`
   and its Next.js route functions as `iad1`. The linked repo is
   `hassanIssa00/NEXUS-ED`; its production branch is `master`, while GitHub's
@@ -113,7 +115,7 @@ is a privacy/compliance gate, not a claim that the current setup is unlawful.
   protection; SSO was not disabled. A direct Vercel production deploy was also
   blocked by deployment collaboration settings and was not promoted to the
   domain. `.vercelignore` now excludes mobile build/cache artifacts from uploads.
-- Reverification on 2026-10-03: API tests (15 suites/90 tests) and API build pass;
+- Reverification on 2026-10-03: API tests (16 suites/104 tests) and API build pass;
   mobile TypeScript and Android bundle export pass; direct web TypeScript passes;
   Firestore rules emulator security checks pass; `git diff --check` is clean.
   Android bundle export is not a signed Play Store artifact, and these local
@@ -154,14 +156,15 @@ Choose one supported architecture before enabling real registration:
    Cloud Functions, so grading, account administration, and other privileged
    operations cannot be called production-ready until that runtime is verified.
 
-Neither path is complete yet. Keep production registration disabled and do not
-create school accounts until a path is provisioned, connected, migrated, and
-tested with authorized real records.
+Neither path is complete yet. Treat Firebase self-signups as pending identities,
+not school enrollments. Do not create/approve school accounts or enter real
+student records until a path is provisioned, connected, migrated, and tested
+with an authorized school roster.
 
 ## Student and parent sign-in additions
 
-The local changes add Google sign-in and account creation for students and
-parents only. Firebase email/password and Google providers are enabled, the
+The deployed Next.js changes add Google sign-in and account creation for students
+and parents only. Firebase email/password and Google providers are enabled, the
 production domain is authorized, and public Firebase client settings are present
 in Vercel Production and Preview. The API validates Google ID tokens against the
 configured OAuth client, persists provider identities, and refuses staff roles.
@@ -179,9 +182,10 @@ requires the NestJS API. The API needs `GOOGLE_CLIENT_ID`, SMTP credentials,
 `PUBLIC_SCHOOL_ID` or `PUBLIC_SCHOOL_SLUG` for new accounts, an approved
 production database, and the new Prisma migration
 `20261003160000_google_auth_password_reset`. No API environment values, school
-database, or live account/email have been provisioned. The local app changes
-have not yet completed a successful production deployment. Sample variable
-names are in `apps/web/.env.example` and `apps/api/.env.example`.
+database, or live account/email have been provisioned. The web auth UI is live,
+but the API implementation and Prisma migration are only local/Git source; they
+are not deployed to a production API/database. Sample variable names are in
+`apps/web/.env.example` and `apps/api/.env.example`.
 
 ## References
 
