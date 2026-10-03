@@ -1,6 +1,27 @@
-# Million EdTech - Firebase Backend 🔥
+# Legacy Firebase Prototype - Do Not Deploy
 
-Complete **Firebase backend** for Saudi EdTech platform - **100% Free Tier Compatible**.
+> This directory is not the active Nexus backend. Its project alias is being
+> aligned to `nexus-edu-ikhlas-jeddah-2026`, but the functions require Firebase
+> Blaze and this code has not passed production security review. Keep its rules
+> deny-all and do not deploy these functions on the Spark-only project.
+
+The earlier claim that this bundle is "100% Free Tier Compatible" is incorrect:
+Cloud Functions deployments require Blaze and a linked billing account. The
+active Nexus API uses NestJS/Prisma and is not connected to this prototype.
+
+## Legacy notes
+
+The original prototype documentation follows for reference only. Its old rules
+permit unauthenticated notification and audit-log writes, and its scheduled
+invoice function has hard-coded fee defaults. Do not treat it as production
+ready or as a source of real school records.
+
+---
+
+# Million EdTech - Legacy Firebase Prototype
+
+The sections below describe prototype intent only. They are not an inventory of
+live Nexus features, a production-readiness claim, or a free-tier deployment plan.
 
 ## 📋 Table of Contents
 
@@ -14,15 +35,12 @@ Complete **Firebase backend** for Saudi EdTech platform - **100% Free Tier Compa
 - [API Usage](#api-usage)
 - [Testing](#testing)
 
-## ✨ Features
+## Prototype scope (unverified)
 
-- ✅ **Firebase Auth** with custom role claims (student/teacher/parent/admin)
-- ✅ **Firestore** - 15 collections with security rules
-- ✅ **Cloud Functions** - 5 functions (onCreate, scheduled, callable)
-- ✅ **Storage** - Secure file storage with role-based rules
-- ✅ **Realtime** - Live updates via Firestore listeners
-- ✅ **Free Tier** - Optimized for 10K+ students
-- ✅ **CI/CD** - GitHub Actions deployment pipeline
+The original prototype sketches Auth, Firestore, Cloud Functions, Storage, and
+realtime updates. None of those descriptions certify that the implementation is
+secure, deployed, or suitable for school records. No student-capacity guarantee
+has been established.
 
 ## 🏗️ Architecture
 
@@ -538,21 +556,15 @@ if (process.env.NODE_ENV === 'development') {
 }
 ```
 
-## 💰 Free Tier Limits
+## Billing and quota warning
 
-Firebase Spark Plan (Free):
-- ✅ **Firestore:** 1GB storage, 50K reads/day, 20K writes/day
-- ✅ **Auth:** Unlimited users
-- ✅ **Functions:** 125K invocations/month, 40K GB-seconds/month
-- ✅ **Storage:** 5GB, 1GB/day downloads
-- ✅ **Hosting:** 10GB/month bandwidth
-
-**Optimization Tips:**
-1. Use Firestore queries efficiently (indexes)
-2. Cache frequently accessed data
-3. Compress images before upload
-4. Use Cloud Functions sparingly (batch operations)
-5. Monitor usage in Firebase Console
+Cloud Functions deployments require the Blaze plan and a linked billing
+account; they are unavailable under the Spark-only constraint. Firestore Spark
+quotas are product-specific and can shut off that product when exceeded. Check
+the current [Firebase pricing plans](https://firebase.google.com/pricing) and
+[Cloud Functions deployment requirements](https://firebase.google.com/docs/functions/get-started)
+before making infrastructure decisions. This legacy prototype is deliberately
+not deployable from the current repository workflow.
 
 ## 📚 Environment Variables
 
@@ -581,7 +593,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 | **Auth** | Built-in + Custom Claims | Built-in + RLS |
 | **Realtime** | Firestore listeners | PostgreSQL subscriptions |
 | **Functions** | Cloud Functions (JS/TS) | Edge Functions (Deno) |
-| **Free Tier** | 50K reads/day | 500MB database |
+| **Pricing** | Check current Firebase plan and quotas | Check current Supabase plan and quotas |
 | **Best For** | Real-time apps, Mobile | Complex queries, Relational data |
 
 ---

@@ -2,15 +2,15 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ["master"]
   pull_request:
-    branches: ["main"]
+    branches: ["master"]
 
 jobs:
   build:
     name: Build and Test
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -42,7 +42,7 @@ jobs:
 
       - name: Lint
         run: npm run lint
-        
+
       - name: Run Tests
         run: cd apps/api && npm run test:cov
 

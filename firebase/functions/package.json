@@ -1,31 +1,31 @@
 {
-    "name": "million-edtech-functions",
-    "version": "1.0.0",
-    "description": "Cloud Functions for Million EdTech Platform",
-    "scripts": {
-        "lint": "eslint --ext .ts src",
-        "build": "tsc",
-        "serve": "npm run build && firebase emulators:start --only functions",
-        "shell": "npm run build && firebase functions:shell",
-        "start": "npm run shell",
-        "deploy": "firebase deploy --only functions",
-        "logs": "firebase functions:log"
-    },
-    "engines": {
-        "node": "18"
-    },
-    "main": "lib/index.js",
-    "dependencies": {
-        "firebase-admin": "^11.11.1",
-        "firebase-functions": "^4.5.0"
-    },
-    "devDependencies": {
-        "@typescript-eslint/eslint-plugin": "^6.13.2",
-        "@typescript-eslint/parser": "^6.13.2",
-        "eslint": "^8.55.0",
-        "eslint-config-google": "^0.14.0",
-        "eslint-plugin-import": "^2.29.0",
-        "typescript": "^5.3.3"
-    },
-    "private": true
+  "name": "million-edtech-functions",
+  "version": "1.0.0",
+  "description": "Cloud Functions for Million EdTech Platform",
+  "scripts": {
+    "lint": "eslint --ext .ts src",
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "node -e \"console.error('Deployment disabled: Firebase Functions require the paid Blaze plan and are excluded from the Spark deployment.'); process.exit(1)\"",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "18"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "firebase-admin": "^11.11.1",
+    "firebase-functions": "^4.5.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.13.2",
+    "@typescript-eslint/parser": "^6.13.2",
+    "eslint": "^8.55.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.29.0",
+    "typescript": "^5.3.3"
+  },
+  "private": true
 }

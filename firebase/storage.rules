@@ -1,91 +1,9 @@
 rules_version = '2';
+
 service firebase.storage {
   match /b/{bucket}/o {
-    
-    // =====================================================
-    // HELPER FUNCTIONS
-    // =====================================================
-    
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    function getUserRole() {
-      return request.auth.token.role;
-    }
-    
-    function isAdmin() {
-      return isAuthenticated() && getUserRole() == 'admin';
-    }
-    
-    function isTeacher() {
-      return isAuthenticated() && getUserRole() == 'teacher';
-    }
-    
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-    
-    // File size limits
-    function isValidSize(maxSizeMB) {
-      return request.resource.size < maxSizeMB * 1024 * 1024;
-    }
-    
-    // =====================================================
-    // PROFILE IMAGES (public read, owner write)
-    // =====================================================
-    match /profile-images/{userId}/{fileName} {
-      // Anyone can read profile images
-      allow read: if true;
-      
-      // Users can upload their own profile image (max 2MB)
-      allow write: if isOwner(userId) && isValidSize(2);
-    }
-    
-    // =====================================================
-    // COURSE ASSETS (teachers upload, enrolled students read)
-    // =====================================================
-    match /course-assets/{classId}/{fileName} {
-      // Teachers and admins can upload course materials (max 50MB)
-      allow write: if (isTeacher() || isAdmin()) && isValidSize(50);
-      
-      // Students enrolled in the class can read
-      // Note: Firestore lookup not available in Storage rules
-      // So we rely on secure download URLs or Cloud Functions
-      allow read: if isAuthenticated();
-    }
-    
-    // =====================================================
-    // ATTACHMENTS (student submissions)
-    // =====================================================
-    match /attachments/{userId}/{assignmentId}/{fileName} {
-      // Students can upload their own attachments (max 10MB)
-      allow write: if isOwner(userId) && isValidSize(10);
-      
-      // Owner, teachers, and admins can read
-      allow read: if isOwner(userId) || isTeacher() || isAdmin();
-    }
-    
-    // =====================================================
-    // INVOICES (admin generated, parents/students read)
-    // =====================================================
-    match /invoices/{studentId}/{fileName} {
-      // Only admins can create invoices
-      allow write: if isAdmin();
-      
-      // Students and their parents can read
-      allow read: if isOwner(studentId) || isAuthenticated();
-    }
-    
-    // =====================================================
-    // GENERAL UPLOADS (temporary, authenticated users)
-    // =====================================================
-    match /uploads/{userId}/{fileName} {
-      // Users can upload temporary files (max 20MB)
-      allow write: if isOwner(userId) && isValidSize(20);
-      
-      // Only owner can read
-      allow read: if isOwner(userId);
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

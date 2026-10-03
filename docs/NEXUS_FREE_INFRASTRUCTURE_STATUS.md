@@ -36,7 +36,11 @@ would not make login work.
 The user's no-paid-services requirement is preserved. Firebase Spark has
 product-specific free quotas; when a quota is exceeded, Firebase shuts off that
 product for the rest of the billing month. It is not a guarantee of unlimited
-school production capacity. Firebase SQL Connect's PostgreSQL backing database
+school production capacity. Cloud Functions deployments require Blaze and a
+linked billing account, so the existing `firebase/functions` prototype cannot
+be deployed under the Spark-only constraint. Its rules were replaced with
+deny-all, its deploy command now fails closed, and GitHub Actions no longer
+deploys Firebase resources. Firebase SQL Connect's PostgreSQL backing database
 is not a permanent Spark-only production option. Firebase Storage is not
 enabled because this project would need a billing upgrade for it.
 
@@ -53,9 +57,10 @@ Choose one supported architecture before enabling real registration:
 1. Keep Prisma/PostgreSQL and provide a school-approved PostgreSQL host and API
    runtime in an approved region, with the necessary service credentials and
    operational backups.
-2. Migrate the API and all school workflows to Firebase-native services, then
-   verify role-based rules, data ownership, quota behavior, reporting, backup,
-   and end-to-end tests before enabling accounts.
+2. Migrate supported data to Firestore and provide a separately approved,
+   compliant runtime for trusted server operations. Spark alone does not deploy
+   Cloud Functions, so grading, account administration, and other privileged
+   operations cannot be called production-ready until that runtime is verified.
 
 Neither path is complete yet. Keep production registration disabled and do not
 create school accounts until a path is provisioned, connected, migrated, and
@@ -64,6 +69,7 @@ tested with authorized real records.
 ## References
 
 - [Firebase pricing plans and Spark quotas](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans)
+- [Cloud Functions deployment requirements](https://firebase.google.com/docs/functions/get-started)
 - [Cloud Firestore locations](https://firebase.google.com/docs/firestore/locations)
 - [Saudi regulation on personal-data transfers outside the Kingdom](https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter/details/RegulationonPersonalDataTransferOutsidetheKingdom)
 - [Vercel terms of service](https://vercel.com/legal/terms)
