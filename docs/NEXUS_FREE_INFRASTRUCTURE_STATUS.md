@@ -18,14 +18,18 @@ NestJS and Prisma with PostgreSQL (`apps/api/prisma/schema.prisma`), while the
 Firebase Firestore helper module is not used by the app's current auth or school
 workflows. Do not loosen Firestore rules or add client access until the
 authentication identity, school scope, roles, and record ownership are enforced
-and tested. The checked-in `firestore.rules` therefore remains deny-all.
+and tested. The checked-in `firestore.rules` therefore remains deny-all. Firebase
+Storage is not part of the active school workflow either; `storage.rules` now
+denies every read and write until per-school and per-record access is tested.
 
 ## Production blocker
 
 There is no verified production PostgreSQL URL or deployed Nexus API service in
 the current environment. The Prisma schema validates, but migrations have not
 been applied to a live database and school workflows have not been smoke-tested
-against one. Firebase Auth sign-in providers are not enabled because the current
+against one. A fresh Vercel production environment listing had no variables, and
+both previously documented Railway API health URLs returned HTTP 404 on
+2026-10-03. Firebase Auth sign-in providers are not enabled because the current
 web auth flow expects the NestJS API or Supabase; enabling an unused provider
 would not make login work.
 

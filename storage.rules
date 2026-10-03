@@ -1,17 +1,10 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow users to upload files to their own folder
-    match /uploads/{userId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Allow students to upload assignments
-    match /assignments/{assignmentId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        request.auth.token.role in ['STUDENT', 'TEACHER', 'ADMIN'];
+    // Nexus does not use Firebase Storage yet. Keep files private until
+    // school scope and per-record ownership checks are implemented and tested.
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }
