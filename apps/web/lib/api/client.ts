@@ -1,10 +1,11 @@
 import axios from 'axios'
+import { getApiBaseUrl, getStoredAccessToken } from './endpoints';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'
+const API_BASE_URL = getApiBaseUrl();
 
 // Create axios instance
 export const apiClient = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: API_BASE_URL ?? undefined,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -14,9 +15,10 @@ export const apiClient = axios.create({
 // Request interceptor - add access token
 apiClient.interceptors.request.use(
     (config) => {
-        const token = typeof window === 'undefined'
-            ? null
-            : sessionStorage.getItem('access_token') || localStorage.getItem('access_token')
+        if (!API_BASE_URL) {
+            return Promise.reject(new Error('The Nexus API endpoint is not configured for this deployment.'));
+        }
+        const token = getStoredAccessToken();
         if (token) {
             config.headers.Authorization = `Bearer ${token}`
         }

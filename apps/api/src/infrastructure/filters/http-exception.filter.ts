@@ -9,6 +9,14 @@ import {
 import { Request, Response } from 'express';
 import { ERROR_CODES, ErrorCode } from '../../shared/constants/error-codes';
 
+const ERROR_CODE_BY_STATUS: Partial<Record<number, ErrorCode>> = {
+    [HttpStatus.UNAUTHORIZED]: ERROR_CODES.AUTH_UNAUTHORIZED,
+    [HttpStatus.FORBIDDEN]: ERROR_CODES.AUTH_FORBIDDEN,
+    [HttpStatus.NOT_FOUND]: ERROR_CODES.RESOURCE_NOT_FOUND,
+    [HttpStatus.CONFLICT]: ERROR_CODES.RESOURCE_CONFLICT,
+    [HttpStatus.BAD_REQUEST]: ERROR_CODES.VALIDATION_FAILED,
+};
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
     private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -58,13 +66,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     private getErrorCode(status: number): ErrorCode {
-        switch (status) {
-            case HttpStatus.UNAUTHORIZED: return ERROR_CODES.AUTH_UNAUTHORIZED;
-            case HttpStatus.FORBIDDEN: return ERROR_CODES.AUTH_FORBIDDEN;
-            case HttpStatus.NOT_FOUND: return ERROR_CODES.RESOURCE_NOT_FOUND;
-            case HttpStatus.CONFLICT: return ERROR_CODES.RESOURCE_CONFLICT;
-            case HttpStatus.BAD_REQUEST: return ERROR_CODES.VALIDATION_FAILED;
-            default: return ERROR_CODES.SERVER_INTERNAL_ERROR;
-        }
+        return ERROR_CODE_BY_STATUS[status] ?? ERROR_CODES.SERVER_INTERNAL_ERROR;
     }
 }

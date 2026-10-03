@@ -1,4 +1,2 @@
 // Base service interface marker
-export interface IService {
-    // Marker interface for services
-}
+export type IService = object;

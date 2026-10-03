@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { getApiUrl, getStoredAccessToken } from '../api/endpoints';
 
 export interface User {
     id: string;
@@ -43,7 +43,7 @@ export interface UserStats {
 
 class UserService {
     async getAll(filters?: { role?: string; search?: string; page?: number; limit?: number }) {
-        const token = localStorage.getItem('token');
+        const token = getStoredAccessToken();
         const params = new URLSearchParams();
 
         if (filters?.role) params.append('role', filters.role);
@@ -51,7 +51,7 @@ class UserService {
         if (filters?.page) params.append('page', filters.page.toString());
         if (filters?.limit) params.append('limit', filters.limit.toString());
 
-        const response = await fetch(`${API_BASE_URL}/users?${params.toString()}`, {
+        const response = await fetch(`${getApiUrl('/users')}?${params.toString()}`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
@@ -63,8 +63,8 @@ class UserService {
     }
 
     async getById(id: string): Promise<User> {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/users/${id}`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl(`/users/${encodeURIComponent(id)}`), {
             headers: {
                 'Authorization': `Bearer ${token}`,
             },
@@ -75,8 +75,8 @@ class UserService {
     }
 
     async create(data: CreateUserDto): Promise<User> {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/users`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl('/users'), {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -93,8 +93,8 @@ class UserService {
     }
 
     async update(id: string, data: UpdateUserDto): Promise<User> {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/users/${id}`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl(`/users/${encodeURIComponent(id)}`), {
             method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -108,8 +108,8 @@ class UserService {
     }
 
     async delete(id: string): Promise<void> {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/users/${id}`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl(`/users/${encodeURIComponent(id)}`), {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -120,8 +120,8 @@ class UserService {
     }
 
     async getStats(): Promise<UserStats> {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/users/stats`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl('/users/stats'), {
             headers: {
                 'Authorization': `Bearer ${token}`,
             },

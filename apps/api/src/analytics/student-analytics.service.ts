@@ -4,17 +4,17 @@ import { Grade, AttendanceStatus } from '@prisma/client';
 
 export interface StudentProgressPoint {
   date: string;
-  averageGrade: number | null;
-  attendanceRate: number | null;
+  averageGrade: number;
+  attendanceRate: number;
   assignmentsCompleted: number;
 }
 
 export interface ClassComparison {
-  studentAverage: number | null;
-  classAverage: number | null;
-  studentRank: number | null;
+  studentAverage: number;
+  classAverage: number;
+  studentRank: number;
   totalStudents: number;
-  percentile: number | null;
+  percentile: number;
 }
 
 export interface EarlyWarning {
@@ -37,11 +37,11 @@ export interface ParentReport {
     period: string;
   };
   summary: {
-    overallGrade: number | null;
-    attendanceRate: number | null;
+    overallGrade: number;
+    attendanceRate: number;
     assignmentsCompleted: number;
     totalAssignments: number;
-    rank: number | null;
+    rank: number;
     totalStudents: number;
   };
   subjects: {

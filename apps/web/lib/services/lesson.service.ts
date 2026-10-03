@@ -1,6 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-const getAccessToken = () =>
-    localStorage.getItem('access_token') || localStorage.getItem('token');
+import { getApiUrl, getStoredAccessToken } from '../api/endpoints';
+const getAccessToken = getStoredAccessToken;
 
 export interface Lesson {
     id: string;
@@ -49,7 +48,7 @@ class LessonServiceClass {
             params.append('subjectId', filters.subjectId);
         }
 
-        const response = await fetch(`${API_BASE_URL}/lessons?${params.toString()}`, {
+        const response = await fetch(`${getApiUrl('/lessons')}?${params.toString()}`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
@@ -66,7 +65,7 @@ class LessonServiceClass {
     async getMyLessons(): Promise<Lesson[]> {
         const token = getAccessToken();
 
-        const response = await fetch(`${API_BASE_URL}/lessons/my`, {
+        const response = await fetch(getApiUrl('/lessons/my'), {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
@@ -83,7 +82,7 @@ class LessonServiceClass {
     async getById(id: string): Promise<Lesson> {
         const token = getAccessToken();
 
-        const response = await fetch(`${API_BASE_URL}/lessons/${id}`, {
+        const response = await fetch(getApiUrl(`/lessons/${encodeURIComponent(id)}`), {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
@@ -100,7 +99,7 @@ class LessonServiceClass {
     async create(data: CreateLessonDto): Promise<Lesson> {
         const token = getAccessToken();
 
-        const response = await fetch(`${API_BASE_URL}/lessons`, {
+        const response = await fetch(getApiUrl('/lessons'), {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -120,7 +119,7 @@ class LessonServiceClass {
     async update(id: string, data: UpdateLessonDto): Promise<Lesson> {
         const token = getAccessToken();
 
-        const response = await fetch(`${API_BASE_URL}/lessons/${id}`, {
+        const response = await fetch(getApiUrl(`/lessons/${encodeURIComponent(id)}`), {
             method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -140,7 +139,7 @@ class LessonServiceClass {
     async delete(id: string): Promise<void> {
         const token = getAccessToken();
 
-        const response = await fetch(`${API_BASE_URL}/lessons/${id}`, {
+        const response = await fetch(getApiUrl(`/lessons/${encodeURIComponent(id)}`), {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`,

@@ -412,23 +412,29 @@ export class SmartNotificationService {
       where: {
         dueDate: { lt: now },
       },
-      // @ts-ignore
-      include: {
-        class: {
-          include: {
-            enrollments: {
-              include: { student: true },
-            },
-          },
-        },
-        submissions: true,
-      } as any,
+      include: { submissions: true },
     });
+
+    const classIds = [...new Set(lateAssignments
+      .map((assignment) => assignment.classId)
+      .filter((classId): classId is string => Boolean(classId)))];
+    const enrollments = classIds.length
+      ? await this.prisma.enrollment.findMany({
+          where: { classId: { in: classIds } },
+          select: { classId: true, studentId: true },
+        })
+      : [];
+    const studentsByClass = new Map<string, string[]>();
+    for (const enrollment of enrollments) {
+      const students = studentsByClass.get(enrollment.classId) ?? [];
+      students.push(enrollment.studentId);
+      studentsByClass.set(enrollment.classId, students);
+    }
 
     let notified = 0;
 
     for (const assignment of lateAssignments) {
-      if (!(assignment as any).class) continue;
+      if (!assignment.classId) continue;
 
       const daysLate = Math.floor(
         (now.getTime() - (assignment.dueDate?.getTime() || 0)) /
@@ -436,16 +442,13 @@ export class SmartNotificationService {
       );
 
       // Get students who haven't submitted
-      const submittedStudentIds = (assignment as any).submissions.map(
-        (s: any) => s.studentId,
-      );
-      const students = (assignment as any).class.enrollments.filter(
-        (enrollment: any) => !submittedStudentIds.includes(enrollment.studentId),
-      );
+      const submittedStudentIds = assignment.submissions.map((submission) => submission.studentId);
+      const students = (studentsByClass.get(assignment.classId) ?? [])
+        .filter((studentId) => !submittedStudentIds.includes(studentId));
 
-      for (const enrollment of students) {
+      for (const studentId of students) {
         await this.notifyLateAssignment(
-          enrollment.studentId,
+          studentId,
           assignment.title,
           assignment.id,
           daysLate,

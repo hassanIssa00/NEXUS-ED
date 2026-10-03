@@ -18,7 +18,7 @@ export class CacheService {
   /**
    * Get value from cache
    */
-  async get<T>(key: string): Promise<T | undefined> {
+  async get<T>(key: string): Promise<T> {
     try {
       const value = await this.cacheManager.get<T>(key);
       if (value !== undefined) {

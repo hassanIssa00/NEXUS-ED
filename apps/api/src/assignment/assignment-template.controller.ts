@@ -5,6 +5,8 @@ import {
   Param,
   Query,
   Body,
+  Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -14,6 +16,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { Request } from 'express';
 import {
   AssignmentTemplateService,
   AssignmentTemplate,
@@ -29,34 +32,34 @@ export class AssignmentTemplateController {
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Get all assignment templates' })
   @ApiResponse({ status: 200, description: 'Templates retrieved' })
-  async getAllTemplates(
+  getAllTemplates(
     @Query('category') category?: string,
-  ): Promise<AssignmentTemplate[]> {
+  ): AssignmentTemplate[] {
     return this.templateService.getAllTemplates(category);
   }
 
   @Get('search')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Search templates' })
-  async searchTemplates(
+  searchTemplates(
     @Query('q') query: string,
-  ): Promise<AssignmentTemplate[]> {
+  ): AssignmentTemplate[] {
     return this.templateService.searchTemplates(query);
   }
 
   @Get('stats')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Get template statistics' })
-  async getStats() {
+  getStats() {
     return this.templateService.getTemplateStats();
   }
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Get template by ID' })
-  async getTemplateById(
+  getTemplateById(
     @Param('id') id: string,
-  ): Promise<AssignmentTemplate | null> {
+  ): AssignmentTemplate {
     return this.templateService.getTemplateById(id);
   }
 
@@ -65,18 +68,20 @@ export class AssignmentTemplateController {
   @ApiOperation({ summary: 'Create assignment from template' })
   async useTemplate(
     @Param('id') templateId: string,
+    @Req() request: Request & { user?: { id?: string; userId?: string } },
     @Body()
     data: {
-      teacherId: string;
       classId: string;
       title?: string;
-      dueDate?: Date;
+      dueDate?: string;
       points?: number;
     },
   ) {
+    const actorId = request.user?.userId || request.user?.id;
+    if (!actorId) throw new UnauthorizedException();
     return this.templateService.createFromTemplate(
       templateId,
-      data.teacherId,
+      actorId,
       data.classId,
       {
         title: data.title,

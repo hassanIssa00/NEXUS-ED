@@ -27,8 +27,8 @@ export class CompressionMiddleware implements NestMiddleware {
       chunk: unknown,
       encodingOrCallback?:
         | BufferEncoding
-        | ((error: Error | null | undefined) => void),
-      callback?: (error: Error | null | undefined) => void,
+        | ((error: Error) => void),
+      callback?: (error: Error) => void,
     ): boolean {
       if (chunk) {
         const buffer = Buffer.isBuffer(chunk)

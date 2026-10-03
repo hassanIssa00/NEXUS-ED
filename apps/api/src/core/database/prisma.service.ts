@@ -83,7 +83,7 @@ export class PrismaService
         operation: () => Promise<T>,
         maxRetries = 3,
     ): Promise<T> {
-        let lastError: Error | undefined;
+        let lastError = new Error('Database operation failed after all retries');
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {

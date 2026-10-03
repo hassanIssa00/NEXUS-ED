@@ -9,7 +9,6 @@ import { AccountLockGuard } from '../guards/account-lock.guard';
 
 describe('AuthController', () => {
     let controller: AuthController;
-    let service: AuthService;
 
     const mockAuthService = {
         register: jest.fn(),
@@ -54,7 +53,6 @@ describe('AuthController', () => {
         }).compile();
 
         controller = module.get<AuthController>(AuthController);
-        service = module.get<AuthService>(AuthService);
         jest.clearAllMocks();
     });
 
@@ -77,7 +75,7 @@ describe('AuthController', () => {
 
             const result = await controller.register(registerDto);
 
-            expect(service.register).toHaveBeenCalledWith(registerDto);
+            expect(mockAuthService.register).toHaveBeenCalledWith(registerDto);
             expect(result).toEqual(expectedResult);
         });
     });
@@ -103,7 +101,7 @@ describe('AuthController', () => {
             const res = mockResponse();
             const result = await controller.login(loginDto, res);
 
-            expect(service.login).toHaveBeenCalledWith(loginDto);
+            expect(mockAuthService.login).toHaveBeenCalledWith(loginDto);
             expect(mockCacheManager.del).toHaveBeenCalledWith('lockout:test@example.com');
             expect(res.cookie).toHaveBeenCalledWith(
                 'refresh_token',
@@ -141,7 +139,7 @@ describe('AuthController', () => {
                 res,
             );
 
-            expect(service.loginWithGoogle).toHaveBeenCalledWith({
+            expect(mockAuthService.loginWithGoogle).toHaveBeenCalledWith({
                 idToken: 'google-id-token', role: Role.STUDENT,
             });
             expect(res.cookie).toHaveBeenCalledWith(
@@ -158,7 +156,7 @@ describe('AuthController', () => {
             mockAuthService.requestPasswordReset.mockResolvedValue({ message: 'generic response' });
 
             await expect(controller.requestPasswordReset(dto as any)).resolves.toEqual({ message: 'generic response' });
-            expect(service.requestPasswordReset).toHaveBeenCalledWith(dto);
+            expect(mockAuthService.requestPasswordReset).toHaveBeenCalledWith(dto);
         });
 
         it('routes reset code confirmation to the auth service', async () => {
@@ -166,7 +164,7 @@ describe('AuthController', () => {
             mockAuthService.confirmPasswordReset.mockResolvedValue({ message: 'updated' });
 
             await expect(controller.confirmPasswordReset(dto as any)).resolves.toEqual({ message: 'updated' });
-            expect(service.confirmPasswordReset).toHaveBeenCalledWith(dto);
+            expect(mockAuthService.confirmPasswordReset).toHaveBeenCalledWith(dto);
         });
     });
 
@@ -183,7 +181,7 @@ describe('AuthController', () => {
 
             const result = await controller.refresh(req, res);
 
-            expect(service.refreshAccessToken).toHaveBeenCalledWith('my-refresh-token');
+            expect(mockAuthService.refreshAccessToken).toHaveBeenCalledWith('my-refresh-token');
             expect(res.cookie).toHaveBeenCalledWith(
                 'refresh_token',
                 'next-refresh-token',
@@ -211,7 +209,7 @@ describe('AuthController', () => {
             const res = mockResponse();
             const result = await controller.logout(req, res);
 
-            expect(service.revokeRefreshToken).toHaveBeenCalledWith('refresh123');
+            expect(mockAuthService.revokeRefreshToken).toHaveBeenCalledWith('refresh123');
             expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', {
                 path: '/',
                 secure: false,

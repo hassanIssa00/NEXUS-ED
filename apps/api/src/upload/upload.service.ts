@@ -73,7 +73,7 @@ export class UploadService {
     }
 
     // Fallback: save locally
-    return this.saveLocally(buffer, uniqueFilename, originalName);
+    return this.saveLocally(buffer, uniqueFilename);
   }
 
   private getSupabaseUrl() {
@@ -127,7 +127,7 @@ export class UploadService {
     return new URL(`/storage/v1${result.signedURL}`, `${supabaseUrl}/`).toString();
   }
 
-  private parseStoragePath(value: string): { bucket: string; objectPath: string } | null {
+  private parseStoragePath(value: string): { bucket: string; objectPath: string } {
     if (value.startsWith('storage://')) {
       const [bucket, ...parts] = value.slice('storage://'.length).split('/');
       return bucket && parts.length ? { bucket, objectPath: parts.join('/') } : null;
@@ -151,7 +151,7 @@ export class UploadService {
   async getOwnedFileReference(
     value: string,
     ownerId: string,
-    schoolId?: string | null,
+    schoolId?: string,
     allowSchoolFiles = false,
   ): Promise<string> {
     const referenceId = value.startsWith('file:') ? value.slice('file:'.length) : null;
@@ -278,16 +278,12 @@ export class UploadService {
   private async saveLocally(
     buffer: Buffer,
     filename: string,
-    originalName: string,
   ): Promise<{ url: string; filename: string; storagePath: string }> {
     const uploadsDir = path.join(process.cwd(), 'uploads');
-    
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
+    await fs.promises.mkdir(uploadsDir, { recursive: true });
 
     const filePath = path.join(uploadsDir, filename);
-    fs.writeFileSync(filePath, buffer);
+    await fs.promises.writeFile(filePath, buffer);
     
     this.logger.log(`File saved locally: ${filename}`);
     

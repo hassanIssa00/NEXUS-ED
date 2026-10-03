@@ -6,6 +6,17 @@ import {
   EmailTemplateData,
 } from '../notifications/templates/email-templates';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Role } from '@prisma/client';
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character] ?? character);
+}
 
 @Injectable()
 export class ScheduledReportService {
@@ -25,7 +36,7 @@ export class ScheduledReportService {
 
     // Get all students with their parents
     const students = await this.prisma.user.findMany({
-      where: { role: 'STUDENT' },
+      where: { role: 'STUDENT', isActive: true, schoolId: { not: null } },
       include: {
         parents: {
           include: {
@@ -48,37 +59,10 @@ export class ScheduledReportService {
       try {
         const reportData = await this.generateStudentStats(student.id);
 
-        let aiSummary = 'الطالب يحرز تقدماً جيداً هذا الأسبوع.';
-        const openaiKey = process.env.OPENAI_API_KEY;
-        if (openaiKey && openaiKey !== 'sk_placeholder') {
-          try {
-            const prompt = `أنت مستشار تعليمي. قم بكتابة فقرة واحدة باللغة العربية (بين 3 إلى 5 أسطر) تلخص أداء الطالب الأسبوعي بناءً على البيانات التالية لترسل لولي الأمر. اذكر نقاط القوة وما يحتاج لتحسين بشكل لطيف ومبسط:
-            الغياب: ${reportData.attendance.absent}، الحضور: ${reportData.attendance.present}، التأخير: ${reportData.attendance.late}.
-            الواجبات المتأخرة أو المعلقة: ${reportData.pendingAssignments}.
-            الدرجات الأخيرة: ${reportData.grades.map(g => `${g.name} (${g.subject}): ${g.score}/${g.max}`).join('، ')}.
-            `;
-            
-            const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${openaiKey}`
-              },
-              body: JSON.stringify({
-                model: "gpt-4o",
-                messages: [{ role: "user", content: prompt }],
-                max_tokens: 250,
-              })
-            });
-            
-            if (aiRes.ok) {
-              const aiData = await aiRes.json();
-              aiSummary = aiData.choices[0].message.content;
-            }
-          } catch (e) {
-            this.logger.error('Failed to generate AI summary for parent report', e);
-          }
-        }
+        const gradeSummary = reportData.grades.length
+          ? reportData.grades.map((grade) => `${grade.name} (${grade.subject}): ${grade.score}/${grade.max}`).join('، ')
+          : 'لا توجد درجات مسجلة خلال هذه الفترة.';
+        const weeklySummary = `السجلات المسجلة هذا الأسبوع: حضور ${reportData.attendance.present}، غياب ${reportData.attendance.absent}، تأخير ${reportData.attendance.late}؛ واجبات مستحقة غير مسلمة: ${reportData.pendingAssignments}. الدرجات: ${gradeSummary}`;
 
         // Send to each parent
         for (const relation of student.parents) {
@@ -91,7 +75,7 @@ export class ScheduledReportService {
               attendanceStats: reportData.attendance,
               recentGrades: reportData.grades,
               assignmentsPending: reportData.pendingAssignments,
-              aiSummary,
+              weeklySummary,
             };
 
             await this.emailService.sendEmail({
@@ -115,82 +99,52 @@ export class ScheduledReportService {
   }
 
   /**
-   * Run every day at 12:00 AM (Midnight) for Homework Alerts (Red Alert)
-   */
-  @Cron('0 0 * * *')
-  async handleMidnightHomeworkAlerts() {
-    this.logger.log('Running 12:00 AM check for missing homeworks...');
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    // Find assignments due yesterday where students didn't submit
-    const dueAssignments = await this.prisma.assignment.findMany({
-      where: {
-        dueDate: {
-          gte: new Date(yesterday.setHours(0,0,0,0)),
-          lt: new Date(yesterday.setHours(23,59,59,999)),
-        }
-      },
-      // @ts-ignore
-      include: {
-        submissions: true,
-        class: {
-          include: { enrollments: true }
-        }
-      } as any
-    });
-
-    let missingCount = 0;
-    for (const assignment of dueAssignments) {
-      if (!(assignment as any).class) continue;
-      const submittedStudentIds = (assignment as any).submissions.map((s: any) => s.studentId);
-      const missingStudents = (assignment as any).class.enrollments.filter((e: any) => !submittedStudentIds.includes(e.studentId));
-      
-      missingCount += missingStudents.length;
-    }
-    this.logger.log(`Found ${missingCount} missing submissions for 12:00 AM parent red alert.`);
-  }
-
-  /**
    * Run every day at 5:00 PM for Principal/VP Executive Report
    */
   @Cron('0 17 * * *')
   async handleDailyExecutiveReport() {
     this.logger.log('Generating Daily Executive Report for Principals and VPs...');
-    // We fetch PRINCIPAL and VICE_PRINCIPAL users through generic lookup
-    const executives = await this.prisma.user.findMany({
-      where: { role: { in: ['PRINCIPAL', 'VICE_PRINCIPAL'] as any } }
+    const schools = await this.prisma.school.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
     });
-
-    const activeTeachers = await this.prisma.user.count({ where: { role: 'TEACHER', isActive: true } });
-    const students = await this.prisma.user.count({ where: { role: 'STUDENT', isActive: true } });
     const today = new Date();
-    today.setHours(0,0,0,0);
-    const todayAttendance = await this.prisma.attendance.count({ where: { date: { gte: today } } });
+    today.setHours(0, 0, 0, 0);
 
-    for (const exec of executives) {
-      if (exec.email) {
+    for (const school of schools) {
+      const schoolName = escapeHtml(school.name);
+      const [executives, activeTeachers, students, todayAttendance] = await Promise.all([
+        this.prisma.user.findMany({
+          where: {
+            schoolId: school.id,
+            role: { in: [Role.PRINCIPAL, Role.VICE_PRINCIPAL] },
+            isActive: true,
+          },
+          select: { id: true, email: true, name: true, firstName: true },
+        }),
+        this.prisma.user.count({ where: { schoolId: school.id, role: Role.TEACHER, isActive: true } }),
+        this.prisma.user.count({ where: { schoolId: school.id, role: Role.STUDENT, isActive: true } }),
+        this.prisma.attendance.count({
+          where: { date: { gte: today }, class: { schoolId: school.id } },
+        }),
+      ]);
+
+      for (const exec of executives) {
+        if (!exec.email) continue;
         await this.emailService.sendEmail({
           to: exec.email,
-          subject: `التقرير اليومي المجمع للإدارة العليا - Nexus EDU`,
+          subject: `التقرير اليومي المجمع - ${school.name}`,
           html: `<div dir="rtl">
-            <h2>التقرير الإحصائي اليومي المتقدم</h2>
-            <p>إجمالي المعلمين الملتزمين بالحضور: ${activeTeachers}</p>
+            <h2>التقرير الإحصائي اليومي - ${schoolName}</h2>
+            <p>إجمالي المعلمين النشطين: ${activeTeachers}</p>
+            <p>إجمالي الطلاب النشطين: ${students}</p>
             <p>سجلات الحضور المسجلة اليوم للطلاب: ${todayAttendance}</p>
             <hr/>
-            <p>تم استخراج هذا التقرير تلقائياً بواسطة نظام Nexus ERP.</p>
+            <p>تم استخراج هذا التقرير تلقائياً بواسطة نظام نكسس.</p>
           </div>`
         });
       }
     }
-  }
-
-  /**
-   * Run every morning at 8:00 AM check teachers missed prep
-   */
-  @Cron('0 8 * * *')
-  async handleMissedPrepAlerts() {
-    this.logger.log('Verifying Teacher Preparation completion for earlier classes...');
   }
 
   /**
@@ -238,12 +192,16 @@ export class ScheduledReportService {
       name: s.assignment.title,
     }));
 
-    // 3. Pending Assignments
+    // Count only assignments for the student's enrolled classes that have no submission.
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { studentId },
+      select: { classId: true },
+    });
     const pendingAssignments = await this.prisma.assignment.count({
       where: {
-        // This is a simplified query. In reality, we'd check against submissions
+        classId: { in: enrollments.map((enrollment) => enrollment.classId) },
         dueDate: { gte: new Date() },
-        // subject: { enrollments: { some: { studentId } } } // implied
+        submissions: { none: { studentId } },
       },
     });
 

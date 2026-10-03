@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/hooks/use-auth';
 import { messagingService, Conversation, Message } from '@/lib/services/messaging.service';
 import { toast } from '@/components/ui/use-toast';
 import { io, Socket } from 'socket.io-client';
+import { getSocketBaseUrl } from '@/lib/api/endpoints';
 
 export default function MessagesPage() {
   const t = useTranslations('Teacher');
@@ -47,11 +48,11 @@ export default function MessagesPage() {
   // Connect to WebSocket
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    if (!token) return;
+    const socketUrl = getSocketBaseUrl();
+    if (!token || !socketUrl) return;
 
-    socketRef.current = io(process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3001', {
+    socketRef.current = io(`${socketUrl}/events`, {
       path: '/socket.io',
-      namespace: '/events',
       auth: { token },
       transports: ['websocket'],
     } as any);

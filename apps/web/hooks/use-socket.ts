@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { getSocketBaseUrl } from '../lib/api/endpoints';
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
@@ -9,11 +8,12 @@ export function useSocket() {
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    if (!token) return;
+    const socketUrl = getSocketBaseUrl();
+    if (!token || !socketUrl) return;
 
     // Initialize socket
     // Namespace is /chat as defined in Gateway
-    socketRef.current = io(`${SOCKET_URL}/chat`, {
+    socketRef.current = io(`${socketUrl}/chat`, {
         auth: { token },
         transports: ['websocket'],
     });

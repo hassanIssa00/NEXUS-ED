@@ -33,7 +33,7 @@ export interface TeacherPerformance {
     assignmentsCreated: number;
     assignmentsGraded: number;
     avgStudentScore: number;
-  attendanceRecorded: number | null;
+  attendanceRecorded: number;
   };
   lastActivity: Date | null;
 }

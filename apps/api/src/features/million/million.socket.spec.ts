@@ -150,12 +150,9 @@ describe('Million WebSocket', () => {
       callback,
     );
 
-    expect(mockedMillionService.createRoom).toHaveBeenCalledWith(
-      'user-123',
-      room.title,
-      room.type,
-      { questionCount: 5 },
-    );
+    expect(mockedMillionService.createRoom.mock.calls).toContainEqual([
+      'user-123', room.title, room.type, { questionCount: 5 },
+    ]);
     expect(socket.join).toHaveBeenCalledWith(room.id);
     expect(callback).toHaveBeenCalledWith({ success: true, room });
     expect(namespaceMock.emit).toHaveBeenCalledWith('room.created', {
@@ -215,7 +212,7 @@ describe('Million WebSocket', () => {
     await authenticateAndConnect(socket);
     await socketHandlers['leave-room']({ roomId: 'room-123' }, callback);
 
-    expect(mockedMillionService.leaveRoom).toHaveBeenCalledWith('user-123', 'room-123');
+    expect(mockedMillionService.leaveRoom.mock.calls).toContainEqual(['user-123', 'room-123']);
     expect(socket.leave).toHaveBeenCalledWith('room-123');
     expect(callback).toHaveBeenCalledWith({ success: true });
     expect(roomEmitter.emit).toHaveBeenCalledWith('room.left', {
@@ -299,7 +296,7 @@ describe('Million WebSocket', () => {
       await jest.advanceTimersByTimeAsync(15000);
       await flushPromises();
 
-      expect(mockedMillionService.finishRound).toHaveBeenCalledWith(round.id);
+      expect(mockedMillionService.finishRound.mock.calls).toContainEqual([round.id]);
       expect(roomEmitter.emit).toHaveBeenCalledWith('round.finished', {
         roomId,
         roundId: round.id,

@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Role } from '../auth/role.enum';
+import { Role } from '@prisma/client';
 import { EventsGateway } from '../gateway/events.gateway';
 import { PrismaService } from '../prisma.service';
 

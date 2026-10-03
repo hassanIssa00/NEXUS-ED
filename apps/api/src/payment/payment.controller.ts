@@ -86,7 +86,7 @@ export class PaymentController {
   @Post('webhook')
   @ApiOperation({ summary: 'Handle Stripe payment webhooks' })
   async handleWebhook(
-    @Headers('stripe-signature') signature: string | undefined,
+    @Headers('stripe-signature') signature: string,
     @Req() req: ExpressRequest & { body: Buffer },
   ) {
     if (!Buffer.isBuffer(req.body)) {

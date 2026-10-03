@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
 export interface AssignmentTemplate {
@@ -337,7 +338,7 @@ export class AssignmentTemplateService {
   /**
    * Get all available templates
    */
-  async getAllTemplates(category?: string): Promise<AssignmentTemplate[]> {
+  getAllTemplates(category?: string): AssignmentTemplate[] {
     let templates = this.builtInTemplates;
 
     if (category) {
@@ -350,14 +351,16 @@ export class AssignmentTemplateService {
   /**
    * Get template by ID
    */
-  async getTemplateById(id: string): Promise<AssignmentTemplate | null> {
-    return this.builtInTemplates.find((t) => t.id === id) || null;
+  getTemplateById(id: string): AssignmentTemplate {
+    const template = this.builtInTemplates.find((item) => item.id === id);
+    if (!template) throw new NotFoundException('Assignment template not found');
+    return template;
   }
 
   /**
    * Search templates
    */
-  async searchTemplates(query: string): Promise<AssignmentTemplate[]> {
+  searchTemplates(query: string): AssignmentTemplate[] {
     const lowerQuery = query.toLowerCase();
     return this.builtInTemplates.filter(
       (t) =>
@@ -372,40 +375,71 @@ export class AssignmentTemplateService {
    */
   async createFromTemplate(
     templateId: string,
-    teacherId: string,
+    actorId: string,
     classId: string,
     customizations: {
       title?: string;
-      dueDate?: Date;
+      dueDate?: Date | string;
       points?: number;
     },
-  ): Promise<any> {
-    const template = await this.getTemplateById(templateId);
-    if (!template) throw new Error('Template not found');
+  ) {
+    const template = this.getTemplateById(templateId);
+    const actor = await this.prisma.user.findUnique({
+      where: { id: actorId },
+      select: { id: true, role: true, schoolId: true, isActive: true },
+    });
+    if (!actor?.isActive || !actor.schoolId || actor.role !== Role.TEACHER) {
+      throw new ForbiddenException('An active school teacher account is required');
+    }
 
-    // Create assignment in database
-    const assignment = await this.prisma.assignment.create({
-      data: {
-        title: customizations.title || template.titleAr,
-        description: template.descriptionAr,
-        dueDate: customizations.dueDate || new Date(),
-        // Note: Simplified - in real implementation, would create proper subject/class relationship
-        subjectId: 'default-subject-id', // TODO: Get from class
-        teacherId: teacherId,
+    const targetClass = await this.prisma.class.findFirst({
+      where: { id: classId, schoolId: actor.schoolId },
+      select: {
+        id: true,
+        subjects: {
+          where: { schoolId: actor.schoolId, teacherId: actor.id },
+          select: { id: true },
+          take: 1,
+        },
       },
     });
+    if (!targetClass) throw new NotFoundException('Class not found');
+    const subject = targetClass.subjects[0];
+    if (!subject) throw new ForbiddenException('You are not assigned to teach a subject in this class');
 
-    return assignment;
+    if (customizations.points !== undefined &&
+        (!Number.isFinite(customizations.points) || customizations.points <= 0)) {
+      throw new BadRequestException('Assignment points must be a positive number');
+    }
+    const dueDate = customizations.dueDate === undefined
+      ? undefined
+      : new Date(customizations.dueDate);
+    if (dueDate && Number.isNaN(dueDate.getTime())) {
+      throw new BadRequestException('Due date is invalid');
+    }
+
+    return this.prisma.assignment.create({
+      data: {
+        title: customizations.title?.trim() || template.titleAr,
+        description: template.descriptionAr,
+        ...(dueDate ? { dueDate } : {}),
+        subjectId: subject.id,
+        teacherId: actor.id,
+        classId: targetClass.id,
+        schoolId: actor.schoolId,
+        maxScore: customizations.points ?? template.defaultPoints,
+      },
+    });
   }
 
   /**
    * Get template statistics
    */
-  async getTemplateStats(): Promise<{
+  getTemplateStats(): {
     totalTemplates: number;
     byCategory: Record<string, number>;
     byType: Record<string, number>;
-  }> {
+  } {
     const byCategory: Record<string, number> = {};
     const byType: Record<string, number> = {};
 

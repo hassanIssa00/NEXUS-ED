@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { getApiUrl, getStoredAccessToken } from '../api/endpoints';
 
 export interface AnalyticsOverview {
     users: {
@@ -25,8 +25,8 @@ export interface AnalyticsOverview {
 
 class AnalyticsService {
     async getOverview(): Promise<AnalyticsOverview> {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/analytics/overview`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl('/analytics/overview'), {
             headers: {
                 'Authorization': `Bearer ${token}`,
             },
@@ -37,8 +37,8 @@ class AnalyticsService {
     }
 
     async getUserGrowth(days: number = 30) {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/analytics/user-growth?days=${days}`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl(`/analytics/user-growth?days=${encodeURIComponent(String(days))}`), {
             headers: {
                 'Authorization': `Bearer ${token}`,
             },

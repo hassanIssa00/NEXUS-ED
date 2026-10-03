@@ -10,7 +10,7 @@ export class PaymentService {
   constructor(private prisma: PrismaService) {
     this.stripe = process.env.STRIPE_SECRET_KEY
       ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-          // @ts-ignore
+          // @ts-expect-error Stripe's generated API version type lags the configured SDK API version.
           apiVersion: '2024-12-18.acacia',
         })
       : null;
@@ -25,7 +25,7 @@ export class PaymentService {
     action: string;
     entityId?: string;
     userId?: string;
-    schoolId?: string | null;
+  schoolId?: string;
     metadata?: Prisma.InputJsonValue;
   }) {
     if (!('auditLog' in this.prisma) || !this.prisma.auditLog) {
@@ -139,7 +139,7 @@ export class PaymentService {
 
   async getInvoicesForAccount(userId: string, role: string) {
     let studentIds: string[];
-    let schoolId: string | null;
+    let schoolId: string;
     if (role === Role.STUDENT) {
       const student = await this.prisma.user.findFirst({ where: { id: userId, role: Role.STUDENT }, select: { id: true, schoolId: true } });
       if (!student) throw new NotFoundException('Student not found');
@@ -249,7 +249,7 @@ export class PaymentService {
     };
   }
 
-  async handleStripeWebhook(signature: string | undefined, payload: Buffer) {
+  async handleStripeWebhook(signature: string, payload: Buffer) {
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!webhookSecret || !signature) {
       throw new Error('Stripe webhook secret/signature missing');

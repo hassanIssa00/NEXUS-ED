@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { getSocketBaseUrl } from '../api/endpoints';
 
 // ─────────────────────────────────────────────────────────
 // Types
@@ -62,23 +63,15 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const hostname = window.location.hostname;
-      const rawApi = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') ?? 'http://localhost:4000';
-      if (hostname !== 'localhost' && hostname !== '127.0.0.1' && rawApi.includes('localhost')) {
-        // In production without external WS server, skip connecting to localhost to avoid lag
-        return;
-      }
-    }
-
-    const API_URL =
-      process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') ??
-      'http://localhost:4000';
+    const socketUrl = getSocketBaseUrl();
+    if (!socketUrl) return;
 
     const token =
-      typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      typeof window !== 'undefined'
+        ? localStorage.getItem('access_token') || localStorage.getItem('token')
+        : null;
 
-    const socket = io(`${API_URL}/events`, {
+    const socket = io(`${socketUrl}/events`, {
       auth: { token: token ?? '' },
       transports: ['websocket', 'polling'],
       reconnectionDelay: 5000,

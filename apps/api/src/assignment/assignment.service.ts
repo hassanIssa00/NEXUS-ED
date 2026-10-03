@@ -21,8 +21,8 @@ export class AssignmentService {
   ) {}
 
   private async ownedFileReferences(
-    values: string[] | undefined,
-    actor: { id: string; role: string; schoolId: string | null },
+    values: string[],
+    actor: { id: string; role: string; schoolId: string },
   ): Promise<string[]> {
     if (!values?.length) return [];
     if (this.uploadService) {
@@ -69,7 +69,7 @@ export class AssignmentService {
     action: string;
     entityId?: string;
     userId?: string;
-    schoolId?: string | null;
+    schoolId?: string;
     metadata?: Prisma.InputJsonValue;
   }) {
     if (!('auditLog' in this.prisma) || !this.prisma.auditLog) {
@@ -101,8 +101,8 @@ export class AssignmentService {
   }
 
   private assertAssignmentManager(
-    actor: { id: string; role: string; schoolId: string | null },
-    assignment: { teacherId: string; schoolId: string | null },
+    actor: { id: string; role: string; schoolId: string },
+    assignment: { teacherId: string; schoolId: string },
   ) {
     if (actor.schoolId !== assignment.schoolId) {
       throw new ForbiddenException('Assignment belongs to another school');

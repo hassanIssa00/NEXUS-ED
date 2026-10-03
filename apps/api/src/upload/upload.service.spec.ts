@@ -51,7 +51,7 @@ describe('UploadService', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-secret';
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ public: true }),
+      json: () => Promise.resolve({ public: true }),
     }) as jest.MockedFunction<typeof fetch>;
 
     await expect(
@@ -69,11 +69,11 @@ describe('UploadService', () => {
     process.env.SUPABASE_URL = 'https://storage.example.test';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-secret';
     global.fetch = jest.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ public: false }) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ public: false }) })
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ signedURL: '/object/sign/assignments/file.pdf?token=temporary' }),
+        json: () => Promise.resolve({ signedURL: '/object/sign/assignments/file.pdf?token=temporary' }),
       }) as jest.MockedFunction<typeof fetch>;
 
     const uploaded = await service.uploadToSupabase(Buffer.from('private file'), 'report.pdf', 'application/pdf');
@@ -113,13 +113,13 @@ describe('UploadService', () => {
     process.env.SUPABASE_URL = 'https://storage.example.test';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-secret';
     global.fetch = jest.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ public: false }) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ public: false }) })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => [
+        json: () => Promise.resolve([
           { path: 'first.pdf', signedURL: '/object/sign/assignments/first.pdf?token=first' },
           { path: 'second.pdf', signedURL: '/object/sign/assignments/second.pdf?token=second' },
-        ],
+        ]),
       }) as jest.MockedFunction<typeof fetch>;
 
     await expect(service.getSignedUrlsForReferences(['file:file-1', 'file:file-2'])).resolves.toEqual([

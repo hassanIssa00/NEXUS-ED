@@ -15,23 +15,23 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
 
   protected async getTracker(req: Record<string, unknown>): Promise<string> {
     // Use user ID if authenticated, otherwise use IP
-    const user = req['user'] as { id?: string } | undefined;
+    const user = req['user'] as { id?: string };
     if (user?.id) {
       return `user:${user.id}`;
     }
-    return `ip:${(req['ip'] as string) || 'unknown'}`;
+    return Promise.resolve(`ip:${(req['ip'] as string) || 'unknown'}`);
   }
 
-  protected async shouldSkip(context: ExecutionContext): Promise<boolean> {
+  protected shouldSkip(context: ExecutionContext): Promise<boolean> {
     // Skip throttling for health checks
     const request = context.switchToHttp().getRequest();
     const path = request.url || request.path;
 
     if (path?.includes('/health') || path?.includes('/metrics')) {
-      return true;
+      return Promise.resolve(true);
     }
 
-    return false;
+    return Promise.resolve(false);
   }
 
   protected async throwThrottlingException(

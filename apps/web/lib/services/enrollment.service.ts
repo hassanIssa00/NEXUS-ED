@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { getApiUrl, getStoredAccessToken } from '../api/endpoints';
 
 export interface Enrollment {
     id: string;
@@ -22,8 +22,8 @@ export interface Enrollment {
 
 class EnrollmentService {
     async create(studentId: string, classId: string): Promise<Enrollment> {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/enrollments`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl('/enrollments'), {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -40,8 +40,8 @@ class EnrollmentService {
     }
 
     async bulkEnroll(studentIds: string[], classId: string) {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/enrollments/bulk`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl('/enrollments/bulk'), {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -55,8 +55,8 @@ class EnrollmentService {
     }
 
     async getByClass(classId: string): Promise<Enrollment[]> {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/enrollments/class/${classId}`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl(`/enrollments/class/${encodeURIComponent(classId)}`), {
             headers: {
                 'Authorization': `Bearer ${token}`,
             },
@@ -67,8 +67,8 @@ class EnrollmentService {
     }
 
     async getByStudent(studentId: string): Promise<Enrollment[]> {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/enrollments/student/${studentId}`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl(`/enrollments/student/${encodeURIComponent(studentId)}`), {
             headers: {
                 'Authorization': `Bearer ${token}`,
             },
@@ -79,8 +79,8 @@ class EnrollmentService {
     }
 
     async delete(id: string): Promise<void> {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/enrollments/${id}`, {
+        const token = getStoredAccessToken();
+        const response = await fetch(getApiUrl(`/enrollments/${encodeURIComponent(id)}`), {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`,

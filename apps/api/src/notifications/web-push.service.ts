@@ -32,8 +32,7 @@ export class WebPushService {
   private initializeWebPush() {
     const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
     const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-    const vapidEmail =
-      process.env.VAPID_EMAIL || 'mailto:admin@million-platform.com';
+    const vapidEmail = process.env.VAPID_EMAIL || 'mailto:admin@nexus.masarplatform.org';
 
     if (!vapidPublicKey || !vapidPrivateKey) {
       this.logger.warn('VAPID keys not configured. Web Push disabled.');
@@ -48,25 +47,25 @@ export class WebPushService {
   /**
    * Save push subscription for a user
    */
-  async saveSubscription(
+  saveSubscription(
     userId: string,
     subscription: PushSubscription,
   ): Promise<void> {
     void userId;
     void subscription;
-    throw new ServiceUnavailableException('Push subscription storage is not configured');
+    return Promise.reject(new ServiceUnavailableException('Push subscription storage is not configured'));
   }
 
   /**
    * Send push notification to a user
    */
-  async sendPushToUser(
+  sendPushToUser(
     userId: string,
     payload: PushNotificationPayload,
   ): Promise<boolean> {
     void userId;
     void payload;
-    return false;
+    return Promise.resolve(false);
   }
 
   /**
@@ -91,10 +90,10 @@ export class WebPushService {
   /**
    * Unsubscribe a device
    */
-  async unsubscribe(userId: string, endpoint: string): Promise<void> {
+  unsubscribe(userId: string, endpoint: string): Promise<void> {
     void userId;
     void endpoint;
-    throw new ServiceUnavailableException('Push subscription storage is not configured');
+    return Promise.reject(new ServiceUnavailableException('Push subscription storage is not configured'));
   }
 
   /**

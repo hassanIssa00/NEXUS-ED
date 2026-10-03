@@ -51,7 +51,7 @@ export class AuthService {
     ) { }
 
     private async createAuditLog(data: {
-        schoolId?: string | null;
+        schoolId?: string;
         userId?: string;
         action: string;
         entityType: string;
@@ -111,8 +111,8 @@ export class AuthService {
         id: string;
         email: string;
         role: string;
-        name: string | null;
-        schoolId: string | null;
+        name: string;
+        schoolId: string;
     }) {
         return {
             sub: user.id,
@@ -128,9 +128,9 @@ export class AuthService {
         id: string;
         email: string;
         role: string;
-        name: string | null;
-        schoolId: string | null;
-        phone?: string | null;
+        name: string;
+        schoolId: string;
+        phone?: string;
     }) {
         return {
             id: user.id,
@@ -644,7 +644,7 @@ export class AuthService {
         };
     }
 
-    async assertAuthConfiguration(): Promise<void> {
+    assertAuthConfiguration(): void {
         const jwtSecret = this.configService.get<string>('JWT_SECRET');
         if (!jwtSecret) {
             throw new InternalServerErrorException('JWT_SECRET is not configured');

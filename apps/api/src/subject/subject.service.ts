@@ -19,7 +19,7 @@ export class SubjectService {
     if (!classroom) throw new NotFoundException('Class not found in this school');
   }
 
-  private async assertTeacher(teacherId: string | undefined, schoolId: string) {
+  private async assertTeacher(teacherId: string, schoolId: string) {
     if (!teacherId) return;
     const teacher = await this.prisma.user.findFirst({
       where: { id: teacherId, schoolId, role: 'TEACHER', isActive: true },

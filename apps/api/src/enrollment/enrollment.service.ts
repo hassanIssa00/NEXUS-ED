@@ -115,7 +115,7 @@ export class EnrollmentService {
     return this.prisma.enrollment.delete({ where: { id } });
   }
 
-  async findCandidates(classId: string, schoolId: string | undefined, pageValue?: string, limitValue?: string, searchValue?: string) {
+  async findCandidates(classId: string, schoolId: string, pageValue?: string, limitValue?: string, searchValue?: string) {
     const scopedSchoolId = this.requireSchool(schoolId);
     const classroom = await this.prisma.class.findFirst({ where: { id: classId, schoolId: scopedSchoolId }, select: { id: true } });
     if (!classroom) throw new NotFoundException('Class not found in this school');

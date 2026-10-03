@@ -17,7 +17,17 @@ export interface EmailTemplateData {
     name: string;
   }[];
   assignmentsPending?: number;
-  aiSummary?: string;
+  weeklySummary?: string;
+}
+
+function escapeHtml(value: string | number): string {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character] ?? character);
 }
 
 export class EmailTemplates {
@@ -105,26 +115,26 @@ export class EmailTemplates {
             <h1>📢 إشعار غياب</h1>
           </div>
           <div class="content">
-            <p>عزيزي/عزيزتي <strong>${data.parentName}</strong>،</p>
+            <p>عزيزي/عزيزتي <strong>${escapeHtml(data.parentName)}</strong>،</p>
             
-            <p>نود إبلاغكم بأن ابنكم/ابنتكم <strong>${data.studentName}</strong> 
-            في الصف <strong>${data.className}</strong> كان غائباً بتاريخ <strong>${data.date}</strong>.</p>
+            <p>نود إبلاغكم بأن ابنكم/ابنتكم <strong>${escapeHtml(data.studentName)}</strong>
+            في الصف <strong>${escapeHtml(data.className)}</strong> كان غائباً بتاريخ <strong>${escapeHtml(data.date)}</strong>.</p>
             
             <div class="info-box">
               <p><strong>معلومات الغياب:</strong></p>
-              <p>📅 التاريخ: ${data.date}</p>
-              <p>🏫 الصف: ${data.className}</p>
-              <p>👨‍🎓 الطالب: ${data.studentName}</p>
+              <p>📅 التاريخ: ${escapeHtml(data.date)}</p>
+              <p>🏫 الصف: ${escapeHtml(data.className)}</p>
+              <p>👨‍🎓 الطالب: ${escapeHtml(data.studentName)}</p>
             </div>
             
             <p>يرجى التواصل مع إدارة المدرسة في حال كان هناك أي استفسار.</p>
             
             <p>مع تحياتنا،<br>
-            <strong>منصة المليون التعليمية</strong></p>
+            <strong>منصة نكسس التعليمية</strong></p>
           </div>
           <div class="footer">
             <p>هذه رسالة آلية، يرجى عدم الرد عليها</p>
-            <p>© 2026 منصة المليون - جميع الحقوق محفوظة</p>
+            <p>© 2026 نكسس EDU - جميع الحقوق محفوظة</p>
           </div>
         </div>
       </body>
@@ -147,27 +157,27 @@ export class EmailTemplates {
             <h1>📝 تذكير بامتحان قادم</h1>
           </div>
           <div class="content">
-            <p>عزيزي/عزيزتي <strong>${data.studentName}</strong>،</p>
+            <p>عزيزي/عزيزتي <strong>${escapeHtml(data.studentName)}</strong>،</p>
             
             <p>نذكرك بأن لديك امتحان قادم!</p>
             
             <div class="info-box">
               <p><strong>تفاصيل الامتحان:</strong></p>
-              <p>📚 المادة: ${data.subjectName}</p>
-              <p>📖 الامتحان: ${data.examTitle}</p>
-              <p>📅 التاريخ: ${data.date}</p>
+              <p>📚 المادة: ${escapeHtml(data.subjectName)}</p>
+              <p>📖 الامتحان: ${escapeHtml(data.examTitle)}</p>
+              <p>📅 التاريخ: ${escapeHtml(data.date)}</p>
             </div>
             
             <p>نتمنى لك التوفيق والنجاح! 🌟</p>
             
-            <a href="#" class="button">مراجعة المادة</a>
+            <p>يمكنك مراجعة تفاصيل المادة من حسابك في منصة نكسس.</p>
             
             <p>مع تحياتنا،<br>
-            <strong>منصة المليون التعليمية</strong></p>
+            <strong>منصة نكسس التعليمية</strong></p>
           </div>
           <div class="footer">
             <p>هذه رسالة آلية، يرجى عدم الرد عليها</p>
-            <p>© 2026 منصة المليون - جميع الحقوق محفوظة</p>
+            <p>© 2026 نكسس EDU - جميع الحقوق محفوظة</p>
           </div>
         </div>
       </body>
@@ -190,27 +200,27 @@ export class EmailTemplates {
             <h1>⏰ واجب متأخر</h1>
           </div>
           <div class="content">
-            <p>عزيزي/عزيزتي <strong>${data.studentName}</strong>،</p>
+            <p>عزيزي/عزيزتي <strong>${escapeHtml(data.studentName)}</strong>،</p>
             
             <p>لديك واجب لم يتم تسليمه بعد!</p>
             
             <div class="info-box" style="border-right-color: #f5576c;">
               <p><strong>تفاصيل الواجب:</strong></p>
-              <p>📚 المادة: ${data.subjectName}</p>
-              <p>📝 الواجب: ${data.assignmentTitle}</p>
-              <p>📅 آخر موعد للتسليم: ${data.dueDate}</p>
+              <p>📚 المادة: ${escapeHtml(data.subjectName)}</p>
+              <p>📝 الواجب: ${escapeHtml(data.assignmentTitle)}</p>
+              <p>📅 آخر موعد للتسليم: ${escapeHtml(data.dueDate)}</p>
             </div>
             
             <p><strong>يرجى تسليم الواجب في أقرب وقت ممكن.</strong></p>
             
-            <a href="#" class="button" style="background-color: #f5576c;">تسليم الواجب الآن</a>
+            <p>يرجى فتح الواجب من حسابك في منصة نكسس.</p>
             
             <p>مع تحياتنا،<br>
-            <strong>منصة المليون التعليمية</strong></p>
+            <strong>منصة نكسس التعليمية</strong></p>
           </div>
           <div class="footer">
             <p>هذه رسالة آلية، يرجى عدم الرد عليها</p>
-            <p>© 2026 منصة المليون - جميع الحقوق محفوظة</p>
+            <p>© 2026 نكسس EDU - جميع الحقوق محفوظة</p>
           </div>
         </div>
       </body>
@@ -240,34 +250,32 @@ export class EmailTemplates {
             <h1>✨ درجة جديدة</h1>
           </div>
           <div class="content">
-            <p>عزيزي/عزيزتي <strong>${data.studentName}</strong>،</p>
+            <p>عزيزي/عزيزتي <strong>${escapeHtml(data.studentName)}</strong>،</p>
             
             <p>تم رصد درجة جديدة لك!</p>
             
             <div class="info-box" style="border-right-color: ${gradeColor};">
               <p><strong>تفاصيل الدرجة:</strong></p>
-              <p>📚 المادة: ${data.subjectName}</p>
-              <p>📝 التقييم: ${data.assignmentTitle || data.examTitle}</p>
-              <p>📅 التاريخ: ${data.date}</p>
+              <p>📚 المادة: ${escapeHtml(data.subjectName)}</p>
+              <p>📝 التقييم: ${escapeHtml(data.assignmentTitle || data.examTitle)}</p>
+              <p>📅 التاريخ: ${escapeHtml(data.date)}</p>
               <div style="text-align: center; margin: 20px 0;">
                 <span class="grade-badge" style="background: ${gradeColor};">
-                  ${data.grade}/100
+                  ${escapeHtml(data.grade)}/100
                 </span>
               </div>
             </div>
             
-            ${data.message ? `<p><strong>تعليق المدرس:</strong> ${data.message}</p>` : ''}
+            ${data.message ? `<p><strong>تعليق المدرس:</strong> ${escapeHtml(data.message)}</p>` : ''}
             
-            <a href="#" class="button" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
-              عرض التفاصيل
-            </a>
+            <p>يمكنك مراجعة تفاصيل الدرجة من حسابك في منصة نكسس.</p>
             
             <p>مع تحياتنا،<br>
-            <strong>منصة المليون التعليمية</strong></p>
+            <strong>منصة نكسس التعليمية</strong></p>
           </div>
           <div class="footer">
             <p>هذه رسالة آلية، يرجى عدم الرد عليها</p>
-            <p>© 2026 منصة المليون - جميع الحقوق محفوظة</p>
+            <p>© 2026 نكسس EDU - جميع الحقوق محفوظة</p>
           </div>
         </div>
       </body>
@@ -275,7 +283,7 @@ export class EmailTemplates {
     `;
   }
 
-  static weeklyReport(data: EmailTemplateData & { reportData?: any }): string {
+  static weeklyReport(data: EmailTemplateData): string {
     return `
       <!DOCTYPE html>
       <html lang="ar">
@@ -290,15 +298,15 @@ export class EmailTemplates {
             <h1>📊 التقرير الأسبوعي</h1>
           </div>
           <div class="content">
-            <p>عزيزي/عزيزتي <strong>${data.parentName}</strong>،</p>
+            <p>عزيزي/عزيزتي <strong>${escapeHtml(data.parentName)}</strong>،</p>
             
-            <p>إليك ملخص أداء ابنك/ابنتك <strong>${data.studentName}</strong> لهذا الأسبوع:</p>
+            <p>إليك ملخص السجلات المسجلة للطالب/ة <strong>${escapeHtml(data.studentName)}</strong> هذا الأسبوع:</p>
             
             <div class="info-box">
               <p><strong>📈 ملخص الأداء:</strong></p>
-              <p>✅ الحضور: ${data.attendanceStats?.present || 0} حاضر - ${data.attendanceStats?.absent || 0} غائب</p>
-              <p>📝 امتحانات/واجبات حديثة: ${data.recentGrades?.length || 0}</p>
-              <p>⏳ واجبات معلقة: ${data.assignmentsPending || 0}</p>
+              <p>✅ الحضور: ${escapeHtml(data.attendanceStats?.present ?? 0)} حاضر - ${escapeHtml(data.attendanceStats?.absent ?? 0)} غائب</p>
+              <p>📝 درجات حديثة مسجلة: ${escapeHtml(data.recentGrades?.length ?? 0)}</p>
+              <p>⏳ واجبات مستحقة غير مسلمة: ${escapeHtml(data.assignmentsPending ?? 0)}</p>
             </div>
 
             ${
@@ -307,7 +315,7 @@ export class EmailTemplates {
             <div class="info-box">
               <p><strong>آخر الدرجات:</strong></p>
               <ul>
-                ${data.recentGrades.map((g) => `<li>${g.subject}: ${g.score}/${g.max} (${g.name})</li>`).join('')}
+                ${data.recentGrades.map((grade) => `<li>${escapeHtml(grade.subject)}: ${escapeHtml(grade.score)}/${escapeHtml(grade.max)} (${escapeHtml(grade.name)})</li>`).join('')}
               </ul>
             </div>
             `
@@ -315,18 +323,18 @@ export class EmailTemplates {
             }
             
             <div class="info-box">
-              <p><strong>🤖 تحليل الذكاء الاصطناعي لمستوى الطالب:</strong></p>
-              <p style="white-space: pre-wrap; font-size: 15px;">${data.aiSummary || 'جاري تجميع البيانات وتحليلها...'}</p>
+              <p><strong>ملخص السجلات الفعلية:</strong></p>
+              <p style="white-space: pre-wrap; font-size: 15px;">${escapeHtml(data.weeklySummary || 'لا توجد بيانات كافية لإعداد ملخص لهذا الأسبوع.')}</p>
             </div>
             
-            <a href="#" class="button">عرض التقرير الكامل</a>
+            <p>يمكنك الاطلاع على التفاصيل من حساب ولي الأمر في منصة نكسس.</p>
             
             <p>مع تحياتنا،<br>
-            <strong>منصة المليون التعليمية</strong></p>
+            <strong>منصة نكسس التعليمية</strong></p>
           </div>
           <div class="footer">
             <p>هذه رسالة آلية، يرجى عدم الرد عليها</p>
-            <p>© 2026 منصة المليون - جميع الحقوق محفوظة</p>
+            <p>© 2026 نكسس EDU - جميع الحقوق محفوظة</p>
           </div>
         </div>
       </body>

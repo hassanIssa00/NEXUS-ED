@@ -6,8 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateLessonDto, UpdateLessonDto } from './dto/lesson.dto';
-import { Prisma } from '@prisma/client';
-import { Role } from '../auth/role.enum';
+import { Prisma, Role } from '@prisma/client';
 import { UploadService } from '../upload/upload.service';
 
 @Injectable()
@@ -24,8 +23,8 @@ export class LessonService {
   }
 
   private async ownedFileReferences(
-    values: string[] | undefined,
-    actor: { id: string; role: string; schoolId: string | null },
+    values: string[],
+    actor: { id: string; role: string; schoolId: string },
   ) {
     if (!values?.length || !this.uploadService) return values ?? [];
     return Promise.all(values.map((value) => this.uploadService.getOwnedFileReference(

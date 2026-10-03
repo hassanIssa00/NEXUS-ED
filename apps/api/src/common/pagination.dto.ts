@@ -72,6 +72,16 @@ export interface PaginatedResult<T> {
   };
 }
 
+function toCursorString(value: unknown): string {
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint') {
+    return String(value);
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString();
+  }
+  return undefined;
+}
+
 export function createPaginatedResult<T>(
   data: T[],
   total: number,
@@ -81,6 +91,10 @@ export function createPaginatedResult<T>(
   const page = pagination.page ?? 1;
   const limit = pagination.limit ?? 20;
   const totalPages = Math.ceil(total / limit);
+  const lastItem = data[data.length - 1];
+  const nextCursor = cursorField && lastItem
+    ? toCursorString(lastItem[cursorField])
+    : undefined;
 
   return {
     data,
@@ -91,10 +105,7 @@ export function createPaginatedResult<T>(
       totalPages,
       hasNextPage: page < totalPages,
       hasPreviousPage: page > 1,
-      nextCursor:
-        cursorField && data.length > 0
-          ? String(data[data.length - 1]?.[cursorField])
-          : undefined,
+      nextCursor,
     },
   };
 }

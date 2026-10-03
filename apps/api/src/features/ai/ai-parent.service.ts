@@ -13,11 +13,11 @@ export interface ParentAdviceResult {
 
 export interface LearningRiskResult {
   riskLevel: 'low' | 'medium' | 'high' | 'unknown';
-  riskScore: number | null;
+  riskScore: number;
   indicators: {
-    attendance: { score: number | null; detail: string };
-    gradesTrend: { score: number | null; detail: string };
-    assignmentCompletion: { score: number | null; detail: string };
+    attendance: { score: number; detail: string };
+    gradesTrend: { score: number; detail: string };
+    assignmentCompletion: { score: number; detail: string };
   };
   recommendation: string;
 }

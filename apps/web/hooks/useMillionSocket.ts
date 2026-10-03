@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+import { getSocketBaseUrl } from '../lib/api/endpoints';
 
 interface Player {
     id: string;
@@ -38,15 +37,20 @@ export function useMillionSocket(roomId?: string) {
     // Initialize socket connection
     useEffect(() => {
         // Get JWT token from localStorage or cookie
-        const token = localStorage.getItem('token') || '';
+        const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
+        const socketUrl = getSocketBaseUrl();
 
         if (!token) {
             setError('Authentication token not found');
             return;
         }
+        if (!socketUrl) {
+            setError('Realtime service is not configured for this deployment');
+            return;
+        }
 
         // Create socket connection
-        const newSocket = io(`${SOCKET_URL}/million`, {
+        const newSocket = io(`${socketUrl}/million`, {
             auth: { token },
             path: '/socket.io',
             transports: ['websocket', 'polling']

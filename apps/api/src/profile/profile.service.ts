@@ -1,11 +1,8 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../core/database/prisma.service';
 
 @Injectable()
 export class ProfileService {
-  private readonly logger = new Logger(ProfileService.name);
-
   constructor(private prisma: PrismaService) {}
 
   async getStudentProfile(studentId: string) {
@@ -46,11 +43,5 @@ export class ProfileService {
     return this.prisma.skillNode.findMany({
       where: { subjectId },
     });
-  }
-
-  @Cron(CronExpression.EVERY_WEEKEND)
-  async updateProfilesCron() {
-    this.logger.log('Running Smart Student Profile Analysis...');
-    // In a real app, we would query the grades and AI feedback to determine the learning style, strengths, etc.
   }
 }

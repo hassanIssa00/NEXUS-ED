@@ -245,7 +245,7 @@ export class PlacementAssessmentService {
     };
   }
 
-  private studentName(student: { name: string | null; firstName: string | null; lastName: string | null }) {
+  private studentName(student: { name: string; firstName: string; lastName: string }) {
     return student.name || [student.firstName, student.lastName].filter(Boolean).join(' ') || 'طالب بدون اسم';
   }
 }

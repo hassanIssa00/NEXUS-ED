@@ -5,14 +5,30 @@ import * as path from 'path';
 
 const logDir = path.join(process.cwd(), 'logs');
 
+function formatLogValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value instanceof Error) return value.message;
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint' || typeof value === 'symbol') {
+    return value.toString();
+  }
+  if (typeof value === 'function') return value.name || '[function]';
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '[unserializable]';
+  }
+}
+
 // Custom format for console output
 const consoleFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.colorize({ all: true }),
   winston.format.printf(({ timestamp, level, message, context, ...meta }) => {
-    const contextStr = context ? `[${context}]` : '';
+    const formattedContext = formatLogValue(context);
+    const contextStr = formattedContext ? `[${formattedContext}]` : '';
     const metaStr = Object.keys(meta).length ? JSON.stringify(meta) : '';
-    return `${timestamp} ${level} ${contextStr} ${message} ${metaStr}`;
+    return `${formatLogValue(timestamp)} ${formatLogValue(level)} ${contextStr} ${formatLogValue(message)} ${metaStr}`;
   }),
 );
 

@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsBoolean, IsEmail, IsEnum, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
-import { Role } from '../../auth/role.enum';
+import { Role } from '@prisma/client';
 
 export class CreateUserDto {
   @IsEmail()

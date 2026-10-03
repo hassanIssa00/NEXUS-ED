@@ -161,7 +161,6 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run lint --workspace=web
 
-      - name: Report existing API lint backlog
+      - name: Lint API
         if: ${{ !cancelled() }}
-        continue-on-error: true
         run: npm run lint --workspace=api

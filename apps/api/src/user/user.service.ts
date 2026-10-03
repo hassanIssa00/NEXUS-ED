@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateUserDto, UpdateUserDto, UserFilterDto } from './dto/user.dto';
 import * as bcrypt from 'bcrypt';
-import { Role } from '../auth/role.enum';
 import { createHash, randomBytes } from 'crypto';
 
 const PARENT_SURVEY_OPTIONS: Record<string, readonly string[]> = {

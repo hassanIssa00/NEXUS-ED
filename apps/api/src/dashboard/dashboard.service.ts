@@ -8,7 +8,7 @@ type ChartPoint = { label: string; value: number };
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private getSchoolWhere(schoolId?: string | null) {
+  private getSchoolWhere(schoolId?: string) {
     if (!schoolId) throw new ForbiddenException('The account is not assigned to a school');
     return { schoolId };
   }

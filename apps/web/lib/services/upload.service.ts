@@ -1,6 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-const getAccessToken = () =>
-    localStorage.getItem('access_token') || localStorage.getItem('token');
+import { getApiUrl, getStoredAccessToken } from '../api/endpoints';
+const getAccessToken = getStoredAccessToken;
 
 export interface UploadResponse {
     id: string;
@@ -44,7 +43,7 @@ class UploadServiceClass {
                 reject(new Error('Upload failed'));
             });
 
-            xhr.open('POST', `${API_BASE_URL}/upload/file`);
+            xhr.open('POST', getApiUrl('/upload/file'));
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
             xhr.send(formData);
         });
@@ -83,7 +82,7 @@ class UploadServiceClass {
                 reject(new Error('Upload failed'));
             });
 
-            xhr.open('POST', `${API_BASE_URL}/upload/files`);
+            xhr.open('POST', getApiUrl('/upload/files'));
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
             xhr.send(formData);
         });
@@ -92,7 +91,7 @@ class UploadServiceClass {
     async deleteFile(filename: string): Promise<void> {
         const token = getAccessToken();
 
-        const response = await fetch(`${API_BASE_URL}/upload/${filename}`, {
+        const response = await fetch(getApiUrl(`/upload/${encodeURIComponent(filename)}`), {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -104,9 +103,6 @@ class UploadServiceClass {
         }
     }
 
-    getFileUrl(filename: string): string {
-        return `${API_BASE_URL.replace(/\/api$/, '')}/uploads/${filename}`;
-    }
 }
 
 export const uploadService = new UploadServiceClass();
