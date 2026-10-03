@@ -1,1 +1,1 @@
-ALTER TABLE "users" ALTER COLUMN "behaviorScore" DROP DEFAULT;
+ALTER TABLE "User" ALTER COLUMN "behaviorScore" DROP DEFAULT;
