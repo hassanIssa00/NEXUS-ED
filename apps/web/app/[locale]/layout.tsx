@@ -1,5 +1,6 @@
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
+import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import '../globals.css';
 import { locales, type Locale, defaultLocale } from '../../i18n';
@@ -28,6 +29,8 @@ export default async function LocaleLayout({
     children: React.ReactNode;
     params: Promise<{ locale: string }>;
 }) {
+    // A request-bound CSP nonce requires Next.js to render scripts dynamically.
+    await headers();
     const { locale } = await params;
 
     // Get messages - next-intl will handle validation

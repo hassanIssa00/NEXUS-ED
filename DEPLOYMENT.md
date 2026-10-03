@@ -14,8 +14,9 @@ separate backend deployment for changes under `apps/api`.
 
 ### Production readiness gates
 
-- Vercel currently has no production environment variables. Authentication requires a verified HTTPS `NEXT_PUBLIC_API_URL` or configured Supabase URL and anon key. Sign-in and self-registration remain disabled until a provider is configured.
-- The Railway API URL in the older system documentation returned `404` at `/api/health`; verify the live Nexus API URL and deploy `apps/api` separately before enabling school workflows.
+- Vercel Production has the six public Firebase web configuration values, but no `NEXT_PUBLIC_API_URL`. Firebase client keys do not connect the site to the NestJS API or PostgreSQL; authenticated school workflows require a deployed HTTPS API.
+- The existing Neon account contains a project named `nexus` in AWS US East, but it is not verified or connected as the production school database. Do not run migrations or add real Saudi student records until the school approves the region and the existing schema/data have been assessed.
+- `apps/api/Dockerfile` provides a long-running API runtime target and a separate `migrator` target. Deploy the API to a host that supports persistent Node processes and WebSockets; apply migrations as a reviewed one-shot release step, then set `NEXT_PUBLIC_API_URL` in Vercel and `EXPO_PUBLIC_NEXUS_API_URL` / `NEXUS_API_URL` for mobile builds. GitHub CI tests migrations and readiness only against an ephemeral PostgreSQL database.
 - Private assignment storage is not verified in Supabase. Complete the bucket and server-only key steps in `docs/NEXUS_PRIVATE_FILE_STORAGE.md` before enabling uploads.
 - `apps/mobile` is an Expo starter, not a feature-complete Nexus mobile client or a Google Play release. It needs its own implementation and release validation.
 
@@ -32,7 +33,7 @@ separate backend deployment for changes under `apps/api`.
 - Student analytics now return `null` for grade or attendance measures with no supporting records. The fabricated composite score and fixed week/month comparison increments were removed; the student pages show an unavailable/empty state instead of invented results or fallback zeros.
 - The student grade page only calculates percentages when it has a valid score and denominator, and the attendance page distinguishes an API failure from an actual empty register. Gamification rank and student totals come from school-scoped database queries; the unused Firestore helper that wrote sample grades and assignments was removed.
 - The follow-up API suite passes 81 tests, the API build passes, and web TypeScript checking passes. The latest Vercel production deployment for commit `8bac588e8c7f62f50fb5f6c6a69659d4f5bb8a25` is `Ready`; `https://nexus.masarplatform.org/ar/login` returned HTTP 200 after deployment.
-- No school roster, student accounts, classes, grades, attendance, or sample records were created. This environment has no Vercel production variables, and the documented Railway API URL remains unavailable, so there is no verified production API/database against which to create or test real school accounts.
+- No school roster, student accounts, classes, grades, attendance, or sample records were created. The deployed site has Firebase public configuration but no API URL, and there is no verified production API/database against which to create or test real school accounts.
 
 These checks are a point-in-time verification, not a guarantee of complete security. Do not enable student or parent accounts until the API/auth provider, production secrets, storage policy, and Firebase ownership are confirmed and smoke-tested against the actual school deployment.
 

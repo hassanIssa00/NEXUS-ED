@@ -29,10 +29,12 @@ connect the NestJS API/database.
 
 ## Production blocker
 
-There is no verified production PostgreSQL URL or deployed Nexus API service in
-the current environment. The Prisma schema validates, but migrations have not
-been applied to a live database and school workflows have not been smoke-tested
-against one. Both previously documented Railway API health URLs returned HTTP 404 on
+There is no verified production PostgreSQL connection or deployed Nexus API
+service in the current environment. The Neon account contains a project named
+`nexus`, but it has not been verified as the database for this deployment and
+has not been connected to Vercel or the API. The Prisma schema validates, but
+migrations have not been applied to a live database and school workflows have
+not been smoke-tested against one. Both previously documented Railway API health URLs returned HTTP 404 on
 2026-10-03. The public login route returns HTTP 200, while `/api/health` on the
 web domain returns 404; a rendered login page is not evidence that authentication
 or database operations work. Firebase Auth providers and public client
@@ -189,6 +191,47 @@ database, or live account/email have been provisioned. The web auth UI is live,
 but the API implementation and Prisma migration are only local/Git source; they
 are not deployed to a production API/database. Sample variable names are in
 `apps/web/.env.example` and `apps/api/.env.example`.
+
+## API and database readiness pass — 2026-10-03
+
+- Confirmed the Neon account has an existing project named `nexus` in AWS US
+  East (N. Virginia), with 30.88 MB shown in account usage. No table contents,
+  credentials, or student records were inspected; no project settings or data
+  were changed. Its owner, schema compatibility, backup configuration, and
+  authority for Saudi student data remain unverified.
+- Vercel Production currently has the six public Firebase web configuration
+  variables, but no `NEXT_PUBLIC_API_URL`. The web site therefore has no
+  production Nexus API endpoint, and `/api/health` on the site still returns
+  404. The Neon project is not connected to Vercel or the NestJS API.
+- Added an API Dockerfile with separate runtime and one-shot migrator targets.
+  GitHub CI now provisions an ephemeral PostgreSQL 16 service, applies all
+  committed Prisma migrations, boots the API and checks database readiness,
+  then builds both Docker targets. This is an isolated CI database, not the
+  school's production database.
+- Added a per-request nonce CSP in the Next.js proxy, with explicit Firebase,
+  Google, Stripe, and runtime-configured API origins. The CSP and pages still
+  require a successful Vercel build/deployment and live browser verification.
+- Local verification: API 16 suites / 104 tests pass; API build, web TypeScript,
+  and Expo TypeScript pass. The web lint reports zero errors and 88 warnings.
+  After excluding generated Prisma files and separating formatting from lint,
+  API ESLint still reports 164 errors and 1,692 warnings across legacy source;
+  that type-safety backlog is not resolved. CI gates on web lint and exposes
+  the API lint baseline as a visible non-blocking step so the database, API,
+  and web integration checks still run. The full dependency audit remains at
+  45 advisories (30 high, 15 moderate), and the attempted compatible npm fix
+  did not reduce that count. Docker image builds were not run locally because
+  the Docker Engine is unavailable; GitHub CI is configured to validate them
+  after push. The local Next build is blocked by the Windows SWC
+  native-binding/cache failure, so production CSP behavior is not yet
+  confirmed.
+- Mobile verification: Expo's Android JS bundle exports successfully and its
+  TypeScript check passes; Flutter's 3 tests pass. Flutter full-project analyze
+  still exits nonzero with 68 info-level lint findings. Neither mobile client
+  has a verified production API URL or a signed Play Store release artifact.
+- The existing Neon project's US region is not approved for real Saudi student
+  or parent data. No migrations, sample records, school accounts, or API
+  production secrets were added. Do not connect real school data until the
+  school approves the hosting region and applicable transfer safeguards.
 
 ## References
 

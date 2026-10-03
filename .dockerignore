@@ -9,3 +9,6 @@ Dockerfile
 *.md
 npm-debug.log
 apps/mobile
+apps/flutter_app
+.vercel
+firestore-debug.log

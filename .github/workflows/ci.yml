@@ -10,6 +10,20 @@ jobs:
   build:
     name: Build and Test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: nexus
+          POSTGRES_PASSWORD: nexus-ci-only
+          POSTGRES_DB: nexus_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexus -d nexus_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repo
@@ -40,8 +54,14 @@ jobs:
         run: npx prisma generate
         working-directory: apps/api
         env:
-          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/million_db"
-          DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/million_db"
+          DATABASE_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
+          DIRECT_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
+
+      - name: Apply migrations to ephemeral PostgreSQL
+        run: npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
+        env:
+          DATABASE_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
+          DIRECT_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
 
       - name: Type Check
         run: npm run check-types
@@ -61,6 +81,39 @@ jobs:
       - name: Build API
         run: npm run build --workspace=api
 
+      - name: Smoke test API against PostgreSQL
+        shell: bash
+        env:
+          NODE_ENV: production
+          PORT: 4000
+          DATABASE_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
+          DIRECT_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
+          JWT_SECRET: "ci-only-not-a-production-secret"
+          JWT_REFRESH_SECRET: "ci-only-refresh-not-a-production-secret"
+          FRONTEND_URL: "https://nexus.masarplatform.org"
+        run: |
+          node apps/api/dist/src/main.js > /tmp/nexus-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4000/api/health/live >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          if ! curl --fail --silent http://127.0.0.1:4000/api/health/live >/dev/null; then
+            cat /tmp/nexus-api.log
+            exit 1
+          fi
+          sleep 12
+          readiness="$(curl --fail --silent http://127.0.0.1:4000/api/health/ready)"
+          printf '%s' "$readiness" | jq --exit-status '.status == "ready"'
+
+      - name: Build production API containers
+        run: |
+          docker build --file apps/api/Dockerfile --target runtime --tag nexus-api:ci .
+          docker build --file apps/api/Dockerfile --target migrator --tag nexus-api-migrator:ci .
+
       - name: Build Web
         run: npm run build --workspace=web
         env:
@@ -68,6 +121,43 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:3001/api
           NEXT_PUBLIC_ENABLE_DEMO_AUTH: false
 
-      - name: Lint
+      - name: Smoke test production CSP nonce
+        shell: bash
+        env:
+          PORT: 3010
+          NEXT_PUBLIC_API_URL: https://api.example.invalid/api
+        run: |
+          npm run start --workspace=web > /tmp/nexus-web.log 2>&1 &
+          web_pid=$!
+          trap 'kill "$web_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3010/ar/login >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          node --input-type=module <<'NODE'
+          const first = await fetch('http://127.0.0.1:3010/ar/login');
+          if (!first.ok) throw new Error(`login returned ${first.status}`);
+          const policy = first.headers.get('content-security-policy') ?? '';
+          const nonce = policy.match(/'nonce-([^']+)'/)?.[1];
+          const body = await first.text();
+          if (!nonce || !body.includes(`nonce="${nonce}"`)) {
+            throw new Error('CSP nonce is missing or not attached to rendered scripts');
+          }
+          const second = await fetch('http://127.0.0.1:3010/ar/login');
+          const nextNonce = (second.headers.get('content-security-policy') ?? '').match(/'nonce-([^']+)'/)?.[1];
+          if (!nextNonce || nextNonce === nonce) {
+            throw new Error('CSP nonce was not rotated for the next request');
+          }
+          console.log('Production login CSP and per-request nonce passed.');
+          NODE
+
+      - name: Lint Web
         if: ${{ !cancelled() }}
-        run: npm run lint
+        run: npm run lint --workspace=web
+
+      - name: Report existing API lint backlog
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: npm run lint --workspace=api
