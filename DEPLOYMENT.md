@@ -20,6 +20,12 @@ separate backend deployment for changes under `apps/api`.
 - Private assignment storage is not verified in Supabase. Complete the bucket and server-only key steps in `docs/NEXUS_PRIVATE_FILE_STORAGE.md` before enabling uploads.
 - `apps/mobile` is an Expo starter, not a feature-complete Nexus mobile client or a Google Play release. It needs its own implementation and release validation.
 
+### Verified status — 2026-10-03
+
+- Commit `a8427f5` is on `master`; its Vercel production deployment is `Ready` and aliased to `https://nexus.masarplatform.org`.
+- Live `/ar/login` returns HTTP 200 with a CSP nonce attached to rendered scripts; consecutive requests receive different nonces. `/api/health` still returns 404 because no API service is deployed on the web domain.
+- GitHub CI run `37108570445` passed the six Prisma migrations on an empty PostgreSQL 16 service, API tests and readiness smoke test, runtime and migrator Docker builds, Next production build, and CSP smoke test. These are CI-only resources; no production database was migrated or populated.
+
 ### Verified status — 2026-10-02
 
 - The production domain returned HTTP 200 for `/ar/login`; the latest verified production deployment is attached to `hassanIssa00/NEXUS-ED` branch `master` at commit `8bac588e8c7f62f50fb5f6c6a69659d4f5bb8a25`. The earlier mismatch was that Vercel watched a different GitHub repository; its source is now corrected.

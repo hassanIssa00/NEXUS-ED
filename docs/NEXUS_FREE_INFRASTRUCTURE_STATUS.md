@@ -204,13 +204,15 @@ are not deployed to a production API/database. Sample variable names are in
   production Nexus API endpoint, and `/api/health` on the site still returns
   404. The Neon project is not connected to Vercel or the NestJS API.
 - Added an API Dockerfile with separate runtime and one-shot migrator targets.
-  GitHub CI now provisions an ephemeral PostgreSQL 16 service, applies all
-  committed Prisma migrations, boots the API and checks database readiness,
-  then builds both Docker targets. This is an isolated CI database, not the
-  school's production database.
+  GitHub CI run `37108570445` passed: it applied all six committed Prisma
+  migrations to an empty ephemeral PostgreSQL 16 database, booted the API and
+  verified readiness, then built both Docker targets. This is an isolated CI
+  database, not the school's production database.
 - Added a per-request nonce CSP in the Next.js proxy, with explicit Firebase,
-  Google, Stripe, and runtime-configured API origins. The CSP and pages still
-  require a successful Vercel build/deployment and live browser verification.
+  Google, Stripe, and runtime-configured API origins. The Vercel production
+  deployment for `a8427f5` is Ready; live requests to the login page return
+  HTTP 200, the CSP nonce matches rendered scripts and rotates between
+  requests. This validates nonce wiring, not every third-party browser flow.
 - Local verification: API 16 suites / 104 tests pass; API build, web TypeScript,
   and Expo TypeScript pass. The web lint reports zero errors and 88 warnings.
   After excluding generated Prisma files and separating formatting from lint,
@@ -220,10 +222,10 @@ are not deployed to a production API/database. Sample variable names are in
   and web integration checks still run. The full dependency audit remains at
   45 advisories (30 high, 15 moderate), and the attempted compatible npm fix
   did not reduce that count. Docker image builds were not run locally because
-  the Docker Engine is unavailable; GitHub CI is configured to validate them
-  after push. The local Next build is blocked by the Windows SWC
-  native-binding/cache failure, so production CSP behavior is not yet
-  confirmed.
+  the Docker Engine is unavailable; both runtime and migrator images built in
+  GitHub CI. The local Next build is blocked by the Windows SWC
+  native-binding/cache failure, but the remote Next build and live CSP checks
+  passed.
 - Mobile verification: Expo's Android JS bundle exports successfully and its
   TypeScript check passes; Flutter's 3 tests pass. Flutter full-project analyze
   still exits nonzero with 68 info-level lint findings. Neither mobile client
