@@ -21,6 +21,8 @@ authentication identity, school scope, roles, and record ownership are enforced
 and tested. The checked-in `firestore.rules` therefore remains deny-all. Firebase
 Storage is not part of the active school workflow either; `storage.rules` now
 denies every read and write until per-school and per-record access is tested.
+Firebase Authentication currently has no sign-in provider enabled. A Firebase
+web app is registered, but the deployed Next.js app does not use its config.
 
 ## Production blocker
 
@@ -29,9 +31,29 @@ the current environment. The Prisma schema validates, but migrations have not
 been applied to a live database and school workflows have not been smoke-tested
 against one. A fresh Vercel production environment listing had no variables, and
 both previously documented Railway API health URLs returned HTTP 404 on
-2026-10-03. Firebase Auth sign-in providers are not enabled because the current
-web auth flow expects the NestJS API or Supabase; enabling an unused provider
-would not make login work.
+2026-10-03. The public login route returns HTTP 200, while `/api/health` on the
+web domain returns 404; a rendered login page is not evidence that authentication
+or database operations work. The local Firebase CLI account currently lists only
+the Masar project and cannot deploy to the Nexus Firebase project. Firebase Auth
+sign-in providers are not enabled, and enabling one alone would not connect the
+current API/Supabase-based web auth flow to Firestore.
+
+## Verification on 2026-10-03
+
+- API unit suite: 13 suites and 81 tests pass locally.
+- API production build: passes locally, including Prisma client generation.
+- Web TypeScript: direct `tsc --noEmit` passes. The web `check-types` script
+  cannot complete Next.js route-type generation on this Windows machine because
+  the local SWC native binding/cache is unavailable.
+- GitHub CI for commit `a1a7418`: TypeScript passes. Lint fails on the existing
+  API-wide backlog (7,183 reported problems); the workflow consequently skips
+  its later test/build steps. Local API tests/build above are separate checks.
+- Vercel production deployment for `a1a7418`: Ready; the public login route
+  responds HTTP 200. Production authentication and data workflows remain
+  unverified and are not ready for school use.
+- Firebase safeguard workflow for `a1a7418`: passes. It verifies that deployment
+  remains disabled on Spark and that checked-in Firestore/Storage rules fail
+  closed; it does not deploy those rules into the remote Firebase project.
 
 The user's no-paid-services requirement is preserved. Firebase Spark has
 product-specific free quotas; when a quota is exceeded, Firebase shuts off that
