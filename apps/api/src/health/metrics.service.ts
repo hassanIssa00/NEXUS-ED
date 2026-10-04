@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { EmailService } from '../notifications/email.service';
 
 interface Metrics {
   timestamp: string;
@@ -23,7 +24,10 @@ export class MetricsService {
   private responseTimes: number[] = [];
   private lastResetTime = Date.now();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   /**
    * Record a request for metrics tracking
@@ -93,10 +97,16 @@ export class MetricsService {
     status: 'healthy' | 'degraded' | 'unhealthy';
     checks: Record<string, boolean>;
   }> {
-    const dbHealth = await this.prisma.healthCheck();
+    const [dbHealth, emailHealth] = await Promise.all([
+      this.prisma.healthCheck(),
+      this.emailService.isConfigured()
+        ? this.emailService.isHealthy()
+        : Promise.resolve(process.env.NODE_ENV !== 'production'),
+    ]);
 
     const checks = {
       database: dbHealth.status === 'healthy',
+      email: emailHealth,
       memory: process.memoryUsage().heapUsed < 500 * 1024 * 1024, // Less than 500MB
       uptime: process.uptime() > 10, // Running for more than 10 seconds
     };

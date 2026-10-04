@@ -12,11 +12,14 @@ import { setupSwagger } from './config/swagger.config';
 import { winstonConfig } from './config/logger.config';
 import { SanitizeInterceptor } from './infrastructure/interceptors/sanitize.interceptor';
 import { PerformanceInterceptor } from './infrastructure/interceptors/performance.interceptor';
+import { validateProductionConfiguration } from './config/jwt';
 
 const envPath = path.resolve(process.cwd(), '.env');
 dotenv.config({ path: envPath });
 
 async function bootstrap() {
+  validateProductionConfiguration();
+
   // Create app with Winston logger
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: winstonConfig,
@@ -131,4 +134,5 @@ async function bootstrap() {
 
 bootstrap().catch((err) => {
   new Logger('Bootstrap').error(err);
+  process.exit(1);
 });

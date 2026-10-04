@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+const selfHostedBuild = process.env.NEXUS_SELF_HOSTED_BUILD === '1';
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
@@ -17,6 +18,12 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...(selfHostedBuild
+    ? {
+        output: 'standalone',
+        outputFileTracingRoot: path.resolve(projectRoot, '../..'),
+      }
+    : {}),
   poweredByHeader: false,
   turbopack: {
     root: path.resolve(projectRoot, '../..'),

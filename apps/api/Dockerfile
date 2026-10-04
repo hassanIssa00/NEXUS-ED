@@ -11,7 +11,7 @@ RUN DATABASE_URL=postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci \
 
 FROM build AS migrator
 ENV NODE_ENV=production
-CMD ["npx", "prisma", "migrate", "deploy", "--schema=apps/api/prisma/schema.prisma"]
+CMD ["npm", "run", "db:migrate", "--workspace=api"]
 
 FROM build AS runtime-dependencies
 RUN npm prune --omit=dev --workspace=api --include-workspace-root
@@ -31,5 +31,5 @@ RUN mkdir -p /workspace/apps/api/dist/uploads && chown -R node:node /workspace/a
 USER node
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD node -e "fetch('http://127.0.0.1:4000/api/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+    CMD node -e "fetch('http://127.0.0.1:4000/api/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 CMD ["node", "apps/api/dist/src/main.js"]

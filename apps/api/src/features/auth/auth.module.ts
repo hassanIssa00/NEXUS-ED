@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { ConfigService } from '@nestjs/config';
 import { AuthService } from './services/auth.service';
 import { AuthController } from './controllers/auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -15,9 +14,8 @@ import { GoogleIdentityService } from './services/google-identity.service';
         PassportModule,
         NotificationModule,
         JwtModule.registerAsync({
-            inject: [ConfigService],
-            useFactory: (config: ConfigService) => ({
-                secret: config.get<string>('JWT_SECRET') || getJwtSecret(),
+            useFactory: () => ({
+                secret: getJwtSecret(),
                 signOptions: { expiresIn: '15m' }, // Access token: 15 minutes
             }),
         }),

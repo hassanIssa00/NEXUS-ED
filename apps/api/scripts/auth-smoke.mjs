@@ -7,10 +7,10 @@ const baseUrl = (
 ).replace(/\/$/, '');
 const prisma = new PrismaClient();
 const runId = randomUUID();
-const schoolSlug = `ci-auth-${runId}`;
 const studentEmail = `student-${runId}@example.invalid`;
 const parentEmail = `parent-${runId}@example.invalid`;
 const password = 'CI-only-Password-93!';
+const schoolSlug = process.env.PUBLIC_SCHOOL_SLUG || 'al-ikhlas-jeddah';
 
 async function request(path, options = {}) {
   return fetch(`${baseUrl}${path}`, {
@@ -41,9 +41,8 @@ async function assertOk(response, label) {
 }
 
 try {
-  const school = await prisma.school.create({
-    data: { name: 'Nexus CI Auth Smoke', slug: schoolSlug },
-  });
+  const school = await prisma.school.findUnique({ where: { slug: schoolSlug } });
+  assert.ok(school?.isActive, `seeded active school ${schoolSlug} must exist`);
 
   for (const [email, role] of [
     [studentEmail, 'STUDENT'],
@@ -126,6 +125,5 @@ try {
   await prisma.user.deleteMany({
     where: { email: { in: [studentEmail, parentEmail] } },
   });
-  await prisma.school.deleteMany({ where: { slug: schoolSlug } });
   await prisma.$disconnect();
 }

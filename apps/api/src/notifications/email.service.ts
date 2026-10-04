@@ -27,7 +27,10 @@ export class EmailService {
     const config = {
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false, // true for 465, false for other ports
+      secure: Number(process.env.SMTP_PORT || '587') === 465,
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
@@ -46,7 +49,7 @@ export class EmailService {
     // Verify connection
     this.transporter.verify((error) => {
       if (error) {
-        this.logger.error('SMTP connection failed:', error);
+        this.logger.error(`SMTP connection failed (${error.name}).`);
       } else {
         this.logger.log('Email service ready ✉️');
       }
@@ -72,7 +75,8 @@ export class EmailService {
       this.logger.log(`Email sent successfully: ${info.messageId}`);
       return true;
     } catch (error) {
-      this.logger.error('Failed to send email:', error);
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      this.logger.error(`Email delivery failed (${errorName}).`);
       return false;
     }
   }

@@ -58,10 +58,10 @@ The project is built using a **Monorepo** architecture powered by `Turborepo` to
 3. **AI Integration:** Integrated the API with `OpenAI` models to build custom AI assistants for teachers and students.
 4. **Elimination of Mock Data:** Replaced all mock/dummy data with real connections to the production database.
 5. **Production Deployment:**
-   * Deployed both the API and Web App independently on **Railway**.
-   * Connected the database to **Supabase** servers.
-   * Resolved all environment conflicts (such as Next.js `middleware.ts` collision).
-   * Configured Environment Variables, bypassing `CORS` and `Prisma Connection Pooler` complexities, resulting in a 100% efficient server.
+   * The currently deployed web frontend is on Vercel: `https://nexus.masarplatform.org`.
+   * The free Neon PostgreSQL database has been created and migrated, with only the real school record seeded; no demo accounts or classes were created.
+   * The NestJS API is not deployed or connected to the website. School authentication and PostgreSQL-backed workflows are therefore not production-ready.
+   * There is no 100% security guarantee. A suitable API host, production secrets and mail configuration, and live readiness/workflow checks are still required.
 
 ---
 
@@ -73,8 +73,8 @@ Older setup files contained synthetic school records. The current setup no longe
 ---
 
 ## 🔗 6. Direct Links
-* **Live Web Platform (Production):** `https://web-production-46383.up.railway.app`
-* **Server (API):** `https://api-production-4359.up.railway.app/api`
+* **Deployed web frontend:** `https://nexus.masarplatform.org`
+* **API:** Not deployed; there is no valid production API URL yet.
 
 ---
 *This documentation serves as a comprehensive guide to the project for stakeholders and future developers.*

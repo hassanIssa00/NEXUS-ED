@@ -23,6 +23,7 @@ import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
 import { ConfirmPasswordResetDto } from '../dto/confirm-password-reset.dto';
 import { Role } from '../../../shared/enums/roles.enum';
 import { GoogleIdentityService } from './google-identity.service';
+import { getJwtRefreshSecret } from '../../../config/jwt';
 
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '7d';
@@ -507,10 +508,7 @@ export class AuthService {
     }
 
     private getRefreshSecret(): string {
-        return (
-            this.configService.get<string>('JWT_REFRESH_SECRET') ||
-            this.configService.getOrThrow<string>('JWT_SECRET')
-        );
+        return getJwtRefreshSecret();
     }
 
     private hashRefreshToken(token: string): string {

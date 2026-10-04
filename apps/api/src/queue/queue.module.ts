@@ -37,10 +37,12 @@ export class QueueModule {
     const { BullModule } = await import('@nestjs/bullmq');
     const { EmailProcessor } = await import('./processors/email.processor');
     const { ReportProcessor } = await import('./processors/report.processor');
+    const { NotificationModule } = await import('../notifications/notification.module');
 
     return {
       module: QueueModule,
       imports: [
+        NotificationModule,
         BullModule.forRootAsync({
           imports: [ConfigModule],
           useFactory: (configService: ConfigService) => {

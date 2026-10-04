@@ -1,95 +1,131 @@
 services:
-  postgres:
-    image: postgres:15-alpine
-    restart: always
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:?Set DB_USER before starting production services}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD before starting production services}
-      POSTGRES_DB: ${DB_NAME:?Set DB_NAME before starting production services}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env.production}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - million_network
+      - private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
 
-  redis:
-    image: redis:7-alpine
-    restart: always
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrator
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      PUBLIC_SCHOOL_SLUG: ${PUBLIC_SCHOOL_SLUG:-al-ikhlas-jeddah}
+      NEXUS_SCHOOL_NAME: ${NEXUS_SCHOOL_NAME:-مدارس الإخلاص الأهلية بجدة}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-}
     command:
-      - redis-server
-      - --save
-      - "60"
-      - "1"
-      - --loglevel
-      - warning
-      - --requirepass
-      - ${REDIS_PASSWORD:?Set REDIS_PASSWORD before starting production services}
-    volumes:
-      - redis_data:/data
+      - sh
+      - -c
+      - npm run db:migrate --workspace=api && npm run db:seed --workspace=api
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
-      - million_network
+      - private
 
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    restart: always
-    depends_on:
-      - postgres
-      - redis
+      target: runtime
+    restart: unless-stopped
     environment:
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL before starting production services}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD before starting production services}
       NODE_ENV: production
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET before starting production services}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET before starting production services}
-      FRONTEND_URL: https://${DOMAIN_NAME:?Set DOMAIN_NAME before starting production services}
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      FRONTEND_URL: https://${DOMAIN_NAME:?Set DOMAIN_NAME in .env.production}
+      PUBLIC_SCHOOL_SLUG: ${PUBLIC_SCHOOL_SLUG:-al-ikhlas-jeddah}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env.production}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID in .env.production}
+      SMTP_HOST: ${SMTP_HOST:?Set SMTP_HOST in .env.production}
+      SMTP_PORT: ${SMTP_PORT:?Set SMTP_PORT in .env.production}
+      SMTP_USER: ${SMTP_USER:?Set SMTP_USER in .env.production}
+      SMTP_PASS: ${SMTP_PASS:?Set SMTP_PASS in .env.production}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:?Set SMTP_FROM_EMAIL in .env.production}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Nexus EDU}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     networks:
-      - million_network
+      - private
+    security_opt:
+      - no-new-privileges:true
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    restart: always
-    depends_on:
-      - api
+      args:
+        NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:-}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:-}
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:-}
+    restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: https://${DOMAIN_NAME:?Set DOMAIN_NAME before starting production services}/api
-      API_INTERNAL_URL: http://api:4000
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      api:
+        condition: service_started
     networks:
-      - million_network
+      - private
+    security_opt:
+      - no-new-privileges:true
 
-  nginx:
-    image: nginx:alpine
-    restart: always
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME:?Set DOMAIN_NAME in .env.production}
     ports:
       - "80:80"
       - "443:443"
+      - "443:443/udp"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - certbot_conf:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - web
       - api
     networks:
-      - million_network
-
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - certbot_conf:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+      - private
+    security_opt:
+      - no-new-privileges:true
 
 networks:
-  million_network:
+  private:
     driver: bridge
 
 volumes:
   postgres_data:
-  redis_data:
-  certbot_conf:
-  certbot_www:
+  caddy_data:
+  caddy_config:

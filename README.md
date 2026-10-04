@@ -1,105 +1,60 @@
-# 🎓 Million Platform
+# Nexus EDU
 
-**The Ultimate Educational Management System.**
+Nexus EDU is the school platform monorepo. It contains the web application,
+the NestJS API, and the Expo mobile application. Production data belongs to the
+configured school database; seeding never generates sample students, parents,
+teachers, classes, or grades. CI auth smoke tests use temporary accounts only
+in its disposable PostgreSQL database.
 
-Million Platform is a comprehensive solution for modern education, tailored for the Egyptian high school system (Thanaweya Amma) but scalable globally. It features AI-powered tutoring, live virtual classrooms, gamified exams, and a cross-platform mobile app.
+## Workspace layout
 
-`apps/api` is the production source of truth for the platform. `prisma-backend` remains in the repository only as a legacy reference and should not be used for runtime or deployment.
+- `apps/web`: Next.js web platform.
+- `apps/api`: NestJS API, Prisma schema, migrations, and database bootstrap.
+- `apps/mobile`: Expo / React Native application.
 
----
+## Requirements
 
-## 🌐 Live Demo & Repository
+- Node.js 22 or newer and npm 11.
+- PostgreSQL 15 or newer for the API.
 
-- **GitHub Repository**: [https://github.com/hassanIssa00/million-platform](https://github.com/hassanIssa00/million-platform)
-- **Live Platform**: [https://million-platform-web.vercel.app](https://million-platform-web.vercel.app)
-- **API Documentation**: [https://api-million-platform.railway.app/docs](https://api-million-platform.railway.app/docs)
+Install from the repository root:
 
----
+```sh
+npm ci
+```
 
-## 🚀 Key Features
+Each app has its own `.env.example`. Copy only the relevant example to a local
+`.env` file and supply credentials through your secret manager in hosted
+environments. Never commit real secrets.
 
-### 🧑‍🎓 For Students
--   **🤖 AI Personal Tutor**: 24/7 homework help and study planning powered by GPT-4.
--   **📺 Live Classes**: Interactive video sessions with low-latency Jitsi integration.
--   **🎮 Gamified Exams**: Competitive testing with leaderboards and instant feedback.
--   **📱 Mobile App**: Study on the go with our sleek React Native application.
+## API and database
 
-### 👨‍🏫 For Teachers & Admins
--   **📊 Analytics Dashboard**: Real-time insights into student performance and enrollment.
--   **📝 Content Management**: Effortlessly upload lessons and create interactive quizzes.
--   **💳 Secure Payments**: Full Stripe integration for seamless subscriptions and course purchases.
+See [`apps/api/README.md`](apps/api/README.md) for first setup, required
+environment variables, migrations, health checks, and one-time administrator
+provisioning. The seed creates only the Al-Ikhlas school record; it creates no
+test accounts or fabricated school data.
 
----
+## Development and checks
 
-## 🛠️ Tech Stack
+```sh
+npm run dev --workspace=web
+npm run start:dev --workspace=api
+npm run start --workspace=mobile
+npm run lint --workspace=web
+npm run lint --workspace=api
+npm run check-types
+npm run typecheck --workspace=mobile
+```
 
-### Monorepo Architecture (`Turborepo`)
+The GitHub Actions workflow runs migrations against disposable PostgreSQL,
+checks the idempotent school-only seed, exercises API health/authentication,
+builds the apps and containers, tests Firestore rules, and runs lint/type checks.
 
-| Component | Technology |
-| :--- | :--- |
-| **Frontend** | [Next.js 16](https://nextjs.org/), [TailwindCSS](https://tailwindcss.com/), [ShadcnUI](https://ui.shadcn.com/) |
-| **Backend** | [NestJS](https://nestjs.com/), [Prisma ORM](https://www.prisma.io/), [Redis](https://redis.io/) |
-| **Database** | [PostgreSQL](https://www.postgresql.org/) |
-| **Mobile** | [React Native](https://reactnative.dev/) ([Expo](https://expo.dev/)) |
-| **Real-time** | [Socket.io](https://socket.io/) |
-| **Hosting** | [Vercel](https://vercel.com/) (Frontend), [Railway](https://railway.app/) (Backend) |
+## Deployment status
 
----
-
-## 🏃‍♂️ Getting Started (Development)
-
-### Prerequisites
--   **Node.js** 18 or higher
--   **PostgreSQL** & **Redis** (running locally or via Docker)
--   API Keys for **OpenAI** & **Stripe** (optional for local testing)
-
-### Installation
-
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/hassanIssa00/million-platform.git
-    cd million-platform
-    ```
-
-2.  **Install dependencies**
-    ```bash
-    npm install
-    ```
-
-3.  **Setup Environment Variables**
-    ```bash
-    cp .env.example .env
-    # Edit the .env file with your specific configuration
-    ```
-    - Set `JWT_SECRET` and `JWT_REFRESH_SECRET` for the API.
-    - Set `STRIPE_WEBHOOK_SECRET` if you want invoice status changes to be confirmed by Stripe webhooks locally.
-    - Set `FRONTEND_URL=http://localhost:3002,http://localhost:3000` so cookie auth and CORS match the current local stack.
-    - Keep `NEXT_PUBLIC_ENABLE_DEMO_AUTH=false` unless you explicitly want local-only demo auth in development.
-
-4.  **Database Initialization**
-    ```bash
-    # Start database services if using Docker
-    docker-compose up -d postgres redis
-
-     # Run Prisma migrations
-     cd apps/api
-     npx prisma migrate dev
-     npx prisma generate
-     ```
-
-5.  **Launch the Platform**
-    ```bash
-    # From the root directory
-    npm run dev
-    ```
-    -   **Web**: `http://localhost:3002`
-    -   **API**: `http://localhost:3001`
-    -   **Mobile**: `cd apps/mobile && npx expo start`
-
----
-
-## 📄 License
-
-Distributed under the **MIT License**. See `LICENSE` for more information.
-
-Developed with ❤️ by the **Million Platform Team**
+The web app has its own Vercel deployment. No API host is configured in this
+repository, and the school API is not considered deployed or production-ready
+until its public readiness endpoint is verified against the production database
+and mail service. Do not use trial hosting or a free tier whose published terms
+exclude production workloads. Mobile store distribution also requires a final
+application identifier, production API URL, and signed Android release.

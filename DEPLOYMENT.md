@@ -1,5 +1,52 @@
 # Nexus EDU production deployment
 
+## Current gate (verified 2026-10-04)
+
+- Neon free PostgreSQL project `nexus` is provisioned in AWS US East. Six Prisma
+  migrations are applied to `neondb`; the idempotent seed contains the real
+  Al-Ikhlas school record only. The database has zero users and zero classes.
+- No NestJS API service is deployed or connected to Vercel. The production
+  website therefore cannot use this PostgreSQL database for school workflows;
+  do not enter student or staff records yet.
+- Railway is excluded. An OCI Always Free self-hosted stack is now prepared in
+  `docker-compose.prod.yml`, but it is not deployed: this machine has no OCI CLI
+  or authenticated OCI tenancy. OCI's free compute allocation is limited to its
+  home region and may be reclaimed when idle, so it is not an availability
+  guarantee for a school-critical production system.
+- Vercel Hobby is not an acceptable free host for the official school service;
+  Vercel's own terms restrict Hobby to personal or non-commercial use. Confirm
+  the existing Vercel account is on an eligible commercial plan before serving
+  the school through that deployment.
+- The mobile app now passes Expo SDK checks and Android JavaScript bundling, but
+  it has no production API URL, final Android application ID, or signed AAB.
+- Neon is currently in AWS US East, not Saudi Arabia. Confirm school/data
+  residency requirements before storing student or staff personal information.
+- Current dependency audit still reports 7 API findings (3 high, 4 moderate)
+  and 5 high findings in the web workspace audit. Lint exits successfully with
+  zero errors, but the API has 1,651 existing warnings; this is not a clean
+  security or lint bill of health.
+
+The dated entries below are historical verification notes and may describe
+older repository, deployment, or database states. The current gate above wins.
+
+### OCI Always Free deployment preparation
+
+`docker-compose.prod.yml` now defines PostgreSQL, one-shot Prisma migrations and
+the real-school-only seed, the Nest API, a standalone Next.js image, and Caddy
+automatic HTTPS. Start from `.env.production.example`; use only resources marked
+Always Free and do not upgrade the tenancy or provision trial-only resources.
+Oracle's current Always Free Ampere allocation is limited to 2 OCPUs and 12 GB
+RAM in the tenancy's home region; capacity is not guaranteed, and Oracle may
+reclaim an instance after seven days meeting its published idle thresholds.
+Treat this as best-effort hosting, not a production SLA.
+
+No Oracle tenancy, VM, DNS update, or secret was provisioned from this workspace.
+Before real student data is allowed, the school must have a verified hosting
+tenancy and approved Saudi data location, actual OAuth/SMTP credentials, tested
+private file storage and backups, and a successful live auth/readiness smoke test.
+The seed creates only the configured school; an initial administrator is created
+only when a real mailbox and one-time password are deliberately provided.
+
 - GitHub source: `hassanIssa00/NEXUS-ED`
 - Production branch: `master`
 - Vercel project: `nexus-edu-web`

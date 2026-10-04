@@ -1,6 +1,31 @@
 # Nexus free infrastructure status
 
-Verified: 2026-10-03
+Verified: 2026-10-04
+
+## Current verified state (2026-10-04)
+
+- Neon free PostgreSQL project `nexus` was provisioned in AWS US East. The
+  `neondb` database is on its active production branch. Six Prisma migrations
+  were applied, and the idempotent seed created only the real Al-Ikhlas school
+  record. Verification found zero users and zero classes; no synthetic school
+  accounts or roster data were inserted.
+- The database is not connected to the deployed Vercel site because no public
+  Nexus API service is deployed. The web domain's `/api/health` path remains a
+  404. Do not enter student/staff personal data until the API is deployed and
+  live auth, authorization, and database checks pass.
+- Railway is excluded. A self-hosted OCI Always Free Compose stack is prepared,
+  but no OCI CLI, tenancy credentials, VM, or deployment are available here.
+  Always Free resources do not expire while eligible, but are constrained to the
+  tenancy's home region and idle compute may be reclaimed; this is not an SLA.
+- The existing Vercel Hobby plan cannot be assumed appropriate for the official
+  school service: Vercel restricts Hobby to personal/non-commercial use. Verify
+  the account plan before continuing to serve the school's production domain.
+- Latest workspace audits still report 7 API findings (3 high, 4 moderate) and
+  5 high findings for web; lint passes with 0 errors but has 1,651 API warnings.
+  No blanket or breaking dependency overrides were applied to hide these risks.
+- This supersedes earlier statements in this file that the Neon database had
+  not been migrated. Firebase Firestore remains a separate, empty system and is
+  not connected to the Prisma/PostgreSQL API.
 
 ## Firebase project
 
@@ -29,25 +54,29 @@ connect the NestJS API/database.
 
 ## Production blocker
 
-There is no verified production PostgreSQL connection or deployed Nexus API
-service in the current environment. The Neon account contains a project named
-`nexus`, but it has not been verified as the database for this deployment and
-has not been connected to Vercel or the API. The Prisma schema validates, but
-migrations have not been applied to a live database and school workflows have
-not been smoke-tested against one. Both previously documented Railway API health URLs returned HTTP 404 on
-2026-10-03. The public login route returns HTTP 200, while `/api/health` on the
-web domain returns 404; a rendered login page is not evidence that authentication
-or database operations work. Firebase Auth providers and public client
-configuration are enabled, and the Next.js changes have deployed. Vercel has no
-production API URL, and the active NestJS/Prisma API still has no verified
-production PostgreSQL connection. Student/parent Firebase signup can create only
-pending identities; it is not a school enrollment or a connected academic record.
+The Neon database now has the schema and the real school row, but it still has
+zero users and classes and is not connected to the deployed web application.
+The live domain's `/api/health` remains a 404. Authentication and school flows
+have not been verified against a deployed NestJS API; student/parent signup
+identities are not completed school enrollments. Do not enter real student or
+staff data until this connection is live and verified.
+
+The OCI Always Free production stack is prepared in the repository but has not
+been deployed because no OCI CLI or authenticated tenancy is available on this
+machine. It requires verified SMTP and Google OAuth credentials, configured
+Firebase public settings, private file storage, approved data location, backups,
+DNS changes, and a successful live smoke test. The seed creates no fake accounts.
 
 The latest Vercel deployment inspection also shows the Next.js route functions
 running in `iad1` (US East). Firestore's Saudi region does not change where those
 server-side requests execute. The school must approve the processing location
 and any cross-border transfer safeguards before real student data is used; this
 is a privacy/compliance gate, not a claim that the current setup is unlawful.
+
+The repository now contains an OCI-oriented production Compose stack and a
+standalone Next.js Docker image. This is deployment preparation only: no VM, DNS
+change, real SMTP/OAuth secret, or private upload bucket has been configured, so
+the stack has not been started against school services.
 
 ## Verification on 2026-10-03
 

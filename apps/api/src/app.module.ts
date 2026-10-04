@@ -74,7 +74,7 @@ import { PlacementAssessmentModule } from './placement-assessment/placement-asse
     AttendanceModule,
     MillionSimpleModule,
     HealthModule,
-    // QueueModule.forRoot(), // Disabled: no Redis on Railway
+    // QueueModule.forRoot(), // Disabled until a production Redis-compatible queue is configured.
     GamificationModule,
     // ReportModule, // Disabled: depends on QueueModule (no Redis)
     NotificationModule,

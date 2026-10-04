@@ -17,7 +17,7 @@ import {
     updateProfile,
     type User as FirebaseUser,
 } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth as firebaseAuth, db as firebaseDb, isFirebaseConfigured } from '@/lib/firebase/config';
 
 export type UserRole =
@@ -69,7 +69,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const ACCESS_TOKEN_STORAGE_KEY = 'access_token';
 const LEGACY_DEMO_KEYS = ['is_demo', 'demo_profile', 'nexus_user', 'nexus_role'];
-const BOOTSTRAP_ADMIN_EMAIL = 'hassan.issa.eng@gmail.com';
 
 const API_ROLE_TO_APP_ROLE: Record<string, UserRole> = {
     STUDENT: 'student',
@@ -114,21 +113,6 @@ function createFirebaseAppUser(user: FirebaseUser): User {
 
 function normalizeApiRole(role: string | undefined): UserRole | null {
     return API_ROLE_TO_APP_ROLE[role?.toUpperCase() ?? ''] ?? null;
-}
-
-async function promoteVerifiedBootstrapAdmin(user: FirebaseUser): Promise<void> {
-    if (!firebaseDb || !user.emailVerified || user.email?.toLowerCase() !== BOOTSTRAP_ADMIN_EMAIL) return;
-
-    const profileRef = doc(firebaseDb, 'users', user.uid);
-    const snapshot = await getDoc(profileRef);
-    const currentRole = normalizeApiRole(snapshot.data()?.role);
-    if (!snapshot.exists() || (currentRole !== 'student' && currentRole !== 'parent')) return;
-
-    await updateDoc(profileRef, {
-        role: 'admin',
-        status: 'active',
-        updatedAt: serverTimestamp(),
-    });
 }
 
 function getApiBaseUrl(): string | null {
@@ -317,17 +301,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const snapshot = await getDoc(doc(firebaseDb, 'users', userId));
             if (!snapshot.exists()) return null;
 
-            const authUser = firebaseAuth?.currentUser;
-            if (authUser?.uid === userId) {
-                await promoteVerifiedBootstrapAdmin(authUser);
-            }
-
-            const freshSnapshot = await getDoc(doc(firebaseDb, 'users', userId));
-            if (!freshSnapshot.exists()) return null;
-
-            const data = freshSnapshot.data();
+            const data = snapshot.data();
             const role = normalizeApiRole(data.role);
             if (!role || data.status === 'disabled') return null;
+            const authUser = firebaseAuth?.currentUser;
 
             const nextProfile: UserProfile = {
                 id: userId,

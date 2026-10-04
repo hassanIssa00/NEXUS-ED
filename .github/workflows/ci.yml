@@ -58,13 +58,48 @@ jobs:
           DIRECT_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
 
       - name: Apply migrations to ephemeral PostgreSQL
-        run: npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
+        run: npm run db:migrate --workspace=api
         env:
           DATABASE_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
           DIRECT_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
 
+      - name: Seed the real school record only
+        run: npm run db:seed --workspace=api
+        env:
+          DATABASE_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
+          DIRECT_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
+          PUBLIC_SCHOOL_SLUG: "al-ikhlas-jeddah"
+          NEXUS_SCHOOL_NAME: "مدارس الإخلاص الأهلية بجدة"
+
+      - name: Verify seed is idempotent and creates no demo users
+        run: |
+          npm run db:seed --workspace=api
+          node <<'NODE'
+          const { PrismaClient } = require('@prisma/client');
+          const prisma = new PrismaClient();
+          (async () => {
+            const schools = await prisma.school.count({ where: { slug: 'al-ikhlas-jeddah', isActive: true } });
+            const users = await prisma.user.count();
+            if (schools !== 1 || users !== 0) throw new Error(`Unexpected seed result: schools=${schools}, users=${users}`);
+            console.log('Seed is repeatable; only the real school record exists.');
+          })().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => prisma.$disconnect());
+          NODE
+        env:
+          DATABASE_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
+          DIRECT_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
+          PUBLIC_SCHOOL_SLUG: "al-ikhlas-jeddah"
+          NEXUS_SCHOOL_NAME: "مدارس الإخلاص الأهلية بجدة"
+
       - name: Type Check
         run: npm run check-types
+
+      - name: Validate Expo SDK dependencies
+        run: npx expo-doctor
+        working-directory: apps/mobile
+
+      - name: Export Android JavaScript bundle
+        run: npx expo export --platform android --output-dir "$RUNNER_TEMP/nexus-android-check"
+        working-directory: apps/mobile
 
       - name: Test Firestore security rules
         run: npx --yes firebase-tools@15.26.0 emulators:exec --project demo-nexus-rules --only firestore "npm run test:security --workspace=web"
@@ -91,10 +126,19 @@ jobs:
           JWT_SECRET: "ci-only-not-a-production-secret"
           JWT_REFRESH_SECRET: "ci-only-refresh-not-a-production-secret"
           FRONTEND_URL: "https://nexus.masarplatform.org"
+          GOOGLE_CLIENT_ID: "000000000000-ci.apps.googleusercontent.com"
+          SMTP_HOST: "127.0.0.1"
+          SMTP_PORT: "2525"
+          SMTP_USER: "ci@nexus.test"
+          SMTP_PASS: "ci-only-not-a-real-password"
+          SMTP_FROM_EMAIL: "ci@nexus.test"
+          PUBLIC_SCHOOL_SLUG: "al-ikhlas-jeddah"
         run: |
+          node apps/api/scripts/test-smtp-server.mjs > /tmp/nexus-smtp.log 2>&1 &
+          smtp_pid=$!
           node apps/api/dist/src/main.js > /tmp/nexus-api.log 2>&1 &
           api_pid=$!
-          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          trap 'kill "$api_pid" "$smtp_pid" 2>/dev/null || true' EXIT
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:4000/api/health/live >/dev/null; then
               break
@@ -117,6 +161,10 @@ jobs:
         run: |
           docker build --file apps/api/Dockerfile --target runtime --tag nexus-api:ci .
           docker build --file apps/api/Dockerfile --target migrator --tag nexus-api-migrator:ci .
+          docker build --file apps/web/Dockerfile --tag nexus-web:ci .
+
+      - name: Validate free self-hosted production Compose
+        run: docker compose --env-file .env.production.example -f docker-compose.prod.yml config --quiet
 
       - name: Build Web
         run: npm run build --workspace=web

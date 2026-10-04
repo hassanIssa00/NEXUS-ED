@@ -1,16 +1,23 @@
-import { Controller, Post, Get, Body, Param, Query } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { AuthGuard } from '@nestjs/passport';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../infrastructure/decorators/roles.decorator';
+import { Role } from '../shared/enums/roles.enum';
 import { ReportService } from './report.service';
 
 import { ScheduledReportService } from './scheduled-report.service';
 
 @ApiTags('Reports')
+@ApiBearerAuth()
 @Controller('reports')
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles(Role.ADMIN)
 export class ReportController {
   constructor(
     private readonly reportService: ReportService,

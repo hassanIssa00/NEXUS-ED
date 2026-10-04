@@ -16,30 +16,33 @@ describe('HealthController', () => {
   it('returns ready only when all readiness checks are healthy', async () => {
     metrics.getHealthStatus.mockResolvedValue({
       status: 'healthy',
-      checks: { database: true },
+      checks: { database: true, email: true },
     });
 
     await expect(controller.ready()).resolves.toMatchObject({
       status: 'ready',
-      checks: { database: true },
     });
   });
 
   it('uses HTTP 503 semantics when readiness checks fail', async () => {
     metrics.getHealthStatus.mockResolvedValue({
       status: 'unhealthy',
-      checks: { database: false },
+      checks: { database: false, email: true },
     });
 
-    await expect(controller.ready()).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+    try {
+      await controller.ready();
+      throw new Error('Expected readiness to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ServiceUnavailableException);
+      expect((error as ServiceUnavailableException).getResponse()).not.toHaveProperty('checks');
+    }
   });
 
   it('does not report the general health endpoint as healthy when the database is unavailable', async () => {
     metrics.getHealthStatus.mockResolvedValue({
       status: 'unhealthy',
-      checks: { database: false },
+      checks: { database: false, email: true },
     });
 
     await expect(controller.check()).rejects.toBeInstanceOf(

@@ -24,7 +24,6 @@ export class HealthController {
       throw new ServiceUnavailableException({
         status: health.status,
         timestamp: new Date().toISOString(),
-        checks: health.checks,
       });
     }
 
@@ -43,14 +42,12 @@ export class HealthController {
       throw new ServiceUnavailableException({
         status: 'not_ready',
         timestamp: new Date().toISOString(),
-        checks: health.checks,
       });
     }
 
     return {
       status: 'ready',
       timestamp: new Date().toISOString(),
-      checks: health.checks,
     };
   }
 
