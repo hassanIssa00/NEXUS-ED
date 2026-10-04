@@ -215,3 +215,58 @@ jobs:
       - name: Lint API
         if: ${{ !cancelled() }}
         run: npm run lint --workspace=api
+
+  deploy-oci:
+    name: Deploy to OCI Always Free (opt-in)
+    needs: build
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && vars.OCI_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout deployment script
+        uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Configure verified SSH access
+        shell: bash
+        env:
+          OCI_SSH_PRIVATE_KEY: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          OCI_SSH_KNOWN_HOSTS: ${{ secrets.OCI_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for name in OCI_SSH_PRIVATE_KEY OCI_SSH_KNOWN_HOSTS; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required GitHub Actions secret: $name" >&2
+              exit 1
+            fi
+          done
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$OCI_SSH_PRIVATE_KEY" > "$HOME/.ssh/nexus_deploy_key"
+          printf '%s\n' "$OCI_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/nexus_deploy_key" "$HOME/.ssh/known_hosts"
+          ssh-keygen -lf "$HOME/.ssh/known_hosts" >/dev/null
+
+      - name: Deploy and wait for API readiness
+        shell: bash
+        env:
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+          OCI_USER: ${{ secrets.OCI_USER }}
+          OCI_SSH_PORT: ${{ secrets.OCI_SSH_PORT }}
+        run: |
+          set -euo pipefail
+          for name in OCI_HOST OCI_USER; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required GitHub Actions secret: $name" >&2
+              exit 1
+            fi
+          done
+          ssh \
+            -i "$HOME/.ssh/nexus_deploy_key" \
+            -p "${OCI_SSH_PORT:-22}" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            "$OCI_USER@$OCI_HOST" 'bash -s' < scripts/deploy-oci-free.sh

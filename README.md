@@ -58,3 +58,9 @@ until its public readiness endpoint is verified against the production database
 and mail service. Do not use trial hosting or a free tier whose published terms
 exclude production workloads. Mobile store distribution also requires a final
 application identifier, production API URL, and signed Android release.
+
+An opt-in OCI Always Free deployment workflow is documented in
+[`docs/OCI_ALWAYS_FREE_DEPLOYMENT.md`](docs/OCI_ALWAYS_FREE_DEPLOYMENT.md). It
+does not run until the VM, production secrets, pinned SSH host key, and GitHub
+Actions settings have been configured. OCI's free VM has no SLA and may be
+reclaimed when idle; this is not a guarantee of school-grade availability.
