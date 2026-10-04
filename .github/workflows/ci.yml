@@ -126,8 +126,8 @@ jobs:
           PORT: 4000
           DATABASE_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
           DIRECT_URL: "postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci"
-          JWT_SECRET: "ci-only-not-a-production-secret"
-          JWT_REFRESH_SECRET: "ci-only-refresh-not-a-production-secret"
+          JWT_SECRET: "ci-only-jwt-secret-2026-not-prod-01"
+          JWT_REFRESH_SECRET: "ci-only-jwt-refresh-secret-2026-prod"
           FRONTEND_URL: "https://nexus.masarplatform.org"
           GOOGLE_CLIENT_ID: "000000000000-ci.apps.googleusercontent.com"
           SMTP_HOST: "127.0.0.1"
