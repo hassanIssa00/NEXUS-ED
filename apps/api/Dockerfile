@@ -2,6 +2,7 @@ FROM node:22-bookworm-slim AS build
 
 WORKDIR /workspace
 COPY . .
+RUN npm install --global npm@11.6.2
 RUN DATABASE_URL=postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci \
     DIRECT_URL=postgresql://nexus:nexus-ci-only@localhost:5432/nexus_ci \
     npm ci --workspace=api --include-workspace-root

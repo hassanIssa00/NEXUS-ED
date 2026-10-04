@@ -35,6 +35,9 @@ jobs:
           node-version: "22"
           cache: "npm"
 
+      - name: Pin npm to the lockfile generator version
+        run: npm install --global npm@11.6.2
+
       - name: Setup Java for Firebase emulator
         uses: actions/setup-java@v4
         with:

@@ -28,14 +28,13 @@
   ],
   "dependencies": {
     "@grpc/grpc-js": "1.14.5",
-    "expo-constants": "57.0.20",
+    "expo-router": "57.0.24",
     "next": "^16.3.8",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
   "overrides": {
     "@grpc/grpc-js": "1.14.5",
-    "expo-constants": "57.0.20",
     "react-native": "0.86.3",
     "react-native-reanimated": "4.5.1",
     "react-native-worklets": "0.10.1",

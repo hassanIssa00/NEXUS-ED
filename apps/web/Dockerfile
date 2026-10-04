@@ -2,6 +2,7 @@ FROM node:22-bookworm-slim AS build
 
 WORKDIR /workspace
 COPY . .
+RUN npm install --global npm@11.6.2
 RUN npm ci --workspace=web --include-workspace-root --no-audit --no-fund
 
 ARG NEXT_PUBLIC_API_URL=/api
