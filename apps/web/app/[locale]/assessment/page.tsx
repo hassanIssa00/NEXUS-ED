@@ -130,7 +130,7 @@ export default function AssessmentPage() {
         {data.foundationalForGradeOne && (
           <div className="flex gap-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm leading-6 text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
             <GraduationCap className="mt-0.5 h-4 w-4 shrink-0" />
-            اختبار الصف الأول هنا تأسيسي واختياري؛ اختبار Masar المخصص لهذا الصف يتضمن تقييمًا يدويًا من المدرسة، لذلك لا نعرضه كتقييم آلي.
+            اختبار الصف الأول هنا تأسيسي واختياري؛ اعتماد التقييم التفصيلي يحتاج مراجعة المدرسة، لذلك هذه الدرجة لا تغيّر الصف الدراسي أو قرار القبول.
           </div>
         )}
 

@@ -1,4 +1,5 @@
 import { PlacementAssessmentService } from './placement-assessment.service';
+import { getPlacementAssessment } from './placement-assessment.data';
 
 describe('PlacementAssessmentService', () => {
   const attempt = {
@@ -67,6 +68,78 @@ describe('PlacementAssessmentService', () => {
         schoolId: 'school-1',
         student: { schoolId: 'school-1', parents: { some: { parentId: 'parent-1' } } },
       }),
+    }));
+  });
+
+  it.each([
+    [7, 'm1'],
+    [8, 'm1'],
+    [9, 'm1'],
+    [10, 's1'],
+    [11, 's1'],
+    [12, 's1'],
+  ])('selects the %s student assessment for key %s', async (gradeLevel, expectedKey) => {
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'student-1',
+          role: 'STUDENT',
+          schoolId: 'school-1',
+          studentProfile: { gradeLevel },
+        }),
+      },
+      placementAssessmentAttempt: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const service = new PlacementAssessmentService(prisma as any, {} as any);
+
+    const result = await service.getCurrentAssessment('student-1');
+
+    expect(result.assessment.key).toBe(expectedKey);
+    expect(result.assessment.questions.length).toBeGreaterThan(0);
+    expect(JSON.stringify(result)).not.toMatch(/correctAnswer|explanation/);
+  });
+
+  it.each([
+    [7, 'm1'],
+    [10, 's1'],
+  ])('grades the %s placement test on the server for %s', async (gradeLevel, expectedKey) => {
+    const assessment = getPlacementAssessment(expectedKey as 'm1' | 's1');
+    const objectiveQuestions = assessment.questions.filter((question) =>
+      (!question.responseType || question.responseType === 'choice') &&
+      question.options.length > 1 && Boolean(question.correct) &&
+      question.countsForScore !== false,
+    );
+    const answers = Object.fromEntries(objectiveQuestions.map((question) => [question.id, question.correct]));
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'student-1',
+          role: 'STUDENT',
+          schoolId: 'school-1',
+          studentProfile: { gradeLevel },
+        }),
+      },
+      placementAssessmentAttempt: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({
+          id: 'attempt-1',
+          score: data.score,
+          correctCount: data.correctCount,
+          questionCount: data.questionCount,
+          completedAt: new Date(),
+        })),
+      },
+    };
+    const service = new PlacementAssessmentService(prisma as any, {} as any);
+
+    const result = await service.submit('student-1', answers);
+
+    expect(result.score).toBe(100);
+    expect(result.correctCount).toBe(objectiveQuestions.length);
+    expect(prisma.placementAssessmentAttempt.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ assessmentKey: expectedKey, gradeLevel, score: 100 }),
     }));
   });
 });

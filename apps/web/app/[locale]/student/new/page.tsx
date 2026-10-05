@@ -42,6 +42,8 @@ export default function StudentNewPage() {
   const role = profile?.role;
   const isStudent = role === 'student';
   const isParent = role === 'parent';
+  const isFirebaseAccount = Boolean(profile && getCurrentUser()?.uid === profile.id);
+  const expectedLinkCodeLength = isFirebaseAccount ? 32 : 16;
 
   useEffect(() => {
     if (authLoading) return;
@@ -170,13 +172,13 @@ export default function StudentNewPage() {
                 رمز ربط الطالب
                 <span className="relative block">
                   <Link2 className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                  <input required autoComplete="one-time-code" inputMode="text" maxLength={32} minLength={32} value={linkCode} onChange={(event) => setLinkCode(event.target.value.toUpperCase().replace(/[^A-F0-9]/g, ''))} placeholder="أدخل رمز الربط المكوّن من 32 خانة" dir="ltr" className="w-full rounded-lg border border-gray-200 bg-white py-3 pe-10 ps-3 text-center font-mono text-lg tracking-widest dark:border-white/10 dark:bg-white/5" />
+                  <input required autoComplete="one-time-code" inputMode="text" maxLength={expectedLinkCodeLength} minLength={expectedLinkCodeLength} value={linkCode} onChange={(event) => setLinkCode(event.target.value.toUpperCase().replace(/[^A-F0-9]/g, ''))} placeholder={`أدخل رمز الربط المكوّن من ${expectedLinkCodeLength} خانة`} dir="ltr" className="w-full rounded-lg border border-gray-200 bg-white py-3 pe-10 ps-3 text-center font-mono text-lg tracking-widest dark:border-white/10 dark:bg-white/5" />
                 </span>
                 <span className="block text-xs font-normal text-gray-500">الرمز صالح لمدة 7 أيام ويُستخدم مرة واحدة.</span>
               </label>
             )}
 
-            <button type="submit" disabled={saving || (isParent && linkCode.length !== 32)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={saving || (isParent && linkCode.length !== expectedLinkCodeLength)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50">
               {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isStudent ? <GraduationCap className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
               {saving ? 'جارٍ الحفظ...' : isStudent ? 'حفظ الملف وإصدار رمز ولي الأمر' : 'ربط الطالب والمتابعة'}
             </button>
