@@ -264,6 +264,32 @@ are not deployed to a production API/database. Sample variable names are in
   production secrets were added. Do not connect real school data until the
   school approves the hosting region and applicable transfer safeguards.
 
+## Production recheck — 2026-10-05
+
+- Commit `c4ae88c` was pushed to the production `master` branch. Vercel built
+  it successfully and promoted it to `https://nexus.masarplatform.org`.
+- The parent onboarding form now accepts the code length issued by the active
+  identity provider (32 hex characters for Firebase, 16 for the API). Placement
+  assessment coverage verifies grades 7–9 use the middle-school test, grades
+  10–12 use the secondary-school test, and answer keys are not returned to
+  students. Student assessment copy no longer directs users to Masar.
+- Verification: API build passes; 23 API suites / 128 tests pass; direct web
+  TypeScript and ESLint for changed pages pass; Firestore rules emulator checks
+  pass. The production login and registration pages return HTTP 200, with CSP
+  and HSTS headers present.
+- Production API verification still fails: `/api/health/live` and
+  `/api/health/ready` on the school domain both return HTTP 404. Vercel has no
+  `NEXT_PUBLIC_API_URL` or PostgreSQL/API service configured; only public
+  Firebase client settings are present. Therefore server-backed enrollment,
+  placement submission/results, and other PostgreSQL features are not verified
+  and must not be presented as live school workflows.
+- The Vercel deployment is in `iad1`; the provisioned Neon database is in US
+  East. Neither is approved here for processing Saudi student/parent records.
+  No student/staff test accounts or roster were created, and no student data
+  was submitted. Production readiness still requires an approved API runtime
+  and database region, secrets, migrations/readiness checks, and end-to-end
+  tests with school-authorized accounts.
+
 ## References
 
 - [Firebase pricing plans and Spark quotas](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans)
