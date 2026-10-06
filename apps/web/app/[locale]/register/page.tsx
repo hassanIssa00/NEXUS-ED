@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
@@ -9,13 +10,19 @@ import { User, Mail, Lock, Phone, GraduationCap, Users, ArrowLeft, Sparkles, Ale
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { isAuthenticationConfigured, isGoogleAuthenticationConfigured, useAuth } from '@/contexts/auth-context';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   const locale = useLocale();
+  const searchParams = useSearchParams();
   const { signUp, signInWithGoogle } = useAuth();
   const authConfigured = isAuthenticationConfigured();
   const googleConfigured = isGoogleAuthenticationConfigured();
-  const [accountType, setAccountType] = useState<'parent' | 'student'>('parent');
+  const requestedRole = searchParams.get('role') === 'student' ? 'student' : 'parent';
+  const [accountType, setAccountType] = useState<'parent' | 'student'>(requestedRole);
+
+  useEffect(() => {
+    setAccountType(requestedRole);
+  }, [requestedRole]);
 
   // Form Fields
   const [fullName, setFullName] = useState('');
@@ -99,7 +106,9 @@ export default function RegisterPage() {
               <Sparkles className="w-3 h-3" />
               <span>مدارس نكسس التعليمية الأهلية — العام الدراسي 1448هـ</span>
             </div>
-            <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">تسجيل حساب رسمي بالنظام</h1>
+            <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
+              {accountType === 'student' ? 'إنشاء حساب طالب' : 'إنشاء حساب ولي أمر'}
+            </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               انضم إلى المنظومة المدرسية الشاملة مع معرف نظام موحد (Universal ID)
             </p>
@@ -281,5 +290,13 @@ export default function RegisterPage() {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-gray-500">جارٍ تحميل صفحة التسجيل...</div>}>
+      <RegisterForm />
+    </Suspense>
   );
 }
