@@ -6,6 +6,8 @@ import { MailCheck, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useRouter } from '@/i18n/routing';
 import { useAuth } from '@/contexts/auth-context';
 import { getCurrentUser } from '@/lib/firebase/auth';
+import { auth as firebaseAuth } from '@/lib/firebase/config';
+import { EMAIL_ACTION_CONTINUE_PATHS, getEmailActionSettings } from '@/lib/firebase/email-actions';
 
 export default function VerifyEmailPage() {
   const router = useRouter();
@@ -37,7 +39,9 @@ export default function VerifyEmailPage() {
     setError('');
     setMessage('');
     try {
-      await sendEmailVerification(user);
+      if (!firebaseAuth) throw new Error('Firebase Authentication is unavailable.');
+      firebaseAuth.languageCode = 'en';
+      await sendEmailVerification(user, getEmailActionSettings(EMAIL_ACTION_CONTINUE_PATHS.verified));
       setMessage('أرسلنا رابط تحقق جديدًا إلى بريدك الإلكتروني.');
     } catch {
       setError('تعذر إرسال الرابط الآن. تحقق من إعدادات البريد أو حاول لاحقًا.');

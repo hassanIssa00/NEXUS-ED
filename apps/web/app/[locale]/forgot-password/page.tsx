@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth, isAuthenticationConfigured } from "@/contexts/auth-context";
 
-type AccountRole = "student" | "parent";
+type AccountRole = "student" | "parent" | "teacher";
 
 export default function ForgotPasswordPage() {
   const locale = useLocale();
@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
     const requestedRole = new URLSearchParams(window.location.search).get(
       "role",
     );
-    if (requestedRole === "parent" || requestedRole === "student")
+    if (requestedRole === "parent" || requestedRole === "student" || requestedRole === "teacher")
       setRole(requestedRole);
   }, []);
 
@@ -110,7 +110,7 @@ export default function ForgotPasswordPage() {
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">
             {stage === "request"
-              ? "أدخل بريد حساب الطالب أو ولي الأمر لإرسال تعليمات الاستعادة المتاحة لحسابه."
+              ? "أدخل بريد حسابك لإرسال تعليمات استعادة كلمة المرور."
               : stage === "verify"
                 ? `أدخل الرمز المرسل إلى ${email} واختر كلمة مرور جديدة.`
                 : delivery === "link"
@@ -150,6 +150,7 @@ export default function ForgotPasswordPage() {
               >
                 <option value="student">طالب</option>
                 <option value="parent">ولي أمر</option>
+                <option value="teacher">معلم</option>
               </select>
             </label>
             <label className="block text-sm font-bold text-slate-700">

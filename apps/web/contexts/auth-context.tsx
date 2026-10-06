@@ -19,6 +19,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth as firebaseAuth, db as firebaseDb, isFirebaseConfigured } from '@/lib/firebase/config';
+import { EMAIL_ACTION_CONTINUE_PATHS, getEmailActionSettings } from '@/lib/firebase/email-actions';
 
 export type UserRole =
     | 'student'
@@ -60,7 +61,7 @@ interface AuthContextType {
         role: UserRole,
         phone?: string
     ) => Promise<void>;
-    requestPasswordReset: (email: string, role?: 'student' | 'parent') => Promise<'code' | 'link'>;
+    requestPasswordReset: (email: string, role?: 'student' | 'parent' | 'teacher') => Promise<'code' | 'link'>;
     confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<void>;
     signOut: () => Promise<void>;
 }
@@ -653,7 +654,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     let profileCreated = false;
                     try {
                         await updateProfile(credential.user, { displayName: fullName });
-                        await sendEmailVerification(credential.user);
+                        firebaseAuth.languageCode = 'en';
+                        await sendEmailVerification(
+                            credential.user,
+                            getEmailActionSettings(EMAIL_ACTION_CONTINUE_PATHS.verified),
+                        );
                         await setDoc(doc(firebaseDb, 'users', credential.user.uid), {
                             uid: credential.user.uid,
                             email: credential.user.email,
@@ -757,7 +762,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const requestPasswordReset = async (email: string, role: 'student' | 'parent' = 'student'): Promise<'code' | 'link'> => {
+    const requestPasswordReset = async (email: string, role: 'student' | 'parent' | 'teacher' = 'student'): Promise<'code' | 'link'> => {
         const normalizedEmail = email.trim().toLowerCase();
         if (supabase) {
             const locale = window.location.pathname.split('/').filter(Boolean)[0] || 'ar';
@@ -769,12 +774,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (firebaseAuth && isFirebaseConfigured) {
-            firebaseAuth.languageCode = 'ar';
-            const locale = window.location.pathname.split('/').filter(Boolean)[0] || 'ar';
+            firebaseAuth.languageCode = 'en';
             try {
                 await sendPasswordResetEmail(firebaseAuth, normalizedEmail, {
-                    url: `${window.location.origin}/${locale}/login`,
-                    handleCodeInApp: false,
+                    ...getEmailActionSettings(EMAIL_ACTION_CONTINUE_PATHS.passwordReset),
                 });
             } catch (error: any) {
                 if (error?.code !== 'auth/user-not-found') throw error;

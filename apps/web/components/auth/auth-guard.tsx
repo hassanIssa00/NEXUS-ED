@@ -18,7 +18,15 @@ const ROLE_ROUTES: Record<UserRole, string> = {
     hr: '/hr',
 };
 
-const PUBLIC_ROUTES = ['/login', '/register', '/pricing', '/verify-email'];
+const PUBLIC_ROUTES = [
+    '/login',
+    '/register',
+    '/pricing',
+    '/verify-email',
+    '/forgot-password',
+    '/reset-password',
+    '/auth/action',
+];
 const SHARED_ROLE_ROUTES: Array<{ path: string; roles: UserRole[]; exact?: boolean }> = [
     { path: '/student/new', roles: ['student', 'parent'] },
     { path: '/survey', roles: ['parent'], exact: true },
