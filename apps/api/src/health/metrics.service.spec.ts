@@ -34,7 +34,7 @@ describe('MetricsService readiness', () => {
     else process.env.NODE_ENV = previousNodeEnv;
   });
 
-  it('fails readiness when the production SMTP integration is unreachable', async () => {
+  it('reports SMTP as degraded without marking database readiness unhealthy', async () => {
     process.env.NODE_ENV = 'production';
     prisma.healthCheck = jest.fn().mockResolvedValue({ status: 'healthy', latency: 3 });
     isEmailConfigured.mockReturnValue(true);
@@ -42,7 +42,7 @@ describe('MetricsService readiness', () => {
 
     await expect(service.getHealthStatus()).resolves.toMatchObject({
       status: 'degraded',
-      checks: { database: true, email: false, memory: true, uptime: true },
+      checks: { database: true, email: false, memory: true },
     });
   });
 
@@ -53,7 +53,7 @@ describe('MetricsService readiness', () => {
 
     await expect(service.getHealthStatus()).resolves.toMatchObject({
       status: 'healthy',
-      checks: { database: true, email: true, memory: true, uptime: true },
+      checks: { database: true, email: true, memory: true },
     });
     expect(isEmailHealthy).not.toHaveBeenCalled();
   });

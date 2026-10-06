@@ -13,6 +13,7 @@ describe('AuthController', () => {
     const mockAuthService = {
         register: jest.fn(),
         loginWithGoogle: jest.fn(),
+        loginWithFirebase: jest.fn(),
         requestPasswordReset: jest.fn(),
         confirmPasswordReset: jest.fn(),
         login: jest.fn(),

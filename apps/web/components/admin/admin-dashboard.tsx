@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { apiClient } from '@/lib/api/client';
 import { 
     Users, GraduationCap, BookOpen, Building2, 
     CalendarCheck, AlertTriangle, TrendingUp, Download,
@@ -41,30 +42,44 @@ interface AdminDashboardProps {
 export function AdminDashboard({ data: propData }: AdminDashboardProps) {
     const [data, setData] = useState<AdminOverview | null>(propData || null);
     const [loading, setLoading] = useState(!propData);
+    const [loadError, setLoadError] = useState(false);
 
     useEffect(() => {
         if (!propData) {
             fetchData();
         }
-    }, []);
+    }, [propData]);
 
     const fetchData = async () => {
         try {
             setLoading(true);
-            const response = await fetch('/api/admin/overview');
-            if (response.ok) {
-                const overviewData = await response.json();
-                setData(overviewData);
-            }
+            const response = await apiClient.get<AdminOverview>('/admin/dashboard/overview');
+            setData(response.data);
+            setLoadError(false);
         } catch {
-            console.error('Failed to fetch admin overview');
+            setLoadError(true);
         } finally {
             setLoading(false);
         }
     };
 
     const handleExport = async (type: 'overview' | 'teachers' | 'classes' | 'full') => {
-        window.open(`/api/admin/export/pdf?type=${type}`, '_blank');
+        try {
+            const response = await apiClient.get<Blob>('/admin/dashboard/export/data', {
+                params: { type },
+                responseType: 'blob',
+            });
+            const url = URL.createObjectURL(response.data);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `nexus-admin-report-${type}-${Date.now()}.json`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch {
+            setLoadError(true);
+        }
     };
 
     if (loading) {
@@ -85,7 +100,7 @@ export function AdminDashboard({ data: propData }: AdminDashboardProps) {
         return (
             <Card>
                 <CardContent className="pt-6 text-center text-gray-500">
-                    لا توجد بيانات متاحة
+                {loadError ? 'تعذر تحميل بيانات لوحة الإدارة من الخادم.' : 'لا توجد بيانات مدرسية مسجلة بعد.'}
                 </CardContent>
             </Card>
         );
@@ -102,11 +117,11 @@ export function AdminDashboard({ data: propData }: AdminDashboardProps) {
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => handleExport('overview')}>
                         <Download className="w-4 h-4 ml-2" />
-                        تقرير سريع
+                        تقرير سريع (JSON)
                     </Button>
                     <Button onClick={() => handleExport('full')}>
                         <FileText className="w-4 h-4 ml-2" />
-                        تقرير شامل PDF
+                        تقرير شامل (JSON)
                     </Button>
                 </div>
             </div>

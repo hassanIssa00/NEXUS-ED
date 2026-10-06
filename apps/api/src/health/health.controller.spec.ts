@@ -13,15 +13,26 @@ describe('HealthController', () => {
     controller = new HealthController(metrics as never);
   });
 
-  it('returns ready only when all readiness checks are healthy', async () => {
+  it('returns ready when core services are healthy even if optional email is degraded', async () => {
     metrics.getHealthStatus.mockResolvedValue({
       status: 'healthy',
-      checks: { database: true, email: true },
+      checks: { database: true, memory: true, email: false },
     });
 
     await expect(controller.ready()).resolves.toMatchObject({
       status: 'ready',
     });
+  });
+
+  it('does not become ready when the database is healthy but memory is over the limit', async () => {
+    metrics.getHealthStatus.mockResolvedValue({
+      status: 'unhealthy',
+      checks: { database: true, memory: false, email: false },
+    });
+
+    await expect(controller.ready()).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 
   it('uses HTTP 503 semantics when readiness checks fail', async () => {
@@ -35,7 +46,7 @@ describe('HealthController', () => {
       throw new Error('Expected readiness to fail');
     } catch (error) {
       expect(error).toBeInstanceOf(ServiceUnavailableException);
-      expect((error as ServiceUnavailableException).getResponse()).not.toHaveProperty('checks');
+      expect((error as ServiceUnavailableException).getResponse()).toHaveProperty('checks.database', false);
     }
   });
 

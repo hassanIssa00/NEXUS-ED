@@ -23,6 +23,7 @@ import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
 import { ConfirmPasswordResetDto } from '../dto/confirm-password-reset.dto';
 import { Role } from '../../../shared/enums/roles.enum';
 import { GoogleIdentityService } from './google-identity.service';
+import { FirebaseIdentityService } from './firebase-identity.service';
 import { getJwtRefreshSecret } from '../../../config/jwt';
 
 const ACCESS_TOKEN_TTL = '15m';
@@ -49,6 +50,7 @@ export class AuthService {
         private configService: ConfigService,
         private emailService: EmailService,
         private googleIdentityService: GoogleIdentityService,
+        private firebaseIdentityService: FirebaseIdentityService,
     ) { }
 
     private async createAuditLog(data: {
@@ -283,6 +285,116 @@ export class AuthService {
                 schoolId: user.schoolId,
                 phone: user.phone,
             }),
+        };
+    }
+
+    async loginWithFirebase(idToken: string) {
+        const identity = await this.firebaseIdentityService.verifyAndReadProfile(idToken);
+        const provider = 'firebase';
+        const linkedIdentity = await this.prisma.authIdentity.findUnique({
+            where: { provider_providerSubject: { provider, providerSubject: identity.uid } },
+            include: { user: true },
+        });
+
+        let user = linkedIdentity?.user ?? null;
+        if (user && (!user.isActive || String(user.role) !== String(identity.role) || user.email !== identity.email)) {
+            throw new UnauthorizedException('Firebase account does not match its Nexus account');
+        }
+
+        if (!user) {
+            const existingUser = await this.prisma.user.findUnique({ where: { email: identity.email } });
+            if (existingUser) {
+                if (!existingUser.isActive || String(existingUser.role) !== String(identity.role)) {
+                    throw new UnauthorizedException('Firebase account does not match its Nexus account');
+                }
+
+                const schoolId = existingUser.schoolId ?? await this.resolvePublicSchoolId();
+                user = await this.prisma.$transaction(async (transaction) => {
+                    await transaction.authIdentity.create({
+                        data: { provider, providerSubject: identity.uid, userId: existingUser.id },
+                    });
+                    return transaction.user.update({
+                        where: { id: existingUser.id },
+                        data: {
+                            emailVerified: true,
+                            schoolId,
+                            name: existingUser.name || identity.fullName,
+                            phone: existingUser.phone || identity.phone,
+                            avatar: existingUser.avatar || identity.avatarUrl,
+                        },
+                    });
+                });
+            } else {
+                const schoolId = await this.resolvePublicSchoolId();
+                const password = await bcrypt.hash(randomBytes(48).toString('hex'), 12);
+                user = await this.prisma.$transaction(async (transaction) => {
+                    const createdUser = await transaction.user.create({
+                        data: {
+                            email: identity.email,
+                            password,
+                            role: identity.role,
+                            name: identity.fullName,
+                            phone: identity.phone,
+                            avatar: identity.avatarUrl,
+                            emailVerified: true,
+                            schoolId,
+                        },
+                    });
+                    await transaction.authIdentity.create({
+                        data: { provider, providerSubject: identity.uid, userId: createdUser.id },
+                    });
+                    return createdUser;
+                });
+            }
+        } else if (!user.schoolId) {
+            const schoolId = await this.resolvePublicSchoolId();
+            user = await this.prisma.user.update({
+                where: { id: user.id },
+                data: { schoolId },
+            });
+        }
+
+        if (identity.role === Role.STUDENT && identity.gradeLevel !== undefined) {
+            await this.prisma.studentProfile.upsert({
+                where: { userId: user.id },
+                update: { gradeLevel: identity.gradeLevel },
+                create: { userId: user.id, gradeLevel: identity.gradeLevel },
+            });
+        }
+
+        const payload = this.buildAuthPayload({
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            name: user.name || identity.fullName,
+            schoolId: user.schoolId,
+        });
+        const accessToken = await this.jwtService.signAsync(payload);
+        const refreshToken = await this.issueRefreshToken(user.id);
+
+        await this.createAuditLog({
+            schoolId: user.schoolId,
+            userId: user.id,
+            action: linkedIdentity ? 'auth.firebase_login' : 'auth.firebase_link',
+            entityType: 'session',
+            entityId: user.id,
+            metadata: { role: user.role },
+        });
+
+        return {
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            user: {
+                ...this.buildSafeUser({
+                    id: user.id,
+                    email: user.email,
+                    role: user.role,
+                    name: user.name || identity.fullName,
+                    schoolId: user.schoolId,
+                    phone: user.phone,
+                }),
+                firebaseUid: identity.uid,
+            },
         };
     }
 
@@ -628,17 +740,32 @@ export class AuthService {
     async validateUser(userId: string) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
-            select: { id: true, email: true, role: true, name: true, schoolId: true, phone: true, isActive: true },
+            select: {
+                id: true,
+                email: true,
+                role: true,
+                name: true,
+                schoolId: true,
+                phone: true,
+                avatar: true,
+                isActive: true,
+                authIdentities: {
+                    where: { provider: 'firebase' },
+                    select: { providerSubject: true },
+                    take: 1,
+                },
+            },
         });
 
         if (!user?.isActive) {
             return null;
         }
 
-        const { isActive, ...safeUser } = user;
+        const { isActive, authIdentities, ...safeUser } = user;
         return {
             ...safeUser,
             userId: safeUser.id,
+            firebaseUid: authIdentities[0]?.providerSubject ?? null,
         };
     }
 

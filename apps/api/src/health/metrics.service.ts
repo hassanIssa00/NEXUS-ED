@@ -108,20 +108,14 @@ export class MetricsService {
       database: dbHealth.status === 'healthy',
       email: emailHealth,
       memory: process.memoryUsage().heapUsed < 500 * 1024 * 1024, // Less than 500MB
-      uptime: process.uptime() > 10, // Running for more than 10 seconds
     };
 
-    const passedChecks = Object.values(checks).filter(Boolean).length;
-    const totalChecks = Object.keys(checks).length;
-
-    let status: 'healthy' | 'degraded' | 'unhealthy';
-    if (passedChecks === totalChecks) {
-      status = 'healthy';
-    } else if (passedChecks > 0) {
-      status = 'degraded';
-    } else {
-      status = 'unhealthy';
-    }
+    const coreHealthy = checks.database && checks.memory;
+    const status = !coreHealthy
+      ? 'unhealthy'
+      : checks.email
+        ? 'healthy'
+        : 'degraded';
 
     return { status, checks };
   }

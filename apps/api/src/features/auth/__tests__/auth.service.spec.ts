@@ -6,6 +6,7 @@ import * as bcrypt from 'bcrypt';
 import { createHash, createHmac } from 'crypto';
 import { AuthService } from '../services/auth.service';
 import { GoogleIdentityService } from '../services/google-identity.service';
+import { FirebaseIdentityService } from '../services/firebase-identity.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { EmailService } from '../../../notifications/email.service';
 
@@ -61,6 +62,7 @@ describe('AuthService', () => {
 
     const mockEmailService = { isConfigured: jest.fn(), sendEmail: jest.fn() };
     const mockGoogleIdentityService = { verifyIdToken: jest.fn() };
+    const mockFirebaseIdentityService = { verifyAndReadProfile: jest.fn() };
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
@@ -80,6 +82,7 @@ describe('AuthService', () => {
                 },
                 { provide: EmailService, useValue: mockEmailService },
                 { provide: GoogleIdentityService, useValue: mockGoogleIdentityService },
+                { provide: FirebaseIdentityService, useValue: mockFirebaseIdentityService },
             ],
         }).compile();
 

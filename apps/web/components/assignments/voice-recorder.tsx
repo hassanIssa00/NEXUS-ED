@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, Square, Play, Trash2, Volume2 } from 'lucide-react';
+import { uploadFile } from '@/lib/api/files';
 
 interface VoiceRecorderProps {
   onAudioUpload: (url: string) => void;
@@ -27,7 +28,7 @@ export function VoiceRecorder({ onAudioUpload, isUploading }: VoiceRecorderProps
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' });
         const url = URL.createObjectURL(audioBlob);
         setAudioURL(url);
         
@@ -54,19 +55,10 @@ export function VoiceRecorder({ onAudioUpload, isUploading }: VoiceRecorderProps
   };
 
   const uploadAudio = async (blob: Blob) => {
-    const formData = new FormData();
-    formData.append('file', blob, 'feedback.wav');
-
     try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        onAudioUpload(data.url);
-      }
+      const extension = blob.type.includes('wav') ? 'wav' : 'webm';
+      const uploaded = await uploadFile(new File([blob], `feedback.${extension}`, { type: blob.type }));
+      onAudioUpload(uploaded.url);
     } catch (error) {
       console.error('Upload failed', error);
     }

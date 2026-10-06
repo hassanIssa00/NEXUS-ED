@@ -19,6 +19,13 @@ import { Roles } from '../auth/roles.decorator';
 import { Role } from '../auth/role.enum';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
+import * as canvas from '@napi-rs/canvas';
+
+Object.assign(globalThis, {
+  DOMMatrix: canvas.DOMMatrix,
+  ImageData: canvas.ImageData,
+  Path2D: canvas.Path2D,
+});
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
@@ -148,11 +155,14 @@ export class UploadController {
       throw new BadRequestException('File must be a PDF');
     }
 
+    const parser = new pdfParse.PDFParse({ data: file.buffer });
     try {
-      const data = await pdfParse(file.buffer);
+      const data = await parser.getText();
       return { success: true, text: data.text };
-    } catch (error) {
+    } catch {
       throw new BadRequestException('Failed to parse PDF text');
+    } finally {
+      await parser.destroy().catch(() => undefined);
     }
   }
 }

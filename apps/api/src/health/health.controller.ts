@@ -20,15 +20,17 @@ export class HealthController {
   @ApiOperation({ summary: 'Basic health check' })
   async check() {
     const health = await this.metricsService.getHealthStatus();
-    if (health.status !== 'healthy') {
+    if (health.status === 'unhealthy') {
       throw new ServiceUnavailableException({
         status: health.status,
+        checks: health.checks,
         timestamp: new Date().toISOString(),
       });
     }
 
     return {
       status: health.status,
+      checks: health.checks,
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
     };
@@ -38,15 +40,17 @@ export class HealthController {
   @ApiOperation({ summary: 'Readiness check for Kubernetes' })
   async ready() {
     const health = await this.metricsService.getHealthStatus();
-    if (health.status !== 'healthy') {
+    if (!health.checks.database || !health.checks.memory) {
       throw new ServiceUnavailableException({
         status: 'not_ready',
+        checks: health.checks,
         timestamp: new Date().toISOString(),
       });
     }
 
     return {
       status: 'ready',
+      checks: health.checks,
       timestamp: new Date().toISOString(),
     };
   }

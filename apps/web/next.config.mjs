@@ -45,6 +45,25 @@ const nextConfig = {
       },
     ];
   },
+  async rewrites() {
+    const apiOrigin = process.env.NEXUS_API_ORIGIN?.trim().replace(/\/+$/, '');
+    if (!apiOrigin) return [];
+
+    let parsedOrigin;
+    try {
+      parsedOrigin = new URL(apiOrigin);
+    } catch {
+      throw new Error('NEXUS_API_ORIGIN must be an absolute HTTPS URL');
+    }
+    if (parsedOrigin.protocol !== 'https:') {
+      throw new Error('NEXUS_API_ORIGIN must use HTTPS');
+    }
+
+    return [{
+      source: '/api/:path*',
+      destination: `${apiOrigin}/api/:path*`,
+    }];
+  },
   // Note: 'eslint' is not a valid key in Next.js 15+.
   // ESLint during builds is skipped via the DISABLE_ESLINT_PLUGIN env var,
   // or by configuring .eslintrc directly.

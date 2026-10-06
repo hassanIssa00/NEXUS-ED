@@ -39,42 +39,39 @@ const fileFormat = winston.format.combine(
   winston.format.json(),
 );
 
-// Daily rotate transport for all logs
-const dailyRotateTransport = new DailyRotateFile({
-  dirname: logDir,
-  filename: 'application-%DATE%.log',
-  datePattern: 'YYYY-MM-DD',
-  zippedArchive: true,
-  maxSize: '20m',
-  maxFiles: '14d',
-  format: fileFormat,
-});
+const isVercel = process.env.VERCEL === '1';
+const transports: winston.transport[] = [
+  new winston.transports.Console({
+    format: consoleFormat,
+  }),
+];
+const exceptionHandlers: winston.transport[] = [];
+const rejectionHandlers: winston.transport[] = [];
 
-// Daily rotate transport for errors only
-const errorRotateTransport = new DailyRotateFile({
-  dirname: logDir,
-  filename: 'error-%DATE%.log',
-  datePattern: 'YYYY-MM-DD',
-  zippedArchive: true,
-  maxSize: '20m',
-  maxFiles: '30d',
-  level: 'error',
-  format: fileFormat,
-});
-
-export const winstonConfig = WinstonModule.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  transports: [
-    // Console transport
-    new winston.transports.Console({
-      format: consoleFormat,
+if (!isVercel) {
+  transports.push(
+    new DailyRotateFile({
+      dirname: logDir,
+      filename: 'application-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d',
+      format: fileFormat,
     }),
-    // File transports
-    dailyRotateTransport,
-    errorRotateTransport,
-  ],
-  // Handle exceptions and rejections
-  exceptionHandlers: [
+    new DailyRotateFile({
+      dirname: logDir,
+      filename: 'error-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '30d',
+      level: 'error',
+      format: fileFormat,
+    }),
+  );
+
+  exceptionHandlers.push(
     new DailyRotateFile({
       dirname: logDir,
       filename: 'exceptions-%DATE%.log',
@@ -83,8 +80,8 @@ export const winstonConfig = WinstonModule.createLogger({
       maxSize: '20m',
       maxFiles: '30d',
     }),
-  ],
-  rejectionHandlers: [
+  );
+  rejectionHandlers.push(
     new DailyRotateFile({
       dirname: logDir,
       filename: 'rejections-%DATE%.log',
@@ -93,5 +90,12 @@ export const winstonConfig = WinstonModule.createLogger({
       maxSize: '20m',
       maxFiles: '30d',
     }),
-  ],
+  );
+}
+
+export const winstonConfig = WinstonModule.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  transports,
+  exceptionHandlers,
+  rejectionHandlers,
 });

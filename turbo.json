@@ -1,7 +1,20 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
-  "globalEnv": ["NODE_ENV"],
+  "globalEnv": [
+    "NODE_ENV",
+    "NEXUS_SELF_HOSTED_BUILD",
+    "NEXUS_API_ORIGIN",
+    "NEXT_PUBLIC_API_URL",
+    "DATABASE_URL",
+    "DIRECT_URL",
+    "JWT_SECRET",
+    "JWT_REFRESH_SECRET",
+    "FRONTEND_URL",
+    "FIREBASE_PROJECT_ID",
+    "PUBLIC_SCHOOL_SLUG",
+    "NEXUS_SCHOOL_NAME"
+  ],
   "globalPassThroughEnv": ["SWC_NATIVE_BINDING_CACHE"],
   "tasks": {
     "build": {

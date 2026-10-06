@@ -9,9 +9,9 @@ Requirements: Node.js 22, npm 11, and a reachable PostgreSQL database.
 
 1. From the repository root, run `npm ci`.
 2. Copy `apps/api/.env.example` to `apps/api/.env` and set the database URLs,
-   two JWT secrets, public frontend origin, Google OAuth web client ID, and SMTP
-   credentials. Keep the pooled database URL in `DATABASE_URL` and the direct
-   PostgreSQL URL in `DIRECT_URL` for migrations.
+   two JWT secrets, the public frontend origin, and Firebase project ID. Keep
+   the pooled database URL in `DATABASE_URL` and the direct PostgreSQL URL in
+   `DIRECT_URL` for migrations. SMTP and Google OAuth are optional integrations.
 3. Generate separate JWT secrets with
    `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"`.
    Do not reuse either value for another application or commit them.
@@ -40,8 +40,9 @@ bootstrap values from deployment configuration after provisioning.
   `ENABLE_API_DOCS=true` is explicitly set.
 
 The API exits unsuccessfully when production configuration is incomplete. A
-production deployment needs valid database, JWT, Google OAuth, and SMTP values;
-put secrets in the hosting provider's encrypted variables, never in Git.
+production deployment needs valid database, JWT, and HTTPS frontend-origin
+values. Store connection strings and JWT secrets only in the hosting provider's
+encrypted variables, never in Git.
 
 ## Verification
 

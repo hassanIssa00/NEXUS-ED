@@ -46,7 +46,7 @@ import { PlacementAssessmentModule } from './placement-assessment/placement-asse
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ScheduleModule.forRoot(),
+    ...(process.env.VERCEL === '1' ? [] : [ScheduleModule.forRoot()]),
     PrismaModule,
     ThrottlerModule.forRoot([
       { name: 'short',  ttl: 1000,  limit: 10  },
@@ -56,7 +56,7 @@ import { PlacementAssessmentModule } from './placement-assessment/placement-asse
     AuthModule,
     CommonModule,
     CacheModule.register({ isGlobal: true, ttl: 300000, max: 1000 }),
-    EventsModule,    // ← global real-time gateway
+    EventsModule,
     ClassModule,
     SubjectModule,
     UserModule,

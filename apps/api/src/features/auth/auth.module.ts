@@ -8,6 +8,7 @@ import { AccountLockGuard } from './guards/account-lock.guard';
 import { getJwtSecret } from '../../config/jwt';
 import { NotificationModule } from '../../notifications/notification.module';
 import { GoogleIdentityService } from './services/google-identity.service';
+import { FirebaseIdentityService } from './services/firebase-identity.service';
 
 @Module({
     imports: [
@@ -20,7 +21,7 @@ import { GoogleIdentityService } from './services/google-identity.service';
             }),
         }),
     ],
-    providers: [AuthService, JwtStrategy, AccountLockGuard, GoogleIdentityService],
+    providers: [AuthService, JwtStrategy, AccountLockGuard, GoogleIdentityService, FirebaseIdentityService],
     controllers: [AuthController],
     exports: [AuthService],
 })

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { getApiBaseUrl, getStoredAccessToken } from './endpoints';
+import { auth as firebaseAuth } from '@/lib/firebase/config';
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -14,11 +15,12 @@ export const apiClient = axios.create({
 
 // Request interceptor - add access token
 apiClient.interceptors.request.use(
-    (config) => {
+    async (config) => {
         if (!API_BASE_URL) {
             return Promise.reject(new Error('The Nexus API endpoint is not configured for this deployment.'));
         }
-        const token = getStoredAccessToken();
+        const token = getStoredAccessToken()
+            || await firebaseAuth?.currentUser?.getIdToken();
         if (token) {
             config.headers.Authorization = `Bearer ${token}`
         }

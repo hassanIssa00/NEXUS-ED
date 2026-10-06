@@ -27,6 +27,7 @@ import { AccountLockGuard } from '../guards/account-lock.guard';
 import { GoogleLoginDto } from '../dto/google-login.dto';
 import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
 import { ConfirmPasswordResetDto } from '../dto/confirm-password-reset.dto';
+import { FirebaseLoginDto } from '../dto/firebase-login.dto';
 
 const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
@@ -55,6 +56,25 @@ export class AuthController {
             secure: isProduction,
             sameSite: isProduction ? 'none' : 'lax',
             path: '/',
+        });
+        const { refresh_token, ...responseData } = result;
+        return responseData;
+    }
+
+    @Post('firebase')
+    @Throttle({ short: { limit: 10, ttl: 60000 } })
+    async firebaseLogin(
+        @Body() dto: FirebaseLoginDto,
+        @Res({ passthrough: true }) res: Response,
+    ) {
+        const result = await this.authService.loginWithFirebase(dto.idToken);
+        const isProduction = process.env.NODE_ENV === 'production';
+        res.cookie('refresh_token', result.refresh_token, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
+            path: '/',
+            maxAge: REFRESH_COOKIE_MAX_AGE,
         });
         const { refresh_token, ...responseData } = result;
         return responseData;
