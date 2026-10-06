@@ -13,7 +13,7 @@ import { CheckCircle2, GraduationCap, KeyRound, LoaderCircle, ShieldCheck } from
 import { auth, isFirebaseConfigured } from '@/lib/firebase/config';
 
 type ActionMode = 'verifyEmail' | 'resetPassword' | 'unsupported';
-type PageState = 'loading' | 'verify-ready' | 'verified' | 'reset-ready' | 'reset-done' | 'error';
+type PageState = 'loading' | 'verify-ready' | 'verified' | 'reset-ready' | 'reset-done' | 'continued' | 'error';
 
 export default function EmailActionPage() {
   const locale = useLocale();
@@ -45,12 +45,12 @@ export default function EmailActionPage() {
 
     if (!code && completedResult === 'verified') {
       setMode('verifyEmail');
-      setPageState('verified');
+      setPageState('continued');
       return;
     }
     if (!code && completedResult === 'password-reset') {
       setMode('resetPassword');
-      setPageState('reset-done');
+      setPageState('continued');
       return;
     }
 
@@ -133,6 +133,8 @@ export default function EmailActionPage() {
         verifiedText: 'أصبح بريدك جاهزًا للاستخدام في نكسس.',
         resetDoneTitle: 'تم تحديث كلمة المرور',
         resetDoneText: 'يمكنك الآن تسجيل الدخول باستخدام كلمة المرور الجديدة.',
+        continuedTitle: 'العودة إلى نكسس',
+        continuedText: 'إذا أكملت الإجراء في صفحة Firebase، يمكنك تسجيل الدخول الآن. إذا لم يكتمل، اطلب رابطًا جديدًا.',
         login: 'الانتقال إلى تسجيل الدخول',
         loading: 'جارٍ التحقق من الرابط...',
       }
@@ -152,15 +154,18 @@ export default function EmailActionPage() {
         verifiedText: 'Your email is now ready to use with Nexus EDU.',
         resetDoneTitle: 'Password updated',
         resetDoneText: 'You can now sign in with your new password.',
+        continuedTitle: 'Return to Nexus EDU',
+        continuedText: 'If you completed the action on Firebase, you can sign in now. If it did not finish, request a new link.',
         login: 'Continue to sign in',
         loading: 'Checking your secure link...',
       };
 
   const isVerified = pageState === 'verified';
   const isResetDone = pageState === 'reset-done';
-  const isFinished = isVerified || isResetDone;
-  const title = isVerified ? copy.verifiedTitle : isResetDone ? copy.resetDoneTitle : mode === 'verifyEmail' ? copy.verifyTitle : copy.resetTitle;
-  const description = isVerified ? copy.verifiedText : isResetDone ? copy.resetDoneText : mode === 'verifyEmail' ? copy.verifyText : copy.resetText;
+  const isContinued = pageState === 'continued';
+  const isFinished = isVerified || isResetDone || isContinued;
+  const title = isVerified ? copy.verifiedTitle : isResetDone ? copy.resetDoneTitle : isContinued ? copy.continuedTitle : mode === 'verifyEmail' ? copy.verifyTitle : copy.resetTitle;
+  const description = isVerified ? copy.verifiedText : isResetDone ? copy.resetDoneText : isContinued ? copy.continuedText : mode === 'verifyEmail' ? copy.verifyText : copy.resetText;
 
   return (
     <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-10 text-slate-900" dir={isArabic ? 'rtl' : 'ltr'}>
@@ -185,7 +190,7 @@ export default function EmailActionPage() {
           <div className="mb-5 grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-blue-700">
             {pageState === 'loading'
               ? <LoaderCircle className="h-6 w-6 animate-spin" />
-              : isFinished
+              : isVerified || isResetDone
                 ? <CheckCircle2 className="h-6 w-6" />
                 : mode === 'verifyEmail'
                   ? <GraduationCap className="h-6 w-6" />
