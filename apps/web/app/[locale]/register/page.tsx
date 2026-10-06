@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, Phone, GraduationCap, Users, ArrowLeft, Sparkles, AlertCircle, Globe2 } from 'lucide-react';
+import { User, Mail, Lock, Phone, GraduationCap, Users, BookOpen, ArrowLeft, Sparkles, AlertCircle, Globe2, ShieldCheck } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { isAuthenticationConfigured, isGoogleAuthenticationConfigured, useAuth } from '@/contexts/auth-context';
 
@@ -17,12 +17,13 @@ function RegisterForm() {
   const { signUp, signInWithGoogle } = useAuth();
   const authConfigured = isAuthenticationConfigured();
   const googleConfigured = isGoogleAuthenticationConfigured();
-  const requestedRole = searchParams.get('role') === 'student' ? 'student' : 'parent';
-  const [accountType, setAccountType] = useState<'parent' | 'student'>(requestedRole);
+  const requestedRole = searchParams.get('role');
+  const initialRole = requestedRole === 'student' || requestedRole === 'teacher' ? requestedRole : 'parent';
+  const [accountType, setAccountType] = useState<'parent' | 'student' | 'teacher'>(initialRole);
 
   useEffect(() => {
-    setAccountType(requestedRole);
-  }, [requestedRole]);
+    setAccountType(initialRole);
+  }, [initialRole]);
 
   // Form Fields
   const [fullName, setFullName] = useState('');
@@ -66,6 +67,10 @@ function RegisterForm() {
 
     try {
       await signUp(email.trim().toLowerCase(), password, fullName.trim(), accountType, phone.trim());
+      if (accountType === 'teacher') {
+        router.push('/verify-email');
+        return;
+      }
       const flow = accountType === 'student' ? 'student' : 'parent';
       router.push(`/student/new?flow=${flow}`);
     } catch (err: any) {
@@ -76,6 +81,7 @@ function RegisterForm() {
   };
 
   const handleGoogleSignUp = async () => {
+    if (accountType === 'teacher') return;
     setError('');
     setLoading(true);
     try {
@@ -107,15 +113,15 @@ function RegisterForm() {
               <span>مدارس نكسس التعليمية الأهلية — العام الدراسي 1448هـ</span>
             </div>
             <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
-              {accountType === 'student' ? 'إنشاء حساب طالب' : 'إنشاء حساب ولي أمر'}
+              {accountType === 'student' ? 'إنشاء حساب طالب' : accountType === 'teacher' ? 'إنشاء حساب معلم' : 'إنشاء حساب ولي أمر'}
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               انضم إلى المنظومة المدرسية الشاملة مع معرف نظام موحد (Universal ID)
             </p>
           </div>
 
-          {/* Student and parent self-registration */}
-          <div className="flex gap-2 bg-gray-100 dark:bg-white/5 p-1.5 rounded-2xl mb-6">
+          {/* Student, parent, and teacher self-registration */}
+          <div className="grid grid-cols-3 gap-2 bg-gray-100 dark:bg-white/5 p-1.5 rounded-2xl mb-6">
             <button
               type="button"
               onClick={() => setAccountType('parent')}
@@ -140,7 +146,26 @@ function RegisterForm() {
               <GraduationCap className="w-4 h-4" />
               <span>طالب</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setAccountType('teacher')}
+              className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition-all ${
+                accountType === 'teacher'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              <BookOpen className="h-4 w-4 shrink-0" />
+              <span>معلم</span>
+            </button>
           </div>
+
+          {accountType === 'teacher' && (
+            <div role="status" className="mb-4 flex items-start gap-2 rounded-2xl border border-blue-200 bg-blue-50 p-3 text-xs leading-5 font-semibold text-blue-900">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>سيظل حساب المعلم قيد المراجعة بعد تأكيد البريد. لن تظهر بيانات المدرسة أو الفصول قبل اعتماد الإدارة وربط الحساب بها.</span>
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 text-xs font-bold flex items-center gap-2">
@@ -161,7 +186,7 @@ function RegisterForm() {
               <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
                 {accountType === 'parent'
                   ? 'اسم ولي الأمر الكامل *'
-                  : 'اسم الطالب الكامل *'}
+                  : accountType === 'teacher' ? 'اسم المعلم الكامل *' : 'اسم الطالب الكامل *'}
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
@@ -172,7 +197,7 @@ function RegisterForm() {
                   placeholder={
                     accountType === 'parent'
                       ? 'مثال: فيصل الغامدي'
-                      : 'مثال: أحمد فيصل الغامدي'
+                      : accountType === 'teacher' ? 'مثال: محمد أحمد' : 'مثال: أحمد فيصل الغامدي'
                   }
                   className="w-full pr-10 pl-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 />
@@ -254,7 +279,7 @@ function RegisterForm() {
                   <div className="w-5 h-5 rounded-full border-2 border-white/20 border-t-white animate-spin" />
                 ) : (
                   <>
-                    <span>إنشاء الحساب وإصدار المعرف الرسمي</span>
+                    <span>{accountType === 'teacher' ? 'إنشاء حساب المعلم وإرسال الطلب' : 'إنشاء الحساب وإصدار المعرف الرسمي'}</span>
                     <ArrowLeft className="w-4 h-4" />
                   </>
                 )}
@@ -262,7 +287,7 @@ function RegisterForm() {
             </div>
           </form>
 
-          {googleConfigured && authConfigured && (
+          {googleConfigured && authConfigured && accountType !== 'teacher' && (
             <>
               <div className="my-5 flex items-center gap-3 text-xs text-gray-400">
                 <span className="h-px flex-1 bg-gray-200" />

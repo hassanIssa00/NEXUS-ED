@@ -410,11 +410,11 @@ export default function RoleLoginPage() {
                             </>
                         )}
 
-                        {(role === 'student' || role === 'parent') && (
+                        {(role === 'student' || role === 'parent' || role === 'teacher') && (
                             <p className="mt-5 text-center text-sm text-slate-500">
                                 ليس لديك حساب؟{' '}
                                 <Link href={`/${locale}/register?role=${role}`} className="font-bold hover:underline" style={{ color: roleConfig.color }}>
-                                    {role === 'student' ? 'إنشاء حساب طالب' : 'إنشاء حساب ولي أمر'}
+                                    {role === 'student' ? 'إنشاء حساب طالب' : role === 'parent' ? 'إنشاء حساب ولي أمر' : 'إنشاء حساب معلم'}
                                 </Link>
                             </p>
                         )}

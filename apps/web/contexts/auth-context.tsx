@@ -442,7 +442,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const apiBaseUrl = getApiBaseUrl();
 
         try {
-            if (apiBaseUrl) {
+            if (apiBaseUrl && expectedRole !== 'teacher') {
                 // Clear any previous session before signing in with new credentials
                 clearLocalApiSession();
                 
@@ -563,7 +563,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const apiBaseUrl = getApiBaseUrl();
 
         try {
-            if (apiBaseUrl) {
+            if (apiBaseUrl && role !== 'teacher') {
                 const apiRole = APP_ROLE_TO_API_ROLE[role];
                 if (!apiRole) {
                     throw new Error('إنشاء حسابات الموظفين متاح لإدارة المدرسة فقط.');
@@ -594,8 +594,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             if (isFirebaseConfigured && firebaseAuth && firebaseDb) {
-                if (role !== 'student' && role !== 'parent') {
-                    throw new Error('إنشاء حسابات الموظفين متاح لإدارة المدرسة فقط.');
+                if (role !== 'student' && role !== 'parent' && role !== 'teacher') {
+                    throw new Error('هذا الدور لا يمكنه إنشاء حساب ذاتي.');
                 }
 
                 isProvisioningFirebaseUser.current = true;

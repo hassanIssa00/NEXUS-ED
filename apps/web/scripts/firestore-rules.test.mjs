@@ -68,12 +68,22 @@ try {
     email: 'counselor@example.test',
     email_verified: true,
   }).firestore();
+  const pendingTeacher = testEnv.authenticatedContext('teacher-pending', {
+    email: 'teacher@example.test',
+    email_verified: true,
+  }).firestore();
+  const pendingCounselor = testEnv.authenticatedContext('counselor-pending', {
+    email: 'counselor-pending@example.test',
+    email_verified: true,
+  }).firestore();
 
   await assertSucceeds(setDoc(doc(owner, 'users/owner'), profile('owner', 'hassan.issa.eng@gmail.com', 'admin', 'active')));
   await assertSucceeds(setDoc(doc(student, 'users/student-1'), profile('student-1', 'student@example.test')));
   await assertSucceeds(setDoc(doc(unverifiedStudent, 'users/unverified-student'), profile('unverified-student', 'unverified-student@example.test')));
   await assertSucceeds(setDoc(doc(parent, 'users/parent-1'), profile('parent-1', 'parent@example.test', 'parent')));
   await assertSucceeds(setDoc(doc(otherParent, 'users/parent-2'), profile('parent-2', 'parent2@example.test', 'parent')));
+  await assertSucceeds(setDoc(doc(pendingTeacher, 'users/teacher-pending'), profile('teacher-pending', 'teacher@example.test', 'teacher')));
+  await assertFails(setDoc(doc(pendingTeacher, 'users/teacher-pending-active'), profile('teacher-pending-active', 'teacher@example.test', 'teacher', 'active')));
   await assertFails(setDoc(doc(unverifiedOwner, 'users/unverified-owner'), profile('unverified-owner', 'hassan.issa.eng@gmail.com', 'admin', 'active')));
   await assertFails(setDoc(doc(otherStudent, 'users/student-2'), profile('student-2', 'student2@example.test', 'admin', 'active')));
 
@@ -88,6 +98,7 @@ try {
 
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), 'users/counselor-1'), profile('counselor-1', 'counselor@example.test', 'counselor', 'active'));
+    await setDoc(doc(context.firestore(), 'users/counselor-pending'), profile('counselor-pending', 'counselor-pending@example.test', 'counselor'));
   });
 
   const code = 'A1B2C3D4E5F6071829384756ABCDEF01';
@@ -131,6 +142,7 @@ try {
     submittedAt: serverTimestamp(),
   }));
   await assertSucceeds(getDoc(doc(counselor, 'parentSurveys/parent-1_student-1')));
+  await assertFails(getDoc(doc(pendingCounselor, 'parentSurveys/parent-1_student-1')));
   await assertFails(getDoc(doc(otherParent, 'parentSurveys/parent-1_student-1')));
   await assertFails(updateDoc(doc(parent, 'parentSurveys/parent-1_student-1'), { consent: false }));
   await assertFails(setDoc(doc(parent, 'parentSurveys/parent-2_student-1'), {
