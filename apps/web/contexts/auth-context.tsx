@@ -52,7 +52,7 @@ interface AuthContextType {
     session: Session | null;
     loading: boolean;
     signIn: (email: string, password: string, expectedRole?: UserRole) => Promise<UserRole>;
-    signInWithGoogle: (role: 'student' | 'parent') => Promise<{ role: 'student' | 'parent'; isNewUser: boolean }>;
+    signInWithGoogle: (role: 'student' | 'parent' | 'admin') => Promise<{ role: 'student' | 'parent' | 'admin'; isNewUser: boolean }>;
     signUp: (
         email: string,
         password: string,
@@ -88,6 +88,8 @@ const APP_ROLE_TO_API_ROLE: Partial<Record<UserRole, string>> = {
     student: 'STUDENT',
     parent: 'PARENT',
 };
+
+const BOOTSTRAP_ADMIN_EMAIL = 'hassan.issa.eng@gmail.com';
 
 function createApiUser(id: string, email: string): User {
     return {
@@ -133,8 +135,14 @@ export function isAuthenticationConfigured(): boolean {
     return Boolean(getApiBaseUrl() || supabase || (isFirebaseConfigured && firebaseAuth && firebaseDb));
 }
 
-export function isGoogleAuthenticationConfigured(): boolean {
-    return Boolean(isFirebaseConfigured && firebaseAuth && firebaseDb && !supabase);
+export function isGoogleAuthenticationConfigured(role?: 'student' | 'parent' | 'admin'): boolean {
+    return Boolean(
+        isFirebaseConfigured
+        && firebaseAuth
+        && firebaseDb
+        && !supabase
+        && (role !== 'admin' || !getApiBaseUrl())
+    );
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -513,24 +521,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (isFirebaseConfigured && firebaseAuth) {
                 clearLocalApiSession();
-                const credential = await signInWithEmailAndPassword(firebaseAuth, email, password);
-                const nextProfile = await fetchFirebaseProfile(credential.user.uid);
+                isProvisioningFirebaseUser.current = true;
+                try {
+                    const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
+                    const nextProfile = await fetchFirebaseProfile(credential.user.uid);
 
-                if (!nextProfile) {
-                    await firebaseSignOut(firebaseAuth);
-                    setUser(null);
-                    setProfile(null);
-                    throw new Error('NEXUS_PROFILE_NOT_PROVISIONED');
-                }
-                if (expectedRole && nextProfile.role !== expectedRole) {
-                    await firebaseSignOut(firebaseAuth);
-                    setUser(null);
-                    setProfile(null);
-                    throw new Error('PORTAL_ROLE_MISMATCH');
-                }
+                    if (!nextProfile) {
+                        await firebaseSignOut(firebaseAuth);
+                        setUser(null);
+                        setProfile(null);
+                        throw new Error('NEXUS_PROFILE_NOT_PROVISIONED');
+                    }
+                    if (expectedRole && nextProfile.role !== expectedRole) {
+                        await firebaseSignOut(firebaseAuth);
+                        setUser(null);
+                        setProfile(null);
+                        throw new Error('PORTAL_ROLE_MISMATCH');
+                    }
 
-                setAuthenticatedState(createFirebaseAppUser(credential.user), nextProfile);
-                return nextProfile.role;
+                    setAuthenticatedState(createFirebaseAppUser(credential.user), nextProfile);
+                    return nextProfile.role;
+                } finally {
+                    isProvisioningFirebaseUser.current = false;
+                }
             }
 
             throw new Error('Authentication services are not configured');
@@ -624,12 +637,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const signInWithGoogle = async (role: 'student' | 'parent') => {
-        if (role !== 'student' && role !== 'parent') {
-            throw new Error('تسجيل Google متاح للطالب وولي الأمر فقط.');
+    const signInWithGoogle = async (role: 'student' | 'parent' | 'admin') => {
+        if (role !== 'student' && role !== 'parent' && role !== 'admin') {
+            throw new Error('بوابة Google غير متاحة لهذا الحساب.');
         }
         if (!isFirebaseConfigured || !firebaseAuth || !firebaseDb || supabase) {
             throw new Error('تسجيل Google غير مهيأ حاليًا.');
+        }
+        if (role === 'admin' && getApiBaseUrl()) {
+            throw new Error('دخول المالك عبر Google غير مهيأ مع خادم API الحالي.');
         }
 
         isProvisioningFirebaseUser.current = true;
@@ -641,6 +657,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             firebaseUserSignedIn = true;
             if (!credential.user.email || !credential.user.emailVerified) {
                 throw new Error('يلزم استخدام حساب Google ببريد إلكتروني موثّق.');
+            }
+            if (role === 'admin' && credential.user.email.trim().toLowerCase() !== BOOTSTRAP_ADMIN_EMAIL) {
+                throw new Error('دخول المالك الأول متاح فقط لحساب Google المعتمد للمنصة.');
             }
 
             const apiBaseUrl = getApiBaseUrl();
@@ -682,12 +701,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             let isNewUser = false;
             if (!profileSnapshot.exists()) {
                 const fullName = (credential.user.displayName || credential.user.email).trim().slice(0, 120);
+                const isBootstrapAdmin = role === 'admin'
+                    && credential.user.email.trim().toLowerCase() === BOOTSTRAP_ADMIN_EMAIL;
                 await setDoc(profileRef, {
                     uid: credential.user.uid,
                     email: credential.user.email,
                     full_name: fullName,
-                    role,
-                    status: 'pending',
+                    role: isBootstrapAdmin ? 'admin' : role,
+                    status: isBootstrapAdmin ? 'active' : 'pending',
                     ...(credential.user.photoURL ? { avatar_url: credential.user.photoURL } : {}),
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
@@ -698,8 +719,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const profileData = profileSnapshot.data();
             const profileRole = normalizeApiRole(profileData?.role);
-            if (!profileData || profileData.status === 'disabled' || (profileRole !== 'student' && profileRole !== 'parent')) {
-                throw new Error('الحساب غير مهيأ كطالب أو ولي أمر. تواصل مع إدارة المدرسة.');
+            const isAuthorizedBootstrapAdmin = role === 'admin'
+                && profileRole === 'admin'
+                && credential.user.email.trim().toLowerCase() === BOOTSTRAP_ADMIN_EMAIL
+                && profileData?.status === 'active';
+            const isStudentOrParent = profileRole === 'student' || profileRole === 'parent';
+            if (!profileData || profileData.status === 'disabled' || (!isStudentOrParent && !isAuthorizedBootstrapAdmin)) {
+                throw new Error('الحساب غير مهيأ لهذه البوابة. تواصل مع إدارة المنصة.');
             }
             if (profileRole !== role) throw new Error('هذا الحساب لا يطابق بوابة الدخول المختارة.');
 

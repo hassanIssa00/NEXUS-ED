@@ -37,7 +37,7 @@ export default function RoleLoginPage() {
     
     const { signIn, signInWithGoogle } = useAuth();
     const authConfigured = isAuthenticationConfigured();
-    const googleConfigured = isGoogleAuthenticationConfigured();
+    const googleConfigured = isGoogleAuthenticationConfigured(role === 'admin' ? 'admin' : undefined);
     const router = useRouter();
     const { toast } = useToast();
     const t = useTranslations('auth.login');
@@ -82,7 +82,13 @@ export default function RoleLoginPage() {
         } catch (error: any) {
             const description = error?.message === 'PORTAL_ROLE_MISMATCH'
                 ? 'نوع الحساب لا يطابق بوابة الدخول المختارة.'
-                : tAuth('loginFailed');
+                : error?.message === 'NEXUS_PROFILE_NOT_PROVISIONED'
+                    ? 'بيانات الدخول صحيحة، لكن حسابك غير مربوط بملف المنصة. اطلب من المالك تفعيل الحساب.'
+                    : /auth\/(invalid-credential|wrong-password|user-not-found)/i.test(error?.message || '')
+                        ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.'
+                        : /auth\/too-many-requests/i.test(error?.message || '')
+                            ? 'محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة.'
+                            : error?.message || tAuth('loginFailed');
             toast({ variant: 'destructive', title: '❌ خطأ', description });
         } finally {
             setLoading(false);
@@ -90,12 +96,14 @@ export default function RoleLoginPage() {
     };
 
     const handleGoogleSignIn = async () => {
-        if (role !== 'student' && role !== 'parent') return;
+        if (role !== 'student' && role !== 'parent' && role !== 'admin') return;
         setLoading(true);
         try {
             const result = await signInWithGoogle(role);
             toast({ title: 'تم تسجيل الدخول', description: 'مرحبًا بك في نكسس.' });
-            if (result.isNewUser) {
+            if (result.role === 'admin') {
+                router.push(`/${locale}/admin`);
+            } else if (result.isNewUser) {
                 router.push(`/${locale}/student/new?flow=${result.role}`);
             } else {
                 router.push(`/${locale}/${result.role}`);
@@ -383,7 +391,7 @@ export default function RoleLoginPage() {
                             </motion.button>
                         </form>
 
-                        {googleConfigured && (role === 'student' || role === 'parent') && (
+                        {googleConfigured && (role === 'student' || role === 'parent' || role === 'admin') && (
                             <>
                                 <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
                                     <span className="h-px flex-1 bg-slate-200" />
@@ -397,7 +405,7 @@ export default function RoleLoginPage() {
                                     className="flex h-[50px] w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
                                 >
                                     <Globe2 className="h-4 w-4 text-blue-600" />
-                                    المتابعة باستخدام Google
+                                    {role === 'admin' ? 'دخول المالك الأول باستخدام Google' : 'المتابعة باستخدام Google'}
                                 </button>
                             </>
                         )}
