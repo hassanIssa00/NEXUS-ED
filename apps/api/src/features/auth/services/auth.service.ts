@@ -781,6 +781,94 @@ export class AuthService {
         };
     }
 
+    async getSessionProfile(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                email: true,
+                role: true,
+                name: true,
+                phone: true,
+                avatar: true,
+                schoolId: true,
+                emailVerified: true,
+                authIdentities: {
+                    where: { provider: 'firebase' },
+                    select: { providerSubject: true },
+                    take: 1,
+                },
+                studentProfile: { select: { gradeLevel: true } },
+                placementAssessmentAttempts: { select: { assessmentKey: true } },
+                children: {
+                    select: {
+                        student: {
+                            select: {
+                                id: true,
+                                childSurveys: {
+                                    where: { parentId: userId },
+                                    select: { id: true },
+                                    take: 1,
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!user) throw new UnauthorizedException();
+
+        let onboardingStep = 'complete';
+        let onboardingStudentId = '';
+        let gradeLevel = -1;
+        if (String(user.role) === 'STUDENT') {
+            gradeLevel = user.studentProfile?.gradeLevel ?? -1;
+            if (gradeLevel < 0) {
+                onboardingStep = 'student-profile';
+            } else {
+                const assessmentKey = this.placementAssessmentKey(gradeLevel);
+                onboardingStep = assessmentKey && user.placementAssessmentAttempts.some(
+                    (attempt) => attempt.assessmentKey === assessmentKey,
+                ) ? 'complete' : 'placement-assessment';
+            }
+        } else if (String(user.role) === 'PARENT') {
+            const linkedStudent = user.children.find((link) => link.student.childSurveys.length === 0);
+            if (user.children.length === 0) {
+                onboardingStep = 'link-student';
+            } else if (linkedStudent) {
+                onboardingStep = 'parent-survey';
+                onboardingStudentId = linkedStudent.student.id;
+            }
+        }
+
+        return {
+            id: user.authIdentities[0]?.providerSubject ?? user.id,
+            userId: user.id,
+            firebaseUid: user.authIdentities[0]?.providerSubject ?? null,
+            email: user.email,
+            role: user.role,
+            name: user.name ?? user.email,
+            phone: user.phone,
+            avatar: user.avatar,
+            schoolId: user.schoolId,
+            emailVerified: user.emailVerified,
+            ...(gradeLevel >= 0 ? { gradeLevel } : {}),
+            onboardingComplete: onboardingStep === 'complete',
+            onboardingStep,
+            ...(onboardingStudentId ? { onboardingStudentId } : {}),
+        };
+    }
+
+    private placementAssessmentKey(gradeLevel: number): string | false {
+        if (gradeLevel === 0) return 'kg';
+        if (gradeLevel === 1) return 'general';
+        if (gradeLevel >= 2 && gradeLevel <= 6) return `g${gradeLevel}`;
+        if (gradeLevel >= 7 && gradeLevel <= 9) return 'm1';
+        if (gradeLevel >= 10 && gradeLevel <= 12) return 's1';
+        return false;
+    }
+
     assertAuthConfiguration(): void {
         const jwtSecret = this.configService.get<string>('JWT_SECRET');
         if (!jwtSecret) {

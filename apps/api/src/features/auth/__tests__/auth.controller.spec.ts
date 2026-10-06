@@ -19,6 +19,7 @@ describe('AuthController', () => {
         login: jest.fn(),
         refreshAccessToken: jest.fn(),
         revokeRefreshToken: jest.fn(),
+        getSessionProfile: jest.fn(),
     };
 
     const mockCacheManager = {
@@ -221,18 +222,22 @@ describe('AuthController', () => {
     });
 
     describe('getProfile', () => {
-        it('should return the user object from request', () => {
+        it('should return the server-backed user profile and onboarding state', async () => {
             const req = {
                 user: {
                     id: '1',
+                    userId: '1',
                     email: 'test@example.com',
                     role: Role.STUDENT,
                 },
             };
+            const profile = { id: '1', role: Role.STUDENT, onboardingStep: 'student-profile' };
+            mockAuthService.getSessionProfile.mockResolvedValue(profile);
 
-            const result = controller.getProfile(req as any);
+            const result = await controller.getProfile(req as any);
 
-            expect(result).toEqual(req.user);
+            expect(mockAuthService.getSessionProfile).toHaveBeenCalledWith('1');
+            expect(result).toEqual(profile);
         });
     });
 });

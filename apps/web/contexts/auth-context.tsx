@@ -3,7 +3,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 import {
     createUserWithEmailAndPassword,
     deleteUser,
@@ -45,6 +44,8 @@ interface UserProfile {
     gradeLevel?: number;
     emailVerified?: boolean;
     onboardingComplete?: boolean;
+    onboardingStep?: 'student-profile' | 'placement-assessment' | 'link-student' | 'parent-survey' | 'complete';
+    onboardingStudentId?: string;
 }
 
 interface AuthContextType {
@@ -63,6 +64,7 @@ interface AuthContextType {
     ) => Promise<void>;
     requestPasswordReset: (email: string, role?: 'student' | 'parent' | 'teacher') => Promise<'code' | 'link'>;
     confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<void>;
+    refreshProfile: () => Promise<UserProfile | null>;
     signOut: () => Promise<void>;
 }
 
@@ -152,7 +154,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
     const isProvisioningFirebaseUser = useRef(false);
-    const router = useRouter();
+    const isHandlingExpiredSession = useRef(false);
+    const firebaseSessionExchange = useRef<{ uid: string; promise: Promise<UserProfile | null> } | null>(null);
 
     const clearLocalApiSession = () => {
         sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
@@ -210,6 +213,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: normalizedRole,
             avatar_url: data.avatar,
             phone: data.phone,
+            gradeLevel: typeof data.gradeLevel === 'number' ? data.gradeLevel : undefined,
+            emailVerified: typeof data.emailVerified === 'boolean' ? data.emailVerified : undefined,
+            onboardingComplete: typeof data.onboardingComplete === 'boolean' ? data.onboardingComplete : undefined,
+            onboardingStep: data.onboardingStep,
+            onboardingStudentId: typeof data.onboardingStudentId === 'string' ? data.onboardingStudentId : undefined,
         };
     };
 
@@ -237,36 +245,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return data.access_token as string;
     };
 
-    const exchangeFirebaseSession = async (firebaseUser: FirebaseUser): Promise<UserProfile | null> => {
-        const apiBaseUrl = getApiBaseUrl();
-        if (!apiBaseUrl) return null;
-
-        const response = await fetch(`${apiBaseUrl}/auth/firebase`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken: await firebaseUser.getIdToken() }),
-            credentials: 'include',
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(data.message || 'تعذر ربط الحساب بخدمات المنصة. حاول مرة أخرى.');
+    const exchangeFirebaseSession = (firebaseUser: FirebaseUser): Promise<UserProfile | null> => {
+        if (firebaseSessionExchange.current?.uid === firebaseUser.uid) {
+            return firebaseSessionExchange.current.promise;
         }
 
-        const role = normalizeApiRole(data.user?.role);
-        if (!role || !data.access_token || !data.user?.id) {
-            throw new Error('استجابة خادم المنصة غير صالحة.');
-        }
+        const promise = (async (): Promise<UserProfile | null> => {
+            const apiBaseUrl = getApiBaseUrl();
+            if (!apiBaseUrl) return null;
 
-        sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, data.access_token);
-        return {
-            id: data.user.firebaseUid || firebaseUser.uid,
-            email: data.user.email || firebaseUser.email || '',
-            full_name: data.user.name || firebaseUser.displayName || firebaseUser.email || '',
-            role,
-            phone: data.user.phone || undefined,
-            emailVerified: true,
+            const response = await fetch(`${apiBaseUrl}/auth/firebase`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken: await firebaseUser.getIdToken() }),
+                credentials: 'include',
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || 'تعذر ربط الحساب بخدمات المنصة. حاول مرة أخرى.');
+            }
+
+            const role = normalizeApiRole(data.user?.role);
+            if (!role || !data.access_token || !data.user?.id) {
+                throw new Error('استجابة خادم المنصة غير صالحة.');
+            }
+
+            sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, data.access_token);
+            const sessionProfile = await fetchProfileFromApi(data.access_token);
+            if (sessionProfile) return { ...sessionProfile, emailVerified: true };
+            return {
+                id: data.user.firebaseUid || firebaseUser.uid,
+                email: data.user.email || firebaseUser.email || '',
+                full_name: data.user.name || firebaseUser.displayName || firebaseUser.email || '',
+                role,
+                phone: data.user.phone || undefined,
+                emailVerified: true,
+                onboardingComplete: false,
+                onboardingStep: role === 'student' ? 'student-profile' : role === 'parent' ? 'link-student' : 'complete',
+            };
+        })();
+
+        firebaseSessionExchange.current = { uid: firebaseUser.uid, promise };
+        const clearExchange = () => {
+            if (firebaseSessionExchange.current?.promise === promise) firebaseSessionExchange.current = null;
         };
+        void promise.then(clearExchange, clearExchange);
+        return promise;
     };
+
+    useEffect(() => {
+        const handleExpiredSession = () => {
+            if (isHandlingExpiredSession.current) return;
+            isHandlingExpiredSession.current = true;
+            clearLocalApiSession();
+            setUser(null);
+            setProfile(null);
+            setSession(null);
+
+            void (async () => {
+                if (firebaseAuth?.currentUser) await firebaseSignOut(firebaseAuth).catch(() => undefined);
+                const segments = window.location.pathname.split('/').filter(Boolean);
+                const locale = segments[0] === 'en' || segments[0] === 'ar' ? segments[0] : 'ar';
+                const loginPath = `/${locale}/login`;
+                if (window.location.pathname !== loginPath) window.location.replace(loginPath);
+                else isHandlingExpiredSession.current = false;
+            })();
+        };
+
+        window.addEventListener('nexus:auth-expired', handleExpiredSession);
+        return () => window.removeEventListener('nexus:auth-expired', handleExpiredSession);
+    }, []);
 
     const restoreApiSession = async (): Promise<boolean> => {
         const apiBaseUrl = getApiBaseUrl();
@@ -356,6 +404,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 status: typeof data.status === 'string' ? data.status : undefined,
                 gradeLevel: typeof data.gradeLevel === 'number' ? data.gradeLevel : undefined,
                 onboardingComplete: data.onboardingComplete === true,
+                onboardingStep: data.onboardingStep,
+                onboardingStudentId: typeof data.onboardingStudentId === 'string' ? data.onboardingStudentId : undefined,
                 emailVerified: authUser?.uid === userId ? authUser.emailVerified : undefined,
             };
             setProfile(nextProfile);
@@ -366,6 +416,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } finally {
             setLoading(false);
         }
+    };
+
+    const refreshProfile = async () => {
+        const token = sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+        if (token) {
+            const nextProfile = await fetchProfileFromApi(token);
+            if (nextProfile) {
+                setProfile(nextProfile);
+                return nextProfile;
+            }
+        }
+
+        const firebaseUser = firebaseAuth?.currentUser;
+        if (firebaseUser) {
+            const nextProfile = await fetchFirebaseProfile(firebaseUser.uid);
+            if (nextProfile) setProfile(nextProfile);
+            return nextProfile;
+        }
+        return null;
     };
 
     useEffect(() => {
@@ -416,7 +485,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(null);
                 if (firebaseAuth) await firebaseSignOut(firebaseAuth).catch(() => undefined);
             } else if (nextProfile && isActive && nextFirebaseUser.emailVerified) {
-                await exchangeFirebaseSession(nextFirebaseUser);
+                const apiProfile = await exchangeFirebaseSession(nextFirebaseUser);
+                if (apiProfile && isActive) setProfile(apiProfile);
             }
         };
 
@@ -463,6 +533,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     if (!nextProfile) {
                         setUser(null);
                         if (firebaseAuth) void firebaseSignOut(firebaseAuth);
+                    } else if (nextUser.emailVerified && getApiBaseUrl()) {
+                        void exchangeFirebaseSession(nextUser).then((apiProfile) => {
+                            if (apiProfile && firebaseAuth?.currentUser?.uid === nextUser.uid) {
+                                setAuthenticatedState(createFirebaseAppUser(nextUser), apiProfile);
+                            }
+                        }).catch(async (error) => {
+                            console.error('Firebase API session exchange failed:', error);
+                            clearLocalApiSession();
+                            setUser(null);
+                            setProfile(null);
+                            if (firebaseAuth?.currentUser?.uid === nextUser.uid) {
+                                await firebaseSignOut(firebaseAuth).catch(() => undefined);
+                            }
+                            const segments = window.location.pathname.split('/').filter(Boolean);
+                            const locale = segments[0] === 'en' || segments[0] === 'ar' ? segments[0] : 'ar';
+                            if (!window.location.pathname.endsWith(`/${locale}/login`)) {
+                                window.location.replace(`/${locale}/login`);
+                            }
+                        });
                     }
                 });
             })
@@ -481,7 +570,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const apiBaseUrl = getApiBaseUrl();
 
         try {
-            if (apiBaseUrl && expectedRole !== 'teacher') {
+            if (apiBaseUrl) {
                 // Clear any previous session before signing in with new credentials
                 clearLocalApiSession();
                 
@@ -509,7 +598,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         }).catch(() => undefined);
                         throw new Error('PORTAL_ROLE_MISMATCH');
                     }
-                    const nextProfile: UserProfile = {
+                    const fallbackProfile: UserProfile = {
                         id: data.user.id,
                         email: data.user.email,
                         full_name: data.user.name || data.user.email,
@@ -517,6 +606,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     };
 
                     sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, data.access_token);
+                    const nextProfile = await fetchProfileFromApi(data.access_token) ?? {
+                        ...fallbackProfile,
+                        onboardingComplete: false,
+                        onboardingStep: role === 'student' ? 'student-profile' : role === 'parent' ? 'link-student' : 'complete',
+                    };
                     setAuthenticatedState(
                         createApiUser(data.user.id, data.user.email),
                         nextProfile
@@ -524,7 +618,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     return role;
                 }
 
-                if (!(isFirebaseConfigured && firebaseAuth && response.status === 401)) {
+                const canUseFirebaseFallback = expectedRole === undefined
+                    || expectedRole === 'student'
+                    || expectedRole === 'parent';
+                if (!(canUseFirebaseFallback && isFirebaseConfigured && firebaseAuth && response.status === 401)) {
                     const errorPayload = await response
                         .json()
                         .catch(() => ({ message: 'Authentication failed' }));
@@ -580,8 +677,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         throw new Error('PORTAL_ROLE_MISMATCH');
                     }
 
-                    if (credential.user.emailVerified) await exchangeFirebaseSession(credential.user);
-                    setAuthenticatedState(createFirebaseAppUser(credential.user), nextProfile);
+                    const apiProfile = credential.user.emailVerified
+                        ? await exchangeFirebaseSession(credential.user)
+                        : null;
+                    setAuthenticatedState(createFirebaseAppUser(credential.user), apiProfile ?? nextProfile);
                     return nextProfile.role;
                 } catch (error) {
                     await firebaseSignOut(firebaseAuth).catch(() => undefined);
@@ -751,8 +850,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const nextProfile = await fetchFirebaseProfile(credential.user.uid);
             if (!nextProfile) throw new Error('تعذر تحميل ملف الحساب.');
-            await exchangeFirebaseSession(credential.user);
-            setAuthenticatedState(createFirebaseAppUser(credential.user), nextProfile);
+            const apiProfile = await exchangeFirebaseSession(credential.user);
+            setAuthenticatedState(createFirebaseAppUser(credential.user), apiProfile ?? nextProfile);
             return { role, isNewUser };
         } catch (error) {
             if (firebaseUserSignedIn) await firebaseSignOut(firebaseAuth).catch(() => undefined);
@@ -839,14 +938,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setSession(null);
             
             // Force a hard reload to clear all memory state
-            window.location.href = '/ar/login';
+            const segments = window.location.pathname.split('/').filter(Boolean);
+            const locale = segments[0] === 'en' || segments[0] === 'ar' ? segments[0] : 'ar';
+            window.location.replace(`/${locale}/login`);
         } catch (error: any) {
             // Even on error, clear local state and redirect
             clearLocalApiSession();
             setUser(null);
             setProfile(null);
             setSession(null);
-            window.location.href = '/ar/login';
+            const segments = window.location.pathname.split('/').filter(Boolean);
+            const locale = segments[0] === 'en' || segments[0] === 'ar' ? segments[0] : 'ar';
+            window.location.replace(`/${locale}/login`);
         }
     };
 
@@ -860,6 +963,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         requestPasswordReset,
         confirmPasswordReset,
+        refreshProfile,
         signOut,
     };
 

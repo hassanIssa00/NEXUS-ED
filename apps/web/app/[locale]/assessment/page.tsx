@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, GraduationCap, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api/client';
+import { useAuth } from '@/contexts/auth-context';
 
 type AssessmentQuestion = {
   id: string;
@@ -39,6 +40,7 @@ function getErrorMessage(error: any) {
 }
 
 export default function AssessmentPage() {
+  const { refreshProfile } = useAuth();
   const [data, setData] = useState<AssessmentState | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -66,6 +68,7 @@ export default function AssessmentPage() {
     try {
       const { data: attempt } = await apiClient.post('/assessments/placement/submit', { answers });
       setData((previous) => previous ? { ...previous, attempt } : previous);
+      await refreshProfile();
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {

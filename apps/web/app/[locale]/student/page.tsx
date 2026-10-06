@@ -91,8 +91,17 @@ export default function StudentDashboardPage() {
     try {
       const result = await dashboardApi.getStudentDashboard()
       setData(result)
-    } catch {
-      setError('تعذر تحميل بيانات لوحة الطالب من النظام. حاول مرة أخرى.')
+    } catch (requestError: any) {
+      const status = requestError?.response?.status;
+      if (status === 401) {
+        setError('انتهت جلسة الدخول. سجّل الدخول مرة أخرى لإكمال تحميل بياناتك.');
+      } else if (status === 403) {
+        setError('الحساب غير مرتبط بصلاحية الطالب في المدرسة. تواصل مع إدارة المدرسة.');
+      } else if (status === 404) {
+        setError('لم يُعثر على سجل الطالب في قاعدة بيانات المدرسة. أعد استكمال ملفك الدراسي.');
+      } else {
+        setError('تعذر الاتصال بخدمة لوحة الطالب. تحقق من الاتصال ثم أعد المحاولة.');
+      }
     } finally {
       setLoading(false)
     }

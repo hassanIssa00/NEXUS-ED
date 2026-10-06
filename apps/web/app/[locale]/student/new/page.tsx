@@ -6,7 +6,7 @@ import { CalendarDays, Check, Copy, GraduationCap, Link2, LoaderCircle, ShieldCh
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api/client';
 import { getCurrentUser } from '@/lib/firebase/auth';
-import { getStudentOnboardingProfile, linkParentWithStudentCode, saveStudentOnboarding } from '@/lib/firebase/registration';
+import { getStudentOnboardingProfile, syncStudentOnboardingMetadata } from '@/lib/firebase/registration';
 
 const gradeOptions = [
   { value: 0, label: 'رياض الأطفال / التمهيدي' },
@@ -31,7 +31,7 @@ function errorMessage(error: any) {
 
 export default function StudentNewPage() {
   const router = useRouter();
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, loading: authLoading, refreshProfile } = useAuth();
   const [gradeLevel, setGradeLevel] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [linkCode, setLinkCode] = useState('');
@@ -43,7 +43,7 @@ export default function StudentNewPage() {
   const isStudent = role === 'student';
   const isParent = role === 'parent';
   const isFirebaseAccount = Boolean(profile && getCurrentUser()?.uid === profile.id);
-  const expectedLinkCodeLength = isFirebaseAccount ? 32 : 16;
+  const expectedLinkCodeLength = 16;
 
   useEffect(() => {
     if (authLoading) return;
@@ -53,15 +53,15 @@ export default function StudentNewPage() {
     }
     if (profile.role === 'student') {
       const firebaseUser = getCurrentUser();
-      const loadProfile = firebaseUser?.uid === profile.id
-        ? getStudentOnboardingProfile().then((data) => ({ data }))
-        : apiClient.get('/users/me/student-profile');
-      loadProfile.then(({ data }) => {
-        if (data) {
-          if (data.gradeLevel !== null && data.gradeLevel !== undefined) setGradeLevel(String(data.gradeLevel));
-          if (data.dateOfBirth) setDateOfBirth(String(data.dateOfBirth).slice(0, 10));
-        }
-      }).catch(() => setError('تعذر تحميل ملف الطالب الحالي.'));
+      Promise.all([
+        apiClient.get('/users/me/student-profile').then(({ data }) => data),
+        firebaseUser?.uid === profile.id ? getStudentOnboardingProfile() : Promise.resolve(null),
+      ]).then(([apiProfile, firebaseProfile]) => {
+        const grade = apiProfile?.gradeLevel ?? firebaseProfile?.gradeLevel;
+        const birthDate = apiProfile?.dateOfBirth ?? firebaseProfile?.dateOfBirth;
+        if (grade !== null && grade !== undefined) setGradeLevel(String(grade));
+        if (birthDate) setDateOfBirth(String(birthDate).slice(0, 10));
+      }).catch(() => setError('تعذر تحميل ملف الطالب الحالي. حاول إعادة فتح صفحة استكمال البيانات.'));
     }
   }, [authLoading, profile, router]);
 
@@ -73,29 +73,23 @@ export default function StudentNewPage() {
     try {
       if (isStudent) {
         const firebaseUser = getCurrentUser();
+        const serializedDate = dateOfBirth
+          ? new Date(`${dateOfBirth}T00:00:00.000Z`).toISOString()
+          : undefined;
+        await apiClient.put('/users/me/student-profile', {
+          gradeLevel: Number(gradeLevel),
+          ...(serializedDate ? { dateOfBirth: serializedDate } : {}),
+        });
         if (firebaseUser?.uid === profile?.id) {
-          const code = await saveStudentOnboarding(
-            Number(gradeLevel),
-            dateOfBirth ? new Date(`${dateOfBirth}T00:00:00.000Z`).toISOString() : undefined,
-          );
-          setLinkCode(code);
-        } else {
-          await apiClient.put('/users/me/student-profile', {
-            gradeLevel: Number(gradeLevel),
-            ...(dateOfBirth ? { dateOfBirth: new Date(`${dateOfBirth}T00:00:00.000Z`).toISOString() } : {}),
-          });
-          const { data } = await apiClient.post('/users/student-link-code');
-          setLinkCode(data.code);
+          await syncStudentOnboardingMetadata(Number(gradeLevel), serializedDate);
         }
+        const { data } = await apiClient.post('/users/student-link-code');
+        await refreshProfile();
+        setLinkCode(data.code);
       } else if (isParent) {
-        const firebaseUser = getCurrentUser();
-        if (firebaseUser?.uid === profile?.id) {
-          const studentId = await linkParentWithStudentCode(linkCode);
-          router.push(`/survey?student=${encodeURIComponent(studentId)}`);
-        } else {
-          const { data } = await apiClient.post('/users/link-student', { code: linkCode.trim() });
-          router.push(`/survey?student=${encodeURIComponent(data.student.id)}`);
-        }
+        const { data } = await apiClient.post('/users/link-student', { code: linkCode.trim() });
+        await refreshProfile();
+        router.push(`/survey?student=${encodeURIComponent(data.student.id)}`);
       } else {
         router.replace('/login');
       }

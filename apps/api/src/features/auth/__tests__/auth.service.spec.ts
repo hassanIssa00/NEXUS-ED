@@ -102,6 +102,79 @@ describe('AuthService', () => {
         });
     });
 
+    describe('getSessionProfile', () => {
+        const baseUser = {
+            id: 'user-1',
+            email: 'student@example.com',
+            role: 'STUDENT',
+            name: 'Student',
+            phone: null,
+            avatar: null,
+            schoolId: 'school-1',
+            emailVerified: true,
+            authIdentities: [{ providerSubject: 'firebase-student-1' }],
+            studentProfile: null,
+            placementAssessmentAttempts: [],
+            children: [],
+        };
+
+        it('requires a student profile before placement assessment', async () => {
+            mockPrismaService.user.findUnique.mockResolvedValue(baseUser);
+
+            const profile = await service.getSessionProfile('user-1');
+
+            expect(profile).toMatchObject({
+                id: 'firebase-student-1',
+                onboardingComplete: false,
+                onboardingStep: 'student-profile',
+            });
+            expect(profile).not.toHaveProperty('gradeLevel');
+        });
+
+        it('requires the current grade assessment before student dashboard access', async () => {
+            mockPrismaService.user.findUnique.mockResolvedValue({
+                ...baseUser,
+                studentProfile: { gradeLevel: 8 },
+            });
+
+            const profile = await service.getSessionProfile('user-1');
+
+            expect(profile).toMatchObject({
+                gradeLevel: 8,
+                onboardingComplete: false,
+                onboardingStep: 'placement-assessment',
+            });
+        });
+
+        it('sends a parent with a linked child to that child survey', async () => {
+            mockPrismaService.user.findUnique.mockResolvedValue({
+                ...baseUser,
+                role: 'PARENT',
+                children: [{ student: { id: 'student-uuid', childSurveys: [] } }],
+            });
+
+            const profile = await service.getSessionProfile('parent-1');
+
+            expect(profile).toMatchObject({
+                onboardingComplete: false,
+                onboardingStep: 'parent-survey',
+                onboardingStudentId: 'student-uuid',
+            });
+        });
+
+        it('completes onboarding after a survey is stored for each linked child', async () => {
+            mockPrismaService.user.findUnique.mockResolvedValue({
+                ...baseUser,
+                role: 'PARENT',
+                children: [{ student: { id: 'student-uuid', childSurveys: [{ id: 'survey-1' }] } }],
+            });
+
+            const profile = await service.getSessionProfile('parent-1');
+
+            expect(profile).toMatchObject({ onboardingComplete: true, onboardingStep: 'complete' });
+        });
+    });
+
     describe('register', () => {
         const registerDto: any = {
             email: 'test@test.com',

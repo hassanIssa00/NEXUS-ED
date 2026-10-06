@@ -202,7 +202,7 @@ export class AuthController {
     @Get('profile')
     @UseGuards(AuthGuard('jwt'))
     getProfile(@Request() req: any) {
-        return req.user;
+        return this.authService.getSessionProfile(req.user.userId || req.user.sub || req.user.id);
     }
 
     @Get('admin-only')

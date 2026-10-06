@@ -50,6 +50,22 @@ function canAccessRoute(pathname: string, role: UserRole) {
         || pathname === '/account/pending';
 }
 
+function onboardingDestination(pathname: string, role: UserRole, step?: string, studentId?: string) {
+    if (role === 'student') {
+        if (step === 'student-profile' && !matchesRoute(pathname, '/student/new')) return '/student/new?flow=student';
+        if (step === 'placement-assessment' && !matchesRoute(pathname, '/assessment') && !matchesRoute(pathname, '/student/new')) return '/assessment';
+    }
+
+    if (role === 'parent') {
+        if (step === 'link-student' && !matchesRoute(pathname, '/student/new')) return '/student/new?flow=parent';
+        if (step === 'parent-survey' && !matchesRoute(pathname, '/survey')) {
+            return studentId ? `/survey?student=${encodeURIComponent(studentId)}` : '/parent';
+        }
+    }
+
+    return null;
+}
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
@@ -77,14 +93,27 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
         if (user && profile && isAuthPage) {
             const dashboardRoute = ROLE_ROUTES[profile.role];
-            router.push(dashboardRoute || '/student');
+            router.replace(dashboardRoute || '/student');
             return;
+        }
+
+        if (user && profile) {
+            const destination = onboardingDestination(
+                pathname,
+                profile.role,
+                profile.onboardingStep,
+                profile.onboardingStudentId,
+            );
+            if (destination) {
+                router.replace(destination);
+                return;
+            }
         }
 
         // Check role-based access
         if (user && profile && !isPublicRoute) {
             if (!canAccessRoute(pathname, profile.role)) {
-                router.push(ROLE_ROUTES[profile.role]);
+                router.replace(ROLE_ROUTES[profile.role]);
             }
         }
     }, [user, profile, loading, pathname, router]);
@@ -101,8 +130,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const isPendingVerification = user && profile?.emailVerified === false && !matchesRoute(pathname, '/verify-email');
     const isWrongRole = user && profile && !canAccessRoute(pathname, profile.role)
         && !isPublicPath(pathname);
+    const onboardingRedirect = user && profile
+        ? onboardingDestination(pathname, profile.role, profile.onboardingStep, profile.onboardingStudentId)
+        : null;
 
-    if (isPendingVerification || isWrongRole) {
+    if (isPendingVerification || isWrongRole || onboardingRedirect) {
         return <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">جارٍ توجيهك إلى الصفحة المناسبة...</div>;
     }
 

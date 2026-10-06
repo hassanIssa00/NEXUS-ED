@@ -1,8 +1,35 @@
 import axios from 'axios'
 import { getApiBaseUrl, getStoredAccessToken } from './endpoints';
-import { auth as firebaseAuth } from '@/lib/firebase/config';
 
 const API_BASE_URL = getApiBaseUrl();
+let refreshPromise: Promise<string> | null = null;
+
+function refreshAccessToken() {
+    if (!API_BASE_URL) return Promise.reject(new Error('API is not configured'));
+    if (!refreshPromise) {
+        refreshPromise = axios.post(
+            `${API_BASE_URL}/auth/refresh`,
+            {},
+            { withCredentials: true },
+        ).then(({ data }) => {
+            if (typeof data.access_token !== 'string' || !data.access_token) {
+                throw new Error('Refresh response did not include an access token');
+            }
+            sessionStorage.setItem('access_token', data.access_token);
+            localStorage.removeItem('access_token');
+            return data.access_token as string;
+        }).finally(() => {
+            refreshPromise = null;
+        });
+    }
+    return refreshPromise;
+}
+
+function notifySessionExpired() {
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('nexus:auth-expired'));
+    }
+}
 
 // Create axios instance
 export const apiClient = axios.create({
@@ -19,8 +46,7 @@ apiClient.interceptors.request.use(
         if (!API_BASE_URL) {
             return Promise.reject(new Error('The Nexus API endpoint is not configured for this deployment.'));
         }
-        const token = getStoredAccessToken()
-            || await firebaseAuth?.currentUser?.getIdToken();
+        const token = getStoredAccessToken();
         if (token) {
             config.headers.Authorization = `Bearer ${token}`
         }
@@ -35,31 +61,23 @@ apiClient.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config
 
-        // If 401 and not already retried
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && originalRequest?._retry) {
+            notifySessionExpired();
+            return Promise.reject(error);
+        }
+
+        // Share one refresh request across concurrent 401 responses.
+        if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
             originalRequest._retry = true
 
             try {
-                // Try to refresh token
-                const { data } = await axios.post(
-                    `${API_BASE_URL}/auth/refresh`,
-                    {},
-                    { withCredentials: true }
-                )
-
-                // Save new access token
-                sessionStorage.setItem('access_token', data.access_token)
-
-                // Retry original request with new token
-                originalRequest.headers.Authorization = `Bearer ${data.access_token}`
+                const accessToken = await refreshAccessToken()
+                originalRequest.headers.Authorization = `Bearer ${accessToken}`
                 return apiClient(originalRequest)
             } catch (refreshError) {
-                // Refresh failed - redirect to login
                 sessionStorage.removeItem('access_token')
                 localStorage.removeItem('access_token')
-                if (typeof window !== 'undefined') {
-                    window.location.href = '/login'
-                }
+                notifySessionExpired()
                 return Promise.reject(refreshError)
             }
         }

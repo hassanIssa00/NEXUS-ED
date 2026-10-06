@@ -6,8 +6,6 @@ import { useRouter } from '@/i18n/routing';
 import { ArrowRight, CheckCircle2, HeartHandshake, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { useAuth } from '@/contexts/auth-context';
-import { getCurrentUser } from '@/lib/firebase/auth';
-import { saveParentSurvey } from '@/lib/firebase/registration';
 
 const sections = [
   {
@@ -50,7 +48,7 @@ const sections = [
 function SurveyForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { profile } = useAuth();
+  const { refreshProfile } = useAuth();
   const studentId = searchParams.get('student');
   const [sectionIndex, setSectionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -79,12 +77,8 @@ function SurveyForm() {
 
     setSubmitting(true);
     try {
-      const firebaseUser = getCurrentUser();
-      if (firebaseUser?.uid === profile?.id) {
-        await saveParentSurvey(studentId, answers, consent);
-      } else {
-        await apiClient.post('/users/parent-survey', { studentId, answers, consent });
-      }
+      await apiClient.post('/users/parent-survey', { studentId, answers, consent });
+      await refreshProfile();
       setSubmitted(true);
     } catch (submitError: any) {
       const message = submitError?.response?.data?.message;
