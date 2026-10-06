@@ -236,6 +236,24 @@ describe('AuthService', () => {
         });
     });
 
+    describe('loginWithFirebase', () => {
+        it('does not provision a staff account from public self-registration', async () => {
+            mockFirebaseIdentityService.verifyAndReadProfile.mockResolvedValue({
+                uid: 'firebase-teacher',
+                email: 'teacher@example.com',
+                fullName: 'Teacher Example',
+                role: 'TEACHER',
+                status: 'active',
+            });
+            mockPrismaService.authIdentity.findUnique.mockResolvedValue(null);
+            mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+            await expect(service.loginWithFirebase('firebase-id-token')).rejects.toThrow(UnauthorizedException);
+            expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+            expect(mockTransaction.user.create).not.toHaveBeenCalled();
+        });
+    });
+
     describe('requestPasswordReset', () => {
         const student = {
             id: 'student-1', email: 'student@example.com', role: 'STUDENT', isActive: true,

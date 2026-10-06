@@ -18,12 +18,10 @@ export default function TeacherLayout({ children }: { children: ReactNode }) {
             router.replace('/login/teacher')
         } else if (profile.role !== 'teacher') {
             router.replace('/login')
-        } else if (profile.status === 'pending') {
-            router.replace('/account/pending')
         }
     }, [loading, profile, router])
 
-    if (loading || !profile || profile.role !== 'teacher' || profile.status === 'pending') {
+    if (loading || !profile || profile.role !== 'teacher') {
         return (
             <main className="flex min-h-screen items-center justify-center bg-background" dir="rtl" aria-busy="true">
                 <p className="text-sm font-semibold text-muted-foreground">جارٍ التحقق من صلاحية الحساب...</p>

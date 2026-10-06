@@ -297,14 +297,23 @@ export class AuthService {
         });
 
         let user = linkedIdentity?.user ?? null;
-        if (user && (!user.isActive || String(user.role) !== String(identity.role) || user.email !== identity.email)) {
+        if (user && (
+            !user.isActive
+            || String(user.role) !== String(identity.role)
+            || user.email !== identity.email
+            || (!isPublicAccountRole(String(user.role)) && !user.schoolId)
+        )) {
             throw new UnauthorizedException('Firebase account does not match its Nexus account');
         }
 
         if (!user) {
             const existingUser = await this.prisma.user.findUnique({ where: { email: identity.email } });
             if (existingUser) {
-                if (!existingUser.isActive || String(existingUser.role) !== String(identity.role)) {
+                if (
+                    !existingUser.isActive
+                    || String(existingUser.role) !== String(identity.role)
+                    || (!isPublicAccountRole(String(existingUser.role)) && !existingUser.schoolId)
+                ) {
                     throw new UnauthorizedException('Firebase account does not match its Nexus account');
                 }
 
@@ -325,6 +334,9 @@ export class AuthService {
                     });
                 });
             } else {
+                if (!isPublicAccountRole(String(identity.role))) {
+                    throw new UnauthorizedException('Staff accounts must be provisioned by school administration');
+                }
                 const schoolId = await this.resolvePublicSchoolId();
                 const password = await bcrypt.hash(randomBytes(48).toString('hex'), 12);
                 user = await this.prisma.$transaction(async (transaction) => {

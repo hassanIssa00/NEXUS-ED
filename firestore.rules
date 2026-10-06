@@ -18,7 +18,7 @@ service cloud.firestore {
       return signedIn()
         && request.auth.token.email_verified == true
         && userRole(request.auth.uid) == role
-        && (role in ['student', 'parent'] || get(userPath(request.auth.uid)).data.status == 'active');
+        && get(userPath(request.auth.uid)).data.status in ['active', 'pending'];
     }
 
     function isBootstrapAdmin() {
@@ -48,8 +48,8 @@ service cloud.firestore {
         && request.resource.data.full_name.size() <= 120
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
-        && request.resource.data.status == 'pending'
-        && request.resource.data.role in ['student', 'parent', 'teacher'];
+        && request.resource.data.status == 'active'
+        && request.resource.data.role in ['student', 'parent'];
     }
 
     function validBootstrapProfile(uid) {

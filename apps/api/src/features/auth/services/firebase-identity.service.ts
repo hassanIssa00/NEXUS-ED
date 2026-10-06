@@ -1,5 +1,4 @@
 import {
-  ForbiddenException,
   Injectable,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -107,11 +106,8 @@ export class FirebaseIdentityService {
     if (!role || !profileEmail || profileEmail !== email || !fullName || !status) {
       throw new UnauthorizedException('Nexus account profile is invalid');
     }
-    if (status === 'disabled' || status === 'deleted') {
+    if (!['active', 'pending'].includes(status)) {
       throw new UnauthorizedException('Nexus account is disabled');
-    }
-    if (role !== Role.STUDENT && role !== Role.PARENT && status !== 'active') {
-      throw new ForbiddenException('Staff account is awaiting school approval');
     }
 
     const gradeLevelValue = fields.gradeLevel?.integerValue;

@@ -342,7 +342,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const data = snapshot.data();
             const role = normalizeApiRole(data.role);
-            if (!role || data.status === 'disabled') return null;
+            if (!role || !['active', 'pending'].includes(String(data.status))) return null;
             const authUser = firebaseAuth?.currentUser;
 
             const nextProfile: UserProfile = {
@@ -414,7 +414,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!nextProfile && isActive) {
                 setUser(null);
                 if (firebaseAuth) await firebaseSignOut(firebaseAuth).catch(() => undefined);
-            } else if (nextProfile && isActive && (nextProfile.status === 'active' || nextProfile.role === 'student' || nextProfile.role === 'parent')) {
+            } else if (nextProfile && isActive && nextFirebaseUser.emailVerified) {
                 await exchangeFirebaseSession(nextFirebaseUser);
             }
         };
@@ -579,9 +579,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         throw new Error('PORTAL_ROLE_MISMATCH');
                     }
 
-                    if (nextProfile.status === 'active' || nextProfile.role === 'student' || nextProfile.role === 'parent') {
-                        await exchangeFirebaseSession(credential.user);
-                    }
+                    if (credential.user.emailVerified) await exchangeFirebaseSession(credential.user);
                     setAuthenticatedState(createFirebaseAppUser(credential.user), nextProfile);
                     return nextProfile.role;
                 } catch (error) {
@@ -608,10 +606,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: UserRole,
         phone?: string
     ) => {
+        if (role !== 'student' && role !== 'parent') {
+            throw new Error('حسابات الموظفين تنشئها إدارة المدرسة مباشرة، ولا تحتاج إلى مراجعة بعد إنشائها.');
+        }
         const apiBaseUrl = getApiBaseUrl();
 
         try {
-            if (apiBaseUrl && !isFirebaseConfigured && role !== 'teacher') {
+            if (apiBaseUrl && !isFirebaseConfigured) {
                 const apiRole = APP_ROLE_TO_API_ROLE[role];
                 if (!apiRole) {
                     throw new Error('إنشاء حسابات الموظفين متاح لإدارة المدرسة فقط.');
@@ -658,7 +659,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             email: credential.user.email,
                             full_name: fullName,
                             role,
-                            status: 'pending',
+                            status: 'active',
                             ...(phone ? { phone } : {}),
                             createdAt: serverTimestamp(),
                             updatedAt: serverTimestamp(),
@@ -722,7 +723,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     email: credential.user.email,
                     full_name: fullName,
                     role: isBootstrapAdmin ? 'admin' : role,
-                    status: isBootstrapAdmin ? 'active' : 'pending',
+                    status: 'active',
                     ...(credential.user.photoURL ? { avatar_url: credential.user.photoURL } : {}),
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
@@ -745,9 +746,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const nextProfile = await fetchFirebaseProfile(credential.user.uid);
             if (!nextProfile) throw new Error('تعذر تحميل ملف الحساب.');
-            if (nextProfile.status === 'active' || role === 'student' || role === 'parent') {
-                await exchangeFirebaseSession(credential.user);
-            }
+            await exchangeFirebaseSession(credential.user);
             setAuthenticatedState(createFirebaseAppUser(credential.user), nextProfile);
             return { role, isNewUser };
         } catch (error) {

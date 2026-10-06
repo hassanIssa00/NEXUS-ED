@@ -24,7 +24,7 @@ const projectId = 'demo-nexus-rules';
 const rules = await readFile(resolve(cwd(), '../../firestore.rules'), 'utf8');
 const testEnv = await initializeTestEnvironment({ projectId, firestore: { rules } });
 
-const profile = (uid, email, role = 'student', status = 'pending') => ({
+const profile = (uid, email, role = 'student', status = 'active') => ({
   uid,
   email,
   full_name: `Test ${uid}`,
@@ -82,8 +82,8 @@ try {
   await assertSucceeds(setDoc(doc(unverifiedStudent, 'users/unverified-student'), profile('unverified-student', 'unverified-student@example.test')));
   await assertSucceeds(setDoc(doc(parent, 'users/parent-1'), profile('parent-1', 'parent@example.test', 'parent')));
   await assertSucceeds(setDoc(doc(otherParent, 'users/parent-2'), profile('parent-2', 'parent2@example.test', 'parent')));
-  await assertSucceeds(setDoc(doc(pendingTeacher, 'users/teacher-pending'), profile('teacher-pending', 'teacher@example.test', 'teacher')));
-  await assertFails(setDoc(doc(pendingTeacher, 'users/teacher-pending-active'), profile('teacher-pending-active', 'teacher@example.test', 'teacher', 'active')));
+  await assertFails(setDoc(doc(pendingTeacher, 'users/teacher-active'), profile('teacher-active', 'teacher@example.test', 'teacher', 'active')));
+  await assertFails(setDoc(doc(pendingTeacher, 'users/teacher-pending-review'), profile('teacher-pending-review', 'teacher@example.test', 'teacher', 'pending')));
   await assertFails(setDoc(doc(unverifiedOwner, 'users/unverified-owner'), profile('unverified-owner', 'hassan.issa.eng@gmail.com', 'admin', 'active')));
   await assertFails(setDoc(doc(otherStudent, 'users/student-2'), profile('student-2', 'student2@example.test', 'admin', 'active')));
 
@@ -92,13 +92,13 @@ try {
   await assertFails(getDocs(collection(student, 'users')));
   await assertSucceeds(getDoc(doc(owner, 'users/student-1')));
   await assertFails(updateDoc(doc(student, 'users/student-1'), { role: 'admin', updatedAt: serverTimestamp() }));
-  await assertFails(updateDoc(doc(student, 'users/student-1'), { status: 'active', updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(doc(student, 'users/student-1'), { status: 'pending', updatedAt: serverTimestamp() }));
   await assertFails(updateDoc(doc(unverifiedStudent, 'users/unverified-student'), { gradeLevel: 7, updatedAt: serverTimestamp() }));
   await assertFails(getDoc(doc(student, 'assignments/any')));
 
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), 'users/counselor-1'), profile('counselor-1', 'counselor@example.test', 'counselor', 'active'));
-    await setDoc(doc(context.firestore(), 'users/counselor-pending'), profile('counselor-pending', 'counselor-pending@example.test', 'counselor'));
+    await setDoc(doc(context.firestore(), 'users/counselor-pending'), profile('counselor-pending', 'counselor-pending@example.test', 'counselor', 'pending'));
   });
 
   const code = 'A1B2C3D4E5F6071829384756ABCDEF01';
@@ -142,7 +142,7 @@ try {
     submittedAt: serverTimestamp(),
   }));
   await assertSucceeds(getDoc(doc(counselor, 'parentSurveys/parent-1_student-1')));
-  await assertFails(getDoc(doc(pendingCounselor, 'parentSurveys/parent-1_student-1')));
+  await assertSucceeds(getDoc(doc(pendingCounselor, 'parentSurveys/parent-1_student-1')));
   await assertFails(getDoc(doc(otherParent, 'parentSurveys/parent-1_student-1')));
   await assertFails(updateDoc(doc(parent, 'parentSurveys/parent-1_student-1'), { consent: false }));
   await assertFails(setDoc(doc(parent, 'parentSurveys/parent-2_student-1'), {

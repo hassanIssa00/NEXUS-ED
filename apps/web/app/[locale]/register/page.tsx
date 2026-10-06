@@ -163,7 +163,7 @@ function RegisterForm() {
           {accountType === 'teacher' && (
             <div role="status" className="mb-4 flex items-start gap-2 rounded-2xl border border-blue-200 bg-blue-50 p-3 text-xs leading-5 font-semibold text-blue-900">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>سيظل حساب المعلم قيد المراجعة بعد تأكيد البريد. لن تظهر بيانات المدرسة أو الفصول قبل اعتماد الإدارة وربط الحساب بها.</span>
+              <span>حسابات الموظفين تنشئها إدارة المدرسة مباشرة، ويمكن للمعلم تسجيل الدخول فور تجهيز حسابه دون انتظار مراجعة.</span>
             </div>
           )}
 

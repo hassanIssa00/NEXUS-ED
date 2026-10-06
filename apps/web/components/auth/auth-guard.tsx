@@ -24,7 +24,6 @@ const SHARED_ROLE_ROUTES: Array<{ path: string; roles: UserRole[]; exact?: boole
     { path: '/survey', roles: ['parent'], exact: true },
     { path: '/assessment', roles: ['student'], exact: true },
 ];
-const PENDING_ACCOUNT_ROUTES = ['/student/new', '/survey', '/account/pending', '/verify-email'];
 
 function matchesRoute(pathname: string, route: string) {
     return pathname === route || pathname.startsWith(`${route}/`);
@@ -68,12 +67,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             return;
         }
 
-        if (user && profile?.status === 'pending'
-            && !PENDING_ACCOUNT_ROUTES.some((route) => matchesRoute(pathname, route))) {
-            router.replace('/account/pending');
-            return;
-        }
-
         if (user && profile && isAuthPage) {
             const dashboardRoute = ROLE_ROUTES[profile.role];
             router.push(dashboardRoute || '/student');
@@ -98,12 +91,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     const isPendingVerification = user && profile?.emailVerified === false && !matchesRoute(pathname, '/verify-email');
-    const isPendingApproval = user && profile?.status === 'pending'
-        && !PENDING_ACCOUNT_ROUTES.some((route) => matchesRoute(pathname, route));
     const isWrongRole = user && profile && !canAccessRoute(pathname, profile.role)
         && !isPublicPath(pathname);
 
-    if (isPendingVerification || isPendingApproval || isWrongRole) {
+    if (isPendingVerification || isWrongRole) {
         return <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">جارٍ توجيهك إلى الصفحة المناسبة...</div>;
     }
 

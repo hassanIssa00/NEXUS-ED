@@ -102,7 +102,7 @@ function SurveyForm() {
             <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
             <h1 className="mt-4 text-2xl font-black text-gray-900 dark:text-white">تم حفظ الاستبيان</h1>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600 dark:text-gray-300">أُرسلت الإجابات إلى قاعدة بيانات المدرسة، ويمكن للمختصين المخولين مراجعتها ضمن ملف الطالب.</p>
-            <button type="button" onClick={() => router.push(profile?.status === 'pending' ? '/account/pending' : '/parent')} className="mt-6 rounded-lg bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800">{profile?.status === 'pending' ? 'متابعة حالة الحساب' : 'العودة إلى بوابة ولي الأمر'}</button>
+            <button type="button" onClick={() => router.push('/parent')} className="mt-6 rounded-lg bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800">العودة إلى بوابة ولي الأمر</button>
           </div>
         ) : (
           <>
