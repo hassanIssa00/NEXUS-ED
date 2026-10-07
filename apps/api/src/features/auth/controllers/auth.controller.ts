@@ -80,6 +80,26 @@ export class AuthController {
         return responseData;
     }
 
+    @Post('firebase/onboarding')
+    @Throttle({ short: { limit: 10, ttl: 60000 } })
+    async firebaseOnboarding(
+        @Body() dto: FirebaseLoginDto,
+        @Res({ passthrough: true }) res: Response,
+    ) {
+        const result = await this.authService.loginWithFirebase(dto.idToken, true);
+        if (result.refresh_token) {
+            const isProduction = process.env.NODE_ENV === 'production';
+            res.cookie('refresh_token', result.refresh_token, {
+                httpOnly: true,
+                secure: isProduction,
+                sameSite: isProduction ? 'none' : 'lax',
+                path: '/',
+                maxAge: REFRESH_COOKIE_MAX_AGE,
+            });
+        }
+        return { access_token: result.access_token, user: result.user };
+    }
+
     @Post('password-reset/request')
     @Throttle({ short: { limit: 3, ttl: 15 * 60 * 1000 } })
     requestPasswordReset(@Body() dto: RequestPasswordResetDto) {

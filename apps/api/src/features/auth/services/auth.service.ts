@@ -288,8 +288,11 @@ export class AuthService {
         };
     }
 
-    async loginWithFirebase(idToken: string) {
-        const identity = await this.firebaseIdentityService.verifyAndReadProfile(idToken);
+    async loginWithFirebase(idToken: string, allowUnverified = false) {
+        const identity = await this.firebaseIdentityService.verifyAndReadProfile(idToken, { allowUnverified });
+        if (!identity.emailVerified && (!allowUnverified || !isPublicAccountRole(String(identity.role)))) {
+            throw new UnauthorizedException('A verified Firebase account is required');
+        }
         const provider = 'firebase';
         const linkedIdentity = await this.prisma.authIdentity.findUnique({
             where: { provider_providerSubject: { provider, providerSubject: identity.uid } },
@@ -309,6 +312,9 @@ export class AuthService {
         if (!user) {
             const existingUser = await this.prisma.user.findUnique({ where: { email: identity.email } });
             if (existingUser) {
+                if (!identity.emailVerified) {
+                    throw new UnauthorizedException('Verify your email before linking this account');
+                }
                 if (
                     !existingUser.isActive
                     || String(existingUser.role) !== String(identity.role)
@@ -325,7 +331,7 @@ export class AuthService {
                     return transaction.user.update({
                         where: { id: existingUser.id },
                         data: {
-                            emailVerified: true,
+                            emailVerified: identity.emailVerified,
                             schoolId,
                             name: existingUser.name || identity.fullName,
                             phone: existingUser.phone || identity.phone,
@@ -348,7 +354,7 @@ export class AuthService {
                             name: identity.fullName,
                             phone: identity.phone,
                             avatar: identity.avatarUrl,
-                            emailVerified: true,
+                            emailVerified: identity.emailVerified,
                             schoolId,
                         },
                     });
@@ -363,6 +369,13 @@ export class AuthService {
             user = await this.prisma.user.update({
                 where: { id: user.id },
                 data: { schoolId },
+            });
+        }
+
+        if (user.emailVerified !== identity.emailVerified) {
+            user = await this.prisma.user.update({
+                where: { id: user.id },
+                data: { emailVerified: identity.emailVerified },
             });
         }
 
@@ -381,8 +394,11 @@ export class AuthService {
             name: user.name || identity.fullName,
             schoolId: user.schoolId,
         });
-        const accessToken = await this.jwtService.signAsync(payload);
-        const refreshToken = await this.issueRefreshToken(user.id);
+        const accessToken = await this.jwtService.signAsync(
+            identity.emailVerified ? payload : { ...payload, onboardingOnly: true },
+            identity.emailVerified ? undefined : { expiresIn: '2h' },
+        );
+        const refreshToken = identity.emailVerified ? await this.issueRefreshToken(user.id) : null;
 
         await this.createAuditLog({
             schoolId: user.schoolId,
@@ -395,7 +411,7 @@ export class AuthService {
 
         return {
             access_token: accessToken,
-            refresh_token: refreshToken,
+            ...(refreshToken ? { refresh_token: refreshToken } : {}),
             user: {
                 ...this.buildSafeUser({
                     id: user.id,
@@ -548,6 +564,10 @@ export class AuthService {
 
         if (!user.isActive) {
             throw new UnauthorizedException('Invalid credentials');
+        }
+
+        if (isPublicAccountRole(String(user.role)) && !user.emailVerified) {
+            throw new UnauthorizedException('Verify your email before signing in');
         }
 
         const isPasswordValid = await bcrypt.compare(

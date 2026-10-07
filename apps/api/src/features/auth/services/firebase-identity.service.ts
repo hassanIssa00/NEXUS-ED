@@ -25,6 +25,7 @@ interface FirestoreField {
 export interface FirebaseProfile {
   uid: string;
   email: string;
+  emailVerified: boolean;
   fullName: string;
   role: Role;
   status: string;
@@ -40,7 +41,10 @@ export class FirebaseIdentityService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  async verifyAndReadProfile(idToken: string): Promise<FirebaseProfile> {
+  async verifyAndReadProfile(
+    idToken: string,
+    options: { allowUnverified?: boolean } = {},
+  ): Promise<FirebaseProfile> {
     const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID')?.trim();
     if (!projectId) {
       throw new ServiceUnavailableException('Firebase identity verification is not configured');
@@ -73,7 +77,7 @@ export class FirebaseIdentityService {
 
     const uid = claims.user_id || claims.sub;
     const email = claims.email?.trim().toLowerCase();
-    if (!uid || !email || claims.email_verified !== true) {
+    if (!uid || !email || (!options.allowUnverified && claims.email_verified !== true)) {
       throw new UnauthorizedException('A verified Firebase account is required');
     }
 
@@ -116,6 +120,7 @@ export class FirebaseIdentityService {
     return {
       uid,
       email,
+      emailVerified: claims.email_verified === true,
       fullName: fullName.slice(0, 120),
       role,
       status,

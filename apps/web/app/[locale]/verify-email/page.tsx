@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { reload, sendEmailVerification } from 'firebase/auth';
+import { useEffect, useRef, useState } from 'react';
+import { sendEmailVerification } from 'firebase/auth';
 import { MailCheck, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useRouter } from '@/i18n/routing';
 import { useAuth } from '@/contexts/auth-context';
@@ -11,11 +11,12 @@ import { EMAIL_ACTION_CONTINUE_PATHS, getEmailActionSettings } from '@/lib/fireb
 
 export default function VerifyEmailPage() {
   const router = useRouter();
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, loading: authLoading, refreshVerifiedSession } = useAuth();
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const sentForUser = useRef<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -25,9 +26,46 @@ export default function VerifyEmailPage() {
     }
     setEmail(profile.email);
     if (profile.emailVerified) {
-      router.replace(profile.role === 'student' || profile.role === 'parent' ? '/student/new' : '/login');
+      router.replace(profile.role === 'student' ? '/student' : profile.role === 'parent' ? '/parent' : '/login');
+      return;
     }
-  }, [authLoading, profile, router]);
+
+    const user = getCurrentUser();
+    if (!user || sentForUser.current === user.uid) return;
+    sentForUser.current = user.uid;
+    void (async () => {
+      try {
+        if (!firebaseAuth) throw new Error('Firebase Authentication is unavailable.');
+        const verifiedProfile = await refreshVerifiedSession();
+        if (user.emailVerified) {
+          if (verifiedProfile?.emailVerified) {
+            router.replace(verifiedProfile.role === 'student' ? '/student' : verifiedProfile.role === 'parent' ? '/parent' : '/login');
+          } else {
+            setError('تم تأكيد البريد، لكن تعذر تحديث جلسة المنصة. سجّل الدخول مرة أخرى.');
+          }
+          return;
+        }
+      } catch {
+        if (user.emailVerified) {
+          setError('تم تأكيد البريد، لكن تعذر تحديث جلسة المنصة. سجّل الدخول مرة أخرى.');
+          return;
+        }
+        if (!firebaseAuth) {
+          setError('تعذر الاتصال بخدمة التحقق. حاول تسجيل الدخول مرة أخرى.');
+          return;
+        }
+      }
+
+      if (user.emailVerified || !firebaseAuth) return;
+      try {
+        firebaseAuth.languageCode = 'en';
+        await sendEmailVerification(user, getEmailActionSettings(EMAIL_ACTION_CONTINUE_PATHS.verified));
+        setMessage('أرسلنا رابط التحقق إلى بريدك الإلكتروني بعد اكتمال خطوات التسجيل.');
+      } catch {
+        setError('تعذر إرسال رابط التحقق تلقائيًا. استخدم زر إعادة الإرسال بعد قليل.');
+      }
+    })();
+  }, [authLoading, profile, refreshVerifiedSession, router]);
 
   const resend = async () => {
     const user = getCurrentUser();
@@ -60,15 +98,14 @@ export default function VerifyEmailPage() {
     setError('');
     setMessage('');
     try {
-      await reload(user);
-      await user.getIdToken(true);
-      if (!user.emailVerified) {
+      const verifiedProfile = await refreshVerifiedSession();
+      if (!user.emailVerified || !verifiedProfile?.emailVerified) {
         setError('لم يتم تأكيد البريد بعد. افتح رابط التحقق ثم أعد المحاولة.');
         return;
       }
-      window.location.reload();
+      router.replace(verifiedProfile.role === 'student' ? '/student' : '/parent');
     } catch {
-      setError('تعذر التحقق من الحالة. أعد المحاولة بعد فتح رابط البريد.');
+      setError('تم فتح رابط البريد، لكن تعذر تحديث جلسة المنصة. أعد المحاولة بعد قليل.');
     } finally {
       setBusy(false);
     }
@@ -81,7 +118,7 @@ export default function VerifyEmailPage() {
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-teal-800 dark:text-teal-300"><ShieldCheck className="h-4 w-4" /> حماية الحساب</p>
           <h1 className="mt-2 text-xl font-black text-gray-900 dark:text-white">تحقق من بريدك الإلكتروني</h1>
-          <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">أرسلنا رابط تأكيد إلى <bdi dir="ltr" className="font-semibold">{email || 'بريدك المسجل'}</bdi>. أكّد العنوان قبل متابعة إعداد الحساب.</p>
+          <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">بعد إكمال إعداد الحساب، استخدم رابط التحقق المرسل إلى <bdi dir="ltr" className="font-semibold">{email || 'بريدك المسجل'}</bdi> لتفعيل الدخول إلى المنصة.</p>
         </div>
         {message && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
         {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}

@@ -66,6 +66,18 @@ function onboardingDestination(pathname: string, role: UserRole, step?: string, 
     return null;
 }
 
+function isAllowedOnboardingPath(pathname: string, role: UserRole, step?: string) {
+    if (role === 'student') {
+        return (step === 'student-profile' && matchesRoute(pathname, '/student/new'))
+            || (step === 'placement-assessment' && (matchesRoute(pathname, '/assessment') || matchesRoute(pathname, '/student/new')));
+    }
+    if (role === 'parent') {
+        return (step === 'link-student' && matchesRoute(pathname, '/student/new'))
+            || (step === 'parent-survey' && matchesRoute(pathname, '/survey'));
+    }
+    return false;
+}
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
@@ -83,20 +95,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             return;
         }
 
-        // If authenticated and on login/register, redirect to dashboard
-        const isAuthPage = pathname.includes('/login') || pathname.includes('/register');
-
-        if (user && profile?.emailVerified === false && !matchesRoute(pathname, '/verify-email')) {
-            router.replace('/verify-email');
-            return;
-        }
-
-        if (user && profile && isAuthPage) {
-            const dashboardRoute = ROLE_ROUTES[profile.role];
-            router.replace(dashboardRoute || '/student');
-            return;
-        }
-
         if (user && profile) {
             const destination = onboardingDestination(
                 pathname,
@@ -108,6 +106,22 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
                 router.replace(destination);
                 return;
             }
+        }
+
+        // Email verification comes after the student assessment or parent survey.
+        if (user && profile?.emailVerified === false
+            && !matchesRoute(pathname, '/verify-email')
+            && !isAllowedOnboardingPath(pathname, profile.role, profile.onboardingStep)) {
+            router.replace('/verify-email');
+            return;
+        }
+
+        // If authenticated and on login/register, continue from the next required step.
+        const isAuthPage = pathname.includes('/login') || pathname.includes('/register');
+        if (user && profile && isAuthPage) {
+            const dashboardRoute = ROLE_ROUTES[profile.role];
+            router.replace(dashboardRoute || '/student');
+            return;
         }
 
         // Check role-based access
@@ -127,7 +141,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         );
     }
 
-    const isPendingVerification = user && profile?.emailVerified === false && !matchesRoute(pathname, '/verify-email');
+    const isPendingVerification = user && profile?.emailVerified === false
+        && !matchesRoute(pathname, '/verify-email')
+        && !isAllowedOnboardingPath(pathname, profile.role, profile.onboardingStep);
     const isWrongRole = user && profile && !canAccessRoute(pathname, profile.role)
         && !isPublicPath(pathname);
     const onboardingRedirect = user && profile

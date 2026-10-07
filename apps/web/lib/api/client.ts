@@ -1,5 +1,7 @@
 import axios from 'axios'
 import { getApiBaseUrl, getStoredAccessToken } from './endpoints';
+import { reload } from 'firebase/auth';
+import { auth as firebaseAuth } from '@/lib/firebase/config';
 
 const API_BASE_URL = getApiBaseUrl();
 let refreshPromise: Promise<string> | null = null;
@@ -17,6 +19,21 @@ function refreshAccessToken() {
             }
             sessionStorage.setItem('access_token', data.access_token);
             localStorage.removeItem('access_token');
+            return data.access_token as string;
+        }).catch(async (refreshError) => {
+            const firebaseUser = firebaseAuth?.currentUser;
+            if (!firebaseUser) throw refreshError;
+
+            await reload(firebaseUser);
+            const idToken = await firebaseUser.getIdToken(true);
+            const endpoint = firebaseUser.emailVerified ? '/auth/firebase' : '/auth/firebase/onboarding';
+            const { data } = await axios.post(`${API_BASE_URL}${endpoint}`, { idToken }, { withCredentials: true });
+            if (typeof data.access_token !== 'string' || !data.access_token) {
+                throw new Error('Firebase session exchange did not include an access token');
+            }
+            sessionStorage.setItem('access_token', data.access_token);
+            localStorage.removeItem('access_token');
+            window.dispatchEvent(new Event('nexus:auth-refreshed'));
             return data.access_token as string;
         }).finally(() => {
             refreshPromise = null;

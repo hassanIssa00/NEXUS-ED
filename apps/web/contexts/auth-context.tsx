@@ -8,8 +8,8 @@ import {
     deleteUser,
     GoogleAuthProvider,
     onAuthStateChanged as onFirebaseAuthStateChanged,
+    reload as reloadFirebaseUser,
     sendPasswordResetEmail,
-    sendEmailVerification,
     signInWithEmailAndPassword,
     signInWithPopup,
     signOut as firebaseSignOut,
@@ -46,6 +46,7 @@ interface UserProfile {
     onboardingComplete?: boolean;
     onboardingStep?: 'student-profile' | 'placement-assessment' | 'link-student' | 'parent-survey' | 'complete';
     onboardingStudentId?: string;
+    onboardingOnly?: boolean;
 }
 
 interface AuthContextType {
@@ -65,6 +66,7 @@ interface AuthContextType {
     requestPasswordReset: (email: string, role?: 'student' | 'parent' | 'teacher') => Promise<'code' | 'link'>;
     confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<void>;
     refreshProfile: () => Promise<UserProfile | null>;
+    refreshVerifiedSession: () => Promise<UserProfile | null>;
     signOut: () => Promise<void>;
 }
 
@@ -155,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
     const isProvisioningFirebaseUser = useRef(false);
     const isHandlingExpiredSession = useRef(false);
-    const firebaseSessionExchange = useRef<{ uid: string; promise: Promise<UserProfile | null> } | null>(null);
+    const firebaseSessionExchange = useRef<{ key: string; promise: Promise<UserProfile | null> } | null>(null);
 
     const clearLocalApiSession = () => {
         sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
@@ -175,6 +177,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             sessionStorage.removeItem(key);
             localStorage.removeItem(key);
         }
+    };
+
+    const clearApiRefreshCookie = async () => {
+        const apiBaseUrl = getApiBaseUrl();
+        if (!apiBaseUrl) return;
+        await fetch(`${apiBaseUrl}/auth/logout`, {
+            method: 'POST',
+            credentials: 'include',
+        }).catch(() => undefined);
     };
 
     const setAuthenticatedState = (nextUser: User, nextProfile: UserProfile) => {
@@ -245,8 +256,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return data.access_token as string;
     };
 
-    const exchangeFirebaseSession = (firebaseUser: FirebaseUser): Promise<UserProfile | null> => {
-        if (firebaseSessionExchange.current?.uid === firebaseUser.uid) {
+    const exchangeFirebaseSession = (firebaseUser: FirebaseUser, onboardingOnly = false): Promise<UserProfile | null> => {
+        const exchangeKey = `${firebaseUser.uid}:${onboardingOnly ? 'onboarding' : 'full'}`;
+        if (firebaseSessionExchange.current?.key === exchangeKey) {
             return firebaseSessionExchange.current.promise;
         }
 
@@ -254,7 +266,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const apiBaseUrl = getApiBaseUrl();
             if (!apiBaseUrl) return null;
 
-            const response = await fetch(`${apiBaseUrl}/auth/firebase`, {
+            const endpoint = onboardingOnly ? '/auth/firebase/onboarding' : '/auth/firebase';
+            const response = await fetch(`${apiBaseUrl}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ idToken: await firebaseUser.getIdToken() }),
@@ -272,20 +285,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, data.access_token);
             const sessionProfile = await fetchProfileFromApi(data.access_token);
-            if (sessionProfile) return { ...sessionProfile, emailVerified: true };
+            if (sessionProfile) return sessionProfile;
             return {
                 id: data.user.firebaseUid || firebaseUser.uid,
                 email: data.user.email || firebaseUser.email || '',
                 full_name: data.user.name || firebaseUser.displayName || firebaseUser.email || '',
                 role,
                 phone: data.user.phone || undefined,
-                emailVerified: true,
+                emailVerified: firebaseUser.emailVerified,
                 onboardingComplete: false,
                 onboardingStep: role === 'student' ? 'student-profile' : role === 'parent' ? 'link-student' : 'complete',
             };
         })();
 
-        firebaseSessionExchange.current = { uid: firebaseUser.uid, promise };
+        firebaseSessionExchange.current = { key: exchangeKey, promise };
         const clearExchange = () => {
             if (firebaseSessionExchange.current?.promise === promise) firebaseSessionExchange.current = null;
         };
@@ -313,15 +326,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
 
         window.addEventListener('nexus:auth-expired', handleExpiredSession);
-        return () => window.removeEventListener('nexus:auth-expired', handleExpiredSession);
+        const handleApiSessionRefreshed = () => {
+            const token = sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+            const firebaseUser = firebaseAuth?.currentUser;
+            if (!token || !firebaseUser) return;
+            void fetchProfileFromApi(token).then((nextProfile) => {
+                if (nextProfile && firebaseAuth?.currentUser?.uid === firebaseUser.uid) {
+                    setAuthenticatedState(createFirebaseAppUser(firebaseUser), nextProfile);
+                }
+            });
+        };
+        window.addEventListener('nexus:auth-refreshed', handleApiSessionRefreshed);
+        return () => {
+            window.removeEventListener('nexus:auth-expired', handleExpiredSession);
+            window.removeEventListener('nexus:auth-refreshed', handleApiSessionRefreshed);
+        };
     }, []);
 
-    const restoreApiSession = async (): Promise<boolean> => {
+    const restoreApiSession = async (): Promise<UserProfile | null> => {
         const apiBaseUrl = getApiBaseUrl();
         const token = sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
 
         if (!apiBaseUrl || !token) {
-            return false;
+            return null;
         }
 
         let nextToken = token;
@@ -331,7 +358,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const refreshedToken = await refreshApiSession();
             if (!refreshedToken) {
                 clearLocalApiSession();
-                return false;
+                return null;
             }
 
             nextToken = refreshedToken;
@@ -340,14 +367,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!nextProfile) {
             clearLocalApiSession();
-            return false;
+            return null;
         }
 
         setAuthenticatedState(
             createApiUser(nextProfile.id, nextProfile.email),
             nextProfile
         );
-        return true;
+        return nextProfile;
     };
 
     const fetchSupabaseProfile = async (userId: string) => {
@@ -437,6 +464,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return null;
     };
 
+    const refreshVerifiedSession = async () => {
+        const firebaseUser = firebaseAuth?.currentUser;
+        if (!firebaseUser) return null;
+
+        await reloadFirebaseUser(firebaseUser);
+        await firebaseUser.getIdToken(true);
+        if (!firebaseUser.emailVerified) return null;
+
+        const nextProfile = await exchangeFirebaseSession(firebaseUser);
+        if (nextProfile) setAuthenticatedState(createFirebaseAppUser(firebaseUser), nextProfile);
+        return nextProfile;
+    };
+
     useEffect(() => {
         let isActive = true;
 
@@ -448,12 +488,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             clearLegacyBrowserSession();
 
             // Restore only a token validated by the API.
-            const restoredApi = await restoreApiSession();
+            const restoredApiProfile = await restoreApiSession();
             if (!isActive) {
                 return;
             }
 
-            if (restoredApi) {
+            if (restoredApiProfile) {
+                const firebaseUser = firebaseAuth?.currentUser;
+                if (firebaseUser && restoredApiProfile.emailVerified === false) {
+                    await reloadFirebaseUser(firebaseUser);
+                    await firebaseUser.getIdToken(true);
+                    if (firebaseUser.emailVerified) {
+                        const verifiedProfile = await exchangeFirebaseSession(firebaseUser);
+                        if (verifiedProfile && isActive) {
+                            setAuthenticatedState(createFirebaseAppUser(firebaseUser), verifiedProfile);
+                        }
+                    }
+                }
                 setLoading(false);
                 return;
             }
@@ -484,20 +535,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!nextProfile && isActive) {
                 setUser(null);
                 if (firebaseAuth) await firebaseSignOut(firebaseAuth).catch(() => undefined);
-            } else if (nextProfile && isActive && nextFirebaseUser.emailVerified) {
-                const apiProfile = await exchangeFirebaseSession(nextFirebaseUser);
+            } else if (nextProfile && isActive && getApiBaseUrl()
+                && (nextFirebaseUser.emailVerified || nextProfile.role === 'student' || nextProfile.role === 'parent')) {
+                const apiProfile = await exchangeFirebaseSession(nextFirebaseUser, !nextFirebaseUser.emailVerified);
                 if (apiProfile && isActive) setProfile(apiProfile);
             }
         };
 
-        bootstrapAuth().catch((error) => {
+        bootstrapAuth().catch(async (error) => {
             console.error('Auth bootstrap failed:', error);
             if (isActive) {
                 clearLocalApiSession();
-                if (getApiBaseUrl() && firebaseAuth?.currentUser) {
-                    void firebaseSignOut(firebaseAuth);
-                    setUser(null);
-                    setProfile(null);
+                const firebaseUser = firebaseAuth?.currentUser;
+                if (firebaseUser) {
+                    const localProfile = await fetchFirebaseProfile(firebaseUser.uid);
+                    if (localProfile && isActive) {
+                        setAuthenticatedState(createFirebaseAppUser(firebaseUser), {
+                            ...localProfile,
+                            emailVerified: firebaseUser.emailVerified,
+                        });
+                    }
                 }
                 setLoading(false);
             }
@@ -533,24 +590,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     if (!nextProfile) {
                         setUser(null);
                         if (firebaseAuth) void firebaseSignOut(firebaseAuth);
-                    } else if (nextUser.emailVerified && getApiBaseUrl()) {
-                        void exchangeFirebaseSession(nextUser).then((apiProfile) => {
+                    } else if (getApiBaseUrl()
+                        && (nextUser.emailVerified || nextProfile.role === 'student' || nextProfile.role === 'parent')) {
+                        void exchangeFirebaseSession(nextUser, !nextUser.emailVerified).then((apiProfile) => {
                             if (apiProfile && firebaseAuth?.currentUser?.uid === nextUser.uid) {
                                 setAuthenticatedState(createFirebaseAppUser(nextUser), apiProfile);
                             }
                         }).catch(async (error) => {
                             console.error('Firebase API session exchange failed:', error);
-                            clearLocalApiSession();
-                            setUser(null);
-                            setProfile(null);
-                            if (firebaseAuth?.currentUser?.uid === nextUser.uid) {
-                                await firebaseSignOut(firebaseAuth).catch(() => undefined);
-                            }
-                            const segments = window.location.pathname.split('/').filter(Boolean);
-                            const locale = segments[0] === 'en' || segments[0] === 'ar' ? segments[0] : 'ar';
-                            if (!window.location.pathname.endsWith(`/${locale}/login`)) {
-                                window.location.replace(`/${locale}/login`);
-                            }
+                            // Keep the Firebase identity intact; a temporary API failure must not sign the user out.
                         });
                     }
                 });
@@ -568,13 +616,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signIn = async (email: string, password: string, expectedRole?: UserRole): Promise<UserRole> => {
         const apiBaseUrl = getApiBaseUrl();
+        const useFirebaseFirst = (expectedRole === 'student' || expectedRole === 'parent')
+            && isFirebaseConfigured
+            && Boolean(firebaseAuth);
+        const apiLoginBaseUrl = useFirebaseFirst ? null : apiBaseUrl;
 
         try {
             if (apiBaseUrl) {
                 // Clear any previous session before signing in with new credentials
+                await clearApiRefreshCookie();
                 clearLocalApiSession();
-                
-                const response = await fetch(`${apiBaseUrl}/auth/login`, {
+            }
+
+            if (apiLoginBaseUrl) {
+                const response = await fetch(`${apiLoginBaseUrl}/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password }),
@@ -585,14 +640,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     const data = await response.json();
                     const role = normalizeApiRole(data.user?.role);
                     if (!role) {
-                        await fetch(`${apiBaseUrl}/auth/logout`, {
+                        await fetch(`${apiLoginBaseUrl}/auth/logout`, {
                             method: 'POST',
                             credentials: 'include',
                         }).catch(() => undefined);
                         throw new Error('Unrecognized account role');
                     }
                     if (expectedRole && role !== expectedRole) {
-                        await fetch(`${apiBaseUrl}/auth/logout`, {
+                        await fetch(`${apiLoginBaseUrl}/auth/logout`, {
                             method: 'POST',
                             credentials: 'include',
                         }).catch(() => undefined);
@@ -660,8 +715,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (isFirebaseConfigured && firebaseAuth) {
                 clearLocalApiSession();
                 isProvisioningFirebaseUser.current = true;
+                let keepFirebaseIdentity = false;
                 try {
                     const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
+                    await reloadFirebaseUser(credential.user);
+                    await credential.user.getIdToken(true);
                     const nextProfile = await fetchFirebaseProfile(credential.user.uid);
 
                     if (!nextProfile) {
@@ -676,16 +734,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         setProfile(null);
                         throw new Error('PORTAL_ROLE_MISMATCH');
                     }
+                    keepFirebaseIdentity = true;
 
                     const apiProfile = credential.user.emailVerified
                         ? await exchangeFirebaseSession(credential.user)
-                        : null;
-                    setAuthenticatedState(createFirebaseAppUser(credential.user), apiProfile ?? nextProfile);
+                        : nextProfile.role === 'student' || nextProfile.role === 'parent'
+                            ? await exchangeFirebaseSession(credential.user, true)
+                            : null;
+                    if (getApiBaseUrl() && (nextProfile.role === 'student' || nextProfile.role === 'parent') && !apiProfile) {
+                        throw new Error('تعذر إنشاء جلسة آمنة لإكمال إعداد الحساب. حاول مرة أخرى.');
+                    }
+                    setAuthenticatedState(createFirebaseAppUser(credential.user), apiProfile ?? {
+                        ...nextProfile,
+                        emailVerified: credential.user.emailVerified,
+                    });
                     return nextProfile.role;
                 } catch (error) {
-                    await firebaseSignOut(firebaseAuth).catch(() => undefined);
-                    setUser(null);
-                    setProfile(null);
+                    if (!keepFirebaseIdentity) {
+                        await firebaseSignOut(firebaseAuth).catch(() => undefined);
+                        setUser(null);
+                        setProfile(null);
+                    } else {
+                        const currentUser = firebaseAuth.currentUser;
+                        if (currentUser) {
+                            const localProfile = await fetchFirebaseProfile(currentUser.uid);
+                            if (localProfile) {
+                                setAuthenticatedState(createFirebaseAppUser(currentUser), {
+                                    ...localProfile,
+                                    emailVerified: currentUser.emailVerified,
+                                });
+                            }
+                        }
+                    }
                     throw error;
                 } finally {
                     isProvisioningFirebaseUser.current = false;
@@ -712,6 +792,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const apiBaseUrl = getApiBaseUrl();
 
         try {
+            await clearApiRefreshCookie();
+            clearLocalApiSession();
             if (apiBaseUrl && !isFirebaseConfigured) {
                 const apiRole = APP_ROLE_TO_API_ROLE[role];
                 if (!apiRole) {
@@ -743,7 +825,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             if (isFirebaseConfigured && firebaseAuth && firebaseDb) {
-                if (role !== 'student' && role !== 'parent' && role !== 'teacher') {
+                if (role !== 'student' && role !== 'parent') {
                     throw new Error('هذا الدور لا يمكنه إنشاء حساب ذاتي.');
                 }
 
@@ -753,11 +835,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     let profileCreated = false;
                     try {
                         await updateProfile(credential.user, { displayName: fullName });
-                        firebaseAuth.languageCode = 'en';
-                        await sendEmailVerification(
-                            credential.user,
-                            getEmailActionSettings(EMAIL_ACTION_CONTINUE_PATHS.verified),
-                        );
                         await setDoc(doc(firebaseDb, 'users', credential.user.uid), {
                             uid: credential.user.uid,
                             email: credential.user.email,
@@ -772,7 +849,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                         const nextProfile = await fetchFirebaseProfile(credential.user.uid);
                         if (!nextProfile) throw new Error('NEXUS_PROFILE_NOT_PROVISIONED');
-                        setAuthenticatedState(createFirebaseAppUser(credential.user), nextProfile);
+                        const apiProfile = getApiBaseUrl()
+                            ? await exchangeFirebaseSession(credential.user, true)
+                            : null;
+                        if (getApiBaseUrl() && !apiProfile) {
+                            throw new Error('تعذر إنشاء جلسة آمنة لإكمال إعداد الحساب. حاول مرة أخرى.');
+                        }
+                        setAuthenticatedState(createFirebaseAppUser(credential.user), apiProfile ?? {
+                            ...nextProfile,
+                            emailVerified: credential.user.emailVerified,
+                        });
                         return;
                     } catch (error) {
                         if (profileCreated) await firebaseSignOut(firebaseAuth).catch(() => undefined);
@@ -964,6 +1050,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         requestPasswordReset,
         confirmPasswordReset,
         refreshProfile,
+        refreshVerifiedSession,
         signOut,
     };
 

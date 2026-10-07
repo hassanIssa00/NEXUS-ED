@@ -11,12 +11,14 @@ import {
 } from 'firebase/auth';
 import { CheckCircle2, GraduationCap, KeyRound, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { auth, isFirebaseConfigured } from '@/lib/firebase/config';
+import { useAuth } from '@/contexts/auth-context';
 
 type ActionMode = 'verifyEmail' | 'resetPassword' | 'unsupported';
 type PageState = 'loading' | 'verify-ready' | 'verified' | 'reset-ready' | 'reset-done' | 'continued' | 'error';
 
 export default function EmailActionPage() {
   const locale = useLocale();
+  const { refreshVerifiedSession } = useAuth();
   const started = useRef(false);
   const [mode, setMode] = useState<ActionMode>('unsupported');
   const [pageState, setPageState] = useState<PageState>('loading');
@@ -46,6 +48,9 @@ export default function EmailActionPage() {
     if (!code && completedResult === 'verified') {
       setMode('verifyEmail');
       setPageState('continued');
+      if (auth?.currentUser) {
+        void refreshVerifiedSession().catch(() => undefined);
+      }
       return;
     }
     if (!code && completedResult === 'password-reset') {
@@ -78,7 +83,7 @@ export default function EmailActionPage() {
     };
 
     void prepare();
-  }, [isArabic]);
+  }, [isArabic, refreshVerifiedSession]);
 
   const verifyEmail = async () => {
     if (!auth || !actionCode) return;
@@ -87,6 +92,16 @@ export default function EmailActionPage() {
     try {
       await applyActionCode(auth, actionCode);
       setPageState('verified');
+      const currentUser = auth.currentUser;
+      if (currentUser?.email?.trim().toLowerCase() === email.trim().toLowerCase()) {
+        try {
+          await refreshVerifiedSession();
+        } catch {
+          setError(isArabic
+            ? 'تم تأكيد البريد. سجّل الدخول لتحديث جلسة حسابك.'
+            : 'Your email is verified. Sign in to refresh your account session.');
+        }
+      }
     } catch {
       setError(isArabic ? 'تعذر تأكيد البريد. قد يكون الرابط مستخدمًا أو منتهي الصلاحية.' : 'We could not verify this email. The link may have been used or expired.');
       setPageState('error');

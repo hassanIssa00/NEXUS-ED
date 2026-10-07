@@ -80,6 +80,58 @@ describe('FirebaseIdentityService', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('accepts an unverified student token only when explicitly requested for onboarding', async () => {
+    const token = sign({
+      user_id: 'firebase-unverified-student',
+      email: 'student@example.com',
+      email_verified: false,
+    }, privateKey, {
+      algorithm: 'RS256',
+      keyid: 'test-key',
+      audience: projectId,
+      issuer: `https://securetoken.google.com/${projectId}`,
+      expiresIn: '1h',
+    });
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        'test-key': publicKey.export({ format: 'pem', type: 'spki' }).toString(),
+      }), { status: 200, headers: { 'cache-control': 'public, max-age=3600' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        fields: {
+          email: { stringValue: 'student@example.com' },
+          full_name: { stringValue: 'Unverified Student' },
+          role: { stringValue: 'student' },
+          status: { stringValue: 'active' },
+        },
+      }), { status: 200 }));
+
+    await expect(service.verifyAndReadProfile(token, { allowUnverified: true })).resolves.toMatchObject({
+      uid: 'firebase-unverified-student',
+      emailVerified: false,
+      role: 'STUDENT',
+    });
+  });
+
+  it('rejects unverified identity tokens on the normal sign-in exchange', async () => {
+    const token = sign({
+      user_id: 'firebase-unverified-student',
+      email: 'student@example.com',
+      email_verified: false,
+    }, privateKey, {
+      algorithm: 'RS256',
+      keyid: 'test-key',
+      audience: projectId,
+      issuer: `https://securetoken.google.com/${projectId}`,
+      expiresIn: '1h',
+    });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      'test-key': publicKey.export({ format: 'pem', type: 'spki' }).toString(),
+    }), { status: 200, headers: { 'cache-control': 'public, max-age=3600' } }));
+
+    await expect(service.verifyAndReadProfile(token)).rejects.toThrow('A verified Firebase account is required');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('accepts a legacy pending staff profile without routing it through account review', async () => {
     const token = sign({
       user_id: 'firebase-teacher-1',

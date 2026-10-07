@@ -225,6 +225,7 @@ describe('AuthService', () => {
             name: 'Test User',
             schoolId: 'school-1',
             isActive: true,
+            emailVerified: true,
         };
 
         it('should return tokens on successful login and persist the refresh token', async () => {
@@ -260,6 +261,13 @@ describe('AuthService', () => {
             mockPrismaService.user.findUnique.mockResolvedValue(null);
 
             await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
+        });
+
+        it('requires verification before allowing password login for public accounts', async () => {
+            mockPrismaService.user.findUnique.mockResolvedValue({ ...user, emailVerified: false });
+
+            await expect(service.login(loginDto)).rejects.toThrow('Verify your email before signing in');
+            expect(bcrypt.compare).not.toHaveBeenCalled();
         });
 
         it('should throw UnauthorizedException on invalid password', async () => {
@@ -310,6 +318,45 @@ describe('AuthService', () => {
     });
 
     describe('loginWithFirebase', () => {
+        it('creates a restricted onboarding session for an unverified student without a refresh token', async () => {
+            mockFirebaseIdentityService.verifyAndReadProfile.mockResolvedValue({
+                uid: 'firebase-student',
+                email: 'student@example.com',
+                emailVerified: false,
+                fullName: 'Student Example',
+                role: 'STUDENT',
+                status: 'active',
+            });
+            mockPrismaService.authIdentity.findUnique.mockResolvedValue(null);
+            mockPrismaService.user.findUnique.mockResolvedValue(null);
+            mockPrismaService.school.findMany.mockResolvedValue([{ id: 'school-1' }]);
+            (bcrypt.hash as jest.Mock).mockResolvedValue('random-password-hash');
+            mockTransaction.user.create.mockResolvedValue({
+                id: 'student-1',
+                email: 'student@example.com',
+                role: 'STUDENT',
+                name: 'Student Example',
+                schoolId: 'school-1',
+                phone: null,
+                emailVerified: false,
+            });
+            mockJwtService.signAsync.mockResolvedValue('onboarding-access-token');
+
+            const result = await service.loginWithFirebase('firebase-id-token', true);
+
+            expect(mockFirebaseIdentityService.verifyAndReadProfile).toHaveBeenCalledWith(
+                'firebase-id-token',
+                { allowUnverified: true },
+            );
+            expect(mockJwtService.signAsync).toHaveBeenCalledWith(
+                expect.objectContaining({ sub: 'student-1', onboardingOnly: true }),
+                { expiresIn: '2h' },
+            );
+            expect(result.access_token).toBe('onboarding-access-token');
+            expect(result).not.toHaveProperty('refresh_token');
+            expect(mockPrismaService.refreshToken.create).not.toHaveBeenCalled();
+        });
+
         it('does not provision a staff account from public self-registration', async () => {
             mockFirebaseIdentityService.verifyAndReadProfile.mockResolvedValue({
                 uid: 'firebase-teacher',
@@ -324,6 +371,30 @@ describe('AuthService', () => {
             await expect(service.loginWithFirebase('firebase-id-token')).rejects.toThrow(UnauthorizedException);
             expect(mockPrismaService.user.create).not.toHaveBeenCalled();
             expect(mockTransaction.user.create).not.toHaveBeenCalled();
+        });
+
+        it('does not link an unverified identity to a pre-existing account by email', async () => {
+            mockFirebaseIdentityService.verifyAndReadProfile.mockResolvedValue({
+                uid: 'firebase-student',
+                email: 'student@example.com',
+                emailVerified: false,
+                fullName: 'Student Example',
+                role: 'STUDENT',
+                status: 'active',
+            });
+            mockPrismaService.authIdentity.findUnique.mockResolvedValue(null);
+            mockPrismaService.user.findUnique.mockResolvedValue({
+                id: 'existing-student',
+                email: 'student@example.com',
+                role: 'STUDENT',
+                isActive: true,
+                schoolId: 'school-1',
+            });
+
+            await expect(service.loginWithFirebase('firebase-id-token', true)).rejects.toThrow(
+                'Verify your email before linking this account',
+            );
+            expect(mockTransaction.authIdentity.create).not.toHaveBeenCalled();
         });
     });
 

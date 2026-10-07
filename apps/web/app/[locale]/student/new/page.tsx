@@ -80,7 +80,7 @@ export default function StudentNewPage() {
           gradeLevel: Number(gradeLevel),
           ...(serializedDate ? { dateOfBirth: serializedDate } : {}),
         });
-        if (firebaseUser?.uid === profile?.id) {
+        if (firebaseUser?.uid === profile?.id && profile?.emailVerified !== false) {
           await syncStudentOnboardingMetadata(Number(gradeLevel), serializedDate);
         }
         const { data } = await apiClient.post('/users/student-link-code');
