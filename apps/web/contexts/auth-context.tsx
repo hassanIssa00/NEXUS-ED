@@ -684,7 +684,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
             }
 
-            if (supabase) {
+            if (supabase && !useFirebaseFirst) {
                 const { data, error } = await supabase.auth.signInWithPassword({
                     email,
                     password,
