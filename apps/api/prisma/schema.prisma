@@ -136,11 +136,12 @@ model PasswordResetCode {
 }
 
 model ParentStudent {
-  id        String @id @default(uuid())
-  parentId  String
-  studentId String
-  parent    User   @relation("ParentToStudent", fields: [parentId], references: [id])
-  student   User   @relation("StudentToParent", fields: [studentId], references: [id])
+  id           String  @id @default(uuid())
+  parentId     String
+  studentId    String
+  relationship String?
+  parent       User    @relation("ParentToStudent", fields: [parentId], references: [id])
+  student      User    @relation("StudentToParent", fields: [studentId], references: [id])
 
   @@unique([parentId, studentId])
 }

@@ -296,9 +296,17 @@ export class UserService {
   async createStudentLinkCode(studentId: string) {
     const student = await this.prisma.user.findFirst({
       where: { id: studentId, role: Role.STUDENT, isActive: true, schoolId: { not: null } },
-      select: { id: true, schoolId: true },
+      select: {
+        id: true,
+        schoolId: true,
+        avatar: true,
+        studentProfile: { select: { gradeLevel: true, nationalId: true } },
+      },
     });
     if (!student?.schoolId) throw new ForbiddenException('Student account is not assigned to an active school');
+    if (student.studentProfile?.gradeLevel == null || !student.studentProfile.nationalId || !student.avatar) {
+      throw new BadRequestException('أكمل الصف ورقم الهوية وصورة الطالب قبل إصدار رمز ولي الأمر');
+    }
 
     const code = randomBytes(8).toString('hex').toUpperCase();
     const now = new Date();
@@ -326,16 +334,19 @@ export class UserService {
     return { code, expiresAt };
   }
 
-  async redeemStudentLinkCode(parentId: string, rawCode: string) {
+  async redeemStudentLinkCode(parentId: string, rawCode: string, relationship: string) {
     const codeHash = createHash('sha256').update(rawCode.trim().toUpperCase()).digest('hex');
     const now = new Date();
 
     return this.prisma.$transaction(async (tx) => {
       const parent = await tx.user.findFirst({
         where: { id: parentId, role: Role.PARENT, isActive: true, schoolId: { not: null } },
-        select: { id: true, schoolId: true },
+        select: { id: true, schoolId: true, name: true, phone: true },
       });
       if (!parent?.schoolId) throw new ForbiddenException('Parent account is not assigned to an active school');
+      if (!parent.name?.trim() || !parent.phone?.trim()) {
+        throw new BadRequestException('أكمل اسم ولي الأمر ورقم الجوال قبل ربط حساب الطالب');
+      }
 
       const linkCode = await tx.studentLinkCode.findFirst({
         where: { tokenHash: codeHash, redeemedAt: null, expiresAt: { gt: now } },
@@ -360,7 +371,7 @@ export class UserService {
       });
       if (claimed.count !== 1) throw new ConflictException('رمز الربط استُخدم بالفعل');
 
-      await tx.parentStudent.create({ data: { parentId, studentId: linkCode.student.id } });
+      await tx.parentStudent.create({ data: { parentId, studentId: linkCode.student.id, relationship } });
       await tx.auditLog.create({
         data: {
           schoolId: parent.schoolId,

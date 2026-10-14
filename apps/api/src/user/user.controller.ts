@@ -85,7 +85,7 @@ export class UserController {
   @Roles(Role.PARENT)
   @Throttle({ short: { limit: 5, ttl: 60000 } })
   linkStudent(@Request() req: any, @Body() body: RedeemStudentLinkCodeDto) {
-    return this.userService.redeemStudentLinkCode(this.userId(req), body.code);
+    return this.userService.redeemStudentLinkCode(this.userId(req), body.code, body.relationship);
   }
 
   @Post('parent-survey')

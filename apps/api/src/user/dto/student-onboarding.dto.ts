@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsInt, IsObject, IsOptional, IsString, Matches, Max, Min, IsUUID } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Matches, Max, Min, IsUUID } from 'class-validator';
 
 export class SaveStudentProfileDto {
   @Type(() => Number)
@@ -22,6 +22,10 @@ export class RedeemStudentLinkCodeDto {
   @IsString()
   @Matches(/^[A-Fa-f0-9]{16}$/)
   code: string;
+
+  @IsString()
+  @IsIn(['father', 'mother', 'guardian'])
+  relationship: string;
 }
 
 export class SubmitParentSurveyDto {

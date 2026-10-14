@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from '@/i18n/routing';
-import { CalendarDays, Camera, Check, Copy, GraduationCap, Link2, LoaderCircle, ShieldCheck, UserRound, Users } from 'lucide-react';
+import { CalendarDays, Camera, Check, Copy, GraduationCap, LoaderCircle, ShieldCheck, UserRound } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api/client';
 import { uploadService } from '@/lib/services/upload.service';
@@ -40,16 +40,14 @@ export default function StudentNewPage() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [linkCode, setLinkCode] = useState('');
+  const [issuedLinkCode, setIssuedLinkCode] = useState('');
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
 
   const role = profile?.role;
   const isStudent = role === 'student';
-  const isParent = role === 'parent';
   const isFirebaseAccount = Boolean(profile && getCurrentUser()?.uid === profile.id);
-  const expectedLinkCodeLength = 16;
 
   useEffect(() => {
     if (!photoFile) {
@@ -106,11 +104,7 @@ export default function StudentNewPage() {
         }
         const { data } = await apiClient.post('/users/student-link-code');
         await refreshProfile();
-        setLinkCode(data.code);
-      } else if (isParent) {
-        const { data } = await apiClient.post('/users/link-student', { code: linkCode.trim() });
-        await refreshProfile();
-        router.push(`/survey?student=${encodeURIComponent(data.student.id)}`);
+        setIssuedLinkCode(data.code);
       } else {
         router.replace('/login');
       }
@@ -123,7 +117,7 @@ export default function StudentNewPage() {
 
   const copyCode = async () => {
     try {
-      await navigator.clipboard.writeText(linkCode);
+      await navigator.clipboard.writeText(issuedLinkCode);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -135,32 +129,29 @@ export default function StudentNewPage() {
     return <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">جارٍ التحقق من الحساب...</div>;
   }
 
-  if (!isStudent && !isParent) return null;
+  if (!isStudent) return null;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-[#0f1015]" dir="rtl">
       <section className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#1e1e2d] md:p-8">
         <div className="mb-6 flex items-start gap-4">
-          <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${isStudent ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-            {isStudent ? <GraduationCap className="h-6 w-6" /> : <Users className="h-6 w-6" />}
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
+            <GraduationCap className="h-6 w-6" />
           </span>
           <div>
             <p className="text-sm font-semibold text-gray-500">استكمال إعداد الحساب</p>
-            <h1 className="mt-1 text-xl font-black text-gray-900 dark:text-white">{isStudent ? 'الملف الدراسي' : 'ربط حساب ولي الأمر'}</h1>
+            <h1 className="mt-1 text-xl font-black text-gray-900 dark:text-white">الملف الدراسي</h1>
             <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
-              {isStudent
-                ? `مرحبًا ${profile?.full_name || ''}، حدّد صفك الحالي. تُحفظ البيانات في ملفك المدرسي.`
-                : 'أدخل رمز الربط الذي يصدره الطالب من حسابه. لا نستخدم الأسماء أو أرقام الجوال لمطابقة الحسابات.'}
+              {`مرحبًا ${profile?.full_name || ''}، حدّد صفك الحالي. تُحفظ البيانات في ملفك المدرسي.`}
             </p>
           </div>
         </div>
 
         {error && <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
 
-        {!linkCode ? (
+        {!issuedLinkCode ? (
           <form onSubmit={handleSubmit} className="space-y-5">
-            {isStudent ? (
-              <>
+            <>
                 <label className="block space-y-2 text-sm font-bold text-gray-700 dark:text-gray-200">
                   الصف الدراسي
                   <span className="relative block">
@@ -239,21 +230,11 @@ export default function StudentNewPage() {
                 <p className="flex gap-2 rounded-lg bg-sky-50 p-3 text-xs leading-5 text-sky-800 dark:bg-sky-500/10 dark:text-sky-200">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /> لن يظهر اختبار تحديد مستوى إلا إذا أعدّت المدرسة اختبارًا فعليًا مناسبًا للصف ونشرته لحسابك.
                 </p>
-              </>
-            ) : (
-              <label className="block space-y-2 text-sm font-bold text-gray-700 dark:text-gray-200">
-                رمز ربط الطالب
-                <span className="relative block">
-                  <Link2 className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                  <input required autoComplete="one-time-code" inputMode="text" maxLength={expectedLinkCodeLength} minLength={expectedLinkCodeLength} value={linkCode} onChange={(event) => setLinkCode(event.target.value.toUpperCase().replace(/[^A-F0-9]/g, ''))} placeholder={`أدخل رمز الربط المكوّن من ${expectedLinkCodeLength} خانة`} dir="ltr" className="w-full rounded-lg border border-gray-200 bg-white py-3 pe-10 ps-3 text-center font-mono text-lg tracking-widest dark:border-white/10 dark:bg-white/5" />
-                </span>
-                <span className="block text-xs font-normal text-gray-500">الرمز صالح لمدة 7 أيام ويُستخدم مرة واحدة.</span>
-              </label>
-            )}
+            </>
 
-            <button type="submit" disabled={saving || (isParent && linkCode.length !== expectedLinkCodeLength)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50">
-              {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isStudent ? <GraduationCap className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
-              {saving ? 'جارٍ الحفظ...' : isStudent ? 'حفظ الملف وإصدار رمز ولي الأمر' : 'ربط الطالب والمتابعة'}
+            <button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50">
+              {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <GraduationCap className="h-4 w-4" />}
+              {saving ? 'جارٍ الحفظ...' : 'حفظ الملف وإصدار رمز ولي الأمر'}
             </button>
           </form>
         ) : (
@@ -263,7 +244,7 @@ export default function StudentNewPage() {
               <p className="mt-2 font-bold text-emerald-900 dark:text-emerald-100">تم حفظ ملفك وإصدار رمز الربط</p>
               <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">شاركه مع ولي أمرك فقط. سيُلغى بعد الاستخدام أو بعد 7 أيام.</p>
               <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-white p-2 dark:border-white/10 dark:bg-black/20">
-                <code dir="ltr" className="flex-1 select-all text-xl font-black tracking-[0.2em] text-gray-900 dark:text-white">{linkCode}</code>
+              <code dir="ltr" className="flex-1 select-all text-xl font-black tracking-[0.2em] text-gray-900 dark:text-white">{issuedLinkCode}</code>
                 <button type="button" onClick={copyCode} aria-label="نسخ رمز ولي الأمر" title="نسخ الرمز" className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/10">
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </button>

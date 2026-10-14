@@ -28,7 +28,7 @@ const PUBLIC_ROUTES = [
     '/auth/action',
 ];
 const SHARED_ROLE_ROUTES: Array<{ path: string; roles: UserRole[]; exact?: boolean }> = [
-    { path: '/student/new', roles: ['student', 'parent'] },
+    { path: '/student/new', roles: ['student'] },
     { path: '/survey', roles: ['parent'], exact: true },
     { path: '/assessment', roles: ['student'], exact: true },
 ];
@@ -57,7 +57,7 @@ function onboardingDestination(pathname: string, role: UserRole, step?: string, 
     }
 
     if (role === 'parent') {
-        if (step === 'link-student' && !matchesRoute(pathname, '/student/new')) return '/student/new?flow=parent';
+        if (step === 'link-student' && !matchesRoute(pathname, '/parent/onboarding')) return '/parent/onboarding';
         if (step === 'parent-survey' && !matchesRoute(pathname, '/survey')) {
             return studentId ? `/survey?student=${encodeURIComponent(studentId)}` : '/parent';
         }
@@ -72,7 +72,7 @@ function isAllowedOnboardingPath(pathname: string, role: UserRole, step?: string
             || (step === 'placement-assessment' && (matchesRoute(pathname, '/assessment') || matchesRoute(pathname, '/student/new')));
     }
     if (role === 'parent') {
-        return (step === 'link-student' && matchesRoute(pathname, '/student/new'))
+        return (step === 'link-student' && matchesRoute(pathname, '/parent/onboarding'))
             || (step === 'parent-survey' && matchesRoute(pathname, '/survey'));
     }
     return false;
