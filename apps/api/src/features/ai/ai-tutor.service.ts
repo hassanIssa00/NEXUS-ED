@@ -2,11 +2,12 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../core/database/prisma.service';
 import { GamificationService } from '../../gamification/gamification.service';
-import OpenAI from 'openai';
+import { createAiProvider, type AiProvider } from './ai-provider';
+import { withNexusContext } from './nexus-platform-context';
 
 @Injectable()
 export class AiTutorService {
-  private openai: OpenAI | null = null;
+  private readonly ai: AiProvider | null;
   private readonly logger = new Logger(AiTutorService.name);
 
   constructor(
@@ -14,13 +15,9 @@ export class AiTutorService {
     private prisma: PrismaService,
     private gamification: GamificationService,
   ) {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (apiKey && apiKey !== 'sk_placeholder') {
-      this.openai = new OpenAI({ apiKey });
-      this.logger.log('OpenAI Service initialized');
-    } else {
-      this.logger.warn('OPENAI_API_KEY not found or placeholder used.');
-    }
+    this.ai = createAiProvider(this.configService);
+    if (this.ai) this.logger.log(`${this.ai.name} AI tutor initialized`);
+    else this.logger.warn('No AI provider configured.');
   }
 
   async askTutor(
@@ -28,7 +25,7 @@ export class AiTutorService {
     context?: { subject?: string; grade?: string; studentId?: string },
     history: { role: 'user' | 'assistant'; content: string }[] = [],
   ): Promise<string> {
-    if (!this.openai) {
+    if (!this.ai) {
       throw new ServiceUnavailableException('المعلم الذكي غير متاح؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
     }
 
@@ -49,7 +46,7 @@ export class AiTutorService {
         }
       }
 
-      const systemPrompt = `You are an intelligent, empathetic AI tutor for students in Saudi Arabia. 
+      const systemPrompt = withNexusContext(`You are an intelligent, empathetic AI tutor for students in Saudi Arabia.
       Subject: ${context?.subject || 'General'}
       Grade Level: ${context?.grade || 'Unknown'}
       
@@ -58,7 +55,7 @@ export class AiTutorService {
       - CRITICAL: DO NOT just give the direct answer to homework or test questions. Guide the student to discover the answer themselves.
       - Ask leading questions to help them think.
       - Be encouraging, positive, and supportive.
-      - Always answer in Arabic (unless asked otherwise), using a supportive tone (e.g. "بطل", "ممتاز").`;
+      - Always answer in Arabic (unless asked otherwise), using a supportive tone (e.g. "بطل", "ممتاز").`);
 
       const messages: any[] = [
         { role: 'system', content: systemPrompt },
@@ -66,9 +63,9 @@ export class AiTutorService {
         { role: 'user', content: question },
       ];
 
-      const completion = await this.openai.chat.completions.create({
+      const completion = await this.ai.client.chat.completions.create({
         messages,
-        model: 'gpt-4o',
+        model: this.ai.model,
         temperature: 0.7,
       });
 
@@ -85,7 +82,7 @@ export class AiTutorService {
 
       return responseText;
     } catch (error: any) {
-      this.logger.error('OpenAI API Error: ' + error.message, error);
+      this.logger.error(`${this.ai.name} API Error: ` + error.message, error);
       throw new ServiceUnavailableException('تعذر الاتصال بخدمة المعلم الذكي الآن.');
     }
   }

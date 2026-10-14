@@ -1,7 +1,8 @@
 import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
 import { PrismaService } from '../../core/database/prisma.service';
+import { createAiProvider, type AiProvider } from './ai-provider';
+import { withNexusContext } from './nexus-platform-context';
 
 export interface ParentAdviceResult {
   summary: string;
@@ -24,18 +25,15 @@ export interface LearningRiskResult {
 
 @Injectable()
 export class AiParentService {
-  private openai: OpenAI | null = null;
+  private readonly ai: AiProvider | null;
   private readonly logger = new Logger(AiParentService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private configService: ConfigService
   ) {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (apiKey && apiKey !== 'sk_placeholder') {
-      this.openai = new OpenAI({ apiKey });
-      this.logger.log('AiParentService: OpenAI initialized');
-    }
+    this.ai = createAiProvider(this.configService);
+    if (this.ai) this.logger.log(`AiParentService: ${this.ai.name} initialized`);
   }
 
   /**
@@ -90,11 +88,11 @@ export class AiParentService {
       };
     }
 
-    if (!this.openai) {
+    if (!this.ai) {
       throw new ServiceUnavailableException('خدمة المستشار الذكي غير متاحة؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
     }
 
-    const systemPrompt = `أنت مستشار تعليمي خبير متخصص في التواصل مع أولياء الأمور بالعربية الفصحى.
+    const systemPrompt = withNexusContext(`أنت مستشار تعليمي خبير متخصص في التواصل مع أولياء الأمور بالعربية الفصحى.
     مهمتك: تحليل أداء الطالب وتقديم تقرير واضح ومبسط لولي الأمر.
     
     بيانات الأداء المدرسي:
@@ -112,12 +110,12 @@ export class AiParentService {
       "concerns": ["نقطة تحتاج اهتمام 1 (إن وجدت)"],
       "actionableAdvice": ["نصيحة عملية يمكن لولي الأمر تطبيقها 1", "نصيحة 2"],
       "overallStatus": "excellent|good|needsAttention|urgent"
-    }`;
+    }`);
 
     try {
-      const completion = await this.openai.chat.completions.create({
+      const completion = await this.ai.client.chat.completions.create({
         messages: [{ role: 'system', content: systemPrompt }],
-        model: 'gpt-4o',
+        model: this.ai.model,
         temperature: 0.7,
         response_format: { type: 'json_object' },
       });

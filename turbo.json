@@ -15,7 +15,7 @@
     "PUBLIC_SCHOOL_SLUG",
     "NEXUS_SCHOOL_NAME"
   ],
-  "globalPassThroughEnv": ["SWC_NATIVE_BINDING_CACHE"],
+  "globalPassThroughEnv": ["SWC_NATIVE_BINDING_CACHE", "GROQ_API_KEY"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

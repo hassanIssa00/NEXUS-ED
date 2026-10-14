@@ -1,7 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../core/database/prisma.service';
-import OpenAI from 'openai';
+import { createAiProvider, type AiProvider } from './ai-provider';
+import { withNexusContext } from './nexus-platform-context';
 
 export interface AiGradeSuggestion {
   score: number;
@@ -12,15 +13,14 @@ export interface AiGradeSuggestion {
 @Injectable()
 export class AiGradingService {
   private readonly logger = new Logger(AiGradingService.name);
-  private readonly openai: OpenAI | null;
+  private readonly ai: AiProvider | null;
 
   constructor(private readonly prisma: PrismaService, configService: ConfigService) {
-    const apiKey = configService.get<string>('OPENAI_API_KEY');
-    this.openai = apiKey && apiKey !== 'sk_placeholder' ? new OpenAI({ apiKey }) : null;
+    this.ai = createAiProvider(configService);
   }
 
   async suggestGrade(submissionId: string, actorId: string, actorRole: string): Promise<AiGradeSuggestion> {
-    if (!this.openai) throw new ServiceUnavailableException('اقتراح التصحيح غير متاح؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
+    if (!this.ai) throw new ServiceUnavailableException('اقتراح التصحيح غير متاح؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
 
     const [actor, submission] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: actorId }, select: { id: true, role: true, schoolId: true } }),
@@ -53,9 +53,9 @@ export class AiGradingService {
     if (answer.length > 20000) throw new BadRequestException('الإجابة أطول من الحد المدعوم لاقتراح التصحيح');
 
     const maxScore = submission.assignment.maxScore;
-    const systemPrompt = `أنت مساعد للمعلم تقترح درجة أولية فقط، ولا تصدر حكم قبول أو نتيجة نهائية.
+    const systemPrompt = withNexusContext(`أنت مساعد للمعلم تقترح درجة أولية فقط، ولا تصدر حكم قبول أو نتيجة نهائية.
 قيّم الإجابة وفق وصف الواجب والدرجة القصوى، ولا تفترض محتوى غير موجود. إذا كانت التعليمات أو الإجابة غير كافية، أشر إلى ذلك في الملاحظات.
-أرجع كائن JSON فقط بهذا الشكل: {"grade": رقم, "feedback_ar": نص قصير, "strengths": [نصوص], "weaknesses": [نصوص]}.`;
+أرجع كائن JSON فقط بهذا الشكل: {"grade": رقم, "feedback_ar": نص قصير, "strengths": [نصوص], "weaknesses": [نصوص]}.`);
     const input = JSON.stringify({
       assignmentTitle: submission.assignment.title,
       assignmentDescription: submission.assignment.description,
@@ -64,8 +64,8 @@ export class AiGradingService {
     });
 
     try {
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o',
+      const response = await this.ai.client.chat.completions.create({
+        model: this.ai.model,
         messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: input }],
         response_format: { type: 'json_object' },
         temperature: 0.2,

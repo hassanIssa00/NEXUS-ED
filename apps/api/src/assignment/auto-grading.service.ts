@@ -1,7 +1,8 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/database/prisma.service';
-import OpenAI from 'openai';
+import { createAiProvider, type AiProvider } from '../features/ai/ai-provider';
+import { withNexusContext } from '../features/ai/nexus-platform-context';
 
 export interface MCQQuestion {
   id: string;
@@ -76,7 +77,7 @@ import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class AutoGradingService {
-  private openai: OpenAI | null = null;
+  private readonly ai: AiProvider | null;
 
   constructor(
     private prisma: PrismaService,
@@ -84,10 +85,7 @@ export class AutoGradingService {
     @Optional() private configService?: ConfigService,
     @Optional() private uploadService?: UploadService,
   ) {
-    const apiKey = configService?.get<string>('OPENAI_API_KEY') || process.env.OPENAI_API_KEY;
-    if (apiKey && apiKey !== 'sk_placeholder') {
-      this.openai = new OpenAI({ apiKey });
-    }
+    this.ai = createAiProvider(configService);
   }
 
   /**
@@ -234,11 +232,11 @@ export class AutoGradingService {
   }
 
   /**
-   * Grade submission using OpenAI SDK (GPT-4o with Vision support)
+   * Grade text and supported image submissions using the configured AI provider.
    */
   async gradeWithAI(assignmentId: string, submissionId: string) {
-    if (!this.openai) {
-      console.warn('[AutoGrading] OpenAI not configured — skipping AI grading.');
+    if (!this.ai) {
+      console.warn('[AutoGrading] No AI provider configured — skipping AI grading.');
       return;
     }
 
@@ -273,15 +271,28 @@ export class AutoGradingService {
       const attachmentUrls = this.uploadService
         ? await this.uploadService.getSignedUrlsForReferences(attachments)
         : attachments;
+      const imageUrls: string[] = [];
       for (const url of attachmentUrls) {
         if (/\.(png|jpg|jpeg|gif|webp)(?:\?|$)/i.test(url)) {
+          imageUrls.push(url);
           contentParts.push({ type: 'image_url', image_url: { url, detail: 'low' } });
-        } else {
-          contentParts.push({ type: 'text', text: `[مرفق: ${url}]` });
         }
       }
 
-      const systemPrompt = `أنت معلم خبير ومتعاطف. قيّم إجابة الطالب بعدالة.
+      if (attachmentUrls.length !== imageUrls.length || (this.ai.name === 'Groq' && imageUrls.length > 3)) {
+        await this.prisma.submission.update({
+          where: { id: submissionId },
+          data: {
+            feedback: JSON.stringify({
+              text: 'يتطلب هذا التسليم مراجعة المعلم؛ نوع المرفقات أو عددها لا يدعمه التصحيح الآلي الحالي.',
+              isAiGenerated: false,
+            }),
+          },
+        });
+        return;
+      }
+
+      const systemPrompt = withNexusContext(`أنت معلم خبير ومتعاطف. قيّم إجابة الطالب بعدالة.
 الدرجة القصوى: ${maxScore}.
 أرجع JSON فقط بهذا الشكل الدقيق:
 {
@@ -289,10 +300,10 @@ export class AutoGradingService {
   "feedback": "<رسالة تشجيعية بالعربية توضح نقاط القوة والأماكن التي تحتاج تحسيناً>",
   "strengths": ["<نقطة قوة 1>", "<نقطة قوة 2>"],
   "weaknesses": ["<نقطة تحسين 1>"]
-}`;
+}`);
 
-      const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4o',
+      const completion = await this.ai.client.chat.completions.create({
+        model: imageUrls.length ? this.ai.visionModel : this.ai.model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: contentParts },
@@ -302,21 +313,22 @@ export class AutoGradingService {
         temperature: 0.3,
       });
 
-      let parsed: any = {};
-      try {
-        parsed = JSON.parse(completion.choices[0]?.message?.content || '{}');
-      } catch {
-        console.error('[AutoGrading] Failed to parse OpenAI JSON response');
+      const content = completion.choices[0]?.message?.content;
+      if (!content) throw new Error('Empty AI grading response');
+      const parsed = JSON.parse(content);
+      if (typeof parsed.score !== 'number' || !Number.isFinite(parsed.score) ||
+          parsed.score < 0 || parsed.score > maxScore || typeof parsed.feedback !== 'string' ||
+          !Array.isArray(parsed.strengths) || !parsed.strengths.every((value: unknown) => typeof value === 'string') ||
+          !Array.isArray(parsed.weaknesses) || !parsed.weaknesses.every((value: unknown) => typeof value === 'string')) {
+        throw new Error('AI response did not match the grading schema');
       }
 
-      const score = typeof parsed.score === 'number'
-        ? Math.min(Math.max(Math.round(parsed.score), 0), maxScore)
-        : 0;
+      const score = Math.round(parsed.score * 100) / 100;
 
       const feedbackPayload = JSON.stringify({
-        text: parsed.feedback || 'تم التصحيح التلقائي بنجاح.',
-        strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
-        weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : [],
+        text: parsed.feedback,
+        strengths: parsed.strengths,
+        weaknesses: parsed.weaknesses,
         isAiGenerated: true,
       });
 

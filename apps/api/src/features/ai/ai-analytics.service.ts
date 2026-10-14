@@ -1,6 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
+import { createAiProvider, type AiProvider } from './ai-provider';
+import { withNexusContext } from './nexus-platform-context';
 
 export interface StudentInsight {
   strengths: string[];
@@ -11,15 +12,12 @@ export interface StudentInsight {
 
 @Injectable()
 export class AiAnalyticsService {
-  private openai: OpenAI | null = null;
+  private readonly ai: AiProvider | null;
   private readonly logger = new Logger(AiAnalyticsService.name);
 
   constructor(private configService: ConfigService) {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (apiKey && apiKey !== 'sk_placeholder') {
-      this.openai = new OpenAI({ apiKey });
-      this.logger.log('OpenAI Service initialized for Analytics');
-    }
+    this.ai = createAiProvider(this.configService);
+    if (this.ai) this.logger.log(`${this.ai.name} initialized for analytics`);
   }
 
   async generateStudentInsights(studentData: any): Promise<StudentInsight> {
@@ -31,12 +29,12 @@ export class AiAnalyticsService {
         encouragementMessage: 'لا توجد درجات أو سجلات حضور كافية لإعداد تحليل حتى الآن.',
       };
     }
-    if (!this.openai) {
+    if (!this.ai) {
       throw new ServiceUnavailableException('خدمة التحليل الذكي غير متاحة؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
     }
 
     try {
-      const systemPrompt = `You are an expert Arabic educational counselor.
+      const systemPrompt = withNexusContext(`You are an expert Arabic educational counselor.
       Analyze the following student performance data and provide actionable insights.
       
       Grades: ${JSON.stringify(studentData.grades)}
@@ -51,11 +49,11 @@ export class AiAnalyticsService {
         "weaknesses": ["string", "string"],
         "recommendedTopics": ["string", "string"],
         "encouragementMessage": "A short, positive message to the student"
-      }`;
+      }`);
 
-      const completion = await this.openai.chat.completions.create({
+      const completion = await this.ai.client.chat.completions.create({
         messages: [{ role: 'system', content: systemPrompt }],
-        model: 'gpt-4o',
+        model: this.ai.model,
         temperature: 0.6,
         response_format: { type: 'json_object' },
       });

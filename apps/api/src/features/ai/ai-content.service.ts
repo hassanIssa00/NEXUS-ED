@@ -1,5 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
+import { createAiProvider, createOpenAiImageClient, type AiProvider } from './ai-provider';
+import { withNexusContext } from './nexus-platform-context';
 
 export interface GeneratedContent {
   summary: string;
@@ -21,25 +23,24 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AiContentService {
-  private openai: OpenAI | null = null;
+  private readonly ai: AiProvider | null;
+  private readonly openaiImages: OpenAI | null;
   private readonly logger = new Logger(AiContentService.name);
 
   constructor(private configService: ConfigService) {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (apiKey && apiKey !== 'sk_placeholder') {
-      this.openai = new OpenAI({ apiKey });
-    }
+    this.ai = createAiProvider(this.configService);
+    this.openaiImages = createOpenAiImageClient(this.configService);
   }
 
   /**
    * Generates interactive content from raw text
    */
   async processContent(text: string): Promise<GeneratedContent> {
-    if (!this.openai) {
+    if (!this.ai) {
       throw new ServiceUnavailableException('توليد المحتوى غير متاح؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
     }
 
-    const systemPrompt = `أنت مساعد ذكي للمعلمين. مهمتك تحويل النص التعليمي المدخل إلى محتوى تفاعلي متكامل.
+    const systemPrompt = withNexusContext(`أنت مساعد ذكي للمعلمين. مهمتك تحويل النص التعليمي المدخل إلى محتوى تفاعلي متكامل.
 أخرج النتيجة بصيغة JSON حصراً بهذا الهيكل:
 {
   "summary": "ملخص شامل ومبسط للنص في 3-4 أسطر",
@@ -61,15 +62,15 @@ export class AiContentService {
   ]
 }
 
-تأكد أن يحتوي الـ quiz على 5 أسئلة، والـ flashcards على 5 بطاقات على الأقل.`;
+تأكد أن يحتوي الـ quiz على 5 أسئلة، والـ flashcards على 5 بطاقات على الأقل.`);
 
     try {
-      const completion = await this.openai.chat.completions.create({
+      const completion = await this.ai.client.chat.completions.create({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `النص التعليمي:\n${text}` }
         ],
-        model: 'gpt-4o',
+        model: this.ai.model,
         temperature: 0.7,
         response_format: { type: 'json_object' },
       });
@@ -78,7 +79,7 @@ export class AiContentService {
       try {
         result = JSON.parse(completion.choices[0].message.content || '{}');
       } catch (parseErr) {
-        this.logger.error('Failed to parse OpenAI JSON for content generation', parseErr);
+        this.logger.error(`Failed to parse ${this.ai.name} JSON for content generation`, parseErr);
         throw new Error('فشل تحليل استجابة الذكاء الاصطناعي');
       }
 
@@ -104,12 +105,12 @@ export class AiContentService {
    * Generates an educational image from a prompt
    */
   async generateImage(prompt: string): Promise<string> {
-    if (!this.openai) {
-      throw new ServiceUnavailableException('توليد الصور غير متاح؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
+    if (!this.openaiImages) {
+      throw new ServiceUnavailableException('توليد الصور يحتاج إعداد OPENAI_API_KEY؛ مفتاح Groq يدعم النص والصور المدخلة للتحليل ولا ينشئ صورًا.');
     }
 
     try {
-      const response = await this.openai.images.generate({
+      const response = await this.openaiImages.images.generate({
         model: "dall-e-3",
         prompt: `Create an educational, child-friendly, colorful illustration for students based on this concept: ${prompt}. The image should be illustrative, flat vector style, and easy to understand for young learners. Do not include any text in the image.`,
         n: 1,
