@@ -77,7 +77,7 @@ export class AiTutorService {
         messages,
         model: this.ai.model,
         temperature: 0.7,
-        max_tokens: 1200,
+        max_completion_tokens: 1200,
         reasoning_effort: 'none',
       });
 
