@@ -148,6 +148,7 @@ model ParentStudent {
 model StudentProfile {
   userId      String   @id
   gradeLevel  Int
+  nationalId  String?  @unique
   dateOfBirth DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

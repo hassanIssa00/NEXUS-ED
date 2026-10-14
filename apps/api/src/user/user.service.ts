@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateUserDto, UpdateUserDto, UserFilterDto } from './dto/user.dto';
 import * as bcrypt from 'bcrypt';
@@ -248,30 +248,49 @@ export class UserService {
     return this.prisma.studentProfile.findUnique({ where: { userId } });
   }
 
-  async saveStudentProfile(userId: string, gradeLevel: number, dateOfBirth?: string) {
+  async saveStudentProfile(userId: string, gradeLevel: number, dateOfBirth?: string, nationalId?: string) {
     const student = await this.prisma.user.findFirst({
       where: { id: userId, role: Role.STUDENT, isActive: true },
       select: { id: true },
     });
     if (!student) throw new NotFoundException('Student account not found');
 
-    if (!dateOfBirth) {
-      return this.prisma.studentProfile.upsert({
-        where: { userId },
-        create: { userId, gradeLevel },
-        update: { gradeLevel },
+    if (nationalId !== undefined) {
+      const duplicate = await this.prisma.studentProfile.findFirst({
+        where: { nationalId, userId: { not: userId } },
+        select: { userId: true },
       });
+      if (duplicate) throw new ConflictException('رقم الهوية مرتبط بحساب طالب آخر');
     }
 
-    const birthDate = new Date(dateOfBirth);
-    if (Number.isNaN(birthDate.getTime()) || birthDate > new Date()) {
-      throw new BadRequestException('Date of birth must be a valid date in the past');
+    if (dateOfBirth) {
+      const birthDate = new Date(dateOfBirth);
+      if (Number.isNaN(birthDate.getTime()) || birthDate > new Date()) {
+        throw new BadRequestException('Date of birth must be a valid date in the past');
+      }
     }
-    return this.prisma.studentProfile.upsert({
-      where: { userId },
-      create: { userId, gradeLevel, dateOfBirth: birthDate },
-      update: { gradeLevel, dateOfBirth: birthDate },
-    });
+
+    try {
+      return await this.prisma.studentProfile.upsert({
+        where: { userId },
+        create: {
+          userId,
+          gradeLevel,
+          ...(nationalId !== undefined ? { nationalId } : {}),
+          ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
+        },
+        update: {
+          gradeLevel,
+          ...(nationalId !== undefined ? { nationalId } : {}),
+          ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('رقم الهوية مرتبط بحساب طالب آخر');
+      }
+      throw error;
+    }
   }
 
   async createStudentLinkCode(studentId: string) {

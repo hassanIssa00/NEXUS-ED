@@ -71,7 +71,7 @@ export class UserController {
   @Put('me/student-profile')
   @Roles(Role.STUDENT)
   saveStudentProfile(@Request() req: any, @Body() body: SaveStudentProfileDto) {
-    return this.userService.saveStudentProfile(this.userId(req), body.gradeLevel, body.dateOfBirth);
+    return this.userService.saveStudentProfile(this.userId(req), body.gradeLevel, body.dateOfBirth, body.nationalId);
   }
 
   @Post('student-link-code')

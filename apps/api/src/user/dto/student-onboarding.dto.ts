@@ -11,6 +11,11 @@ export class SaveStudentProfileDto {
   @IsOptional()
   @IsDateString()
   dateOfBirth?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{10}$/, { message: 'رقم الهوية يجب أن يتكون من 10 أرقام' })
+  nationalId?: string;
 }
 
 export class RedeemStudentLinkCodeDto {

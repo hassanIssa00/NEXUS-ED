@@ -818,7 +818,7 @@ export class AuthService {
                     select: { providerSubject: true },
                     take: 1,
                 },
-                studentProfile: { select: { gradeLevel: true } },
+                studentProfile: { select: { gradeLevel: true, nationalId: true } },
                 placementAssessmentAttempts: { select: { assessmentKey: true } },
                 children: {
                     select: {
@@ -844,7 +844,7 @@ export class AuthService {
         let gradeLevel = -1;
         if (String(user.role) === 'STUDENT') {
             gradeLevel = user.studentProfile?.gradeLevel ?? -1;
-            if (gradeLevel < 0) {
+            if (gradeLevel < 0 || !user.studentProfile?.nationalId || !user.avatar) {
                 onboardingStep = 'student-profile';
             } else {
                 const assessmentKey = this.placementAssessmentKey(gradeLevel);

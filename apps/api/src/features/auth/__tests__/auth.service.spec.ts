@@ -134,7 +134,8 @@ describe('AuthService', () => {
         it('requires the current grade assessment before student dashboard access', async () => {
             mockPrismaService.user.findUnique.mockResolvedValue({
                 ...baseUser,
-                studentProfile: { gradeLevel: 8 },
+                avatar: 'https://cdn.example.test/student.webp',
+                studentProfile: { gradeLevel: 8, nationalId: '1234567890' },
             });
 
             const profile = await service.getSessionProfile('user-1');
@@ -143,6 +144,21 @@ describe('AuthService', () => {
                 gradeLevel: 8,
                 onboardingComplete: false,
                 onboardingStep: 'placement-assessment',
+            });
+        });
+
+        it('keeps students in profile setup until identity number and photo are saved', async () => {
+            mockPrismaService.user.findUnique.mockResolvedValue({
+                ...baseUser,
+                studentProfile: { gradeLevel: 8, nationalId: null },
+            });
+
+            const profile = await service.getSessionProfile('user-1');
+
+            expect(profile).toMatchObject({
+                gradeLevel: 8,
+                onboardingComplete: false,
+                onboardingStep: 'student-profile',
             });
         });
 

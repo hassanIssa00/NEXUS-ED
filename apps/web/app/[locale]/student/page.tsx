@@ -161,7 +161,7 @@ export default function StudentDashboardPage() {
         <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
           <div>
             <p className="text-sm font-semibold text-violet-200">لوحة الطالب</p>
-            <h1 className="mt-2 text-2xl font-black md:text-3xl">أهلًا، {student.name}</h1>
+            <h1 style={{ color: '#fff' }} className="mt-2 text-2xl font-black md:text-3xl">أهلًا، {student.name}</h1>
             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-violet-100">
               <span className="inline-flex items-center gap-2"><GraduationCap className="h-4 w-4" /> {summary.totalSubjects} مادة مسجلة</span>
               <span className="inline-flex items-center gap-2"><Flame className="h-4 w-4" /> {gamification.streakDays} يوم تتابع مسجل</span>

@@ -36,6 +36,7 @@ export default function StudentNewPage() {
   const { profile, loading: authLoading, refreshProfile } = useAuth();
   const [gradeLevel, setGradeLevel] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
+  const [nationalId, setNationalId] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +75,7 @@ export default function StudentNewPage() {
       ]).then(([apiProfile, firebaseProfile]) => {
         const grade = apiProfile?.gradeLevel ?? firebaseProfile?.gradeLevel;
         const birthDate = apiProfile?.dateOfBirth ?? firebaseProfile?.dateOfBirth;
+        if (typeof apiProfile?.nationalId === 'string') setNationalId(apiProfile.nationalId);
         if (grade !== null && grade !== undefined) setGradeLevel(String(grade));
         if (birthDate) setDateOfBirth(String(birthDate).slice(0, 10));
       }).catch(() => setError('تعذر تحميل ملف الطالب الحالي. حاول إعادة فتح صفحة استكمال البيانات.'));
@@ -87,14 +89,16 @@ export default function StudentNewPage() {
 
     try {
       if (isStudent) {
-        if (!photoFile) throw new Error('ارفع صورة الطالب لإكمال إنشاء الملف الدراسي.')
+        if (!nationalId || !/^\d{10}$/.test(nationalId)) throw new Error('أدخل رقم الهوية الوطنية أو الإقامة المكوّن من 10 أرقام.')
+        if (!photoFile && !profile?.avatar_url) throw new Error('ارفع صورة الطالب لإكمال إنشاء الملف الدراسي.')
         const firebaseUser = getCurrentUser();
-        await uploadService.uploadStudentAvatar(photoFile);
+        if (photoFile) await uploadService.uploadStudentAvatar(photoFile);
         const serializedDate = dateOfBirth
           ? new Date(`${dateOfBirth}T00:00:00.000Z`).toISOString()
           : undefined;
         await apiClient.put('/users/me/student-profile', {
           gradeLevel: Number(gradeLevel),
+          nationalId,
           ...(serializedDate ? { dateOfBirth: serializedDate } : {}),
         });
         if (firebaseUser?.uid === profile?.id && profile?.emailVerified !== false) {
@@ -168,6 +172,26 @@ export default function StudentNewPage() {
                   </span>
                 </label>
                 <label className="block space-y-2 text-sm font-bold text-gray-700 dark:text-gray-200">
+                  رقم الهوية الوطنية أو الإقامة
+                  <span className="relative block">
+                    <ShieldCheck className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+                    <input
+                      required
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      pattern="[0-9]{10}"
+                      maxLength={10}
+                      value={nationalId}
+                      onChange={(event) => setNationalId(event.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="10 أرقام"
+                      dir="ltr"
+                      className="w-full rounded-lg border border-gray-200 bg-white py-3 pe-10 ps-3 text-sm tracking-widest dark:border-white/10 dark:bg-white/5"
+                    />
+                  </span>
+                  <span className="block text-xs font-normal text-gray-500">يُحفظ ضمن ملف الطالب ولا يظهر للطلاب الآخرين.</span>
+                </label>
+                <label className="block space-y-2 text-sm font-bold text-gray-700 dark:text-gray-200">
                   تاريخ الميلاد (اختياري)
                   <span className="relative block">
                     <CalendarDays className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
@@ -195,7 +219,7 @@ export default function StudentNewPage() {
                       id="student-photo"
                       ref={photoInputRef}
                       type="file"
-                      required
+                      required={!profile?.avatar_url}
                       accept="image/jpeg,image/png,image/webp"
                       className="sr-only"
                       onChange={(event) => {
