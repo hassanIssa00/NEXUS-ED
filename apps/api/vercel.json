@@ -1,4 +1,4 @@
 {
   "framework": "nestjs",
-  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npx prisma migrate resolve --rolled-back 20261014120000_add_student_learning_profiles && npm run db:migrate; fi && npm run build"
+  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npm run db:migrate; fi && npm run build"
 }
