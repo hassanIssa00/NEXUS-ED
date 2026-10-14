@@ -2,6 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus_edu/core/constants/api_constants.dart';
 
 void main() {
+  test('defaults to the deployed Nexus API', () {
+    expect(ApiConstants.baseUrl, 'https://nexus-edu-api.vercel.app/api');
+    expect(ApiConstants.hasProductionBaseUrl, isTrue);
+  });
+
   group('isSafeProductionBaseUrl', () {
     test('accepts an HTTPS host without embedded credentials or query data',
         () {

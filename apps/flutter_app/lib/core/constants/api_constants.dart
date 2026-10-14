@@ -5,10 +5,10 @@ class ApiConstants {
   // ═══════════════════════════════════════════
   // BASE URL
   // ═══════════════════════════════════════════
-  // Override for production/device builds with --dart-define=NEXUS_API_URL=...
+  // Override for local development with --dart-define=NEXUS_API_URL=...
   static const String baseUrl = String.fromEnvironment(
     'NEXUS_API_URL',
-    defaultValue: 'http://10.0.2.2:4000/api',
+    defaultValue: 'https://nexus-edu-api.vercel.app/api',
   );
 
   static bool get hasProductionBaseUrl => isSafeProductionBaseUrl(baseUrl);
