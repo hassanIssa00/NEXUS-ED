@@ -22,7 +22,7 @@ type LessonSummary = {
 };
 
 function messageFrom(error: any) {
-  return error?.response?.data?.message || 'تعذر تحميل البيانات من الخادم.';
+  return error?.response?.data?.message || error?.message || 'تعذر تحميل البيانات من الخادم.';
 }
 
 export default function LessonPrepAutomation() {
@@ -49,7 +49,11 @@ export default function LessonPrepAutomation() {
     setSummary(null);
     try {
       const { data } = await apiClient.post(`/ai/lesson-summary/${selectedId}`);
-      setSummary(data);
+      const generated = data?.data;
+      if (!generated || !Array.isArray(generated.keyPoints) || !Array.isArray(generated.concepts) || !Array.isArray(generated.practiceQuestions)) {
+        throw new Error('لم يرجع الخادم ملخصًا صالحًا للدرس.');
+      }
+      setSummary(generated);
     } catch (reason) {
       setError(messageFrom(reason));
     } finally {

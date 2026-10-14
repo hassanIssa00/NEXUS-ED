@@ -9,6 +9,7 @@ export interface ExamGenerationRequest {
   gradeLevel: string;
   questionCount: number;
   questionType: 'multiple_choice' | 'true_false' | 'mixed';
+  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
 }
 
 export interface GeneratedQuestion {
@@ -42,21 +43,23 @@ export class AiExamService {
       - Topic: ${request.topic}
       - Number of questions: ${request.questionCount}
       - Question type: ${request.questionType}
+      - Difficulty: ${request.difficulty ?? 'MEDIUM'}
       
-      You MUST respond ONLY with a valid JSON array of question objects. Do not include markdown formatting or backticks around the JSON.
-      Each object must follow this format:
+      Return a JSON object with one property named "questions" containing exactly the requested number of question objects. Do not include markdown or text outside the JSON object.
+      Each question object must follow this format:
       {
         "question": "The question text in Arabic",
         "type": "multiple_choice" or "true_false",
-        "options": ["option 1", "option 2", "option 3", "option 4"], // only for multiple_choice
+        "options": ["option 1", "option 2", "option 3", "option 4"],
         "correctAnswer": "The exact string of the correct option, or 'صحيح'/'خطأ' for true_false",
         "explanation": "Brief explanation of the answer in Arabic"
-      }`);
+      }
+      For true/false questions, use exactly "صحيح" or "خطأ" as the answer. For multiple choice, the correct answer must exactly match one option.`);
 
       const completion = await this.ai.client.chat.completions.create({
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Please generate ${request.questionCount} questions about ${request.topic}.` },
+          { role: 'user', content: `أنشئ ${request.questionCount} أسئلة عن ${request.topic} لمادة ${request.subject} للصف ${request.gradeLevel} بمستوى صعوبة ${request.difficulty ?? 'MEDIUM'}.` },
         ],
         model: this.ai.model,
         temperature: 0.7,
@@ -66,7 +69,7 @@ export class AiExamService {
       const responseContent = completion.choices[0]?.message?.content;
       if (!responseContent) throw new Error('Empty response from AI provider');
       const parsed = JSON.parse(responseContent);
-      const questions = Array.isArray(parsed) ? parsed : parsed.questions;
+      const questions = Array.isArray(parsed?.questions) ? parsed.questions : Array.isArray(parsed) ? parsed : null;
       if (!Array.isArray(questions) || questions.length !== request.questionCount || !questions.every((question) => this.isValidQuestion(question))) {
         throw new Error('AI response did not match the requested exam schema');
       }

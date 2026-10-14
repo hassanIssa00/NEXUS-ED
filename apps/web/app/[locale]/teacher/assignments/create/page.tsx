@@ -97,7 +97,7 @@ export default function CreateAssignmentPage() {
                 count: 3,
                 difficulty: 'MEDIUM',
             });
-            const questions = Array.isArray(generated.data) ? generated.data : [];
+            const questions = Array.isArray(generated.data?.data?.questions) ? generated.data.data.questions : [];
             if (questions.length === 0) throw new Error('No questions were generated');
             await apiClient.post('/teacher/ai-generator/question-banks', {
                 subjectId,
@@ -105,9 +105,9 @@ export default function CreateAssignmentPage() {
                 questions,
             });
             toast({ title: 'تم حفظ بنك الأسئلة', description: `تم حفظ ${questions.length} أسئلة في بنك المادة.` });
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            toast({ title: 'خطأ', description: 'تعذر توليد الأسئلة أو حفظها. لم يتم عرض بيانات تجريبية.', variant: 'destructive' })
+            toast({ title: 'خطأ', description: error?.response?.data?.message || 'تعذر توليد الأسئلة أو حفظها. لم يتم عرض بيانات تجريبية.', variant: 'destructive' })
         } finally {
             setIsGenerating(false)
         }

@@ -12,6 +12,7 @@ export default function ContentGeneratorPage() {
     const [imageLoading, setImageLoading] = useState(false)
     const [imageUrl, setImageUrl] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState('summary')
+    const [error, setError] = useState('')
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -34,8 +35,8 @@ export default function ContentGeneratorPage() {
         try {
             const res = await apiClient.post('/ai/generate-image', { prompt: result.summary })
             if (res.data?.success) setImageUrl(res.data.data.url)
-        } catch {
-            alert('تعذر توليد الصورة. تأكد من إعدادات الذكاء الاصطناعي.')
+        } catch (error: any) {
+            alert(error?.response?.data?.message || 'تعذر توليد الصورة. تأكد من إعدادات مزود الصور.')
         } finally { setImageLoading(false) }
     }
 
@@ -43,11 +44,13 @@ export default function ContentGeneratorPage() {
         if (!text.trim()) return
         setLoading(true)
         setResult(null)
+        setError('')
         try {
             const res = await apiClient.post('/ai/process-document', { text })
             if (res.data?.success) setResult(res.data.data)
-        } catch {
-            console.error("Failed to generate content")
+            else setError('لم يرجع الذكاء الاصطناعي محتوى صالحًا.')
+        } catch (error: any) {
+            setError(error?.response?.data?.message || 'تعذر إنشاء المحتوى بالذكاء الاصطناعي.')
         } finally { setLoading(false) }
     }
 
@@ -125,6 +128,7 @@ export default function ContentGeneratorPage() {
                         >
                             {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> جاري التحليل...</> : <><Sparkles className="w-5 h-5" /> توليد المحتوى الآن</>}
                         </button>
+                        {error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}
                     </div>
                 </div>
 
