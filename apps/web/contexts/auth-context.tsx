@@ -217,12 +217,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return null;
         }
 
+        let avatarUrl = typeof data.avatar === 'string' ? data.avatar : undefined;
+        if (avatarUrl?.startsWith('file:')) {
+            try {
+                const avatarResponse = await fetch(`${apiBaseUrl}/upload/me/avatar`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    credentials: 'include',
+                });
+                if (avatarResponse.ok) {
+                    const avatarData = await avatarResponse.json();
+                    avatarUrl = typeof avatarData.url === 'string' ? avatarData.url : undefined;
+                } else {
+                    avatarUrl = undefined;
+                }
+            } catch {
+                avatarUrl = undefined;
+            }
+        }
+
         return {
             id: data.firebaseUid || data.id,
             email: data.email,
             full_name: data.name || data.email,
             role: normalizedRole,
-            avatar_url: data.avatar,
+            avatar_url: avatarUrl,
             phone: data.phone,
             gradeLevel: typeof data.gradeLevel === 'number' ? data.gradeLevel : undefined,
             emailVerified: typeof data.emailVerified === 'boolean' ? data.emailVerified : undefined,

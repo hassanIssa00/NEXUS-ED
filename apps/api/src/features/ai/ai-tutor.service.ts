@@ -22,7 +22,7 @@ export class AiTutorService {
 
   async askTutor(
     question: string,
-    context?: { subject?: string; grade?: string; studentId?: string },
+    context?: { subject?: string; grade?: string; studentId?: string; role?: string },
     history: { role: 'user' | 'assistant'; content: string }[] = [],
   ): Promise<string> {
     if (!this.ai) {
@@ -46,14 +46,20 @@ export class AiTutorService {
         }
       }
 
-      const systemPrompt = withNexusContext(`You are an intelligent, empathetic AI tutor for students in Saudi Arabia.
+      const roleInstructions = context?.role === 'STUDENT'
+        ? 'You are speaking with a student. Do not give away direct homework or test answers; guide the learner step by step.'
+        : context?.role === 'PARENT'
+          ? 'You are speaking with a parent. Offer practical, supportive guidance and explain platform workflows. Do not claim access to the child’s records unless they are explicitly provided in this conversation.'
+          : 'You are speaking with a school staff member. Help with teaching, school workflows, and use of Nexus EDU. Do not claim access to school records or analytics unless explicitly provided in this conversation.';
+
+      const systemPrompt = withNexusContext(`You are the Nexus EDU assistant for a Saudi school.
+      User role: ${context?.role || 'UNKNOWN'}
       Subject: ${context?.subject || 'General'}
       Grade Level: ${context?.grade || 'Unknown'}
       
       Instructions:
+      - ${roleInstructions}
       - ${learningStylePrompt}
-      - CRITICAL: DO NOT just give the direct answer to homework or test questions. Guide the student to discover the answer themselves.
-      - Ask leading questions to help them think.
       - Be encouraging, positive, and supportive.
       - Always answer in Arabic (unless asked otherwise), using a supportive tone (e.g. "بطل", "ممتاز").`);
 

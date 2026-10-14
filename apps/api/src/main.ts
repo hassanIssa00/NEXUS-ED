@@ -25,6 +25,10 @@ async function bootstrap() {
     logger: winstonConfig,
   });
 
+  if (process.env.VERCEL === '1') {
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  }
+
   const logger = new Logger('Bootstrap');
   const frontendOrigins = new Set(
     (process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3002,http://localhost:3000'))

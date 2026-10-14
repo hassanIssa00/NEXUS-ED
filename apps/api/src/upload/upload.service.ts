@@ -183,7 +183,10 @@ export class UploadService {
     return `file:${match.id}`;
   }
 
-  async getSignedUrlsForReferences(references: string[]): Promise<string[]> {
+  async getSignedUrlsForReferences(
+    references: string[],
+    expiresIn = this.signedUrlTtlSeconds,
+  ): Promise<string[]> {
     if (!references.length) return [];
 
     const fileIds = [...new Set(references
@@ -245,7 +248,7 @@ export class UploadService {
             apikey: key,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ expiresIn: this.signedUrlTtlSeconds, paths }),
+          body: JSON.stringify({ expiresIn, paths }),
         },
       );
       if (!response.ok) throw new ServiceUnavailableException('Unable to create temporary file access links');
@@ -269,8 +272,8 @@ export class UploadService {
     return result;
   }
 
-  async getSignedUrlForReference(reference: string): Promise<string> {
-    const [url] = await this.getSignedUrlsForReferences([reference]);
+  async getSignedUrlForReference(reference: string, expiresIn?: number): Promise<string> {
+    const [url] = await this.getSignedUrlsForReferences([reference], expiresIn);
     if (!url) throw new ServiceUnavailableException('Storage returned no file link');
     return url;
   }
@@ -397,9 +400,9 @@ export class UploadService {
     throw new NotFoundException('File not found');
   }
 
-  async getFile(id: string, actorId: string, actorRole: Role) {
+  async getFile(id: string, actorId: string, actorRole: Role, expiresIn?: number) {
     const file = await this.findAccessibleFile(id, actorId, actorRole);
-    return { ...file, url: await this.getSignedUrlForReference(`file:${id}`) };
+    return { ...file, url: await this.getSignedUrlForReference(`file:${id}`, expiresIn) };
   }
 
   async getUserFiles(userId: string) {

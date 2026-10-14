@@ -16,6 +16,7 @@ import { PrismaService } from '../../core/database/prisma.service';
 
 const SCHOOL_STAFF = [Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR];
 const STUDENT_DATA_ROLES = [Role.STUDENT, Role.PARENT, ...SCHOOL_STAFF];
+const AI_CHAT_ROLES = Object.values(Role);
 
 @ApiTags('AI Tutor')
 @Controller('ai')
@@ -35,7 +36,7 @@ export class AiTutorController {
   ) {}
 
   @Post('ask')
-  @Roles(Role.STUDENT)
+  @Roles(...AI_CHAT_ROLES)
   async ask(@Body() body: any, @Request() req: any) {
     if (typeof body?.question !== 'string' || !body.question.trim() || body.question.length > 2000) {
       throw new BadRequestException('يجب إدخال سؤال لا يتجاوز 2000 حرف');
@@ -47,11 +48,12 @@ export class AiTutorController {
     if (body.subject !== undefined && (typeof body.subject !== 'string' || body.subject.length > 100)) {
       throw new BadRequestException('اسم المادة غير صالح');
     }
-    const studentId = this.userId(req);
+    const isStudent = req.user.role === Role.STUDENT;
     const answer = await this.aiService.askTutor(body.question.trim(), {
       subject: body.subject,
-      grade: req.user?.grade,
-      studentId,
+      role: req.user.role,
+      grade: isStudent ? req.user?.grade : undefined,
+      studentId: isStudent ? this.userId(req) : undefined,
     }, body.history || []);
     return { success: true, data: { answer } };
   }

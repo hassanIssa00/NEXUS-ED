@@ -1,9 +1,11 @@
 import {
   Controller,
   Post,
+  Patch,
   Get,
   Delete,
   Param,
+  Body,
   UseInterceptors,
   UploadedFile,
   UploadedFiles,
@@ -20,6 +22,7 @@ import { Role } from '../auth/role.enum';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
 import * as canvas from '@napi-rs/canvas';
+import { PrismaService } from '../core/database/prisma.service';
 
 Object.assign(globalThis, {
   DOMMatrix: canvas.DOMMatrix,
@@ -33,7 +36,10 @@ const pdfParse = require('pdf-parse');
 @Controller('upload')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class UploadController {
-  constructor(private readonly uploadService: UploadService) {}
+  constructor(
+    private readonly uploadService: UploadService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post('file')
   @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
@@ -119,6 +125,45 @@ export class UploadController {
       url: await this.uploadService.getSignedUrlForReference(`file:${file.id}`),
       createdAt: file.createdAt,
     })));
+  }
+
+  @Get('me/avatar')
+  async getMyAvatar(@Request() req: any) {
+    const userId = req.user.userId || req.user.sub || req.user.id;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatar: true },
+    });
+    if (!user?.avatar) return { url: null };
+    if (!user.avatar.startsWith('file:')) return { url: user.avatar };
+
+    const fileId = user.avatar.slice('file:'.length);
+    const file = await this.uploadService.getFile(fileId, userId, req.user.role, 24 * 60 * 60);
+    if (!file.mimeType.startsWith('image/')) {
+      throw new BadRequestException('ملف الصورة الشخصية غير صالح');
+    }
+    return { url: file.url };
+  }
+
+  @Patch('me/avatar')
+  @Roles(Role.STUDENT)
+  async setMyAvatar(@Request() req: any, @Body() body: any) {
+    const userId = req.user.userId || req.user.sub || req.user.id;
+    const fileId = typeof body?.fileId === 'string' ? body.fileId.trim() : '';
+    if (!fileId || fileId.length > 128 || !/^[a-zA-Z0-9_-]+$/.test(fileId)) {
+      throw new BadRequestException('ملف الصورة الشخصية غير صالح');
+    }
+
+    const file = await this.uploadService.getFile(fileId, userId, Role.STUDENT);
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimeType) || file.size > 5 * 1024 * 1024) {
+      throw new BadRequestException('اختر صورة JPEG أو PNG أو WebP لا يتجاوز حجمها 5 ميجابايت');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatar: `file:${fileId}` },
+      select: { id: true },
+    });
+    return { success: true };
   }
 
   @Get('my-files')

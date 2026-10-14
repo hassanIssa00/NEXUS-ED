@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from '@/i18n/routing';
-import { CalendarDays, Check, Copy, GraduationCap, Link2, LoaderCircle, ShieldCheck, Users } from 'lucide-react';
+import { CalendarDays, Camera, Check, Copy, GraduationCap, Link2, LoaderCircle, ShieldCheck, UserRound, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api/client';
+import { uploadService } from '@/lib/services/upload.service';
 import { getCurrentUser } from '@/lib/firebase/auth';
 import { getStudentOnboardingProfile, syncStudentOnboardingMetadata } from '@/lib/firebase/registration';
 
@@ -34,6 +36,8 @@ export default function StudentNewPage() {
   const { profile, loading: authLoading, refreshProfile } = useAuth();
   const [gradeLevel, setGradeLevel] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState('');
   const [linkCode, setLinkCode] = useState('');
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -44,6 +48,16 @@ export default function StudentNewPage() {
   const isParent = role === 'parent';
   const isFirebaseAccount = Boolean(profile && getCurrentUser()?.uid === profile.id);
   const expectedLinkCodeLength = 16;
+
+  useEffect(() => {
+    if (!photoFile) {
+      setPhotoPreview('');
+      return;
+    }
+    const previewUrl = URL.createObjectURL(photoFile);
+    setPhotoPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [photoFile]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -80,6 +94,15 @@ export default function StudentNewPage() {
           gradeLevel: Number(gradeLevel),
           ...(serializedDate ? { dateOfBirth: serializedDate } : {}),
         });
+        if (photoFile) {
+          const uploaded = await uploadService.uploadFile(photoFile);
+          try {
+            await apiClient.patch('/upload/me/avatar', { fileId: uploaded.id });
+          } catch (avatarError) {
+            await uploadService.deleteFile(uploaded.id).catch(() => undefined);
+            throw avatarError;
+          }
+        }
         if (firebaseUser?.uid === profile?.id && profile?.emailVerified !== false) {
           await syncStudentOnboardingMetadata(Number(gradeLevel), serializedDate);
         }
@@ -157,6 +180,42 @@ export default function StudentNewPage() {
                     <input type="date" value={dateOfBirth} max={new Date().toISOString().slice(0, 10)} onChange={(event) => setDateOfBirth(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white py-3 pe-10 ps-3 text-sm dark:border-white/10 dark:bg-white/5" />
                   </span>
                 </label>
+                <div className="space-y-2">
+                  <label htmlFor="student-photo" className="block text-sm font-bold text-gray-700 dark:text-gray-200">صورة الطالب (اختياري)</label>
+                  <div className="flex items-center gap-4 rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-200">
+                      {photoPreview || profile?.avatar_url
+                        ? <Image src={photoPreview || profile?.avatar_url || ''} alt="معاينة صورة الطالب" width={64} height={64} unoptimized className="h-full w-full object-cover" />
+                        : <UserRound className="h-8 w-8" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-gray-600 dark:text-gray-300">JPEG أو PNG أو WebP، بحد أقصى 5 ميجابايت</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <label htmlFor="student-photo" className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-100 dark:hover:bg-white/5">
+                          <Camera className="h-4 w-4" />{photoFile ? 'تغيير الصورة' : 'اختيار صورة'}
+                        </label>
+                        {photoFile && <button type="button" onClick={() => setPhotoFile(null)} className="rounded-md px-2 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10">إزالة</button>}
+                      </div>
+                    </div>
+                    <input
+                      id="student-photo"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        event.currentTarget.value = '';
+                        if (!file) return;
+                        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+                          setError('اختر صورة JPEG أو PNG أو WebP لا يتجاوز حجمها 5 ميجابايت.');
+                          return;
+                        }
+                        setError('');
+                        setPhotoFile(file);
+                      }}
+                    />
+                  </div>
+                </div>
                 <p className="flex gap-2 rounded-lg bg-sky-50 p-3 text-xs leading-5 text-sky-800 dark:bg-sky-500/10 dark:text-sky-200">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /> لن يظهر اختبار تحديد مستوى إلا إذا أعدّت المدرسة اختبارًا فعليًا مناسبًا للصف ونشرته لحسابك.
                 </p>

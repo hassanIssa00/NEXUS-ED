@@ -153,17 +153,22 @@ export default function AssessmentPage() {
               <div className="h-full bg-teal-600 transition-[width]" style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }} />
             </div>
             {currentQuestion.visual && !currentQuestion.visual.startsWith('draw:') && (
-              <p className="text-center text-sm font-semibold text-muted-foreground">{currentQuestion.visual}</p>
+              <div className="grid min-h-24 place-items-center rounded-lg border border-border bg-muted/20 py-3" role="img" aria-label="الشكل التوضيحي للسؤال">
+                <span className={`text-center font-semibold leading-none text-foreground ${/^[△○□—]+$/.test(currentQuestion.visual.trim()) ? 'text-7xl sm:text-8xl' : 'text-2xl'}`}>
+                  {currentQuestion.visual}
+                </span>
+              </div>
             )}
             <h2 className="text-lg font-bold leading-8 text-foreground">{currentQuestion.prompt}</h2>
             <fieldset className="grid gap-2">
               <legend className="sr-only">اختيارات السؤال</legend>
               {currentQuestion.options.map((option) => {
                 const selected = answers[currentQuestion.id] === option;
+                const isShape = /^[△○□—]+$/.test(option.trim());
                 return (
-                  <label key={option} className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm leading-6 transition-colors ${selected ? 'border-teal-600 bg-teal-50 text-teal-950 dark:bg-teal-500/10 dark:text-teal-100' : 'border-border hover:bg-muted/60'}`}>
-                    <input type="radio" name={currentQuestion.id} value={option} checked={selected} onChange={() => setAnswers((previous) => ({ ...previous, [currentQuestion.id]: option }))} className="mt-1 accent-teal-700" />
-                    <span>{option}</span>
+                  <label key={option} className={`flex min-h-16 cursor-pointer items-center gap-3 rounded-md border p-3 text-sm leading-6 transition-colors ${selected ? 'border-teal-600 bg-teal-50 text-teal-950 dark:bg-teal-500/10 dark:text-teal-100' : 'border-border hover:bg-muted/60'}`}>
+                    <input type="radio" name={currentQuestion.id} value={option} checked={selected} onChange={() => setAnswers((previous) => ({ ...previous, [currentQuestion.id]: option }))} className="accent-teal-700" />
+                    <span className={isShape ? 'min-w-12 text-center text-4xl leading-none' : undefined}>{option}</span>
                   </label>
                 );
               })}

@@ -50,8 +50,17 @@ export function AiTutorWidget() {
         throw new Error('Failed to get answer');
       }
     } catch (error) {
-      console.error('AI Tutor error:', error);
-      setMessages(prev => [...prev, { role: 'assistant', content: 'عذراً، واجهت مشكلة في الاتصال بالخادم. حاول مرة أخرى لاحقاً.' }]);
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      const apiMessage = (error as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
+      const message = typeof apiMessage === 'string' ? apiMessage : Array.isArray(apiMessage) ? apiMessage.join('، ') : '';
+      const content = message || (status === 401
+        ? 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى ثم حاول.'
+        : status === 403
+          ? 'المساعد غير متاح لهذا الحساب حاليًا.'
+          : status === 503
+            ? 'خدمة الذكاء الاصطناعي غير متاحة مؤقتًا. حاول بعد قليل.'
+            : 'تعذر الوصول إلى المساعد. تحقق من الاتصال وحاول مرة أخرى.');
+      setMessages(prev => [...prev, { role: 'assistant', content }]);
     } finally {
       setIsLoading(false);
     }
