@@ -12,6 +12,63 @@ export interface UploadResponse {
 }
 
 class UploadServiceClass {
+    async uploadStudentAvatar(
+        file: File,
+        onProgress?: (progress: number) => void
+    ): Promise<void> {
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+            throw new Error('اختر صورة JPEG أو PNG أو WebP لا يتجاوز حجمها 5 ميجابايت.')
+        }
+
+        const bitmap = await createImageBitmap(file)
+        const scale = Math.min(1, 512 / Math.max(bitmap.width, bitmap.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+        canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+        const context = canvas.getContext('2d')
+        if (!context) {
+            bitmap.close()
+            throw new Error('تعذر تجهيز صورة الطالب.')
+        }
+        context.fillStyle = '#ffffff'
+        context.fillRect(0, 0, canvas.width, canvas.height)
+        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+        bitmap.close()
+
+        const compressed = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.78))
+        if (!compressed || compressed.size > 512 * 1024) {
+            throw new Error('تعذر ضغط الصورة للحجم الآمن. اختر صورة أصغر أو أقل دقة.')
+        }
+
+        const token = getAccessToken()
+        const formData = new FormData()
+        formData.append('file', new File([compressed], 'student-avatar.jpg', { type: 'image/jpeg' }))
+
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest()
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100))
+            })
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve()
+                    return
+                }
+                try {
+                    const response = JSON.parse(xhr.responseText)
+                    const message = Array.isArray(response.message) ? response.message.join('، ') : response.message
+                    reject(new Error(message || 'تعذر حفظ صورة الطالب.'))
+                } catch {
+                    reject(new Error('تعذر حفظ صورة الطالب.'))
+                }
+            })
+            xhr.addEventListener('error', () => reject(new Error('تعذر الاتصال بخادم المنصة لحفظ الصورة.')))
+            xhr.open('PATCH', getApiUrl('/upload/me/avatar'))
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+            xhr.send(formData)
+        })
+    }
+
     async uploadFile(
         file: File,
         onProgress?: (progress: number) => void

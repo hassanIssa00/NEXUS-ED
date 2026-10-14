@@ -41,7 +41,10 @@ export function AiTutorWidget() {
       const res = await apiClient.post('/ai/ask', {
         question: userMsg,
         subject: subjectContext,
-        history: messages,
+        history: messages.slice(-10).map((message) => ({
+          role: message.role,
+          content: message.content.slice(0, 1500),
+        })),
       });
 
       if (res.data?.success) {
@@ -57,6 +60,8 @@ export function AiTutorWidget() {
         ? 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى ثم حاول.'
         : status === 403
           ? 'المساعد غير متاح لهذا الحساب حاليًا.'
+        : status === 429
+          ? 'وصل المساعد إلى حد الطلبات المؤقت. انتظر قليلًا ثم أعد المحاولة.'
           : status === 503
             ? 'خدمة الذكاء الاصطناعي غير متاحة مؤقتًا. حاول بعد قليل.'
             : 'تعذر الوصول إلى المساعد. تحقق من الاتصال وحاول مرة أخرى.');
@@ -175,6 +180,7 @@ export function AiTutorWidget() {
                     <input
                       type="text"
                       value={inputValue}
+                      maxLength={2000}
                       onChange={(e) => setInputValue(e.target.value)}
                       placeholder="اسألني أي سؤال..."
                       className="flex-1 bg-white dark:bg-[#2b2b3d] border border-gray-200 dark:border-white/10 rounded-full px-5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 shadow-inner"

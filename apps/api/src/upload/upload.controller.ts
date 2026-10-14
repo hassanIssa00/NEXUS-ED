@@ -5,16 +5,16 @@ import {
   Get,
   Delete,
   Param,
-  Body,
   UseInterceptors,
   UploadedFile,
   UploadedFiles,
   UseGuards,
-  HttpStatus,
   BadRequestException,
   Request,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { UploadService } from './upload.service';
 import { multerConfig } from './multer.config';
 import { Roles } from '../auth/roles.decorator';
@@ -32,6 +32,22 @@ Object.assign(globalThis, {
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
+
+export function isValidStudentAvatarUpload(file: Express.Multer.File | null | undefined): boolean {
+  if (!file || file.size < 1 || file.size > 512 * 1024) return false;
+  if (!Buffer.isBuffer(file.buffer)) return false;
+
+  if (file.mimetype === 'image/jpeg') {
+    return file.buffer.length >= 3 && file.buffer[0] === 0xff && file.buffer[1] === 0xd8 && file.buffer[2] === 0xff;
+  }
+  if (file.mimetype === 'image/png') {
+    return file.buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  }
+  return file.mimetype === 'image/webp'
+    && file.buffer.length >= 12
+    && file.buffer.toString('ascii', 0, 4) === 'RIFF'
+    && file.buffer.toString('ascii', 8, 12) === 'WEBP';
+}
 
 @Controller('upload')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -98,7 +114,7 @@ export class UploadController {
     const savedFiles = await Promise.all(
       files.map(async (file) => {
         // Upload to Supabase Storage
-        const { url, filename, storagePath } = await this.uploadService.uploadToSupabase(
+        const { filename, storagePath } = await this.uploadService.uploadToSupabase(
           file.buffer,
           file.originalname,
           file.mimetype,
@@ -147,20 +163,20 @@ export class UploadController {
 
   @Patch('me/avatar')
   @Roles(Role.STUDENT)
-  async setMyAvatar(@Request() req: any, @Body() body: any) {
+  @Throttle({ short: { limit: 3, ttl: 60000 } })
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 512 * 1024, files: 1 },
+  }))
+  async setMyAvatar(@UploadedFile() file: Express.Multer.File, @Request() req: any) {
     const userId = req.user.userId || req.user.sub || req.user.id;
-    const fileId = typeof body?.fileId === 'string' ? body.fileId.trim() : '';
-    if (!fileId || fileId.length > 128 || !/^[a-zA-Z0-9_-]+$/.test(fileId)) {
-      throw new BadRequestException('ملف الصورة الشخصية غير صالح');
+    if (!isValidStudentAvatarUpload(file)) {
+      throw new BadRequestException('اختر صورة JPEG أو PNG أو WebP صالحة لا يتجاوز حجمها 512 كيلوبايت');
     }
 
-    const file = await this.uploadService.getFile(fileId, userId, Role.STUDENT);
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimeType) || file.size > 5 * 1024 * 1024) {
-      throw new BadRequestException('اختر صورة JPEG أو PNG أو WebP لا يتجاوز حجمها 5 ميجابايت');
-    }
     await this.prisma.user.update({
       where: { id: userId },
-      data: { avatar: `file:${fileId}` },
+      data: { avatar: `data:${file.mimetype};base64,${file.buffer.toString('base64')}` },
       select: { id: true },
     });
     return { success: true };

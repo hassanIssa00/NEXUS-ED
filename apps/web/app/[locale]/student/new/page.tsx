@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from '@/i18n/routing';
 import { CalendarDays, Camera, Check, Copy, GraduationCap, Link2, LoaderCircle, ShieldCheck, UserRound, Users } from 'lucide-react';
@@ -38,6 +38,7 @@ export default function StudentNewPage() {
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState('');
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [linkCode, setLinkCode] = useState('');
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -86,7 +87,9 @@ export default function StudentNewPage() {
 
     try {
       if (isStudent) {
+        if (!photoFile) throw new Error('ارفع صورة الطالب لإكمال إنشاء الملف الدراسي.')
         const firebaseUser = getCurrentUser();
+        await uploadService.uploadStudentAvatar(photoFile);
         const serializedDate = dateOfBirth
           ? new Date(`${dateOfBirth}T00:00:00.000Z`).toISOString()
           : undefined;
@@ -94,15 +97,6 @@ export default function StudentNewPage() {
           gradeLevel: Number(gradeLevel),
           ...(serializedDate ? { dateOfBirth: serializedDate } : {}),
         });
-        if (photoFile) {
-          const uploaded = await uploadService.uploadFile(photoFile);
-          try {
-            await apiClient.patch('/upload/me/avatar', { fileId: uploaded.id });
-          } catch (avatarError) {
-            await uploadService.deleteFile(uploaded.id).catch(() => undefined);
-            throw avatarError;
-          }
-        }
         if (firebaseUser?.uid === profile?.id && profile?.emailVerified !== false) {
           await syncStudentOnboardingMetadata(Number(gradeLevel), serializedDate);
         }
@@ -181,7 +175,7 @@ export default function StudentNewPage() {
                   </span>
                 </label>
                 <div className="space-y-2">
-                  <label htmlFor="student-photo" className="block text-sm font-bold text-gray-700 dark:text-gray-200">صورة الطالب (اختياري)</label>
+                  <label htmlFor="student-photo" className="block text-sm font-bold text-gray-700 dark:text-gray-200">صورة الطالب <span className="text-rose-600">*</span></label>
                   <div className="flex items-center gap-4 rounded-lg border border-gray-200 p-3 dark:border-white/10">
                     <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-200">
                       {photoPreview || profile?.avatar_url
@@ -194,20 +188,22 @@ export default function StudentNewPage() {
                         <label htmlFor="student-photo" className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-100 dark:hover:bg-white/5">
                           <Camera className="h-4 w-4" />{photoFile ? 'تغيير الصورة' : 'اختيار صورة'}
                         </label>
-                        {photoFile && <button type="button" onClick={() => setPhotoFile(null)} className="rounded-md px-2 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10">إزالة</button>}
+                        {photoFile && <button type="button" onClick={() => { setPhotoFile(null); if (photoInputRef.current) photoInputRef.current.value = ''; }} className="rounded-md px-2 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10">إزالة</button>}
                       </div>
                     </div>
                     <input
                       id="student-photo"
+                      ref={photoInputRef}
                       type="file"
+                      required
                       accept="image/jpeg,image/png,image/webp"
                       className="sr-only"
                       onChange={(event) => {
                         const file = event.target.files?.[0];
-                        event.currentTarget.value = '';
                         if (!file) return;
                         if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
                           setError('اختر صورة JPEG أو PNG أو WebP لا يتجاوز حجمها 5 ميجابايت.');
+                          event.currentTarget.value = '';
                           return;
                         }
                         setError('');

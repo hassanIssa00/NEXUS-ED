@@ -6,6 +6,7 @@ import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Gradua
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api/client';
 import { useAuth } from '@/contexts/auth-context';
+import { Circle, Minus, Square, Triangle } from 'lucide-react';
 
 type AssessmentQuestion = {
   id: string;
@@ -33,6 +34,29 @@ type AssessmentState = {
     completedAt: string;
   } | null;
 };
+
+const shapeGlyphs = new Set(['△', '▲', '▽', '▼', '○', '◯', '●', '□', '■', '—', '―', '−']);
+
+function ShapeSequence({ value, size }: { value: string; size: 'large' | 'option' }) {
+  const glyphs = [...value.trim()];
+  if (!glyphs.length || !glyphs.every((glyph) => shapeGlyphs.has(glyph))) {
+    return <span className={size === 'large' ? 'text-center text-2xl font-semibold text-foreground' : 'text-foreground'}>{value}</span>;
+  }
+  const iconSize = size === 'large' ? 72 : 48;
+  const className = size === 'large' ? 'text-teal-700 dark:text-teal-300' : 'text-foreground';
+
+  return (
+    <span className="flex items-center justify-center gap-4" aria-hidden="true">
+      {glyphs.map((glyph, index) => {
+        const iconProps = { size: iconSize, strokeWidth: 2.5, className: `${className} ${'▽▼'.includes(glyph) ? 'rotate-180' : ''}` };
+        if ('△▲▽▼'.includes(glyph)) return <Triangle key={`${glyph}-${index}`} {...iconProps} fill={glyph === '▲' || glyph === '▼' ? 'currentColor' : 'none'} />;
+        if ('○◯●'.includes(glyph)) return <Circle key={`${glyph}-${index}`} {...iconProps} fill={glyph === '●' ? 'currentColor' : 'none'} />;
+        if ('□■'.includes(glyph)) return <Square key={`${glyph}-${index}`} {...iconProps} fill={glyph === '■' ? 'currentColor' : 'none'} />;
+        return <Minus key={`${glyph}-${index}`} {...iconProps} />;
+      })}
+    </span>
+  );
+}
 
 function getErrorMessage(error: any) {
   const message = error?.response?.data?.message ?? error?.message;
@@ -153,10 +177,8 @@ export default function AssessmentPage() {
               <div className="h-full bg-teal-600 transition-[width]" style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }} />
             </div>
             {currentQuestion.visual && !currentQuestion.visual.startsWith('draw:') && (
-              <div className="grid min-h-24 place-items-center rounded-lg border border-border bg-muted/20 py-3" role="img" aria-label="الشكل التوضيحي للسؤال">
-                <span className={`text-center font-semibold leading-none text-foreground ${/^[△○□—]+$/.test(currentQuestion.visual.trim()) ? 'text-7xl sm:text-8xl' : 'text-2xl'}`}>
-                  {currentQuestion.visual}
-                </span>
+              <div className="grid min-h-40 place-items-center rounded-lg border border-border bg-muted/20 p-5" role="img" aria-label="الشكل التوضيحي للسؤال">
+                <ShapeSequence value={currentQuestion.visual} size="large" />
               </div>
             )}
             <h2 className="text-lg font-bold leading-8 text-foreground">{currentQuestion.prompt}</h2>
@@ -164,11 +186,11 @@ export default function AssessmentPage() {
               <legend className="sr-only">اختيارات السؤال</legend>
               {currentQuestion.options.map((option) => {
                 const selected = answers[currentQuestion.id] === option;
-                const isShape = /^[△○□—]+$/.test(option.trim());
+                const isShape = [...option.trim()].length > 0 && [...option.trim()].every((glyph) => shapeGlyphs.has(glyph));
                 return (
-                  <label key={option} className={`flex min-h-16 cursor-pointer items-center gap-3 rounded-md border p-3 text-sm leading-6 transition-colors ${selected ? 'border-teal-600 bg-teal-50 text-teal-950 dark:bg-teal-500/10 dark:text-teal-100' : 'border-border hover:bg-muted/60'}`}>
+                  <label key={option} className={`flex ${isShape ? 'min-h-24' : 'min-h-16'} cursor-pointer items-center gap-3 rounded-md border p-3 text-sm leading-6 transition-colors ${selected ? 'border-teal-600 bg-teal-50 text-teal-950 dark:bg-teal-500/10 dark:text-teal-100' : 'border-border hover:bg-muted/60'}`}>
                     <input type="radio" name={currentQuestion.id} value={option} checked={selected} onChange={() => setAnswers((previous) => ({ ...previous, [currentQuestion.id]: option }))} className="accent-teal-700" />
-                    <span className={isShape ? 'min-w-12 text-center text-4xl leading-none' : undefined}>{option}</span>
+                    {isShape ? <span className="flex-1"><ShapeSequence value={option} size="option" /></span> : <span>{option}</span>}
                   </label>
                 );
               })}

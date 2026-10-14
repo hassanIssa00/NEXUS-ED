@@ -33,16 +33,20 @@ export class AiTutorService {
       let learningStylePrompt = 'Explain concepts simply and clearly.';
       
       if (context?.studentId) {
-        const profile = await this.prisma.smartStudentProfile.findUnique({
-          where: { userId: context.studentId }
-        });
-        
-        if (profile?.learningStyle === 'VISUAL') {
-          learningStylePrompt = 'Use vivid imagery, visual metaphors, and examples from daily Saudi life to explain concepts. Suggest drawing diagrams where applicable.';
-        } else if (profile?.learningStyle === 'LOGICAL') {
-          learningStylePrompt = 'Explain step-by-step logically. Break down complex problems into sequence of logical deductions. Avoid fluff.';
-        } else if (profile?.learningStyle === 'SOCIAL') {
-          learningStylePrompt = 'Use stories, dialogues, and relate concepts to people, society, or historical figures. Make it sound like a friendly conversation.';
+        try {
+          const profile = await this.prisma.smartStudentProfile.findUnique({
+            where: { userId: context.studentId }
+          });
+
+          if (profile?.learningStyle === 'VISUAL') {
+            learningStylePrompt = 'Use vivid imagery, visual metaphors, and examples from daily Saudi life to explain concepts. Suggest drawing diagrams where applicable.';
+          } else if (profile?.learningStyle === 'LOGICAL') {
+            learningStylePrompt = 'Explain step-by-step logically. Break down complex problems into sequence of logical deductions. Avoid fluff.';
+          } else if (profile?.learningStyle === 'SOCIAL') {
+            learningStylePrompt = 'Use stories, dialogues, and relate concepts to people, society, or historical figures. Make it sound like a friendly conversation.';
+          }
+        } catch {
+          this.logger.warn('Student learning preferences are unavailable; continuing with the default tutor style.');
         }
       }
 
@@ -73,17 +77,23 @@ export class AiTutorService {
         messages,
         model: this.ai.model,
         temperature: 0.7,
+        max_tokens: 1200,
+        reasoning_effort: 'none',
       });
 
       const responseText = completion.choices[0].message.content || 'Sorry, I could not generate a response.';
       
       // Gamification: Reward XP for using AI Tutor (max 5 XP per interaction, maxes out naturally)
       if (context?.studentId) {
-        await this.gamification.awardXp(
-          context.studentId,
-          5,
-          'استخدام المعلم الذكي',
-        );
+        try {
+          await this.gamification.awardXp(
+            context.studentId,
+            5,
+            'استخدام المعلم الذكي',
+          );
+        } catch {
+          this.logger.warn('AI reply succeeded, but the student XP reward could not be recorded.');
+        }
       }
 
       return responseText;

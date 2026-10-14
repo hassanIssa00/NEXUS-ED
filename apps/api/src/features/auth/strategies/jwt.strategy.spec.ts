@@ -5,6 +5,7 @@ describe('onboarding JWT route restrictions', () => {
     expect(isOnboardingRouteAllowed('GET', '/api/auth/profile')).toBe(true);
     expect(isOnboardingRouteAllowed('GET', '/api/users/me/student-profile')).toBe(true);
     expect(isOnboardingRouteAllowed('PUT', '/api/users/me/student-profile')).toBe(true);
+    expect(isOnboardingRouteAllowed('PATCH', '/api/upload/me/avatar')).toBe(true);
     expect(isOnboardingRouteAllowed('POST', '/api/users/parent-survey')).toBe(true);
     expect(isOnboardingRouteAllowed('POST', '/api/assessments/placement/submit')).toBe(true);
   });

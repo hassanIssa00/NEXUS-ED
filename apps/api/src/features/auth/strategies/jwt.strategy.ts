@@ -9,6 +9,7 @@ const ONBOARDING_ROUTES = new Set([
     'GET /auth/profile',
     'GET /users/me/student-profile',
     'PUT /users/me/student-profile',
+    'PATCH /upload/me/avatar',
     'POST /users/student-link-code',
     'POST /users/link-student',
     'POST /users/parent-survey',
