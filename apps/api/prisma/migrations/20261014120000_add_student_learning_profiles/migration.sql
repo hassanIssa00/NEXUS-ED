@@ -1,4 +1,4 @@
-CREATE TABLE "SmartStudentProfile" (
+CREATE TABLE IF NOT EXISTS "SmartStudentProfile" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "learningStyle" TEXT,
@@ -10,13 +10,21 @@ CREATE TABLE "SmartStudentProfile" (
     CONSTRAINT "SmartStudentProfile_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "SmartStudentProfile_userId_key" ON "SmartStudentProfile"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "SmartStudentProfile_userId_key" ON "SmartStudentProfile"("userId");
 
-ALTER TABLE "SmartStudentProfile"
-ADD CONSTRAINT "SmartStudentProfile_userId_fkey"
-FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'SmartStudentProfile_userId_fkey'
+          AND conrelid = '"SmartStudentProfile"'::regclass
+    ) THEN
+        ALTER TABLE "SmartStudentProfile"
+        ADD CONSTRAINT "SmartStudentProfile_userId_fkey"
+        FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
-CREATE TABLE "SkillNode" (
+CREATE TABLE IF NOT EXISTS "SkillNode" (
     "id" TEXT NOT NULL,
     "subjectId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -25,11 +33,19 @@ CREATE TABLE "SkillNode" (
     CONSTRAINT "SkillNode_pkey" PRIMARY KEY ("id")
 );
 
-ALTER TABLE "SkillNode"
-ADD CONSTRAINT "SkillNode_subjectId_fkey"
-FOREIGN KEY ("subjectId") REFERENCES "subjects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'SkillNode_subjectId_fkey'
+          AND conrelid = '"SkillNode"'::regclass
+    ) THEN
+        ALTER TABLE "SkillNode"
+        ADD CONSTRAINT "SkillNode_subjectId_fkey"
+        FOREIGN KEY ("subjectId") REFERENCES "Subject"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
-CREATE TABLE "StudentSkillMastery" (
+CREATE TABLE IF NOT EXISTS "StudentSkillMastery" (
     "id" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "skillNodeId" TEXT NOT NULL,
@@ -39,13 +55,29 @@ CREATE TABLE "StudentSkillMastery" (
     CONSTRAINT "StudentSkillMastery_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "StudentSkillMastery_studentId_skillNodeId_key"
+CREATE UNIQUE INDEX IF NOT EXISTS "StudentSkillMastery_studentId_skillNodeId_key"
 ON "StudentSkillMastery"("studentId", "skillNodeId");
 
-ALTER TABLE "StudentSkillMastery"
-ADD CONSTRAINT "StudentSkillMastery_studentId_fkey"
-FOREIGN KEY ("studentId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'StudentSkillMastery_studentId_fkey'
+          AND conrelid = '"StudentSkillMastery"'::regclass
+    ) THEN
+        ALTER TABLE "StudentSkillMastery"
+        ADD CONSTRAINT "StudentSkillMastery_studentId_fkey"
+        FOREIGN KEY ("studentId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
-ALTER TABLE "StudentSkillMastery"
-ADD CONSTRAINT "StudentSkillMastery_skillNodeId_fkey"
-FOREIGN KEY ("skillNodeId") REFERENCES "SkillNode"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'StudentSkillMastery_skillNodeId_fkey'
+          AND conrelid = '"StudentSkillMastery"'::regclass
+    ) THEN
+        ALTER TABLE "StudentSkillMastery"
+        ADD CONSTRAINT "StudentSkillMastery_skillNodeId_fkey"
+        FOREIGN KEY ("skillNodeId") REFERENCES "SkillNode"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
