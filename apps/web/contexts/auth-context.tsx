@@ -19,6 +19,7 @@ import {
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth as firebaseAuth, db as firebaseDb, isFirebaseConfigured } from '@/lib/firebase/config';
 import { EMAIL_ACTION_CONTINUE_PATHS, getEmailActionSettings } from '@/lib/firebase/email-actions';
+import { clearExplicitSignOut, getAuthSessionEpoch, hasExplicitlySignedOut, markExplicitlySignedOut } from '@/lib/auth-session-state';
 
 export type UserRole =
     | 'student'
@@ -47,6 +48,7 @@ interface UserProfile {
     onboardingStep?: 'student-profile' | 'placement-assessment' | 'link-student' | 'parent-survey' | 'complete';
     onboardingStudentId?: string;
     onboardingOnly?: boolean;
+    schoolId?: string | null;
 }
 
 interface AuthContextType {
@@ -162,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const clearLocalApiSession = () => {
         sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
         localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+        localStorage.removeItem('token');
         for (const key of LEGACY_DEMO_KEYS) {
             sessionStorage.removeItem(key);
             localStorage.removeItem(key);
@@ -173,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
         }
         localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+        localStorage.removeItem('token');
         for (const key of LEGACY_DEMO_KEYS) {
             sessionStorage.removeItem(key);
             localStorage.removeItem(key);
@@ -247,14 +251,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             onboardingComplete: typeof data.onboardingComplete === 'boolean' ? data.onboardingComplete : undefined,
             onboardingStep: data.onboardingStep,
             onboardingStudentId: typeof data.onboardingStudentId === 'string' ? data.onboardingStudentId : undefined,
+            schoolId: typeof data.schoolId === 'string' ? data.schoolId : null,
         };
     };
 
     const refreshApiSession = async (): Promise<string | null> => {
         const apiBaseUrl = getApiBaseUrl();
-        if (!apiBaseUrl) {
+        if (!apiBaseUrl || hasExplicitlySignedOut()) {
             return null;
         }
+        const requestEpoch = getAuthSessionEpoch();
 
         const response = await fetch(`${apiBaseUrl}/auth/refresh`, {
             method: 'POST',
@@ -270,11 +276,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return null;
         }
 
+        if (hasExplicitlySignedOut() || getAuthSessionEpoch() !== requestEpoch) {
+            if (hasExplicitlySignedOut()) await clearApiRefreshCookie();
+            return null;
+        }
+
         sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, data.access_token);
         return data.access_token as string;
     };
 
     const exchangeFirebaseSession = (firebaseUser: FirebaseUser, onboardingOnly = false): Promise<UserProfile | null> => {
+        if (hasExplicitlySignedOut() || firebaseAuth?.currentUser?.uid !== firebaseUser.uid) {
+            return Promise.resolve(null);
+        }
+        const requestEpoch = getAuthSessionEpoch();
         const exchangeKey = `${firebaseUser.uid}:${onboardingOnly ? 'onboarding' : 'full'}`;
         if (firebaseSessionExchange.current?.key === exchangeKey) {
             return firebaseSessionExchange.current.promise;
@@ -283,15 +298,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const promise = (async (): Promise<UserProfile | null> => {
             const apiBaseUrl = getApiBaseUrl();
             if (!apiBaseUrl) return null;
+            const idToken = await firebaseUser.getIdToken();
+            if (hasExplicitlySignedOut() || getAuthSessionEpoch() !== requestEpoch || firebaseAuth?.currentUser?.uid !== firebaseUser.uid) return null;
 
             const endpoint = onboardingOnly ? '/auth/firebase/onboarding' : '/auth/firebase';
             const response = await fetch(`${apiBaseUrl}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ idToken: await firebaseUser.getIdToken() }),
+                body: JSON.stringify({ idToken }),
                 credentials: 'include',
             });
             const data = await response.json().catch(() => ({}));
+            if (hasExplicitlySignedOut() || getAuthSessionEpoch() !== requestEpoch || firebaseAuth?.currentUser?.uid !== firebaseUser.uid) {
+                if (hasExplicitlySignedOut()) await clearApiRefreshCookie();
+                return null;
+            }
             if (!response.ok) {
                 throw new Error(data.message || 'تعذر ربط الحساب بخدمات المنصة. حاول مرة أخرى.');
             }
@@ -301,8 +322,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 throw new Error('استجابة خادم المنصة غير صالحة.');
             }
 
+            if (hasExplicitlySignedOut() || getAuthSessionEpoch() !== requestEpoch) {
+                await clearApiRefreshCookie();
+                return null;
+            }
             sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, data.access_token);
             const sessionProfile = await fetchProfileFromApi(data.access_token);
+            if (hasExplicitlySignedOut() || getAuthSessionEpoch() !== requestEpoch || firebaseAuth?.currentUser?.uid !== firebaseUser.uid) {
+                if (hasExplicitlySignedOut()) await clearApiRefreshCookie();
+                return null;
+            }
             if (sessionProfile) return sessionProfile;
             return {
                 id: data.user.firebaseUid || firebaseUser.uid,
@@ -328,6 +357,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const handleExpiredSession = () => {
             if (isHandlingExpiredSession.current) return;
             isHandlingExpiredSession.current = true;
+            markExplicitlySignedOut();
             clearLocalApiSession();
             setUser(null);
             setProfile(null);
@@ -347,17 +377,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const handleApiSessionRefreshed = () => {
             const token = sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
             const firebaseUser = firebaseAuth?.currentUser;
-            if (!token || !firebaseUser) return;
+            if (!token || !firebaseUser || hasExplicitlySignedOut()) return;
+            const requestEpoch = getAuthSessionEpoch();
             void fetchProfileFromApi(token).then((nextProfile) => {
-                if (nextProfile && firebaseAuth?.currentUser?.uid === firebaseUser.uid) {
+                if (nextProfile && !hasExplicitlySignedOut() && getAuthSessionEpoch() === requestEpoch && firebaseAuth?.currentUser?.uid === firebaseUser.uid) {
                     setAuthenticatedState(createFirebaseAppUser(firebaseUser), nextProfile);
                 }
             });
         };
         window.addEventListener('nexus:auth-refreshed', handleApiSessionRefreshed);
+        const handleStorageChange = (event: StorageEvent) => {
+            if (event.key !== 'nexus_explicitly_signed_out' && event.key !== null) return;
+            if (!hasExplicitlySignedOut()) return;
+
+            clearLocalApiSession();
+            setUser(null);
+            setProfile(null);
+            setSession(null);
+            setLoading(false);
+            if (supabase) void supabase.auth.signOut().catch(() => undefined);
+            if (firebaseAuth?.currentUser) void firebaseSignOut(firebaseAuth).catch(() => undefined);
+
+            const segments = window.location.pathname.split('/').filter(Boolean);
+            const locale = segments[0] === 'en' || segments[0] === 'ar' ? segments[0] : 'ar';
+            const loginPath = `/${locale}/login`;
+            if (window.location.pathname !== loginPath) window.location.replace(loginPath);
+        };
+        window.addEventListener('storage', handleStorageChange);
         return () => {
             window.removeEventListener('nexus:auth-expired', handleExpiredSession);
             window.removeEventListener('nexus:auth-refreshed', handleApiSessionRefreshed);
+            window.removeEventListener('storage', handleStorageChange);
         };
     }, []);
 
@@ -365,15 +415,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const apiBaseUrl = getApiBaseUrl();
         const token = sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
 
-        if (!apiBaseUrl || !token) {
+        if (!apiBaseUrl || !token || hasExplicitlySignedOut()) {
             return null;
         }
+        const requestEpoch = getAuthSessionEpoch();
+        const sessionChanged = () => hasExplicitlySignedOut() || getAuthSessionEpoch() !== requestEpoch;
 
         let nextToken = token;
         let nextProfile = await fetchProfileFromApi(nextToken);
+        if (sessionChanged()) return null;
 
         if (!nextProfile) {
             const refreshedToken = await refreshApiSession();
+            if (sessionChanged()) return null;
             if (!refreshedToken) {
                 clearLocalApiSession();
                 return null;
@@ -382,6 +436,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             nextToken = refreshedToken;
             nextProfile = await fetchProfileFromApi(nextToken);
         }
+
+        if (sessionChanged()) return null;
 
         if (!nextProfile) {
             clearLocalApiSession();
@@ -399,6 +455,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!supabase) {
             return null;
         }
+        const requestEpoch = getAuthSessionEpoch();
 
         try {
             const { data, error } = await supabase
@@ -417,6 +474,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             const profile = { ...data, role } as UserProfile;
+            if (hasExplicitlySignedOut() || getAuthSessionEpoch() !== requestEpoch) return null;
             setProfile(profile);
             return profile;
         } catch (error) {
@@ -464,6 +522,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const refreshProfile = async () => {
+        const firebaseUser = firebaseAuth?.currentUser;
+        if (firebaseUser && getApiBaseUrl()) {
+            try {
+                return await exchangeFirebaseSession(firebaseUser, !firebaseUser.emailVerified);
+            } catch (error) {
+                console.error('Failed to renew the platform session:', error);
+                return null;
+            }
+        }
+
         const token = sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
         if (token) {
             const nextProfile = await fetchProfileFromApi(token);
@@ -473,7 +541,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         }
 
-        const firebaseUser = firebaseAuth?.currentUser;
         if (firebaseUser) {
             const nextProfile = await fetchFirebaseProfile(firebaseUser.uid);
             if (nextProfile) setProfile(nextProfile);
@@ -505,14 +572,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             clearLegacyBrowserSession();
 
+            if (hasExplicitlySignedOut()) {
+                await Promise.all([
+                    clearApiRefreshCookie(),
+                    supabase?.auth.signOut().catch(() => undefined),
+                    firebaseAuth ? firebaseSignOut(firebaseAuth).catch(() => undefined) : Promise.resolve(),
+                ]);
+                if (isActive) {
+                    setUser(null);
+                    setProfile(null);
+                    setSession(null);
+                    setLoading(false);
+                }
+                return;
+            }
+
             // Restore only a token validated by the API.
             const restoredApiProfile = await restoreApiSession();
-            if (!isActive) {
+            if (!isActive || hasExplicitlySignedOut()) {
+                if (isActive && hasExplicitlySignedOut()) {
+                    setUser(null);
+                    setProfile(null);
+                    setSession(null);
+                    setLoading(false);
+                }
                 return;
             }
 
             if (restoredApiProfile) {
-                const firebaseUser = firebaseAuth?.currentUser;
+                const firebaseUser = hasExplicitlySignedOut() ? null : firebaseAuth?.currentUser;
                 if (firebaseUser && restoredApiProfile.emailVerified === false) {
                     await reloadFirebaseUser(firebaseUser);
                     await firebaseUser.getIdToken(true);
@@ -532,7 +620,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     data: { session: nextSession },
                 } = await supabase.auth.getSession();
 
-                if (!isActive) return;
+                if (!isActive || hasExplicitlySignedOut()) {
+                    if (isActive && hasExplicitlySignedOut()) {
+                        setUser(null);
+                        setProfile(null);
+                        setSession(null);
+                        setLoading(false);
+                        void supabase.auth.signOut().catch(() => undefined);
+                    }
+                    return;
+                }
 
                 setSession(nextSession);
                 setUser(nextSession?.user ?? null);
@@ -550,13 +647,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(createFirebaseAppUser(nextFirebaseUser));
             setSession(null);
             const nextProfile = await fetchFirebaseProfile(nextFirebaseUser.uid);
+            if (hasExplicitlySignedOut()) {
+                setUser(null);
+                setProfile(null);
+                setSession(null);
+                setLoading(false);
+                if (firebaseAuth) await firebaseSignOut(firebaseAuth).catch(() => undefined);
+                return;
+            }
             if (!nextProfile && isActive) {
                 setUser(null);
                 if (firebaseAuth) await firebaseSignOut(firebaseAuth).catch(() => undefined);
             } else if (nextProfile && isActive && getApiBaseUrl()
                 && (nextFirebaseUser.emailVerified || nextProfile.role === 'student' || nextProfile.role === 'parent')) {
                 const apiProfile = await exchangeFirebaseSession(nextFirebaseUser, !nextFirebaseUser.emailVerified);
-                if (apiProfile && isActive) setProfile(apiProfile);
+                if (apiProfile && isActive && !hasExplicitlySignedOut()) setProfile(apiProfile);
             }
         };
 
@@ -564,6 +669,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error('Auth bootstrap failed:', error);
             if (isActive) {
                 clearLocalApiSession();
+                if (hasExplicitlySignedOut()) {
+                    await Promise.all([
+                        clearApiRefreshCookie(),
+                        supabase?.auth.signOut().catch(() => undefined),
+                        firebaseAuth ? firebaseSignOut(firebaseAuth).catch(() => undefined) : Promise.resolve(),
+                    ]);
+                    if (isActive) {
+                        setUser(null);
+                        setProfile(null);
+                        setSession(null);
+                    }
+                    setLoading(false);
+                    return;
+                }
                 const firebaseUser = firebaseAuth?.currentUser;
                 if (firebaseUser) {
                     const localProfile = await fetchFirebaseProfile(firebaseUser.uid);
@@ -581,6 +700,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const {
             data: { subscription },
         } = supabase?.auth.onAuthStateChange((_event, nextSession) => {
+            if (hasExplicitlySignedOut()) {
+                setUser(null);
+                setProfile(null);
+                setSession(null);
+                setLoading(false);
+                void supabase?.auth.signOut().catch(() => undefined);
+                return;
+            }
             if (sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)) return;
             setSession(nextSession);
             setUser(nextSession?.user ?? null);
@@ -594,6 +721,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const unsubscribeFirebase = firebaseAuth
             ? onFirebaseAuthStateChanged(firebaseAuth, (nextUser) => {
                 if (sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) || supabase || isProvisioningFirebaseUser.current) return;
+                if (hasExplicitlySignedOut()) {
+                    setUser(null);
+                    setProfile(null);
+                    setSession(null);
+                    setLoading(false);
+                    if (nextUser) void firebaseSignOut(firebaseAuth);
+                    return;
+                }
                 if (!nextUser) {
                     setUser(null);
                     setProfile(null);
@@ -640,6 +775,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const apiLoginBaseUrl = useFirebaseFirst ? null : apiBaseUrl;
 
         try {
+            clearExplicitSignOut();
             if (apiBaseUrl) {
                 // Clear any previous session before signing in with new credentials
                 await clearApiRefreshCookie();
@@ -678,6 +814,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         role,
                     };
 
+                    clearExplicitSignOut();
                     sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, data.access_token);
                     const nextProfile = await fetchProfileFromApi(data.access_token) ?? {
                         ...fallbackProfile,
@@ -727,6 +864,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     setSession(null);
                     throw new Error('PORTAL_ROLE_MISMATCH');
                 }
+                clearExplicitSignOut();
                 return profile.role;
             }
 
@@ -753,6 +891,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         throw new Error('PORTAL_ROLE_MISMATCH');
                     }
                     keepFirebaseIdentity = true;
+                    clearExplicitSignOut();
 
                     const apiProfile = credential.user.emailVerified
                         ? await exchangeFirebaseSession(credential.user)
@@ -812,6 +951,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             await clearApiRefreshCookie();
             clearLocalApiSession();
+            clearExplicitSignOut();
             if (apiBaseUrl && !isFirebaseConfigured) {
                 const apiRole = APP_ROLE_TO_API_ROLE[role];
                 if (!apiRole) {
@@ -867,6 +1007,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                         const nextProfile = await fetchFirebaseProfile(credential.user.uid);
                         if (!nextProfile) throw new Error('NEXUS_PROFILE_NOT_PROVISIONED');
+                        clearExplicitSignOut();
                         const apiProfile = getApiBaseUrl()
                             ? await exchangeFirebaseSession(credential.user, true)
                             : null;
@@ -908,6 +1049,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isProvisioningFirebaseUser.current = true;
         let firebaseUserSignedIn = false;
         try {
+            clearExplicitSignOut();
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: 'select_account' });
             const credential = await signInWithPopup(firebaseAuth, provider);
@@ -954,6 +1096,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const nextProfile = await fetchFirebaseProfile(credential.user.uid);
             if (!nextProfile) throw new Error('تعذر تحميل ملف الحساب.');
+            clearExplicitSignOut();
             const apiProfile = await exchangeFirebaseSession(credential.user);
             setAuthenticatedState(createFirebaseAppUser(credential.user), apiProfile ?? nextProfile);
             return { role, isNewUser };
@@ -1019,42 +1162,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signOut = async () => {
         const apiBaseUrl = getApiBaseUrl();
+        markExplicitlySignedOut();
+        clearLocalApiSession();
+        setUser(null);
+        setProfile(null);
+        setSession(null);
 
-        try {
-            if (apiBaseUrl) {
-                await fetch(`${apiBaseUrl}/auth/logout`, {
-                    method: 'POST',
-                    credentials: 'include',
-                }).catch(() => undefined);
-            }
+        await Promise.all([
+            apiBaseUrl ? fetch(`${apiBaseUrl}/auth/logout`, {
+                method: 'POST',
+                credentials: 'include',
+            }).catch(() => undefined) : Promise.resolve(),
+            supabase?.auth.signOut().catch(() => undefined),
+            firebaseAuth ? firebaseSignOut(firebaseAuth).catch(() => undefined) : Promise.resolve(),
+        ]);
 
-            if (supabase) {
-                await supabase.auth.signOut().catch(() => undefined);
-            }
-
-            if (firebaseAuth) {
-                await firebaseSignOut(firebaseAuth).catch(() => undefined);
-            }
-
-            clearLocalApiSession();
-            setUser(null);
-            setProfile(null);
-            setSession(null);
-            
-            // Force a hard reload to clear all memory state
-            const segments = window.location.pathname.split('/').filter(Boolean);
-            const locale = segments[0] === 'en' || segments[0] === 'ar' ? segments[0] : 'ar';
-            window.location.replace(`/${locale}/login`);
-        } catch (error: any) {
-            // Even on error, clear local state and redirect
-            clearLocalApiSession();
-            setUser(null);
-            setProfile(null);
-            setSession(null);
-            const segments = window.location.pathname.split('/').filter(Boolean);
-            const locale = segments[0] === 'en' || segments[0] === 'ar' ? segments[0] : 'ar';
-            window.location.replace(`/${locale}/login`);
-        }
+        clearLocalApiSession();
+        const segments = window.location.pathname.split('/').filter(Boolean);
+        const locale = segments[0] === 'en' || segments[0] === 'ar' ? segments[0] : 'ar';
+        window.location.replace(`/${locale}/login`);
     };
 
     const value = {

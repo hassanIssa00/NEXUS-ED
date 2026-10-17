@@ -43,6 +43,7 @@ import { Button } from '@/components/ui/button'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth, type UserRole } from '@/contexts/auth-context'
 import { UserProfileModal } from '@/components/dashboard/user-profile-modal'
+import Image from 'next/image'
 
 // Role color map — matches login portal colors
 const ROLE_COLORS: Record<string, { gradient: string; accent: string; light: string }> = {
@@ -175,8 +176,10 @@ export function Sidebar({ role }: SidebarProps) {
             <div className="p-3 border-t border-border flex-shrink-0">
                 <div className={cn('flex items-center gap-3', collapsed && !mobile && 'justify-center')}>
                     <div className="relative flex-shrink-0">
-                        <div className={cn('w-9 h-9 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-sm shadow-sm', colors.gradient)}>
-                            {(profile?.full_name || user?.email || 'U')[0].toUpperCase()}
+                        <div className={cn('relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br text-sm font-bold text-white shadow-sm', colors.gradient)}>
+                            {profile?.avatar_url
+                                ? <Image src={profile.avatar_url} alt={`صورة ${profile.full_name || 'المستخدم'}`} width={36} height={36} unoptimized className="h-full w-full object-cover" />
+                                : (profile?.full_name || user?.email || 'N')[0].toUpperCase()}
                         </div>
                         <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-card rounded-full" />
                     </div>
@@ -292,6 +295,7 @@ function getNavigationByRole(role: string) {
                 { href: '/student/subjects' as any, label: 'المناهج والكتب الدراسية', icon: BookOpen },
                 { href: '/student/quran' as any, label: 'المصحف الشريف', icon: BookMarked },
                 { href: '/student/assignments' as any, label: 'الواجبات المدرسية', icon: FileText },
+                { href: '/student/quizzes' as any, label: 'الاختبارات', icon: Target },
                 { href: '/student/attendance' as any, label: 'سجل الحضور والغياب', icon: QrCode },
                 { href: '/student/grades' as any, label: 'الدرجات والتقييم', icon: Award },
                 { href: '/student/certificates' as any, label: 'الإنجازات والشهادات', icon: Trophy },
@@ -299,6 +303,7 @@ function getNavigationByRole(role: string) {
                 { href: '/student/games' as any, label: 'الألعاب التعليمية', icon: Gamepad2 },
                 { href: '/student/million' as any, label: 'مسابقة نكسس الكبرى', icon: Star },
                 { href: '/student/photos' as any, label: 'معرض الفعاليات والأنشطة', icon: Camera },
+                { href: '/student/community' as any, label: 'مجتمع المدرسة', icon: Users },
                 { href: '/student/messages' as any, label: 'التواصل والرسائل', icon: MessageSquare },
                 { href: '/student/profile' as any, label: 'الملف الذكي للطالب', icon: Brain },
                 ...settings,

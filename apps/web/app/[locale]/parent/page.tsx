@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Activity, BookOpen, CalendarCheck, FileText, Users } from 'lucide-react'
+import Image from 'next/image'
 import { apiClient } from '@/lib/api/client'
 import { useAuth } from '@/contexts/auth-context'
 
 interface ChildData {
   id: string
   name: string
+  avatar?: string | null
   className: string | null
   averageGrade: number | null
   gradeRecordCount: number
@@ -95,8 +97,10 @@ export default function ParentDashboard() {
       {selected && <>
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div>
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{selected.name}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{selected.className || 'لا يوجد فصل مسجل'}</p>
+            <div className="flex items-center gap-3">
+              {selected.avatar ? <Image src={selected.avatar} alt={`صورة ${selected.name}`} width={56} height={56} unoptimized className="h-14 w-14 rounded-full object-cover" /> : <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500"><Users className="h-6 w-6" /></div>}
+              <div><h2 className="text-lg font-bold text-gray-900 dark:text-white">{selected.name}</h2><p className="mt-1 text-sm text-muted-foreground">{selected.className || 'لا يوجد فصل مسجل'}</p></div>
+            </div>
             <div className="mt-4 grid gap-x-8 sm:grid-cols-2">
               <Metric label="متوسط الدرجات" value={selected.averageGrade === null ? '—' : `${selected.averageGrade}%`} detail={`${selected.gradeRecordCount} سجل درجات`} icon={BookOpen} />
               <Metric label="الحضور المسجل" value={selected.attendanceRate === null ? '—' : `${selected.attendanceRate}%`} detail={`${selected.attendanceRecordCount} سجل حضور`} icon={CalendarCheck} />

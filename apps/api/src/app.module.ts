@@ -42,6 +42,7 @@ import { MillionJourneyModule } from './features/million-journey/million-journey
 import { MessagesModule } from './messages/messages.module';
 import { ProfileModule } from './profile/profile.module';
 import { PlacementAssessmentModule } from './placement-assessment/placement-assessment.module';
+import { TeacherWorkspaceModule } from './features/teacher-workspace/teacher-workspace.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { PlacementAssessmentModule } from './placement-assessment/placement-asse
     MessagesModule,
     ProfileModule,
     PlacementAssessmentModule,
+    TeacherWorkspaceModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: CustomThrottlerGuard },

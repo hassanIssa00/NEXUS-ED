@@ -4,6 +4,7 @@ export interface StudentDashboardResponse {
   student: {
     id: string
     name: string
+    avatar?: string | null
     schoolId?: string | null
     classes: Array<{
       id: string

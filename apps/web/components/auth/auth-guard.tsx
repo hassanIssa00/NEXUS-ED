@@ -106,10 +106,15 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
                 router.replace(destination);
                 return;
             }
+            if ((profile.role === 'student' || profile.role === 'parent') && matchesRoute(pathname, '/verify-email')) {
+                router.replace(ROLE_ROUTES[profile.role]);
+                return;
+            }
         }
 
-        // Email verification comes after the student assessment or parent survey.
+        // Student/parent onboarding is verified by the school profile and link code.
         if (user && profile?.emailVerified === false
+            && profile.role !== 'student' && profile.role !== 'parent'
             && !matchesRoute(pathname, '/verify-email')
             && !isAllowedOnboardingPath(pathname, profile.role, profile.onboardingStep)) {
             router.replace('/verify-email');
@@ -142,6 +147,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     const isPendingVerification = user && profile?.emailVerified === false
+        && profile.role !== 'student' && profile.role !== 'parent'
         && !matchesRoute(pathname, '/verify-email')
         && !isAllowedOnboardingPath(pathname, profile.role, profile.onboardingStep);
     const isWrongRole = user && profile && !canAccessRoute(pathname, profile.role)

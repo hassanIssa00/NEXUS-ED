@@ -394,11 +394,10 @@ export class AuthService {
             name: user.name || identity.fullName,
             schoolId: user.schoolId,
         });
-        const accessToken = await this.jwtService.signAsync(
-            identity.emailVerified ? payload : { ...payload, onboardingOnly: true },
-            identity.emailVerified ? undefined : { expiresIn: '2h' },
-        );
-        const refreshToken = identity.emailVerified ? await this.issueRefreshToken(user.id) : null;
+        // Public student and parent accounts complete their identity checks in the
+        // school flow (student profile or parent link code), not by email status.
+        const accessToken = await this.jwtService.signAsync(payload);
+        const refreshToken = await this.issueRefreshToken(user.id);
 
         await this.createAuditLog({
             schoolId: user.schoolId,

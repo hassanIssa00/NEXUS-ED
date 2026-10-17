@@ -334,7 +334,7 @@ describe('AuthService', () => {
     });
 
     describe('loginWithFirebase', () => {
-        it('creates a restricted onboarding session for an unverified student without a refresh token', async () => {
+        it('creates a full session for an unverified student so school onboarding can finish', async () => {
             mockFirebaseIdentityService.verifyAndReadProfile.mockResolvedValue({
                 uid: 'firebase-student',
                 email: 'student@example.com',
@@ -364,13 +364,10 @@ describe('AuthService', () => {
                 'firebase-id-token',
                 { allowUnverified: true },
             );
-            expect(mockJwtService.signAsync).toHaveBeenCalledWith(
-                expect.objectContaining({ sub: 'student-1', onboardingOnly: true }),
-                { expiresIn: '2h' },
-            );
+            expect(mockJwtService.signAsync).toHaveBeenNthCalledWith(1, expect.objectContaining({ sub: 'student-1' }));
             expect(result.access_token).toBe('onboarding-access-token');
-            expect(result).not.toHaveProperty('refresh_token');
-            expect(mockPrismaService.refreshToken.create).not.toHaveBeenCalled();
+            expect(result.refresh_token).toBe('onboarding-access-token');
+            expect(mockPrismaService.refreshToken.create).toHaveBeenCalled();
         });
 
         it('does not provision a staff account from public self-registration', async () => {

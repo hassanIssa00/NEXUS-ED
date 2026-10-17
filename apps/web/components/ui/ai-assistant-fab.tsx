@@ -54,7 +54,7 @@ export function AIAssistantFab() {
             {/* FAB Button */}
             <motion.button
                 onClick={() => setIsOpen(v => !v)}
-                className="fixed bottom-6 left-6 z-50 w-14 h-14 nexus-gradient rounded-full shadow-2xl flex items-center justify-center text-white"
+                className="print:hidden fixed bottom-6 left-6 z-50 w-14 h-14 nexus-gradient rounded-full shadow-2xl flex items-center justify-center text-white"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 animate={isOpen ? {} : {
@@ -83,7 +83,7 @@ export function AIAssistantFab() {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.8, y: 20 }}
                         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                        className="fixed bottom-24 left-6 z-50 w-80 sm:w-96 bg-white rounded-[20px] shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+                        className="print:hidden fixed bottom-24 left-6 z-50 w-80 sm:w-96 bg-white rounded-[20px] shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
                         style={{ height: 480 }}
                     >
                         {/* Header */}

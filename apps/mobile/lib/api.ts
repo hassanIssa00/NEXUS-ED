@@ -14,9 +14,14 @@ export const apiClient = axios.create({
 
 let refreshInFlight: Promise<string | null> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
+let sessionRefreshHandler: (() => Promise<string | null>) | null = null;
 
 export function setSessionExpiredHandler(handler: (() => void) | null) {
   sessionExpiredHandler = handler;
+}
+
+export function setSessionRefreshHandler(handler: (() => Promise<string | null>) | null) {
+  sessionRefreshHandler = handler;
 }
 
 function isMobileAuthRequest(url?: string) {
@@ -44,7 +49,7 @@ apiClient.interceptors.response.use(undefined, async (error: unknown) => {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
       const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
-      if (!refreshToken) return null;
+      if (!refreshToken) return sessionRefreshHandler ? sessionRefreshHandler() : null;
 
       const response = await apiClient.post<RefreshResponse>('/auth/mobile/refresh', {
         refresh_token: refreshToken,

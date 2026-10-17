@@ -1147,6 +1147,11 @@
 /* ══════════════════════════════════════════════════
    PRINT MEDIA STYLES FOR REPORTS
    ══════════════════════════════════════════════════ */
+.report-print-header,
+.report-print-footer {
+  display: none;
+}
+
 @media print {
   body {
     background: white !important;
@@ -1161,6 +1166,75 @@
 
   .print-only {
     display: block !important;
+  }
+
+  .report-print-root {
+    display: block !important;
+    color: #111827 !important;
+    font-size: 10pt;
+  }
+
+  .report-print-header,
+  .report-print-footer {
+    display: flex !important;
+  }
+
+  .report-print-header {
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 0 0 14px;
+    margin-bottom: 18px;
+    border-bottom: 2px solid #0f766e;
+  }
+
+  .report-print-header img {
+    object-fit: contain;
+    max-height: 62px;
+    width: auto;
+  }
+
+  .report-print-heading {
+    text-align: center;
+  }
+
+  .report-print-heading p,
+  .report-print-heading span {
+    font-size: 9pt;
+    color: #475569;
+  }
+
+  .report-print-heading h1 {
+    margin: 4px 0;
+    font-size: 16pt;
+    color: #0f172a !important;
+  }
+
+  .report-print-footer {
+    justify-content: space-between;
+    border-top: 1px solid #cbd5e1;
+    margin-top: 18px;
+    padding-top: 8px;
+    color: #475569;
+    font-size: 8pt;
+  }
+
+  .report-print-root > * {
+    break-inside: avoid;
+  }
+
+  .report-print-root .bg-gradient-to-r,
+  .report-print-root .bg-gradient-to-br {
+    background: white !important;
+    color: #111827 !important;
+  }
+
+  .report-print-root [class*="text-white"] {
+    color: #111827 !important;
+  }
+
+  .report-print-root .text-blue-100 {
+    color: #475569 !important;
   }
 
   .glass-card, .glass-glow, .premium-card {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from '@/i18n/routing'
 import { dashboardApi, type StudentDashboardResponse } from '@/lib/api/dashboard'
+import Image from 'next/image'
 import { useRealtimeAssignments, useRealtimeNotifications } from '@/lib/providers/socket-provider'
 import { motion } from 'framer-motion'
 import {
@@ -159,13 +160,20 @@ export default function StudentDashboardPage() {
 
       <section className="rounded-2xl bg-gradient-to-l from-violet-950 to-violet-800 p-6 text-white md:p-8">
         <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
-          <div>
+          <div className="flex items-center gap-4">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 border-white/80 bg-white/15 shadow-sm md:h-20 md:w-20">
+              {student.avatar
+                ? <Image src={student.avatar} alt={`صورة ${student.name}`} fill unoptimized sizes="80px" className="object-cover" />
+                : <div className="flex h-full w-full items-center justify-center"><GraduationCap className="h-8 w-8 text-white/75" /></div>}
+            </div>
+            <div>
             <p className="text-sm font-semibold text-violet-200">لوحة الطالب</p>
             <h1 style={{ color: '#fff' }} className="mt-2 text-2xl font-black md:text-3xl">أهلًا، {student.name}</h1>
             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-violet-100">
               <span className="inline-flex items-center gap-2"><GraduationCap className="h-4 w-4" /> {summary.totalSubjects} مادة مسجلة</span>
               <span className="inline-flex items-center gap-2"><Flame className="h-4 w-4" /> {gamification.streakDays} يوم تتابع مسجل</span>
               <span className="inline-flex items-center gap-2"><Zap className="h-4 w-4" /> {gamification.totalXP.toLocaleString('ar-SA')} نقطة خبرة</span>
+            </div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">

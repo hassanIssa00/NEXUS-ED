@@ -38,7 +38,7 @@ export class AiGradingService {
     }
     if (actorRole === 'TEACHER' &&
         submission.assignment.teacherId !== actorId &&
-        submission.assignment.subject.teacherId !== actorId) {
+        submission.assignment.subject?.teacherId !== actorId) {
       throw new ForbiddenException('هذا التسليم غير مسند إليك');
     }
     if (actorRole !== 'TEACHER' && actorRole !== 'ADMIN') {

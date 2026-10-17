@@ -9,29 +9,40 @@ export function QuickGradeModal({ submission, onClose, onGraded }: { submission:
   const [feedback, setFeedback] = useState('')
   const [loading, setLoading] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
-  const pct = score ? Math.min(Number(score), 100) : 0
+  const maxScore = Number(submission.assignment?.maxScore ?? 100)
+  const pct = score && maxScore > 0 ? Math.min((Number(score) / maxScore) * 100, 100) : 0
   const grade = pct >= 90 ? { label: 'ممتاز', color: '#10b981' } : pct >= 80 ? { label: 'جيد جداً', color: '#3b82f6' } : pct >= 70 ? { label: 'جيد', color: '#f59e0b' } : { label: 'مقبول', color: '#ef4444' }
 
   const submit = async () => {
-    if (!score) return
+    const numericScore = Number(score)
+    if (!score || !Number.isFinite(numericScore) || numericScore < 0 || numericScore > maxScore) {
+      setErrorMessage(`أدخل درجة من 0 إلى ${maxScore}.`)
+      return
+    }
     setLoading(true)
+    setErrorMessage('')
     try {
-      await apiClient.patch(`/assignments/submissions/${submission.id}/grade`, { grade: Number(score), feedback })
+      await apiClient.patch(`/assignments/submissions/${submission.id}/grade`, { score: numericScore, feedback })
       onGraded(); onClose()
-    } catch { } finally { setLoading(false) }
+    } catch (error: any) {
+      setErrorMessage(error.response?.data?.message || 'تعذر حفظ الدرجة. حاول مرة أخرى.')
+    } finally { setLoading(false) }
   }
 
   const handleAiGrade = async () => {
     setAiLoading(true)
+    setErrorMessage('')
     try {
       const res = await apiClient.post(`/ai/grade/${submission.id}`)
       if (res.data?.data) {
         setScore(String(res.data.data.score))
         setFeedback(res.data.data.feedback || '')
-      }
+      } else setErrorMessage('لم يرجع التصحيح الآلي درجة قابلة للاستخدام.')
     } catch (err) {
       console.error('AI Grading failed', err)
+      setErrorMessage('تعذر اقتراح درجة بالذكاء الاصطناعي. يمكنك إدخال الدرجة يدويًا.')
     } finally {
       setAiLoading(false)
     }
@@ -68,9 +79,9 @@ export function QuickGradeModal({ submission, onClose, onGraded }: { submission:
 
         <div className="space-y-4 mb-6">
           <div>
-            <label className="text-sm font-bold text-gray-900 dark:text-white mb-2 block">الدرجة (من 100)</label>
+            <label className="text-sm font-bold text-gray-900 dark:text-white mb-2 block">الدرجة (من {maxScore})</label>
             <div className="relative">
-              <input type="number" min={0} max={100} value={score} onChange={e => setScore(e.target.value)} placeholder="مثال: 95"
+              <input type="number" min={0} max={maxScore} step="any" value={score} onChange={e => { setScore(e.target.value); setErrorMessage('') }} placeholder={`مثال: ${maxScore}`}
                 className="w-full border-2 border-gray-100 dark:border-white/10 rounded-xl px-4 py-3 bg-white dark:bg-[#12121a] text-gray-900 dark:text-white text-lg font-black outline-none focus:border-teal-500 transition-colors text-center pr-20" />
               {score && (
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg text-xs font-bold" style={{ backgroundColor: `${grade.color}15`, color: grade.color }}>
@@ -91,6 +102,8 @@ export function QuickGradeModal({ submission, onClose, onGraded }: { submission:
               className="w-full border-2 border-gray-100 dark:border-white/10 rounded-xl px-4 py-3 bg-white dark:bg-[#12121a] text-gray-900 dark:text-white text-sm font-medium outline-none resize-none focus:border-teal-500 transition-colors" />
           </div>
         </div>
+
+        {errorMessage && <p role="alert" className="mb-4 text-sm font-medium text-red-600">{errorMessage}</p>}
 
         <div className="flex gap-3">
           <button onClick={submit} disabled={loading || !score}

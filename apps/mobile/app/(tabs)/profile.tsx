@@ -1,65 +1,66 @@
-import { StyleSheet, TouchableOpacity } from 'react-native';
-import { Text, View } from '@/components/Themed';
-import { useAuth } from '@/context/AuthContext';
+import React, { useState } from 'react';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { AppPage, BrandHeader, ErrorNotice, OutlineButton, Surface } from '@/components/mobile-ui';
+import { BRAND } from '@/constants/Config';
+import { useAuth } from '@/context/AuthContext';
 
 const roleLabels: Record<string, string> = {
-  STUDENT: 'طالب',
-  PARENT: 'ولي أمر',
-  TEACHER: 'معلم',
-  ADMIN: 'إدارة المدرسة',
-  PRINCIPAL: 'مدير المدرسة',
-  VICE_PRINCIPAL: 'وكيل المدرسة',
-  COUNSELOR: 'مرشد طلابي',
-  SUPERVISOR: 'مشرف',
-  ACCOUNTANT: 'محاسب',
-  HR: 'موارد بشرية',
+  STUDENT: 'طالب', PARENT: 'ولي أمر', TEACHER: 'معلم', ADMIN: 'إدارة المدرسة',
+  PRINCIPAL: 'مدير المدرسة', VICE_PRINCIPAL: 'وكيل المدرسة', COUNSELOR: 'التوجيه الطلابي',
+  SUPERVISOR: 'الإشراف التربوي', ACCOUNTANT: 'المحاسبة المالية', HR: 'الموارد البشرية',
 };
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const displayName = user?.name || user?.email || 'حساب نكسس';
+  const avatar = user?.avatarUrl || user?.avatar;
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.profile}>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={34} color="#FFFFFF" />
-        </View>
-        <Text style={styles.name}>{user?.name || user?.email || 'Nexus EDU'}</Text>
-        <Text style={styles.role}>{user?.role ? roleLabels[user.role] ?? user.role : ''}</Text>
-      </View>
+  const logout = async () => {
+    setBusy(true);
+    setError('');
+    try { await signOut(); }
+    catch { setError('تعذر إنهاء الجلسة محليًا. حاول مرة أخرى.'); }
+    finally { setBusy(false); }
+  };
 
-      <View style={styles.details}>
-        <Text style={styles.sectionTitle}>بيانات الحساب</Text>
-        <View style={styles.detailRow}>
-          <Text style={styles.value}>{user?.email ?? '—'}</Text>
-          <Text style={styles.label}>البريد الإلكتروني</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.value}>{user?.role ? roleLabels[user.role] ?? user.role : '—'}</Text>
-          <Text style={styles.label}>نوع الحساب</Text>
-        </View>
-      </View>
+  return <AppPage>
+    <BrandHeader />
+    <Surface style={styles.profile}>
+      {avatar ? <Image source={{ uri: avatar }} style={styles.avatar} /> : <View style={styles.avatar}><Ionicons name="person-outline" size={31} color={BRAND.teal} /></View>}
+      <Text style={styles.name}>{displayName}</Text>
+      <Text style={styles.role}>{user?.role ? roleLabels[user.role] ?? user.role : '—'}</Text>
+    </Surface>
 
-      <TouchableOpacity accessibilityRole="button" style={styles.logout} onPress={() => void signOut()}>
-        <Ionicons name="log-out-outline" size={20} color="#B42318" />
-        <Text style={styles.logoutText}>تسجيل الخروج</Text>
-      </TouchableOpacity>
-    </View>
-  );
+    <Surface>
+      <Text style={styles.sectionTitle}>بيانات الحساب</Text>
+      <Detail label="البريد الإلكتروني" value={user?.email || '—'} />
+      <Detail label="رقم الجوال" value={user?.phone || '—'} />
+      <Detail label="نوع الحساب" value={user?.role ? roleLabels[user.role] ?? user.role : '—'} />
+    </Surface>
+
+    {error ? <ErrorNotice>{error}</ErrorNotice> : null}
+    <OutlineButton title="تسجيل الخروج" icon="log-out-outline" onPress={() => void logout()} disabled={busy} />
+  </AppPage>;
+}
+
+function Detail({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return <View style={styles.detailRow}>
+    <Text style={[styles.value, accent && styles.pending]}>{value}</Text>
+    <Text style={styles.label}>{label}</Text>
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, paddingTop: 56, backgroundColor: '#F5F7FA' },
-  profile: { alignItems: 'center', paddingVertical: 30, backgroundColor: '#FFFFFF', borderRadius: 6 },
-  avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#365CF5', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  name: { color: '#182230', fontSize: 20, fontWeight: '700', textAlign: 'center' },
-  role: { color: '#52627A', fontSize: 14, marginTop: 5 },
-  details: { marginTop: 24 },
-  sectionTitle: { color: '#182230', fontSize: 16, fontWeight: '700', marginBottom: 10, textAlign: 'right' },
-  detailRow: { padding: 14, marginBottom: 1, backgroundColor: '#FFFFFF' },
-  label: { color: '#52627A', fontSize: 12, marginTop: 4, textAlign: 'right' },
-  value: { color: '#182230', fontSize: 14, textAlign: 'right' },
-  logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, marginTop: 28, borderRadius: 6, borderWidth: 1, borderColor: '#F0B4B0', backgroundColor: '#FFFFFF' },
-  logoutText: { color: '#B42318', fontSize: 14, fontWeight: '600' },
+  profile: { alignItems: 'center', paddingVertical: 26 },
+  avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: BRAND.tealSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  name: { color: BRAND.ink, fontSize: 20, fontWeight: '800', textAlign: 'center', writingDirection: 'rtl' },
+  role: { color: BRAND.muted, fontSize: 14, marginTop: 5, writingDirection: 'rtl' },
+  sectionTitle: { color: BRAND.ink, fontSize: 16, fontWeight: '800', textAlign: 'right', writingDirection: 'rtl' },
+  detailRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BRAND.line },
+  label: { color: BRAND.muted, fontSize: 13, textAlign: 'right', writingDirection: 'rtl' },
+  value: { flex: 1, color: BRAND.ink, fontSize: 13, textAlign: 'left' },
+  pending: { color: BRAND.amber },
 });

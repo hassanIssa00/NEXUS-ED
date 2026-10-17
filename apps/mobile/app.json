@@ -2,18 +2,23 @@
   "expo": {
     "name": "Nexus EDU",
     "slug": "nexus-edu",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/ikhlas-school-icon.png",
     "scheme": "nexus-edu",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "org.masarplatform.nexusedu",
+      "buildNumber": "2",
       "supportsTablet": true
     },
     "android": {
+      "package": "org.masarplatform.nexusedu",
+      "versionCode": 2,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/ikhlas-adaptive-foreground.png",
+        "backgroundColor": "#F7F9FC"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -28,12 +33,18 @@
       "expo-font",
       "expo-secure-store",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "يتيح اختيار صورة الطالب من معرض الصور لإضافتها إلى ملفه الدراسي."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/nexus-school-splash.png",
+          "imageWidth": 220,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#FFFFFF"
         }
       ],
       "expo-status-bar"

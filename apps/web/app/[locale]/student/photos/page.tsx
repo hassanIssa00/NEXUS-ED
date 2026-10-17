@@ -1,7 +1,7 @@
 'use client';
 
-import BackendStatus from '@/components/common/BackendStatus';
+import { ClassEventsFeed } from '@/components/events/class-events-feed';
 
-export default function Page() {
-  return <BackendStatus title="صور وفعاليات المدرسة" detail="لا توجد فعاليات أو صور منشورة من خدمة المدرسة حاليًا." />;
+export default function StudentPhotosPage() {
+  return <ClassEventsFeed audience="student" />;
 }

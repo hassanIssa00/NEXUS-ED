@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TeacherAutomationController } from './teacher-automation.controller';
+import { AutomationCronController } from './automation-cron.controller';
 import { TeacherAutomationService } from './teacher-automation.service';
 
 /**
@@ -7,7 +8,7 @@ import { TeacherAutomationService } from './teacher-automation.service';
  * Handles automated rules and workflows for teachers
  */
 @Module({
-  controllers: [TeacherAutomationController],
+  controllers: [TeacherAutomationController, AutomationCronController],
   providers: [TeacherAutomationService],
   exports: [TeacherAutomationService],
 })

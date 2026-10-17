@@ -240,6 +240,7 @@ export class DashboardService {
       student: {
         id: student.id,
         name: student.name ?? student.email,
+        avatar: student.avatar,
         schoolId: student.schoolId,
         classes: student.enrollments.map(({ class: enrolledClass }) => ({
           id: enrolledClass.id,
@@ -679,6 +680,7 @@ export class DashboardService {
       return {
         id: student.id,
         name: student.name || [student.firstName, student.lastName].filter(Boolean).join(' ') || 'طالب',
+        avatar: student.avatar,
         className: student.enrollments.map((enrollment: any) => enrollment.class.name).filter(Boolean).join('، ') || null,
         averageGrade: validGrades.length > 0
           ? this.round(validGrades.reduce((sum: number, grade: any) => sum + (Number(grade.grade) / Number(grade.maxScore)) * 100, 0) / validGrades.length)

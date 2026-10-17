@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
-    FileText, Download, Printer, TrendingUp, TrendingDown, Minus, 
+    FileText, Printer, TrendingUp, TrendingDown, Minus,
     User, Calendar, Award, Clock, BookOpen, Lightbulb, CheckCircle 
 } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
@@ -58,13 +59,7 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
     const [loading, setLoading] = useState(!propData);
     const reportRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (!propData) {
-            fetchData();
-        }
-    }, [studentId, period]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             const { data } = await apiClient.get(`/analytics/student/${studentId}/parent-report`, { params: { period } });
@@ -74,14 +69,14 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
         } finally {
             setLoading(false);
         }
-    };
+    }, [period, studentId]);
+
+    useEffect(() => {
+        if (!propData) fetchData();
+    }, [fetchData, propData]);
 
     const handlePrint = () => {
         window.print();
-    };
-
-    const handleDownload = async () => {
-        handlePrint();
     };
 
     const TrendIcon = ({ trend }: { trend: 'UP' | 'DOWN' | 'STABLE' | 'NO_BASELINE' }) => {
@@ -126,7 +121,16 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
     }
 
     return (
-        <div className="space-y-6" ref={reportRef}>
+        <div className="report-print-root space-y-6" ref={reportRef}>
+            <div className="report-print-header" aria-label="هوية التقرير">
+                <Image src="/second_logo.webp" alt="مدارس الإخلاص الأهلية" width={72} height={72} />
+                <div className="report-print-heading">
+                    <p>مدارس الإخلاص الأهلية · جدة</p>
+                    <h1>تقرير الأداء الدراسي</h1>
+                    <span>{data.studentInfo.period} · {new Date().toLocaleDateString('ar-SA')}</span>
+                </div>
+                <Image src="/logo.webp" alt="Nexus EDU" width={150} height={56} />
+            </div>
             {/* Header with Actions */}
             <Card className="border-2 border-primary/20">
                 <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg">
@@ -143,11 +147,7 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
                         <div className="flex gap-2 print:hidden">
                             <Button variant="secondary" size="sm" onClick={handlePrint}>
                                 <Printer className="w-4 h-4 ml-2" />
-                                طباعة
-                            </Button>
-                            <Button variant="secondary" size="sm" onClick={handleDownload}>
-                                <Download className="w-4 h-4 ml-2" />
-                                تحميل PDF
+                                طباعة / حفظ PDF
                             </Button>
                         </div>
                     </div>
@@ -293,6 +293,10 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
                     </ul>
                 </CardContent>
             </Card>
+            <footer className="report-print-footer">
+                <span>مدارس الإخلاص الأهلية · جدة</span>
+                <span>NEXUS EDU · {new Date().toLocaleDateString('ar-SA')}</span>
+            </footer>
         </div>
     );
 }

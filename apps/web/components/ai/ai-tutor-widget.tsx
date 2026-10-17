@@ -80,7 +80,7 @@ export function AiTutorWidget() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 left-6 z-50 p-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-full shadow-[0_8px_30px_rgb(124,58,237,0.5)] hover:shadow-[0_8px_40px_rgb(124,58,237,0.7)] hover:scale-105 transition-all duration-300 flex items-center justify-center group"
+            className="print:hidden fixed bottom-6 left-6 z-50 p-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-full shadow-[0_8px_30px_rgb(124,58,237,0.5)] hover:shadow-[0_8px_40px_rgb(124,58,237,0.7)] hover:scale-105 transition-all duration-300 flex items-center justify-center group"
           >
             <div className="absolute inset-0 bg-white/20 rounded-full animate-ping" />
             <Bot className="w-6 h-6 group-hover:rotate-12 transition-transform" />
@@ -100,7 +100,7 @@ export function AiTutorWidget() {
             }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-6 left-3 sm:left-6 z-50 w-[calc(100vw-24px)] max-w-[400px] bg-white/80 dark:bg-[#1e1e2d]/90 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+            className="print:hidden fixed bottom-6 left-3 sm:left-6 z-50 w-[calc(100vw-24px)] max-w-[400px] bg-white/80 dark:bg-[#1e1e2d]/90 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
           >
             <div className="flex items-center justify-between p-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white">
               <div className="flex items-center gap-3">
