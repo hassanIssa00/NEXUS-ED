@@ -1,34 +1,25 @@
-import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, ArrayUnique, IsArray, IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { SAUDI_PRIMARY_SUBJECTS } from '../saudi-primary-subjects';
 
 export class SaveTeacherProfileDto {
   @IsString()
-  @MinLength(2)
-  @MaxLength(100)
+  @IsIn([...SAUDI_PRIMARY_SUBJECTS])
   specialization: string;
 
   @IsString()
-  @MinLength(2)
-  @MaxLength(120)
-  qualification: string;
-
-  @IsInt()
-  @Min(0)
-  @Max(60)
-  yearsExperience: number;
+  @Matches(/^[12]\d{9}$/)
+  residenceNumber: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  bio?: string;
-
   @IsArray()
-  @ArrayMinSize(1)
   @ArrayMaxSize(40)
   @ArrayUnique()
   @IsString({ each: true })
-  classIds: string[];
+  @MaxLength(40, { each: true })
+  classCodes?: string[];
 
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  homeroomClassId: string;
+  @MaxLength(40)
+  homeroomCode?: string;
 }

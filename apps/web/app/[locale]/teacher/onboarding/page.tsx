@@ -5,59 +5,69 @@ import { useLocale } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api/client';
-import { Camera, Check, GraduationCap, LoaderCircle, UserRound } from 'lucide-react';
+import { Camera, Check, GraduationCap, LoaderCircle, Plus, UserRound, X } from 'lucide-react';
 
-type SchoolClass = { id: string; name: string; academicYear: string | null; homeroomAvailable: boolean };
+type AssignedClass = { id: string; name: string; academicYear: string | null; classCode: string };
 type TeacherProfileOptions = {
-  classes: SchoolClass[];
-  subjects: string[];
+  classes: AssignedClass[];
   avatar: string | null;
   profile: {
     specialization: string;
-    qualification: string;
-    yearsExperience: number;
-    bio: string | null;
-    classIds: string[];
-    homeroomClassId: string;
+    residenceNumber: string | null;
+    classCodes: string[];
+    homeroomCode: string;
   } | null;
 };
 
+const PRIMARY_SUBJECTS = [
+  { value: 'القرآن الكريم والدراسات الإسلامية', en: 'Qur’an and Islamic Studies' },
+  { value: 'اللغة العربية', en: 'Arabic Language' },
+  { value: 'الرياضيات', en: 'Mathematics' },
+  { value: 'العلوم', en: 'Science' },
+  { value: 'اللغة الإنجليزية', en: 'English Language' },
+  { value: 'الدراسات الاجتماعية', en: 'Social Studies' },
+  { value: 'المهارات الرقمية', en: 'Digital Skills' },
+  { value: 'التربية الفنية', en: 'Art Education' },
+  { value: 'التربية البدنية والدفاع عن النفس', en: 'Physical Education and Self-Defense' },
+  { value: 'المهارات الحياتية والأسرية', en: 'Life and Family Skills' },
+] as const;
+
 const copy = {
   ar: {
-    eyebrow: 'الخطوة الأخيرة لإعداد الحساب', title: 'أكمل ملفك كمعلم',
-    intro: 'أضف بياناتك التعليمية، فصولك، وفصل الريادة لتجهيز لوحة المعلم.',
+    eyebrow: 'إعداد حساب المعلم', title: 'بيانات المعلم',
+    intro: 'أضف رقم الهوية أو الإقامة وصورتك والمادة التي تدرّسها. ربط الفصول بالكود اختياري ويمكنك عمله لاحقًا.',
     photo: 'الصورة الشخصية', changePhoto: 'اختيار صورة', photoHint: 'JPEG أو PNG أو WebP، بحد أقصى 512 كيلوبايت',
     name: 'الاسم', email: 'البريد الإلكتروني', phone: 'رقم الجوال',
-    subject: 'التخصص أو المادة', subjectHint: 'مثال: الرياضيات', chooseSubject: 'اكتب أو اختر المادة',
-    qualification: 'المؤهل الدراسي', qualificationHint: 'مثال: بكالوريوس تربية',
-    experience: 'سنوات الخبرة', bio: 'نبذة مهنية (اختياري)', bioHint: 'خبرات أو معلومات تساعد المدرسة على التعرف عليك',
-    classes: 'الفصول التي تدرّسها', classesHint: 'يمكنك اختيار أكثر من فصل.',
-    homeroom: 'فصل الريادة', homeroomHint: 'اختر فصلًا واحدًا تكون رائدًا له من الفصول المحددة أعلاه.',
-    noClasses: 'لا توجد فصول مسجلة في المدرسة بعد. تواصل مع الإدارة لإضافة الفصول أولًا.',
-    classLed: 'له رائد بالفعل',
-    save: 'حفظ الملف والانتقال إلى لوحة المعلم', saving: 'جارٍ حفظ الملف...',
-    loading: 'جارٍ تحميل بيانات المدرسة...',
-    saved: 'تم حفظ ملف المعلم بنجاح.', loadError: 'تعذر تحميل فصول المدرسة. حاول تحديث الصفحة.',
+    residenceNumber: 'رقم الهوية الوطنية أو الإقامة', residenceHint: 'أدخل الرقم المكوّن من 10 أرقام',
+    subject: 'التخصص أو المادة', chooseSubject: 'اختر المادة التي تدرّسها',
+    classes: 'ربط الفصول (اختياري)', classesHint: 'أدخل كودًا لكل فصل تدرّسه. يمكنك تخطي الخطوة وإضافة الأكواد لاحقًا من إعدادات المعلم.',
+    codePlaceholder: 'مثال: CLS-AB12-CD34-EF56', addCode: 'إضافة الكود', removeCode: 'حذف الكود',
+    codeHint: 'تحصل على أكواد الفصول من إدارة المدرسة.', homeroom: 'كود فصل الريادة (اختياري)',
+    noHomeroom: 'لا تحدد فصل ريادة الآن', homeroomHint: 'اختر أحد أكواد الفصول التي أضفتها، أو حدده لاحقًا.',
+    save: 'حفظ البيانات والانتقال إلى لوحة المعلم', saving: 'جارٍ حفظ البيانات...',
+    loading: 'جارٍ تحميل البيانات...', saved: 'تم حفظ بيانات المعلم بنجاح.',
+    loadError: 'تعذر تحميل ملف المعلم. حاول تحديث الصفحة.',
     photoRequired: 'أضف صورتك الشخصية للمتابعة.', invalidPhoto: 'اختر صورة JPEG أو PNG أو WebP لا يتجاوز حجمها 512 كيلوبايت.',
-    required: 'أكمل التخصص والمؤهل واختر فصلًا واحدًا على الأقل.',
+    invalidResidence: 'أدخل رقم هوية أو إقامة صحيحًا من 10 أرقام.', required: 'اختر المادة وأدخل رقم الهوية أو الإقامة.',
+    duplicateCode: 'هذا الكود مضاف بالفعل.', invalidClassCode: 'تأكد من إدخال كود فصل صحيح.',
   },
   en: {
-    eyebrow: 'One last step to set up your account', title: 'Complete your teacher profile',
-    intro: 'Add your teaching details, assigned classes, and the one class you lead.',
+    eyebrow: 'Teacher account setup', title: 'Teacher details',
+    intro: 'Add your national ID or residency number, photo, and subject. Linking classes is optional and can be done later.',
     photo: 'Profile photo', changePhoto: 'Choose a photo', photoHint: 'JPEG, PNG, or WebP, up to 512 KB',
     name: 'Name', email: 'Email', phone: 'Mobile number',
-    subject: 'Subject or specialization', subjectHint: 'For example: Mathematics', chooseSubject: 'Type or choose a subject',
-    qualification: 'Qualification', qualificationHint: 'For example: Bachelor of Education',
-    experience: 'Years of experience', bio: 'Professional summary (optional)', bioHint: 'Experience or details that help the school know you',
-    classes: 'Classes you teach', classesHint: 'Select all the classes you teach.',
-    homeroom: 'Homeroom class', homeroomHint: 'Choose one of your selected classes to lead.',
-    noClasses: 'There are no classes registered at this school yet. Ask the administration to add classes first.',
-    classLed: 'Already has a homeroom teacher',
-    save: 'Save profile and open teacher dashboard', saving: 'Saving your profile...',
-    loading: 'Loading school information...',
-    saved: 'Your teacher profile has been saved.', loadError: 'Could not load the school classes. Refresh and try again.',
+    residenceNumber: 'National ID or residency number', residenceHint: 'Enter the 10-digit number',
+    subject: 'Subject or specialization', chooseSubject: 'Choose the subject you teach',
+    classes: 'Link classes (optional)', classesHint: 'Enter a code for each class you teach. Skip this step and add codes later from teacher settings.',
+    codePlaceholder: 'Example: CLS-AB12-CD34-EF56', addCode: 'Add code', removeCode: 'Remove code',
+    codeHint: 'Get class codes from the school administration.', homeroom: 'Homeroom class code (optional)',
+    noHomeroom: 'Do not choose a homeroom class yet', homeroomHint: 'Choose one of your class codes, or set it later.',
+    save: 'Save details and open teacher dashboard', saving: 'Saving details...',
+    loading: 'Loading your details...', saved: 'Teacher details saved.',
+    loadError: 'Could not load your teacher profile. Refresh the page.',
     photoRequired: 'Add a profile photo to continue.', invalidPhoto: 'Choose a JPEG, PNG, or WebP image up to 512 KB.',
-    required: 'Enter your subject and qualification, then select at least one class.',
+    invalidResidence: 'Enter a valid 10-digit national ID or residency number.', required: 'Choose a subject and enter your ID or residency number.',
+    duplicateCode: 'This class code has already been added.', invalidClassCode: 'Enter a valid class code.',
   },
 } as const;
 
@@ -74,11 +84,10 @@ export default function TeacherOnboardingPage() {
   const { profile, refreshProfile } = useAuth();
   const [options, setOptions] = useState<TeacherProfileOptions | null>(null);
   const [specialization, setSpecialization] = useState('');
-  const [qualification, setQualification] = useState('');
-  const [yearsExperience, setYearsExperience] = useState('0');
-  const [bio, setBio] = useState('');
-  const [classIds, setClassIds] = useState<string[]>([]);
-  const [homeroomClassId, setHomeroomClassId] = useState('');
+  const [residenceNumber, setResidenceNumber] = useState('');
+  const [classCodeInput, setClassCodeInput] = useState('');
+  const [classCodes, setClassCodes] = useState<string[]>([]);
+  const [homeroomCode, setHomeroomCode] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,12 +104,10 @@ export default function TeacherOnboardingPage() {
         setOptions(data);
         setAvatar(data.avatar);
         if (data.profile) {
-          setSpecialization(data.profile.specialization);
-          setQualification(data.profile.qualification);
-          setYearsExperience(String(data.profile.yearsExperience));
-          setBio(data.profile.bio || '');
-          setClassIds(data.profile.classIds);
-          setHomeroomClassId(data.profile.homeroomClassId);
+          setSpecialization(PRIMARY_SUBJECTS.some((subject) => subject.value === data.profile?.specialization) ? data.profile.specialization : '');
+          setResidenceNumber(data.profile.residenceNumber || '');
+          setClassCodes(data.profile.classCodes);
+          setHomeroomCode(data.profile.homeroomCode);
         }
       })
       .catch((fetchError) => {
@@ -110,7 +117,8 @@ export default function TeacherOnboardingPage() {
     return () => { active = false; };
   }, [t.loadError]);
 
-  const selectedClassSet = useMemo(() => new Set(classIds), [classIds]);
+  const assignedClassByCode = useMemo(() => new Map((options?.classes ?? []).map((item) => [item.classCode, item])), [options?.classes]);
+
   const choosePhoto = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -135,17 +143,24 @@ export default function TeacherOnboardingPage() {
     }
   };
 
-  const toggleClass = (classId: string) => {
-    setClassIds((current) => {
-      if (current.includes(classId)) {
-        const next = current.filter((id) => id !== classId);
-        if (homeroomClassId === classId) setHomeroomClassId(next[0] || '');
-        return next;
-      }
-      const next = [...current, classId];
-      if (!homeroomClassId) setHomeroomClassId(classId);
-      return next;
-    });
+  const addClassCode = () => {
+    const code = classCodeInput.trim().toUpperCase().replace(/\s+/g, '');
+    if (!/^CLS-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}$/.test(code)) {
+      setError(t.invalidClassCode);
+      return;
+    }
+    if (classCodes.includes(code)) {
+      setError(t.duplicateCode);
+      return;
+    }
+    setError('');
+    setClassCodes((current) => [...current, code]);
+    setClassCodeInput('');
+  };
+
+  const removeClassCode = (code: string) => {
+    setClassCodes((current) => current.filter((item) => item !== code));
+    if (homeroomCode === code) setHomeroomCode('');
   };
 
   const submit = async (event: FormEvent) => {
@@ -153,18 +168,17 @@ export default function TeacherOnboardingPage() {
     setError('');
     setSuccess('');
     if (!avatar && !avatarFile) { setError(t.photoRequired); return; }
-    if (!specialization.trim() || !qualification.trim() || classIds.length === 0) { setError(t.required); return; }
-    if (!homeroomClassId || !classIds.includes(homeroomClassId)) { setError(t.homeroomHint); return; }
+    if (!specialization || !residenceNumber) { setError(t.required); return; }
+    if (!/^[12]\d{9}$/.test(residenceNumber)) { setError(t.invalidResidence); return; }
+    if (homeroomCode && !classCodes.includes(homeroomCode)) { setError(t.homeroomHint); return; }
 
     setSaving(true);
     try {
       await apiClient.put('/auth/teacher-profile', {
-        specialization: specialization.trim(),
-        qualification: qualification.trim(),
-        yearsExperience: Math.max(0, Math.min(60, Number(yearsExperience) || 0)),
-        bio: bio.trim() || undefined,
-        classIds,
-        homeroomClassId,
+        specialization,
+        residenceNumber,
+        classCodes,
+        homeroomCode: homeroomCode || undefined,
       });
       await refreshProfile();
       setSuccess(t.saved);
@@ -212,52 +226,45 @@ export default function TeacherOnboardingPage() {
             <div><label className="mb-1.5 block text-xs font-bold text-slate-600">{t.email}</label><input className={inputClass} value={profile?.email || ''} readOnly dir="ltr" /></div>
             <div><label className="mb-1.5 block text-xs font-bold text-slate-600">{t.phone}</label><input className={inputClass} value={profile?.phone || ''} readOnly dir="ltr" /></div>
             <div>
+              <label htmlFor="teacher-residence-number" className="mb-1.5 block text-xs font-bold text-slate-600">{t.residenceNumber} *</label>
+              <input id="teacher-residence-number" type="text" inputMode="numeric" autoComplete="off" maxLength={10} pattern="[12][0-9]{9}" dir="ltr" className={inputClass} value={residenceNumber} onChange={(event) => setResidenceNumber(event.target.value.replace(/\D/g, '').slice(0, 10))} placeholder={t.residenceHint} required />
+            </div>
+            <div className="sm:col-span-2">
               <label htmlFor="teacher-specialization" className="mb-1.5 block text-xs font-bold text-slate-600">{t.subject} *</label>
-              <input id="teacher-specialization" list="school-subjects" className={inputClass} value={specialization} onChange={(event) => setSpecialization(event.target.value)} placeholder={t.chooseSubject} required />
-              <datalist id="school-subjects">{options?.subjects.map((subject) => <option key={subject} value={subject} />)}</datalist>
-              <p className="mt-1 text-xs text-slate-500">{t.subjectHint}</p>
-            </div>
-            <div>
-              <label htmlFor="teacher-qualification" className="mb-1.5 block text-xs font-bold text-slate-600">{t.qualification} *</label>
-              <input id="teacher-qualification" className={inputClass} value={qualification} onChange={(event) => setQualification(event.target.value)} placeholder={t.qualificationHint} required />
-            </div>
-            <div>
-              <label htmlFor="teacher-experience" className="mb-1.5 block text-xs font-bold text-slate-600">{t.experience}</label>
-              <input id="teacher-experience" type="number" min="0" max="60" className={inputClass} value={yearsExperience} onChange={(event) => setYearsExperience(event.target.value)} />
+              <select id="teacher-specialization" className={inputClass} value={specialization} onChange={(event) => setSpecialization(event.target.value)} required>
+                <option value="">{t.chooseSubject}</option>
+                {PRIMARY_SUBJECTS.map((subject) => <option key={subject.value} value={subject.value}>{isEnglish ? subject.en : subject.value}</option>)}
+              </select>
             </div>
           </section>
 
-          <div>
-            <label htmlFor="teacher-bio" className="mb-1.5 block text-xs font-bold text-slate-600">{t.bio}</label>
-            <textarea id="teacher-bio" rows={3} maxLength={500} className={inputClass} value={bio} onChange={(event) => setBio(event.target.value)} placeholder={t.bioHint} />
-          </div>
-
-          <section>
-            <h2 className="font-bold text-slate-900">{t.classes} *</h2>
-            <p className="mb-3 mt-1 text-xs text-slate-500">{t.classesHint}</p>
-            {!options?.classes.length ? <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{t.noClasses}</p> : (
-              <div className="grid gap-2 sm:grid-cols-2">
-                {options.classes.map((schoolClass) => (
-                  <label key={schoolClass.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 text-sm transition ${selectedClassSet.has(schoolClass.id) ? 'border-teal-500 bg-teal-50 text-teal-950' : 'border-slate-200 hover:bg-slate-50'}`}>
-                    <input type="checkbox" checked={selectedClassSet.has(schoolClass.id)} onChange={() => toggleClass(schoolClass.id)} className="h-4 w-4 accent-teal-700" />
-                    <span className="font-semibold">{schoolClass.name}</span>
-                    {schoolClass.academicYear && <span className="ms-auto text-xs text-slate-500">{schoolClass.academicYear}</span>}
-                  </label>
-                ))}
+          <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
+            <div>
+              <h2 className="font-bold text-slate-900">{t.classes}</h2>
+              <p className="mb-3 mt-1 text-xs leading-5 text-slate-500">{t.classesHint}</p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input className={inputClass} value={classCodeInput} onChange={(event) => setClassCodeInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addClassCode(); } }} placeholder={t.codePlaceholder} dir="ltr" />
+                <button type="button" onClick={addClassCode} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"><Plus className="h-4 w-4" />{t.addCode}</button>
               </div>
-            )}
+              <p className="mt-1.5 text-xs text-slate-500">{t.codeHint}</p>
+            </div>
+
+            {classCodes.length > 0 && <div className="flex flex-wrap gap-2">{classCodes.map((code) => {
+              const schoolClass = assignedClassByCode.get(code);
+              return <span key={code} className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-900" dir="ltr"><span>{schoolClass ? `${schoolClass.name} · ` : ''}{code}</span><button type="button" onClick={() => removeClassCode(code)} aria-label={`${t.removeCode} ${code}`} className="rounded-full p-0.5 hover:bg-teal-100"><X className="h-3.5 w-3.5" /></button></span>;
+            })}</div>}
+
+            <div>
+              <label htmlFor="teacher-homeroom-code" className="mb-1.5 block text-sm font-bold text-slate-900">{t.homeroom}</label>
+              <select id="teacher-homeroom-code" className={inputClass} value={homeroomCode} onChange={(event) => setHomeroomCode(event.target.value)} disabled={!classCodes.length}>
+                <option value="">{t.noHomeroom}</option>
+                {classCodes.map((code) => <option key={code} value={code}>{assignedClassByCode.get(code)?.name || code}</option>)}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">{t.homeroomHint}</p>
+            </div>
           </section>
 
-          <section>
-            <label htmlFor="teacher-homeroom" className="mb-1.5 block text-sm font-bold text-slate-900">{t.homeroom} *</label>
-            <select id="teacher-homeroom" className={inputClass} value={homeroomClassId} onChange={(event) => setHomeroomClassId(event.target.value)} disabled={!classIds.length} required>
-              <option value="">{t.homeroomHint}</option>
-              {options?.classes.filter((schoolClass) => classIds.includes(schoolClass.id)).map((schoolClass) => <option key={schoolClass.id} value={schoolClass.id} disabled={!schoolClass.homeroomAvailable}>{schoolClass.name}{schoolClass.homeroomAvailable ? '' : ` (${t.classLed})`}</option>)}
-            </select>
-            <p className="mt-1 text-xs text-slate-500">{t.homeroomHint}</p>
-          </section>
-
-          <button type="submit" disabled={saving || uploading || !options?.classes.length} className="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="submit" disabled={saving || uploading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60">
             {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{saving ? t.saving : t.save}
           </button>
         </div>

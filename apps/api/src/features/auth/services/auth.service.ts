@@ -23,6 +23,7 @@ import { ConfirmPasswordResetDto } from '../dto/confirm-password-reset.dto';
 import { Role } from '../../../shared/enums/roles.enum';
 import { FirebaseIdentityService } from './firebase-identity.service';
 import { SaveTeacherProfileDto } from '../dto/teacher-profile.dto';
+import { SAUDI_PRIMARY_SUBJECTS } from '../saudi-primary-subjects';
 import { getJwtRefreshSecret } from '../../../config/jwt';
 
 const ACCESS_TOKEN_TTL = '15m';
@@ -37,6 +38,10 @@ const INVALID_RESET_CODE = 'رمز التحقق غير صالح أو انتهت 
 
 function isPublicAccountRole(role: string): boolean {
     return role === 'STUDENT' || role === 'PARENT';
+}
+
+function normalizeClassCode(value: string): string {
+    return value.trim().toUpperCase().replace(/\s+/g, '');
 }
 
 @Injectable()
@@ -726,9 +731,7 @@ export class AuthService {
                 avatar: true,
                 schoolId: true,
                 emailVerified: true,
-                teacherProfile: { select: { id: true } },
-                classAssignments: { select: { classId: true }, take: 1 },
-                homeroomClass: { select: { id: true } },
+                teacherProfile: { select: { id: true, residenceNumber: true, specialization: true } },
                 authIdentities: {
                     where: { provider: 'firebase' },
                     select: { providerSubject: true },
@@ -777,7 +780,8 @@ export class AuthService {
                 onboardingStudentId = linkedStudent.student.id;
             }
         } else if (String(user.role) === 'TEACHER') {
-            if (!user.teacherProfile || !user.avatar || user.classAssignments.length === 0 || !user.homeroomClass) {
+            const hasValidSubject = SAUDI_PRIMARY_SUBJECTS.some((subject) => subject === user.teacherProfile?.specialization);
+            if (!user.teacherProfile?.residenceNumber || !hasValidSubject || !user.avatar) {
                 onboardingStep = 'teacher-profile';
             }
         }
@@ -809,10 +813,15 @@ export class AuthService {
                 schoolId: true,
                 avatar: true,
                 teacherProfile: {
-                    select: { specialization: true, qualification: true, yearsExperience: true, bio: true },
+                    select: { specialization: true, residenceNumber: true },
                 },
-                classAssignments: { select: { classId: true } },
-                homeroomClass: { select: { id: true } },
+                classAssignments: {
+                    select: {
+                        class: { select: { id: true, name: true, academicYear: true, classCode: true } },
+                    },
+                    orderBy: { class: { name: 'asc' } },
+                },
+                homeroomClass: { select: { classCode: true } },
             },
         });
 
@@ -823,31 +832,16 @@ export class AuthService {
             throw new ForbiddenException('The account is not assigned to a school');
         }
 
-        const schoolClasses = await this.prisma.class.findMany({
-            where: { schoolId: teacher.schoolId },
-            select: { id: true, name: true, academicYear: true, homeroomTeacherId: true },
-            orderBy: { name: 'asc' },
-        });
-        const classes = schoolClasses.map(({ homeroomTeacherId, ...schoolClass }) => ({
-            ...schoolClass,
-            homeroomAvailable: !homeroomTeacherId || homeroomTeacherId === teacher.id,
-        }));
-        const subjectRecords = await this.prisma.subject.findMany({
-            where: { schoolId: teacher.schoolId },
-            select: { name: true },
-            distinct: ['name'],
-            orderBy: { name: 'asc' },
-        });
+        const classes = teacher.classAssignments.map((assignment) => assignment.class);
 
         return {
             classes,
-            subjects: subjectRecords.map((subject) => subject.name),
             avatar: teacher.avatar,
             profile: teacher.teacherProfile
                 ? {
                     ...teacher.teacherProfile,
-                    classIds: teacher.classAssignments.map((assignment) => assignment.classId),
-                    homeroomClassId: teacher.homeroomClass?.id ?? '',
+                    classCodes: classes.map((schoolClass) => schoolClass.classCode),
+                    homeroomCode: teacher.homeroomClass?.classCode ?? '',
                 }
                 : null,
         };
@@ -867,16 +861,28 @@ export class AuthService {
         if (!teacher.avatar) {
             throw new BadRequestException('أضف صورتك الشخصية لإكمال الملف.');
         }
-        if (!dto.classIds.includes(dto.homeroomClassId)) {
-            throw new BadRequestException('اختر فصل الريادة من الفصول التي تدرّسها.');
+        const submittedClassCodes = dto.classCodes ?? [];
+        const classCodes = submittedClassCodes.map(normalizeClassCode);
+        if (classCodes.some((code) => !code) || new Set(classCodes).size !== classCodes.length) {
+            throw new BadRequestException('احذف أكواد الفصول الفارغة أو المكررة.');
+        }
+        const classes = classCodes.length
+            ? await this.prisma.class.findMany({
+                where: { schoolId: teacher.schoolId, classCode: { in: classCodes } },
+                select: { id: true, classCode: true, homeroomTeacherId: true },
+            })
+            : [];
+        if (classes.length !== classCodes.length) {
+            throw new BadRequestException('تأكد من صحة أكواد الفصول التابعة لمدرستك.');
         }
 
-        const classes = await this.prisma.class.findMany({
-            where: { id: { in: dto.classIds }, schoolId: teacher.schoolId },
-            select: { id: true },
-        });
-        if (classes.length !== dto.classIds.length) {
-            throw new BadRequestException('تأكد من اختيار فصول تابعة لمدرستك.');
+        const homeroomCode = dto.homeroomCode ? normalizeClassCode(dto.homeroomCode) : '';
+        if (homeroomCode && !classCodes.includes(homeroomCode)) {
+            throw new BadRequestException('أدخل كود فصل الريادة ضمن أكواد الفصول أولًا.');
+        }
+        const homeroomClass = homeroomCode ? classes.find((schoolClass) => schoolClass.classCode === homeroomCode) : null;
+        if (homeroomClass?.homeroomTeacherId && homeroomClass.homeroomTeacherId !== userId) {
+            throw new ConflictException('هذا الفصل مرتبط برائد آخر بالفعل.');
         }
 
         try {
@@ -885,34 +891,38 @@ export class AuthService {
                     where: { homeroomTeacherId: userId },
                     data: { homeroomTeacherId: null },
                 });
-                await transaction.class.update({
-                    where: { id: dto.homeroomClassId },
-                    data: { homeroomTeacherId: userId },
-                });
+                if (homeroomClass) {
+                    await transaction.class.update({
+                        where: { id: homeroomClass.id },
+                        data: { homeroomTeacherId: userId },
+                    });
+                }
                 await transaction.teacherClassAssignment.deleteMany({ where: { teacherId: userId } });
-                await transaction.teacherClassAssignment.createMany({
-                    data: dto.classIds.map((classId) => ({ id: randomUUID(), teacherId: userId, classId })),
-                });
+                if (classes.length) {
+                    await transaction.teacherClassAssignment.createMany({
+                        data: classes.map((schoolClass) => ({ id: randomUUID(), teacherId: userId, classId: schoolClass.id })),
+                    });
+                }
                 await transaction.teacherProfile.upsert({
                     where: { userId },
                     create: {
                         userId,
                         specialization: dto.specialization.trim(),
-                        qualification: dto.qualification.trim(),
-                        yearsExperience: dto.yearsExperience,
-                        bio: dto.bio?.trim() || null,
+                        residenceNumber: dto.residenceNumber.trim(),
                     },
                     update: {
                         specialization: dto.specialization.trim(),
-                        qualification: dto.qualification.trim(),
-                        yearsExperience: dto.yearsExperience,
-                        bio: dto.bio?.trim() || null,
+                        residenceNumber: dto.residenceNumber.trim(),
                     },
                 });
             });
         } catch (error) {
             if ((error as { code?: string })?.code === 'P2002') {
-                throw new ConflictException('هذا الفصل مرتبط برائد آخر بالفعل.');
+                const target = String((error as { meta?: { target?: unknown } })?.meta?.target ?? '');
+                if (target.toLowerCase().includes('residencenumber')) {
+                    throw new ConflictException('رقم الهوية أو الإقامة مسجل لحساب آخر.');
+                }
+                throw new ConflictException('تعذر ربط هذا الفصل؛ قد يكون مرتبطًا برائد آخر.');
             }
             throw error;
         }

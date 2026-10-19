@@ -233,6 +233,7 @@ model Class {
   description   String?
   academicYear  String?
   teacherId     String?
+  classCode     String         @unique @default(cuid())
   homeroomTeacherId String? @unique
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -259,7 +260,8 @@ model TeacherProfile {
   id              String   @id @default(uuid())
   userId          String   @unique
   specialization  String
-  qualification   String
+  residenceNumber String?  @unique
+  qualification   String   @default("")
   yearsExperience Int      @default(0)
   bio             String?
   createdAt       DateTime @default(now())

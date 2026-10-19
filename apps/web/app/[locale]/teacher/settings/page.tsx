@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
 import { Loader2, Save, User } from 'lucide-react';
 import { ChangePasswordForm } from '@/components/settings/change-password-form';
+import { Link } from '@/i18n/routing';
 
 export default function TeacherSettingsPage() {
     const { user, profile } = useAuth();
@@ -68,6 +69,9 @@ export default function TeacherSettingsPage() {
             <div>
                 <h1 className="text-3xl font-bold">⚙️ إعدادات المعلم</h1>
                 <p className="text-muted-foreground mt-1">تحكم في ملفك الشخصي وتفضيلاتك</p>
+                <Link href="/teacher/onboarding" className="mt-3 inline-flex rounded-lg border border-primary/20 px-3 py-2 text-sm font-semibold text-primary hover:bg-primary/5">
+                    تعديل المادة وأكواد الفصول
+                </Link>
             </div>
 
             <div className="grid gap-6">

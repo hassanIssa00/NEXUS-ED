@@ -1,6 +1,12 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { CreateClassDto, UpdateClassDto } from './dto/create-class.dto';
+
+function createClassCode(): string {
+  const value = randomBytes(6).toString('hex').toUpperCase();
+  return `CLS-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}`;
+}
 
 @Injectable()
 export class ClassService {
@@ -10,7 +16,7 @@ export class ClassService {
     if (!schoolId) throw new ForbiddenException('The account is not assigned to a school');
     if (createClassDto.teacherId) await this.assertTeacherInSchool(createClassDto.teacherId, schoolId);
     return this.prisma.class.create({
-      data: { ...createClassDto, schoolId },
+      data: { ...createClassDto, classCode: createClassCode(), schoolId },
     });
   }
 
