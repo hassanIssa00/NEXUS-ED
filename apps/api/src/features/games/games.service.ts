@@ -5,8 +5,18 @@ import { PrismaService } from '../../prisma.service';
 export class GamesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll() {
+  private schoolScope(schoolId: string) {
+    return {
+      OR: [
+        { subject: { is: { schoolId } } },
+        { subject: { is: { class: { is: { schoolId } } } } },
+      ],
+    };
+  }
+
+  async findAll(schoolId: string) {
     return this.prisma.game.findMany({
+      where: this.schoolScope(schoolId),
       include: {
         subject: { select: { id: true, name: true, code: true } },
       },
@@ -14,9 +24,9 @@ export class GamesService {
     });
   }
 
-  async findOne(id: string) {
-    const game = await this.prisma.game.findUnique({
-      where: { id },
+  async findOne(id: string, schoolId: string) {
+    const game = await this.prisma.game.findFirst({
+      where: { id, ...this.schoolScope(schoolId) },
       include: {
         subject: { select: { id: true, name: true } },
       },
@@ -25,9 +35,9 @@ export class GamesService {
     return game;
   }
 
-  async startGameSession(gameId: string, userId: string) {
+  async startGameSession(gameId: string, userId: string, schoolId: string) {
     // Check if game exists
-    await this.findOne(gameId);
+    await this.findOne(gameId, schoolId);
 
     // Create session
     return this.prisma.gameSession.create({
@@ -38,7 +48,7 @@ export class GamesService {
     });
   }
 
-  async finishGameSession(sessionId: string, userId: string, score: number, durationSeconds?: number) {
+  async finishGameSession(sessionId: string, userId: string, schoolId: string, score: number, durationSeconds?: number) {
     const session = await this.prisma.gameSession.findUnique({
       where: { id: sessionId },
     });
@@ -46,6 +56,8 @@ export class GamesService {
     if (!session || session.userId !== userId) {
       throw new NotFoundException('Session not found or belongs to someone else');
     }
+
+    await this.findOne(session.gameId, schoolId);
 
     // Update session
     await this.prisma.gameSession.update({
@@ -82,9 +94,10 @@ export class GamesService {
     }
   }
 
-  async getLeaderboard(gameId: string) {
+  async getLeaderboard(gameId: string, schoolId: string) {
+    await this.findOne(gameId, schoolId);
     return this.prisma.gameScore.findMany({
-      where: { gameId },
+      where: { gameId, user: { is: { schoolId } } },
       orderBy: { score: 'desc' },
       take: 10,
       include: {
