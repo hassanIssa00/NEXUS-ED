@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsIn, IsOptional, MaxLength, Matches } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsIn, IsOptional, MaxLength, Matches, ValidateIf } from 'class-validator';
 import { Role } from '../../../shared/enums/roles.enum';
 
 export class RegisterDto {
@@ -10,8 +10,13 @@ export class RegisterDto {
     password: string;
 
     @IsString()
-    @IsIn([Role.STUDENT, Role.PARENT])
+    @IsIn([Role.STUDENT, Role.PARENT, Role.TEACHER])
     role: Role;
+
+    @ValidateIf((dto: RegisterDto) => dto.role === Role.TEACHER)
+    @IsString()
+    @MinLength(8)
+    teacherCode?: string;
 
     @IsOptional()
     @IsString()

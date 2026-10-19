@@ -147,8 +147,22 @@ export class AuthService {
     }
 
     async register(registerDto: RegisterDto) {
-        if (registerDto.role !== Role.STUDENT && registerDto.role !== Role.PARENT) {
-            throw new ForbiddenException('Staff accounts must be created by school administration');
+        if (registerDto.role === Role.TEACHER) {
+            const expectedCode = this.configService.get<string>('TEACHER_REGISTRATION_CODE')?.trim().toUpperCase();
+            const providedCode = registerDto.teacherCode?.trim().toUpperCase();
+            if (!expectedCode) {
+                throw new ServiceUnavailableException('تسجيل حسابات المدرسين غير مفعّل حاليًا. تواصل مع إدارة المدرسة.');
+            }
+            if (!providedCode) {
+                throw new ForbiddenException('كود المدرس غير صحيح.');
+            }
+            const expectedBytes = Buffer.from(expectedCode, 'utf8');
+            const providedBytes = Buffer.from(providedCode, 'utf8');
+            if (expectedBytes.length !== providedBytes.length || !timingSafeEqual(expectedBytes, providedBytes)) {
+                throw new ForbiddenException('كود المدرس غير صحيح.');
+            }
+        } else if (registerDto.role !== Role.STUDENT && registerDto.role !== Role.PARENT) {
+            throw new ForbiddenException('إنشاء حسابات الموظفين متاح لإدارة المدرسة فقط.');
         }
 
         const email = registerDto.email.trim().toLowerCase();

@@ -63,7 +63,8 @@ interface AuthContextType {
         password: string,
         fullName: string,
         role: UserRole,
-        phone?: string
+        phone?: string,
+        teacherCode?: string
     ) => Promise<void>;
     requestPasswordReset: (email: string, role?: 'student' | 'parent' | 'teacher') => Promise<'code' | 'link'>;
     confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<void>;
@@ -95,6 +96,7 @@ const API_ROLE_TO_APP_ROLE: Record<string, UserRole> = {
 
 const APP_ROLE_TO_API_ROLE: Partial<Record<UserRole, string>> = {
     student: 'STUDENT',
+    teacher: 'TEACHER',
     parent: 'PARENT',
 };
 
@@ -965,21 +967,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password: string,
         fullName: string,
         role: UserRole,
-        phone?: string
+        phone?: string,
+        teacherCode?: string
     ) => {
-        if (role !== 'student' && role !== 'parent') {
-            throw new Error('حسابات الموظفين تنشئها إدارة المدرسة مباشرة، ولا تحتاج إلى مراجعة بعد إنشائها.');
+        if (role !== 'student' && role !== 'parent' && role !== 'teacher') {
+            throw new Error('إنشاء هذا النوع من الحسابات متاح لإدارة المدرسة فقط.');
+        }
+        if (role === 'teacher' && !teacherCode?.trim()) {
+            throw new Error('أدخل كود المدرس المعتمد من إدارة المدرسة.');
         }
         const apiBaseUrl = getApiBaseUrl();
+        if (role === 'teacher' && !apiBaseUrl) {
+            throw new Error('تسجيل حساب المدرس غير متاح حاليًا. تعذر الاتصال بخادم التسجيل.');
+        }
 
         try {
             await clearApiRefreshCookie();
             clearLocalApiSession();
             clearExplicitSignOut();
-            if (apiBaseUrl && !isFirebaseConfigured) {
+            if (apiBaseUrl && (!isFirebaseConfigured || role === 'teacher')) {
                 const apiRole = APP_ROLE_TO_API_ROLE[role];
                 if (!apiRole) {
-                    throw new Error('إنشاء حسابات الموظفين متاح لإدارة المدرسة فقط.');
+                    throw new Error('إنشاء هذا النوع من الحسابات متاح لإدارة المدرسة فقط.');
                 }
 
                 const response = await fetch(`${apiBaseUrl}/auth/register`, {
@@ -991,6 +1000,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         name: fullName,
                         role: apiRole,
                         phone,
+                        ...(role === 'teacher' ? { teacherCode: teacherCode?.trim() } : {}),
                     }),
                     credentials: 'include',
                 });
@@ -1002,7 +1012,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     throw new Error(errorPayload.message || 'Registration failed');
                 }
 
-                await signIn(email, password);
+                await signIn(email, password, role);
                 return;
             }
 

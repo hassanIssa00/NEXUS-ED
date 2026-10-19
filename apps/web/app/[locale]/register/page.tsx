@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, Phone, GraduationCap, Users, BookOpen, ArrowLeft, Sparkles, AlertCircle, Globe2, ShieldCheck } from 'lucide-react';
+import { User, Mail, Lock, Phone, GraduationCap, Users, BookOpen, ArrowLeft, Sparkles, AlertCircle, Globe2, KeyRound } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { isAuthenticationConfigured, isGoogleAuthenticationConfigured, useAuth } from '@/contexts/auth-context';
 
@@ -31,6 +31,7 @@ function RegisterForm() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [teacherCode, setTeacherCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -63,12 +64,17 @@ function RegisterForm() {
       return;
     }
 
+    if (accountType === 'teacher' && !teacherCode.trim()) {
+      setError('أدخل كود المدرس المعتمد من إدارة المدرسة.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await signUp(email.trim().toLowerCase(), password, fullName.trim(), accountType, phone.trim());
+      await signUp(email.trim().toLowerCase(), password, fullName.trim(), accountType, phone.trim(), teacherCode.trim());
       if (accountType === 'teacher') {
-        router.push('/verify-email');
+        router.push('/teacher');
         return;
       }
       const flow = accountType === 'student' ? 'student' : 'parent';
@@ -120,7 +126,7 @@ function RegisterForm() {
             </p>
           </div>
 
-          {/* Student, parent, and teacher self-registration */}
+          {/* Student, parent, and code-gated teacher registration */}
           <div className="grid grid-cols-3 gap-2 bg-gray-100 dark:bg-white/5 p-1.5 rounded-2xl mb-6">
             <button
               type="button"
@@ -159,13 +165,6 @@ function RegisterForm() {
               <span>معلم</span>
             </button>
           </div>
-
-          {accountType === 'teacher' && (
-            <div role="status" className="mb-4 flex items-start gap-2 rounded-2xl border border-blue-200 bg-blue-50 p-3 text-xs leading-5 font-semibold text-blue-900">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>حسابات الموظفين تنشئها إدارة المدرسة مباشرة، ويمكن للمعلم تسجيل الدخول فور تجهيز حسابه دون انتظار مراجعة.</span>
-            </div>
-          )}
 
           {error && (
             <div className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 text-xs font-bold flex items-center gap-2">
@@ -237,6 +236,29 @@ function RegisterForm() {
               </div>
             </div>
 
+            {accountType === 'teacher' && (
+              <div>
+                <label htmlFor="teacher-registration-code" className="mb-1.5 block text-xs font-black text-gray-600 dark:text-gray-300">كود المدرس *</label>
+                <div className="relative">
+                  <KeyRound className="absolute right-3.5 top-3.5 h-4 w-4 text-gray-400" />
+                  <input
+                    id="teacher-registration-code"
+                    required
+                    value={teacherCode}
+                    onChange={(event) => setTeacherCode(event.target.value)}
+                    placeholder="أدخل كود التسجيل من إدارة المدرسة"
+                    autoCapitalize="characters"
+                    autoComplete="one-time-code"
+                    spellCheck={false}
+                    maxLength={64}
+                    dir="ltr"
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-4 pr-10 text-sm font-bold uppercase tracking-wider text-gray-900 placeholder:text-right placeholder:text-xs placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] text-gray-500">هذا الكود مطلوب لإنشاء حساب مدرس.</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">كلمة المرور *</label>
@@ -279,7 +301,7 @@ function RegisterForm() {
                   <div className="w-5 h-5 rounded-full border-2 border-white/20 border-t-white animate-spin" />
                 ) : (
                   <>
-                    <span>{accountType === 'teacher' ? 'إنشاء حساب المعلم وإرسال الطلب' : 'إنشاء الحساب وإصدار المعرف الرسمي'}</span>
+                    <span>{accountType === 'teacher' ? 'إنشاء حساب المعلم' : 'إنشاء الحساب وإصدار المعرف الرسمي'}</span>
                     <ArrowLeft className="w-4 h-4" />
                   </>
                 )}
