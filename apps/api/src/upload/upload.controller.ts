@@ -33,7 +33,7 @@ Object.assign(globalThis, {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
 
-export function isValidStudentAvatarUpload(file: Express.Multer.File | null | undefined): boolean {
+export function isValidAvatarUpload(file: Express.Multer.File | null | undefined): boolean {
   if (!file || file.size < 1 || file.size > 512 * 1024) return false;
   if (!Buffer.isBuffer(file.buffer)) return false;
 
@@ -48,6 +48,8 @@ export function isValidStudentAvatarUpload(file: Express.Multer.File | null | un
     && file.buffer.toString('ascii', 0, 4) === 'RIFF'
     && file.buffer.toString('ascii', 8, 12) === 'WEBP';
 }
+
+export const isValidStudentAvatarUpload = isValidAvatarUpload;
 
 @Controller('upload')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -162,7 +164,7 @@ export class UploadController {
   }
 
   @Patch('me/avatar')
-  @Roles(Role.STUDENT)
+  @Roles(Role.STUDENT, Role.TEACHER)
   @Throttle({ short: { limit: 3, ttl: 60000 } })
   @UseInterceptors(FileInterceptor('file', {
     storage: memoryStorage(),
@@ -170,7 +172,7 @@ export class UploadController {
   }))
   async setMyAvatar(@UploadedFile() file: Express.Multer.File, @Request() req: any) {
     const userId = req.user.userId || req.user.sub || req.user.id;
-    if (!isValidStudentAvatarUpload(file)) {
+    if (!isValidAvatarUpload(file)) {
       throw new BadRequestException('اختر صورة JPEG أو PNG أو WebP صالحة لا يتجاوز حجمها 512 كيلوبايت');
     }
 

@@ -298,7 +298,11 @@ export class DashboardService {
       this.prisma.class.findMany({
         where: {
           schoolId: teacher.schoolId,
-          OR: [{ teacherId: userId }, { classSubjects: { some: { teacherId: userId } } }],
+          OR: [
+            { teacherId: userId },
+            { classSubjects: { some: { teacherId: userId } } },
+            { teacherAssignments: { some: { teacherId: userId } } },
+          ],
         },
         include: {
           students: { select: { studentId: true } },
@@ -309,7 +313,11 @@ export class DashboardService {
       this.prisma.subject.findMany({
         where: {
           schoolId: teacher.schoolId,
-          OR: [{ teacherId: userId }, { classSubjects: { some: { teacherId: userId } } }],
+          OR: [
+            { teacherId: userId },
+            { classSubjects: { some: { teacherId: userId } } },
+            { class: { teacherAssignments: { some: { teacherId: userId } } } },
+          ],
         },
         include: {
           lessons: { select: { id: true } },
@@ -338,6 +346,7 @@ export class DashboardService {
           OR: [
             { teacherId: userId },
             { subject: { schoolId: teacher.schoolId, classSubjects: { some: { teacherId: userId } } } },
+            { subject: { schoolId: teacher.schoolId, class: { teacherAssignments: { some: { teacherId: userId } } } } },
           ],
         },
         gradedAt: null,
@@ -360,6 +369,7 @@ export class DashboardService {
             OR: [
               { teacherId: userId },
               { subject: { schoolId: teacher.schoolId, classSubjects: { some: { teacherId: userId } } } },
+              { subject: { schoolId: teacher.schoolId, class: { teacherAssignments: { some: { teacherId: userId } } } } },
             ],
           },
           gradedAt: null,
@@ -373,6 +383,7 @@ export class DashboardService {
         OR: [
           { teacherId: userId },
           { subject: { schoolId: teacher.schoolId, classSubjects: { some: { teacherId: userId } } } },
+          { subject: { schoolId: teacher.schoolId, class: { teacherAssignments: { some: { teacherId: userId } } } } },
         ],
       },
       include: {

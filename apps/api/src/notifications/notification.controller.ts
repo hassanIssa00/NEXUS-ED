@@ -165,13 +165,19 @@ export class NotificationController {
     if (body.targetType === 'class' && body.targetClassId) {
       const schoolClass = await this.prisma.class.findUnique({
         where: { id: body.targetClassId },
-        select: { schoolId: true, teacherId: true, classSubjects: { select: { teacherId: true } } },
+        select: {
+          schoolId: true,
+          teacherId: true,
+          classSubjects: { select: { teacherId: true } },
+          teacherAssignments: { where: { teacherId }, select: { teacherId: true } },
+        },
       });
       if (!schoolClass || schoolClass.schoolId !== schoolId) {
         throw new ForbiddenException('The class is outside your school');
       }
       if (req.user.role === Role.TEACHER && schoolClass.teacherId !== teacherId &&
-          !schoolClass.classSubjects.some((subject) => subject.teacherId === teacherId)) {
+          !schoolClass.classSubjects.some((subject) => subject.teacherId === teacherId) &&
+          schoolClass.teacherAssignments.length === 0) {
         throw new ForbiddenException('You do not teach this class');
       }
       const enrollments = await this.prisma.enrollment.findMany({

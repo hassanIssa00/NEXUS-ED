@@ -11,19 +11,18 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { EmailService } from '../../../notifications/email.service';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
-import { GoogleLoginDto } from '../dto/google-login.dto';
 import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
 import { ConfirmPasswordResetDto } from '../dto/confirm-password-reset.dto';
 import { Role } from '../../../shared/enums/roles.enum';
-import { GoogleIdentityService } from './google-identity.service';
 import { FirebaseIdentityService } from './firebase-identity.service';
+import { SaveTeacherProfileDto } from '../dto/teacher-profile.dto';
 import { getJwtRefreshSecret } from '../../../config/jwt';
 
 const ACCESS_TOKEN_TTL = '15m';
@@ -49,7 +48,6 @@ export class AuthService {
         private jwtService: JwtService,
         private configService: ConfigService,
         private emailService: EmailService,
-        private googleIdentityService: GoogleIdentityService,
         private firebaseIdentityService: FirebaseIdentityService,
     ) { }
 
@@ -202,104 +200,6 @@ export class AuthService {
 
         const { password, ...result } = user;
         return result;
-    }
-
-    async loginWithGoogle(dto: GoogleLoginDto) {
-        if (!isPublicAccountRole(String(dto.role))) {
-            throw new ForbiddenException('Google sign-in is only available to students and parents');
-        }
-
-        const identity = await this.googleIdentityService.verifyIdToken(dto.idToken);
-        const provider = 'google';
-        let user = await this.prisma.authIdentity.findUnique({
-            where: { provider_providerSubject: { provider, providerSubject: identity.subject } },
-            include: { user: true },
-        }).then((record) => record?.user ?? null);
-        let isNewUser = false;
-
-        if (user) {
-            if (!user.isActive || String(user.role) !== String(dto.role)) {
-                throw new UnauthorizedException('Google account does not match this portal');
-            }
-        } else {
-            const existingUser = await this.prisma.user.findUnique({ where: { email: identity.email } });
-            if (existingUser) {
-                if (
-                    !existingUser.isActive
-                    || String(existingUser.role) !== String(dto.role)
-                    || !isPublicAccountRole(String(existingUser.role))
-                ) {
-                    throw new UnauthorizedException('Google account does not match this portal');
-                }
-
-                user = await this.prisma.$transaction(async (transaction) => {
-                    await transaction.authIdentity.create({
-                        data: { provider, providerSubject: identity.subject, userId: existingUser.id },
-                    });
-                    return transaction.user.update({
-                        where: { id: existingUser.id },
-                        data: {
-                            emailVerified: true,
-                            ...(identity.picture && !existingUser.avatar ? { avatar: identity.picture } : {}),
-                        },
-                    });
-                });
-            } else {
-                const schoolId = await this.resolvePublicSchoolId();
-                const password = await bcrypt.hash(randomBytes(48).toString('hex'), 12);
-                user = await this.prisma.$transaction(async (transaction) => {
-                    const createdUser = await transaction.user.create({
-                        data: {
-                            email: identity.email,
-                            password,
-                            role: dto.role,
-                            name: identity.name,
-                            avatar: identity.picture,
-                            emailVerified: true,
-                            schoolId,
-                        },
-                    });
-                    await transaction.authIdentity.create({
-                        data: { provider, providerSubject: identity.subject, userId: createdUser.id },
-                    });
-                    return createdUser;
-                });
-                isNewUser = true;
-            }
-        }
-
-        const payload = this.buildAuthPayload({
-            id: user.id,
-            email: user.email,
-            role: user.role,
-            name: user.name,
-            schoolId: user.schoolId,
-        });
-        const accessToken = await this.jwtService.signAsync(payload);
-        const refreshToken = await this.issueRefreshToken(user.id);
-
-        await this.createAuditLog({
-            schoolId: user.schoolId,
-            userId: user.id,
-            action: isNewUser ? 'auth.google_register' : 'auth.google_login',
-            entityType: 'session',
-            entityId: user.id,
-            metadata: { role: user.role },
-        });
-
-        return {
-            access_token: accessToken,
-            refresh_token: refreshToken,
-            is_new_user: isNewUser,
-            user: this.buildSafeUser({
-                id: user.id,
-                email: user.email,
-                role: user.role,
-                name: user.name,
-                schoolId: user.schoolId,
-                phone: user.phone,
-            }),
-        };
     }
 
     async loginWithFirebase(idToken: string, allowUnverified = false) {
@@ -826,6 +726,9 @@ export class AuthService {
                 avatar: true,
                 schoolId: true,
                 emailVerified: true,
+                teacherProfile: { select: { id: true } },
+                classAssignments: { select: { classId: true }, take: 1 },
+                homeroomClass: { select: { id: true } },
                 authIdentities: {
                     where: { provider: 'firebase' },
                     select: { providerSubject: true },
@@ -873,6 +776,10 @@ export class AuthService {
                 onboardingStep = 'parent-survey';
                 onboardingStudentId = linkedStudent.student.id;
             }
+        } else if (String(user.role) === 'TEACHER') {
+            if (!user.teacherProfile || !user.avatar || user.classAssignments.length === 0 || !user.homeroomClass) {
+                onboardingStep = 'teacher-profile';
+            }
         }
 
         return {
@@ -891,6 +798,126 @@ export class AuthService {
             onboardingStep,
             ...(onboardingStudentId ? { onboardingStudentId } : {}),
         };
+    }
+
+    async getTeacherProfileOptions(userId: string) {
+        const teacher = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                role: true,
+                schoolId: true,
+                avatar: true,
+                teacherProfile: {
+                    select: { specialization: true, qualification: true, yearsExperience: true, bio: true },
+                },
+                classAssignments: { select: { classId: true } },
+                homeroomClass: { select: { id: true } },
+            },
+        });
+
+        if (!teacher || String(teacher.role) !== 'TEACHER') {
+            throw new ForbiddenException('Teacher account required');
+        }
+        if (!teacher.schoolId) {
+            throw new ForbiddenException('The account is not assigned to a school');
+        }
+
+        const schoolClasses = await this.prisma.class.findMany({
+            where: { schoolId: teacher.schoolId },
+            select: { id: true, name: true, academicYear: true, homeroomTeacherId: true },
+            orderBy: { name: 'asc' },
+        });
+        const classes = schoolClasses.map(({ homeroomTeacherId, ...schoolClass }) => ({
+            ...schoolClass,
+            homeroomAvailable: !homeroomTeacherId || homeroomTeacherId === teacher.id,
+        }));
+        const subjectRecords = await this.prisma.subject.findMany({
+            where: { schoolId: teacher.schoolId },
+            select: { name: true },
+            distinct: ['name'],
+            orderBy: { name: 'asc' },
+        });
+
+        return {
+            classes,
+            subjects: subjectRecords.map((subject) => subject.name),
+            avatar: teacher.avatar,
+            profile: teacher.teacherProfile
+                ? {
+                    ...teacher.teacherProfile,
+                    classIds: teacher.classAssignments.map((assignment) => assignment.classId),
+                    homeroomClassId: teacher.homeroomClass?.id ?? '',
+                }
+                : null,
+        };
+    }
+
+    async saveTeacherProfile(userId: string, dto: SaveTeacherProfileDto) {
+        const teacher = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { role: true, schoolId: true, avatar: true },
+        });
+        if (!teacher || String(teacher.role) !== 'TEACHER') {
+            throw new ForbiddenException('Teacher account required');
+        }
+        if (!teacher.schoolId) {
+            throw new ForbiddenException('The account is not assigned to a school');
+        }
+        if (!teacher.avatar) {
+            throw new BadRequestException('أضف صورتك الشخصية لإكمال الملف.');
+        }
+        if (!dto.classIds.includes(dto.homeroomClassId)) {
+            throw new BadRequestException('اختر فصل الريادة من الفصول التي تدرّسها.');
+        }
+
+        const classes = await this.prisma.class.findMany({
+            where: { id: { in: dto.classIds }, schoolId: teacher.schoolId },
+            select: { id: true },
+        });
+        if (classes.length !== dto.classIds.length) {
+            throw new BadRequestException('تأكد من اختيار فصول تابعة لمدرستك.');
+        }
+
+        try {
+            await this.prisma.$transaction(async (transaction) => {
+                await transaction.class.updateMany({
+                    where: { homeroomTeacherId: userId },
+                    data: { homeroomTeacherId: null },
+                });
+                await transaction.class.update({
+                    where: { id: dto.homeroomClassId },
+                    data: { homeroomTeacherId: userId },
+                });
+                await transaction.teacherClassAssignment.deleteMany({ where: { teacherId: userId } });
+                await transaction.teacherClassAssignment.createMany({
+                    data: dto.classIds.map((classId) => ({ id: randomUUID(), teacherId: userId, classId })),
+                });
+                await transaction.teacherProfile.upsert({
+                    where: { userId },
+                    create: {
+                        userId,
+                        specialization: dto.specialization.trim(),
+                        qualification: dto.qualification.trim(),
+                        yearsExperience: dto.yearsExperience,
+                        bio: dto.bio?.trim() || null,
+                    },
+                    update: {
+                        specialization: dto.specialization.trim(),
+                        qualification: dto.qualification.trim(),
+                        yearsExperience: dto.yearsExperience,
+                        bio: dto.bio?.trim() || null,
+                    },
+                });
+            });
+        } catch (error) {
+            if ((error as { code?: string })?.code === 'P2002') {
+                throw new ConflictException('هذا الفصل مرتبط برائد آخر بالفعل.');
+            }
+            throw error;
+        }
+
+        return { success: true };
     }
 
     private placementAssessmentKey(gradeLevel: number): string | false {

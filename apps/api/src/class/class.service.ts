@@ -29,6 +29,7 @@ export class ClassService {
       where.OR = [
         { teacherId: actorId },
         { classSubjects: { some: { teacherId: actorId } } },
+        { teacherAssignments: { some: { teacherId: actorId } } },
       ];
     }
     const classes = await this.prisma.class.findMany({
@@ -57,6 +58,7 @@ export class ClassService {
       include: {
         teacher: { select: { id: true, name: true, email: true } },
         classSubjects: { select: { teacherId: true } },
+        teacherAssignments: { select: { teacherId: true } },
         students: {
           include: {
             student: { select: { id: true, name: true, firstName: true, lastName: true } },
@@ -70,7 +72,9 @@ export class ClassService {
       throw new NotFoundException(`Class with ID ${id} not found`);
     }
     const isTeacher = role === 'TEACHER' && (
-      classEntity.teacherId === actorId || classEntity.classSubjects.some((subject) => subject.teacherId === actorId)
+      classEntity.teacherId === actorId
+      || classEntity.classSubjects.some((subject) => subject.teacherId === actorId)
+      || classEntity.teacherAssignments.some((assignment) => assignment.teacherId === actorId)
     );
     const isSchoolStaff = role !== 'TEACHER';
     if (!isTeacher && !isSchoolStaff) throw new ForbiddenException('You do not have access to this class');

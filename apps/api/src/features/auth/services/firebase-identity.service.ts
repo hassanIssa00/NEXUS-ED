@@ -14,6 +14,7 @@ interface FirebaseClaims extends JwtPayload {
   user_id?: string;
   email?: string;
   email_verified?: boolean;
+  firebase?: { sign_in_provider?: string };
 }
 
 interface FirestoreField {
@@ -73,6 +74,10 @@ export class FirebaseIdentityService {
       }) as FirebaseClaims;
     } catch {
       throw new UnauthorizedException('Firebase identity token is invalid or expired');
+    }
+
+    if (claims.firebase?.sign_in_provider === 'google.com') {
+      throw new UnauthorizedException('Google sign-in is disabled');
     }
 
     const uid = claims.user_id || claims.sub;

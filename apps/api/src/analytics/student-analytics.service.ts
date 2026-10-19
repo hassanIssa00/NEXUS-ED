@@ -85,6 +85,7 @@ export class StudentAnalyticsService {
                 select: {
                   teacherId: true,
                   classSubjects: { select: { teacherId: true } },
+                  teacherAssignments: { where: { teacherId: actorId }, select: { teacherId: true } },
                 },
               },
             },
@@ -101,7 +102,9 @@ export class StudentAnalyticsService {
     const isStudent = actorRole === 'STUDENT' && actorId === studentId;
     const isParent = actorRole === 'PARENT' && student.parents.some((parent) => parent.parentId === actorId);
     const isTeacher = actorRole === 'TEACHER' && student.enrollments.some(({ class: schoolClass }) =>
-      schoolClass.teacherId === actorId || schoolClass.classSubjects.some((subject) => subject.teacherId === actorId),
+      schoolClass.teacherId === actorId
+      || schoolClass.classSubjects.some((subject) => subject.teacherId === actorId)
+      || schoolClass.teacherAssignments.length > 0,
     );
     const isSchoolStaff = sameSchool && ['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'COUNSELOR', 'SUPERVISOR', 'HR'].includes(actorRole);
 
@@ -119,7 +122,12 @@ export class StudentAnalyticsService {
       this.prisma.user.findUnique({ where: { id: actorId }, select: { schoolId: true } }),
       this.prisma.class.findUnique({
         where: { id: classId },
-        select: { schoolId: true, teacherId: true, classSubjects: { select: { teacherId: true } } },
+        select: {
+          schoolId: true,
+          teacherId: true,
+          classSubjects: { select: { teacherId: true } },
+          teacherAssignments: { where: { teacherId: actorId }, select: { teacherId: true } },
+        },
       }),
     ]);
 
@@ -128,7 +136,9 @@ export class StudentAnalyticsService {
     }
 
     const isTeacher = actorRole === 'TEACHER' && (
-      schoolClass.teacherId === actorId || schoolClass.classSubjects.some((subject) => subject.teacherId === actorId)
+      schoolClass.teacherId === actorId
+      || schoolClass.classSubjects.some((subject) => subject.teacherId === actorId)
+      || schoolClass.teacherAssignments.length > 0
     );
     const isSchoolStaff = Boolean(actor.schoolId && actor.schoolId === schoolClass.schoolId) &&
       ['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'COUNSELOR', 'SUPERVISOR', 'HR'].includes(actorRole);

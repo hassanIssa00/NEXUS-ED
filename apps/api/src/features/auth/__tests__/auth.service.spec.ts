@@ -5,7 +5,6 @@ import { BadRequestException, ConflictException, ForbiddenException, ServiceUnav
 import * as bcrypt from 'bcrypt';
 import { createHash, createHmac } from 'crypto';
 import { AuthService } from '../services/auth.service';
-import { GoogleIdentityService } from '../services/google-identity.service';
 import { FirebaseIdentityService } from '../services/firebase-identity.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { EmailService } from '../../../notifications/email.service';
@@ -61,7 +60,6 @@ describe('AuthService', () => {
     };
 
     const mockEmailService = { isConfigured: jest.fn(), sendEmail: jest.fn() };
-    const mockGoogleIdentityService = { verifyIdToken: jest.fn() };
     const mockFirebaseIdentityService = { verifyAndReadProfile: jest.fn() };
 
     beforeEach(async () => {
@@ -81,7 +79,6 @@ describe('AuthService', () => {
                     useValue: mockConfigService,
                 },
                 { provide: EmailService, useValue: mockEmailService },
-                { provide: GoogleIdentityService, useValue: mockGoogleIdentityService },
                 { provide: FirebaseIdentityService, useValue: mockFirebaseIdentityService },
             ],
         }).compile();
@@ -291,45 +288,6 @@ describe('AuthService', () => {
             (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
             await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
-        });
-    });
-
-    describe('loginWithGoogle', () => {
-        it('creates only a student or parent identity after a verified Google token', async () => {
-            mockGoogleIdentityService.verifyIdToken.mockResolvedValue({
-                subject: 'google-subject',
-                email: 'student@example.com',
-                name: 'Student Example',
-            });
-            mockPrismaService.authIdentity.findUnique.mockResolvedValue(null);
-            mockPrismaService.user.findUnique.mockResolvedValue(null);
-            mockPrismaService.school.findMany.mockResolvedValue([{ id: 'school-1' }]);
-            (bcrypt.hash as jest.Mock).mockResolvedValue('unusable-random-password-hash');
-            mockTransaction.user.create.mockResolvedValue({
-                id: 'student-1',
-                email: 'student@example.com',
-                role: 'STUDENT',
-                name: 'Student Example',
-                schoolId: 'school-1',
-                phone: null,
-            });
-            mockJwtService.signAsync.mockResolvedValueOnce('access-token').mockResolvedValueOnce('refresh-token');
-            mockPrismaService.refreshToken.create.mockResolvedValue({});
-
-            const result = await service.loginWithGoogle({ idToken: 'google-id-token', role: 'STUDENT' } as any);
-
-            expect(result.is_new_user).toBe(true);
-            expect(result.user.role).toBe('STUDENT');
-            expect(mockTransaction.authIdentity.create).toHaveBeenCalledWith({
-                data: { provider: 'google', providerSubject: 'google-subject', userId: 'student-1' },
-            });
-            expect(mockPrismaService.user.create).not.toHaveBeenCalled();
-        });
-
-        it('rejects Google registration for staff roles before verifying the token', async () => {
-            await expect(service.loginWithGoogle({ idToken: 'google-id-token', role: 'ADMIN' } as any))
-                .rejects.toThrow(ForbiddenException);
-            expect(mockGoogleIdentityService.verifyIdToken).not.toHaveBeenCalled();
         });
     });
 

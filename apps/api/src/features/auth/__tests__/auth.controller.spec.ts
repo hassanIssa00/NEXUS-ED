@@ -12,7 +12,6 @@ describe('AuthController', () => {
 
     const mockAuthService = {
         register: jest.fn(),
-        loginWithGoogle: jest.fn(),
         loginWithFirebase: jest.fn(),
         requestPasswordReset: jest.fn(),
         confirmPasswordReset: jest.fn(),
@@ -126,33 +125,7 @@ describe('AuthController', () => {
         });
     });
 
-    describe('Google sign-in and password reset', () => {
-        it('sets the refresh cookie after Google identity exchange', async () => {
-            mockAuthService.loginWithGoogle.mockResolvedValue({
-                access_token: 'google-access',
-                refresh_token: 'google-refresh',
-                is_new_user: true,
-                user: { id: '1', email: 'student@example.com', role: Role.STUDENT },
-            });
-            const res = mockResponse();
-
-            const result = await controller.googleLogin(
-                { idToken: 'google-id-token', role: Role.STUDENT } as any,
-                res,
-            );
-
-            expect(mockAuthService.loginWithGoogle).toHaveBeenCalledWith({
-                idToken: 'google-id-token', role: Role.STUDENT,
-            });
-            expect(res.cookie).toHaveBeenCalledWith(
-                'refresh_token',
-                'google-refresh',
-                expect.objectContaining({ httpOnly: true, path: '/' }),
-            );
-            expect(result).not.toHaveProperty('refresh_token');
-            expect(result).toHaveProperty('is_new_user', true);
-        });
-
+    describe('Password reset', () => {
         it('routes password reset requests to the auth service', async () => {
             const dto = { email: 'student@example.com' };
             mockAuthService.requestPasswordReset.mockResolvedValue({ message: 'generic response' });

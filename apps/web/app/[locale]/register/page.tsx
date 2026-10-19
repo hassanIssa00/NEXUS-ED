@@ -6,17 +6,65 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, Phone, GraduationCap, Users, BookOpen, ArrowLeft, Sparkles, AlertCircle, Globe2, KeyRound } from 'lucide-react';
+import { User, Mail, Lock, Phone, GraduationCap, Users, BookOpen, ArrowLeft, Sparkles, AlertCircle, KeyRound } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/language-switcher';
-import { isAuthenticationConfigured, isGoogleAuthenticationConfigured, useAuth } from '@/contexts/auth-context';
+import { isAuthenticationConfigured, useAuth } from '@/contexts/auth-context';
+
+const registrationCopy = {
+  ar: {
+    unavailable: 'إنشاء الحساب غير متاح حاليًا. يُرجى التواصل مع إدارة المدرسة.',
+    fullNameRequired: 'يرجى كتابة الاسم كاملاً',
+    emailRequired: 'يرجى إدخال بريد إلكتروني صحيح',
+    passwordShort: 'كلمة المرور يجب ألا تقل عن 8 أحرف أو أرقام',
+    passwordMismatch: 'كلمات المرور غير متطابقة',
+    teacherCodeRequired: 'أدخل كود المدرس المعتمد من إدارة المدرسة.',
+    submitError: 'حدث خطأ أثناء إنشاء الحساب',
+    logoAlt: 'نكسس التعليمية',
+    academicYear: 'مدارس نكسس التعليمية الأهلية — العام الدراسي 1448هـ',
+    title: (role: string) => role === 'student' ? 'إنشاء حساب طالب' : role === 'teacher' ? 'إنشاء حساب معلم' : 'إنشاء حساب ولي أمر',
+    subtitle: 'انضم إلى المنظومة المدرسية الشاملة مع معرف نظام موحد (Universal ID)',
+    parent: 'ولي أمر', student: 'طالب', teacher: 'معلم',
+    parentName: 'اسم ولي الأمر الكامل *', studentName: 'اسم الطالب الكامل *', teacherName: 'اسم المعلم الكامل *',
+    parentPlaceholder: 'مثال: فيصل الغامدي', studentPlaceholder: 'مثال: أحمد فيصل الغامدي', teacherPlaceholder: 'مثال: محمد أحمد',
+    email: 'البريد الإلكتروني *', phone: 'رقم الجوال *',
+    teacherCode: 'كود المدرس *', teacherCodePlaceholder: 'أدخل كود التسجيل من إدارة المدرسة', teacherCodeHint: 'هذا الكود مطلوب لإنشاء حساب مدرس.',
+    password: 'كلمة المرور *', confirmPassword: 'تأكيد كلمة المرور *',
+    createTeacher: 'إنشاء حساب المعلم', createAccount: 'إنشاء الحساب وإصدار المعرف الرسمي',
+    already: 'لديك حساب بالفعل؟', login: 'تسجيل الدخول',
+    loading: 'جارٍ تحميل صفحة التسجيل...',
+  },
+  en: {
+    unavailable: 'Account creation is currently unavailable. Please contact the school administration.',
+    fullNameRequired: 'Enter your full name.',
+    emailRequired: 'Enter a valid email address.',
+    passwordShort: 'Password must contain at least 8 characters.',
+    passwordMismatch: 'Passwords do not match.',
+    teacherCodeRequired: 'Enter the teacher registration code provided by the school.',
+    submitError: 'There was a problem creating your account.',
+    logoAlt: 'Nexus EDU',
+    academicYear: 'Nexus EDU Private Schools — Academic Year 1448 AH',
+    title: (role: string) => role === 'student' ? 'Create a student account' : role === 'teacher' ? 'Create a teacher account' : 'Create a parent account',
+    subtitle: 'Join the school platform with one unified account.',
+    parent: 'Parent', student: 'Student', teacher: 'Teacher',
+    parentName: 'Parent full name *', studentName: 'Student full name *', teacherName: 'Teacher full name *',
+    parentPlaceholder: 'e.g. Faisal Alghamdi', studentPlaceholder: 'e.g. Ahmed Faisal Alghamdi', teacherPlaceholder: 'e.g. Mohamed Ahmed',
+    email: 'Email address *', phone: 'Mobile number *',
+    teacherCode: 'Teacher registration code *', teacherCodePlaceholder: 'Enter the code from your school', teacherCodeHint: 'A valid school code is required to register as a teacher.',
+    password: 'Password *', confirmPassword: 'Confirm password *',
+    createTeacher: 'Create teacher account', createAccount: 'Create account and issue your ID',
+    already: 'Already have an account?', login: 'Sign in',
+    loading: 'Loading registration...',
+  },
+} as const;
 
 function RegisterForm() {
   const router = useRouter();
   const locale = useLocale();
   const searchParams = useSearchParams();
-  const { signUp, signInWithGoogle } = useAuth();
+  const { signUp } = useAuth();
   const authConfigured = isAuthenticationConfigured();
-  const googleConfigured = isGoogleAuthenticationConfigured();
+  const isEnglish = locale === 'en';
+  const copy = registrationCopy[isEnglish ? 'en' : 'ar'];
   const requestedRole = searchParams.get('role');
   const initialRole = requestedRole === 'student' || requestedRole === 'teacher' ? requestedRole : 'parent';
   const [accountType, setAccountType] = useState<'parent' | 'student' | 'teacher'>(initialRole);
@@ -40,32 +88,32 @@ function RegisterForm() {
     setError('');
 
     if (!authConfigured) {
-      setError('إنشاء الحساب غير متاح حاليًا. يُرجى التواصل مع إدارة المدرسة.');
+      setError(copy.unavailable);
       return;
     }
 
     if (!fullName.trim()) {
-      setError('يرجى كتابة الاسم كاملاً');
+      setError(copy.fullNameRequired);
       return;
     }
 
     if (!email.trim() || !email.includes('@')) {
-      setError('يرجى إدخال بريد إلكتروني صحيح');
+      setError(copy.emailRequired);
       return;
     }
 
     if (password.length < 8) {
-      setError('كلمة المرور يجب ألا تقل عن 8 أحرف أو أرقام');
+      setError(copy.passwordShort);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('كلمات المرور غير متطابقة');
+      setError(copy.passwordMismatch);
       return;
     }
 
     if (accountType === 'teacher' && !teacherCode.trim()) {
-      setError('أدخل كود المدرس المعتمد من إدارة المدرسة.');
+      setError(copy.teacherCodeRequired);
       return;
     }
 
@@ -74,40 +122,25 @@ function RegisterForm() {
     try {
       await signUp(email.trim().toLowerCase(), password, fullName.trim(), accountType, phone.trim(), teacherCode.trim());
       if (accountType === 'teacher') {
-        router.push('/teacher');
+        router.push('/teacher/onboarding');
         return;
       }
       const flow = accountType === 'student' ? 'student' : 'parent';
       router.push(`/student/new?flow=${flow}`);
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || 'حدث خطأ أثناء إنشاء الحساب');
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleSignUp = async () => {
-    if (accountType === 'teacher') return;
-    setError('');
-    setLoading(true);
-    try {
-      const result = await signInWithGoogle(accountType);
-      if (result.isNewUser) router.push(`/student/new?flow=${accountType}`);
-      else router.push(`/${result.role}`);
-    } catch (err: any) {
-      setError(err?.message || 'تعذر المتابعة باستخدام Google.');
-    } finally {
+      setError(err?.message || copy.submitError);
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-slate-50 dark:bg-[#0f1015]" dir="rtl">
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-slate-50 dark:bg-[#0f1015]" dir={isEnglish ? 'ltr' : 'rtl'}>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-[520px] my-auto">
         <div className="bg-white/90 dark:bg-[#1e1e2d]/90 backdrop-blur-2xl border border-gray-100 dark:border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
           <div className="flex justify-between items-center mb-6">
             <Link href="/" className="flex items-center gap-2">
-              <img src="/logo_new.webp" alt="Nexus EDU" className="w-10 h-10 rounded-2xl shadow-sm object-cover" />
+              <img src="/logo_new.webp" alt={copy.logoAlt} className="w-10 h-10 rounded-2xl shadow-sm object-cover" />
               <span className="font-black text-gray-900 dark:text-white text-base">Nexus EDU</span>
             </Link>
             <LanguageSwitcher />
@@ -116,13 +149,13 @@ function RegisterForm() {
           <div className="text-center mb-6">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 text-xs font-bold mb-3">
               <Sparkles className="w-3 h-3" />
-              <span>مدارس نكسس التعليمية الأهلية — العام الدراسي 1448هـ</span>
+              <span>{copy.academicYear}</span>
             </div>
             <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
-              {accountType === 'student' ? 'إنشاء حساب طالب' : accountType === 'teacher' ? 'إنشاء حساب معلم' : 'إنشاء حساب ولي أمر'}
+              {copy.title(accountType)}
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              انضم إلى المنظومة المدرسية الشاملة مع معرف نظام موحد (Universal ID)
+              {copy.subtitle}
             </p>
           </div>
 
@@ -138,7 +171,7 @@ function RegisterForm() {
               }`}
             >
               <Users className="w-4 h-4" />
-              <span>ولي أمر</span>
+              <span>{copy.parent}</span>
             </button>
             <button
               type="button"
@@ -150,7 +183,7 @@ function RegisterForm() {
               }`}
             >
               <GraduationCap className="w-4 h-4" />
-              <span>طالب</span>
+              <span>{copy.student}</span>
             </button>
             <button
               type="button"
@@ -162,7 +195,7 @@ function RegisterForm() {
               }`}
             >
               <BookOpen className="h-4 w-4 shrink-0" />
-              <span>معلم</span>
+              <span>{copy.teacher}</span>
             </button>
           </div>
 
@@ -176,7 +209,7 @@ function RegisterForm() {
           {!authConfigured && (
             <div role="status" className="mb-4 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
               <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span>إنشاء الحساب غير متاح حاليًا. يُرجى التواصل مع إدارة المدرسة.</span>
+              <span>{copy.unavailable}</span>
             </div>
           )}
 
@@ -184,8 +217,8 @@ function RegisterForm() {
             <div>
               <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
                 {accountType === 'parent'
-                  ? 'اسم ولي الأمر الكامل *'
-                  : accountType === 'teacher' ? 'اسم المعلم الكامل *' : 'اسم الطالب الكامل *'}
+                  ? copy.parentName
+                  : accountType === 'teacher' ? copy.teacherName : copy.studentName}
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
@@ -195,8 +228,8 @@ function RegisterForm() {
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder={
                     accountType === 'parent'
-                      ? 'مثال: فيصل الغامدي'
-                      : accountType === 'teacher' ? 'مثال: محمد أحمد' : 'مثال: أحمد فيصل الغامدي'
+                      ? copy.parentPlaceholder
+                      : accountType === 'teacher' ? copy.teacherPlaceholder : copy.studentPlaceholder
                   }
                   className="w-full pr-10 pl-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 />
@@ -205,7 +238,7 @@ function RegisterForm() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">البريد الإلكتروني *</label>
+                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">{copy.email}</label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
                   <input
@@ -221,7 +254,7 @@ function RegisterForm() {
               </div>
 
               <div>
-                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">رقم الجوال *</label>
+                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">{copy.phone}</label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
                   <input
@@ -238,7 +271,7 @@ function RegisterForm() {
 
             {accountType === 'teacher' && (
               <div>
-                <label htmlFor="teacher-registration-code" className="mb-1.5 block text-xs font-black text-gray-600 dark:text-gray-300">كود المدرس *</label>
+                <label htmlFor="teacher-registration-code" className="mb-1.5 block text-xs font-black text-gray-600 dark:text-gray-300">{copy.teacherCode}</label>
                 <div className="relative">
                   <KeyRound className="absolute right-3.5 top-3.5 h-4 w-4 text-gray-400" />
                   <input
@@ -246,7 +279,7 @@ function RegisterForm() {
                     required
                     value={teacherCode}
                     onChange={(event) => setTeacherCode(event.target.value)}
-                    placeholder="أدخل كود التسجيل من إدارة المدرسة"
+                    placeholder={copy.teacherCodePlaceholder}
                     autoCapitalize="characters"
                     autoComplete="one-time-code"
                     spellCheck={false}
@@ -255,13 +288,13 @@ function RegisterForm() {
                     className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-4 pr-10 text-sm font-bold uppercase tracking-wider text-gray-900 placeholder:text-right placeholder:text-xs placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
                   />
                 </div>
-                <p className="mt-1.5 text-[11px] text-gray-500">هذا الكود مطلوب لإنشاء حساب مدرس.</p>
+                <p className="mt-1.5 text-[11px] text-gray-500">{copy.teacherCodeHint}</p>
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">كلمة المرور *</label>
+                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">{copy.password}</label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
                   <input
@@ -276,7 +309,7 @@ function RegisterForm() {
               </div>
 
               <div>
-                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">تأكيد كلمة المرور *</label>
+                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">{copy.confirmPassword}</label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
                   <input
@@ -301,37 +334,18 @@ function RegisterForm() {
                   <div className="w-5 h-5 rounded-full border-2 border-white/20 border-t-white animate-spin" />
                 ) : (
                   <>
-                    <span>{accountType === 'teacher' ? 'إنشاء حساب المعلم' : 'إنشاء الحساب وإصدار المعرف الرسمي'}</span>
-                    <ArrowLeft className="w-4 h-4" />
+                    <span>{accountType === 'teacher' ? copy.createTeacher : copy.createAccount}</span>
+                    <ArrowLeft className={`w-4 h-4 ${isEnglish ? 'rotate-180' : ''}`} />
                   </>
                 )}
               </button>
             </div>
           </form>
 
-          {googleConfigured && authConfigured && accountType !== 'teacher' && (
-            <>
-              <div className="my-5 flex items-center gap-3 text-xs text-gray-400">
-                <span className="h-px flex-1 bg-gray-200" />
-                <span>أو</span>
-                <span className="h-px flex-1 bg-gray-200" />
-              </div>
-              <button
-                type="button"
-                onClick={handleGoogleSignUp}
-                disabled={loading}
-                className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
-              >
-                <Globe2 className="h-4 w-4 text-blue-600" />
-                المتابعة باستخدام Google كـ{accountType === 'parent' ? 'ولي أمر' : 'طالب'}
-              </button>
-            </>
-          )}
-
           <div className="mt-6 text-center text-xs text-gray-500">
-            لديك حساب بالفعل؟{' '}
+            {copy.already}{' '}
             <Link href="/login" className="font-bold text-blue-600 hover:underline">
-              تسجيل الدخول
+              {copy.login}
             </Link>
           </div>
         </div>
@@ -341,8 +355,10 @@ function RegisterForm() {
 }
 
 export default function RegisterPage() {
+  const locale = useLocale();
+  const isEnglish = locale === 'en';
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-gray-500">جارٍ تحميل صفحة التسجيل...</div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-gray-500" dir={isEnglish ? 'ltr' : 'rtl'}>{registrationCopy[isEnglish ? 'en' : 'ar'].loading}</div>}>
       <RegisterForm />
     </Suspense>
   );

@@ -40,7 +40,11 @@ export class QrAttendanceService {
       where: {
         id: classId,
         schoolId: teacher.schoolId,
-        OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }],
+        OR: [
+          { teacherId },
+          { classSubjects: { some: { teacherId } } },
+          { teacherAssignments: { some: { teacherId } } },
+        ],
       },
       select: { id: true },
     });

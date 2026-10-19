@@ -53,9 +53,12 @@ model User {
   totalXP          Int                       @default(0)
   level            Int                       @default(1)
   school           School?                   @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  teacherProfile   TeacherProfile?
   assignments      Assignment[]
   attendance       Attendance[]
   taughtClasses    Class[]                   @relation("ClassTeacher")
+  classAssignments TeacherClassAssignment[]
+  homeroomClass    Class?                    @relation("ClassHomeroomTeacher")
   classSessions    ClassSession[]
   conversations    ConversationParticipant[]
   enrollments      Enrollment[]
@@ -230,11 +233,14 @@ model Class {
   description   String?
   academicYear  String?
   teacherId     String?
+  homeroomTeacherId String? @unique
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   school        School?        @relation(fields: [schoolId], references: [id], onDelete: SetNull)
   attendance    Attendance[]
   teacher       User?          @relation("ClassTeacher", fields: [teacherId], references: [id])
+  homeroomTeacher User?        @relation("ClassHomeroomTeacher", fields: [homeroomTeacherId], references: [id], onDelete: SetNull)
+  teacherAssignments TeacherClassAssignment[]
   sessions      ClassSession[]
   students      Enrollment[]
   subjects      Subject[]
@@ -247,6 +253,30 @@ model Class {
   communityPosts CommunityPost[]
 
   @@index([schoolId])
+}
+
+model TeacherProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  specialization  String
+  qualification   String
+  yearsExperience Int      @default(0)
+  bio             String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TeacherClassAssignment {
+  id        String   @id @default(uuid())
+  teacherId String
+  classId   String
+  createdAt DateTime @default(now())
+  teacher   User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, classId])
+  @@index([classId])
 }
 
 model Subject {

@@ -16,12 +16,15 @@ export class AttendanceService {
         schoolId: true,
         teacherId: true,
         classSubjects: { select: { teacherId: true } },
+        teacherAssignments: { where: { teacherId: actorId }, select: { teacherId: true } },
       },
     });
     if (!classroom) throw new NotFoundException('Class not found');
 
     const isAssignedTeacher = role === 'TEACHER' && (
-      classroom.teacherId === actorId || classroom.classSubjects.some((subject) => subject.teacherId === actorId)
+      classroom.teacherId === actorId
+      || classroom.classSubjects.some((subject) => subject.teacherId === actorId)
+      || classroom.teacherAssignments.length > 0
     );
     const isSchoolStaff = role !== 'TEACHER';
     if (!isAssignedTeacher && !isSchoolStaff) {

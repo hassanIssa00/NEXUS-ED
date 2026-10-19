@@ -6,12 +6,10 @@ import { supabase } from '@/lib/supabase/client';
 import {
     createUserWithEmailAndPassword,
     deleteUser,
-    GoogleAuthProvider,
     onAuthStateChanged as onFirebaseAuthStateChanged,
     reload as reloadFirebaseUser,
     sendPasswordResetEmail,
     signInWithEmailAndPassword,
-    signInWithPopup,
     signOut as firebaseSignOut,
     updateProfile,
     type User as FirebaseUser,
@@ -45,7 +43,7 @@ interface UserProfile {
     gradeLevel?: number;
     emailVerified?: boolean;
     onboardingComplete?: boolean;
-    onboardingStep?: 'student-profile' | 'placement-assessment' | 'link-student' | 'parent-survey' | 'complete';
+    onboardingStep?: 'student-profile' | 'placement-assessment' | 'link-student' | 'parent-survey' | 'teacher-profile' | 'complete';
     onboardingStudentId?: string;
     onboardingOnly?: boolean;
     schoolId?: string | null;
@@ -57,7 +55,6 @@ interface AuthContextType {
     session: Session | null;
     loading: boolean;
     signIn: (email: string, password: string, expectedRole?: UserRole) => Promise<UserRole>;
-    signInWithGoogle: (role: 'student' | 'parent' | 'admin') => Promise<{ role: 'student' | 'parent' | 'admin'; isNewUser: boolean }>;
     signUp: (
         email: string,
         password: string,
@@ -100,7 +97,6 @@ const APP_ROLE_TO_API_ROLE: Partial<Record<UserRole, string>> = {
     parent: 'PARENT',
 };
 
-const BOOTSTRAP_ADMIN_EMAIL = 'hassan.issa.eng@gmail.com';
 
 function createApiUser(id: string, email: string): User {
     return {
@@ -144,16 +140,6 @@ function getApiBaseUrl(): string | null {
 
 export function isAuthenticationConfigured(): boolean {
     return Boolean(getApiBaseUrl() || supabase || (isFirebaseConfigured && firebaseAuth && firebaseDb));
-}
-
-export function isGoogleAuthenticationConfigured(role?: 'student' | 'parent' | 'admin'): boolean {
-    return Boolean(
-        isFirebaseConfigured
-        && firebaseAuth
-        && firebaseDb
-        && !supabase
-        && (role !== 'admin' || !getApiBaseUrl())
-    );
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -1069,79 +1055,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const signInWithGoogle = async (role: 'student' | 'parent' | 'admin') => {
-        if (role !== 'student' && role !== 'parent' && role !== 'admin') {
-            throw new Error('بوابة Google غير متاحة لهذا الحساب.');
-        }
-        if (!isFirebaseConfigured || !firebaseAuth || !firebaseDb || supabase) {
-            throw new Error('تسجيل Google غير مهيأ حاليًا.');
-        }
-        if (role === 'admin' && getApiBaseUrl()) {
-            throw new Error('دخول المالك عبر Google غير مهيأ مع خادم API الحالي.');
-        }
-
-        isProvisioningFirebaseUser.current = true;
-        let firebaseUserSignedIn = false;
-        try {
-            clearExplicitSignOut();
-            const provider = new GoogleAuthProvider();
-            provider.setCustomParameters({ prompt: 'select_account' });
-            const credential = await signInWithPopup(firebaseAuth, provider);
-            firebaseUserSignedIn = true;
-            if (!credential.user.email || !credential.user.emailVerified) {
-                throw new Error('يلزم استخدام حساب Google ببريد إلكتروني موثّق.');
-            }
-            if (role === 'admin' && credential.user.email.trim().toLowerCase() !== BOOTSTRAP_ADMIN_EMAIL) {
-                throw new Error('دخول المالك الأول متاح فقط لحساب Google المعتمد للمنصة.');
-            }
-
-            const profileRef = doc(firebaseDb, 'users', credential.user.uid);
-            let profileSnapshot = await getDoc(profileRef);
-            let isNewUser = false;
-            if (!profileSnapshot.exists()) {
-                const fullName = (credential.user.displayName || credential.user.email).trim().slice(0, 120);
-                const isBootstrapAdmin = role === 'admin'
-                    && credential.user.email.trim().toLowerCase() === BOOTSTRAP_ADMIN_EMAIL;
-                await setDoc(profileRef, {
-                    uid: credential.user.uid,
-                    email: credential.user.email,
-                    full_name: fullName,
-                    role: isBootstrapAdmin ? 'admin' : role,
-                    status: 'active',
-                    ...(credential.user.photoURL ? { avatar_url: credential.user.photoURL } : {}),
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                });
-                profileSnapshot = await getDoc(profileRef);
-                isNewUser = true;
-            }
-
-            const profileData = profileSnapshot.data();
-            const profileRole = normalizeApiRole(profileData?.role);
-            const isAuthorizedBootstrapAdmin = role === 'admin'
-                && profileRole === 'admin'
-                && credential.user.email.trim().toLowerCase() === BOOTSTRAP_ADMIN_EMAIL
-                && profileData?.status === 'active';
-            const isStudentOrParent = profileRole === 'student' || profileRole === 'parent';
-            if (!profileData || profileData.status === 'disabled' || (!isStudentOrParent && !isAuthorizedBootstrapAdmin)) {
-                throw new Error('الحساب غير مهيأ لهذه البوابة. تواصل مع إدارة المنصة.');
-            }
-            if (profileRole !== role) throw new Error('هذا الحساب لا يطابق بوابة الدخول المختارة.');
-
-            const nextProfile = await fetchFirebaseProfile(credential.user.uid);
-            if (!nextProfile) throw new Error('تعذر تحميل ملف الحساب.');
-            clearExplicitSignOut();
-            const apiProfile = await exchangeFirebaseSession(credential.user);
-            setAuthenticatedState(createFirebaseAppUser(credential.user), apiProfile ?? nextProfile);
-            return { role, isNewUser };
-        } catch (error) {
-            if (firebaseUserSignedIn) await firebaseSignOut(firebaseAuth).catch(() => undefined);
-            throw error;
-        } finally {
-            isProvisioningFirebaseUser.current = false;
-        }
-    };
-
     const requestPasswordReset = async (email: string, role: 'student' | 'parent' | 'teacher' = 'student'): Promise<'code' | 'link'> => {
         const normalizedEmail = email.trim().toLowerCase();
         if (supabase) {
@@ -1223,7 +1136,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session,
         loading,
         signIn,
-        signInWithGoogle,
         signUp,
         requestPasswordReset,
         confirmPasswordReset,

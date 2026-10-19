@@ -115,7 +115,11 @@ export class AiTutorController {
       where: {
         id: body.subjectId,
         schoolId: teacher.schoolId,
-        OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }],
+        OR: [
+          { teacherId },
+          { classSubjects: { some: { teacherId } } },
+          { class: { teacherAssignments: { some: { teacherId } } } },
+        ],
       },
       select: { name: true, class: { select: { name: true } } },
     });

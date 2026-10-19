@@ -38,6 +38,7 @@ export class TeacherWorkspaceService {
         OR: [
           { teacherId: actor.userId },
           { classSubjects: { some: { teacherId: actor.userId } } },
+          { teacherAssignments: { some: { teacherId: actor.userId } } },
         ],
       },
       orderBy: { name: 'asc' },
@@ -46,10 +47,7 @@ export class TeacherWorkspaceService {
         _count: { select: { students: true } },
       },
     });
-    return classes.map((item) => ({
-      ...item,
-      subjects: item.subjects.filter((subject) => subject.teacherId === actor.userId || item.teacherId === actor.userId),
-    }));
+    return classes;
   }
 
   async getTeacherClassStudents(actor: WorkspaceActor, classId: string) {
@@ -485,7 +483,11 @@ export class TeacherWorkspaceService {
       where: {
         id: classId,
         schoolId: actor.schoolId,
-        OR: [{ teacherId: actor.userId }, { classSubjects: { some: { teacherId: actor.userId } } }],
+        OR: [
+          { teacherId: actor.userId },
+          { classSubjects: { some: { teacherId: actor.userId } } },
+          { teacherAssignments: { some: { teacherId: actor.userId } } },
+        ],
       },
       select: { id: true },
     });

@@ -91,7 +91,14 @@ export class TeacherAutomationService {
     });
     if (!teacher?.schoolId) return 0;
     const classes = await this.prisma.class.findMany({
-      where: { schoolId: teacher.schoolId, OR: [{ teacherId: teacher.id }, { classSubjects: { some: { teacherId: teacher.id } } }] },
+      where: {
+        schoolId: teacher.schoolId,
+        OR: [
+          { teacherId: teacher.id },
+          { classSubjects: { some: { teacherId: teacher.id } } },
+          { teacherAssignments: { some: { teacherId: teacher.id } } },
+        ],
+      },
       select: { id: true, students: { select: { studentId: true } }, subjects: { select: { id: true } } },
     });
     const studentIds = [...new Set(classes.flatMap((item) => item.students.map((enrollment) => enrollment.studentId)))];

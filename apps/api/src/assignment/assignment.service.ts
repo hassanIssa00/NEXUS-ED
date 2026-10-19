@@ -119,7 +119,16 @@ export class AssignmentService {
     }
     const subject = await this.prisma.subject.findUnique({
       where: { id: data.subjectId },
-      select: { id: true, name: true, code: true, teacherId: true, schoolId: true, classId: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        teacherId: true,
+        schoolId: true,
+        classId: true,
+        class: { select: { teacherAssignments: { where: { teacherId }, select: { teacherId: true } } } },
+        classSubjects: { select: { teacherId: true } },
+      },
     });
 
     if (!subject) {
@@ -129,7 +138,9 @@ export class AssignmentService {
     if (!subject.schoolId || subject.schoolId !== actor.schoolId) {
       throw new ForbiddenException('Subject belongs to another school');
     }
-    if (actor.role === 'TEACHER' && subject.teacherId !== teacherId) {
+    if (actor.role === 'TEACHER' && subject.teacherId !== teacherId
+      && !subject.classSubjects.some((item) => item.teacherId === teacherId)
+      && subject.class.teacherAssignments.length === 0) {
       throw new ForbiddenException('You do not teach this subject');
     }
     const assignedTeacherId = actor.role === 'TEACHER' ? teacherId : subject.teacherId;

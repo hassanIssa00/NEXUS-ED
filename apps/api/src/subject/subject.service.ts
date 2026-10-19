@@ -94,10 +94,14 @@ export class SubjectService {
     return this.prisma.subject.findMany({
       where: {
         schoolId: scopedSchoolId,
-        OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }],
+        OR: [
+          { teacherId },
+          { classSubjects: { some: { teacherId } } },
+          { class: { teacherAssignments: { some: { teacherId } } } },
+        ],
       },
       include: {
-        class: { select: { id: true, name: true } },
+        class: { select: { id: true, name: true, teacherAssignments: { where: { teacherId }, select: { teacherId: true } } } },
         _count: { select: { lessons: true, assignments: true } },
       },
       orderBy: { name: 'asc' },
@@ -109,7 +113,7 @@ export class SubjectService {
     const subject = await this.prisma.subject.findFirst({
       where: { id, schoolId: scopedSchoolId },
       include: {
-        class: { select: { id: true, name: true } },
+        class: { select: { id: true, name: true, teacherAssignments: { where: { teacherId: actorId }, select: { teacherId: true } } } },
         teacher: { select: { id: true, name: true, email: true } },
         classSubjects: { select: { teacherId: true } },
         lessons: true,
@@ -119,7 +123,9 @@ export class SubjectService {
     if (!subject) throw new NotFoundException('Subject not found');
 
     if (role === 'TEACHER') {
-      const assigned = subject.teacherId === actorId || subject.classSubjects.some((item) => item.teacherId === actorId);
+      const assigned = subject.teacherId === actorId
+        || subject.classSubjects.some((item) => item.teacherId === actorId)
+        || subject.class.teacherAssignments.length > 0;
       if (!assigned) throw new ForbiddenException('You do not have access to this subject');
     } else if (role === 'STUDENT') {
       const enrollment = await this.prisma.enrollment.findFirst({

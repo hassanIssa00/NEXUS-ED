@@ -31,6 +31,7 @@ const SHARED_ROLE_ROUTES: Array<{ path: string; roles: UserRole[]; exact?: boole
     { path: '/student/new', roles: ['student'] },
     { path: '/survey', roles: ['parent'], exact: true },
     { path: '/assessment', roles: ['student'], exact: true },
+    { path: '/teacher/onboarding', roles: ['teacher'] },
 ];
 
 function matchesRoute(pathname: string, route: string) {
@@ -63,6 +64,10 @@ function onboardingDestination(pathname: string, role: UserRole, step?: string, 
         }
     }
 
+    if (role === 'teacher' && step === 'teacher-profile' && !matchesRoute(pathname, '/teacher/onboarding')) {
+        return '/teacher/onboarding';
+    }
+
     return null;
 }
 
@@ -75,6 +80,7 @@ function isAllowedOnboardingPath(pathname: string, role: UserRole, step?: string
         return (step === 'link-student' && matchesRoute(pathname, '/parent/onboarding'))
             || (step === 'parent-survey' && matchesRoute(pathname, '/survey'));
     }
+    if (role === 'teacher') return step === 'teacher-profile' && matchesRoute(pathname, '/teacher/onboarding');
     return false;
 }
 
@@ -115,6 +121,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         // Student/parent onboarding is verified by the school profile and link code.
         if (user && profile?.emailVerified === false
             && profile.role !== 'student' && profile.role !== 'parent'
+            && profile.role !== 'teacher'
             && !matchesRoute(pathname, '/verify-email')
             && !isAllowedOnboardingPath(pathname, profile.role, profile.onboardingStep)) {
             router.replace('/verify-email');
@@ -148,6 +155,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const isPendingVerification = user && profile?.emailVerified === false
         && profile.role !== 'student' && profile.role !== 'parent'
+        && profile.role !== 'teacher'
         && !matchesRoute(pathname, '/verify-email')
         && !isAllowedOnboardingPath(pathname, profile.role, profile.onboardingStep);
     const isWrongRole = user && profile && !canAccessRoute(pathname, profile.role)

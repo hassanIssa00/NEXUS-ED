@@ -115,6 +115,7 @@ export class PlacementAssessmentService {
             OR: [
               { teacherId: actorId },
               { classSubjects: { some: { teacherId: actorId } } },
+              { teacherAssignments: { some: { teacherId: actorId } } },
             ],
           },
         },

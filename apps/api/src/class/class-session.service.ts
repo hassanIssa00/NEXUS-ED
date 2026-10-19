@@ -19,12 +19,20 @@ export class ClassSessionService {
     if (!schoolId) throw new ForbiddenException('The account is not assigned to a school');
     const classroom = await this.prisma.class.findFirst({
       where: { id: classId, schoolId },
-      select: { id: true, schoolId: true, teacherId: true, classSubjects: { select: { teacherId: true } } },
+      select: {
+        id: true,
+        schoolId: true,
+        teacherId: true,
+        classSubjects: { select: { teacherId: true } },
+        teacherAssignments: { where: { teacherId: actorId }, select: { teacherId: true } },
+      },
     });
     if (!classroom) throw new NotFoundException('Class not found');
 
     if (role === 'TEACHER') {
-      const assigned = classroom.teacherId === actorId || classroom.classSubjects.some((item) => item.teacherId === actorId);
+      const assigned = classroom.teacherId === actorId
+        || classroom.classSubjects.some((item) => item.teacherId === actorId)
+        || classroom.teacherAssignments.length > 0;
       if (!assigned) throw new ForbiddenException('You are not assigned to this class');
     } else if (role === 'STUDENT') {
       const enrollment = await this.prisma.enrollment.findFirst({
@@ -108,11 +116,19 @@ export class ClassSessionService {
     if (!schoolId) throw new ForbiddenException('The account is not assigned to a school');
     const session = await this.prisma.classSession.findFirst({
       where: { id: sessionId, class: { schoolId } },
-      include: { class: { select: { id: true, schoolId: true, teacherId: true, classSubjects: { select: { teacherId: true } } } } },
+      include: { class: { select: {
+        id: true,
+        schoolId: true,
+        teacherId: true,
+        classSubjects: { select: { teacherId: true } },
+        teacherAssignments: { where: { teacherId: actorId }, select: { teacherId: true } },
+      } } },
     });
     if (!session) throw new NotFoundException('Session not found');
     if (role === 'TEACHER') {
-      const assigned = session.class.teacherId === actorId || session.class.classSubjects.some((item) => item.teacherId === actorId);
+      const assigned = session.class.teacherId === actorId
+        || session.class.classSubjects.some((item) => item.teacherId === actorId)
+        || session.class.teacherAssignments.length > 0;
       if (!assigned || session.teacherId !== actorId) throw new ForbiddenException('Only the session teacher can end this session');
     }
     if (!session.isActive) return session;

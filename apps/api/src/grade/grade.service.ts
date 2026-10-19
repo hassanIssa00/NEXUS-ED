@@ -3,6 +3,12 @@ import { PrismaService } from '../prisma.service';
 import { CreateGradeDto, UpdateGradeDto } from './dto/grade.dto';
 import { EventsGateway } from '../gateway/events.gateway';
 
+function isAssignedToSubject(subject: any, teacherId: string) {
+  return subject?.teacherId === teacherId
+    || subject?.classSubjects?.some((item: { teacherId: string | null }) => item.teacherId === teacherId)
+    || subject?.class?.teacherAssignments?.length > 0;
+}
+
 @Injectable()
 export class GradeService {
   constructor(
@@ -14,14 +20,18 @@ export class GradeService {
     // Verify teacher teaches this subject
     const subject = await this.prisma.subject.findUnique({
       where: { id: data.subjectId },
-      include: { teacher: true },
+      include: {
+        teacher: true,
+        classSubjects: { select: { teacherId: true } },
+        class: { select: { teacherAssignments: { where: { teacherId }, select: { teacherId: true } } } },
+      },
     });
 
     if (!subject) {
       throw new NotFoundException('Subject not found');
     }
 
-    if (subject.teacherId !== teacherId) {
+    if (!isAssignedToSubject(subject, teacherId)) {
       throw new ForbiddenException('You do not teach this subject');
     }
 
@@ -143,14 +153,21 @@ export class GradeService {
   async update(id: string, data: UpdateGradeDto, teacherId: string) {
     const grade = await this.prisma.grade.findUnique({
       where: { id },
-      include: { subject: true },
+      include: {
+        subject: {
+          include: {
+            classSubjects: { select: { teacherId: true } },
+            class: { select: { teacherAssignments: { where: { teacherId }, select: { teacherId: true } } } },
+          },
+        },
+      },
     });
 
     if (!grade) {
       throw new NotFoundException('Grade not found');
     }
 
-    if (grade.subject?.teacherId !== teacherId) {
+    if (!isAssignedToSubject(grade.subject, teacherId)) {
       throw new ForbiddenException(
         'You can only update grades for your subjects',
       );
@@ -186,14 +203,21 @@ export class GradeService {
   async remove(id: string, teacherId: string) {
     const grade = await this.prisma.grade.findUnique({
       where: { id },
-      include: { subject: true },
+      include: {
+        subject: {
+          include: {
+            classSubjects: { select: { teacherId: true } },
+            class: { select: { teacherAssignments: { where: { teacherId }, select: { teacherId: true } } } },
+          },
+        },
+      },
     });
 
     if (!grade) {
       throw new NotFoundException('Grade not found');
     }
 
-    if (grade.subject?.teacherId !== teacherId) {
+    if (!isAssignedToSubject(grade.subject, teacherId)) {
       throw new ForbiddenException(
         'You can only delete grades for your subjects',
       );

@@ -21,12 +21,21 @@ export class EnrollmentService {
     const scopedSchoolId = this.requireSchool(schoolId);
     const classroom = await this.prisma.class.findFirst({
       where: { id: classId, schoolId: scopedSchoolId },
-      select: { id: true, name: true, academicYear: true, teacherId: true, classSubjects: { select: { teacherId: true } } },
+      select: {
+        id: true,
+        name: true,
+        academicYear: true,
+        teacherId: true,
+        classSubjects: { select: { teacherId: true } },
+        teacherAssignments: { where: { teacherId: actorId }, select: { teacherId: true } },
+      },
     });
     if (!classroom) throw new NotFoundException('Class not found');
 
     const isAssignedTeacher = role === 'TEACHER' && (
-      classroom.teacherId === actorId || classroom.classSubjects.some((subject) => subject.teacherId === actorId)
+      classroom.teacherId === actorId
+      || classroom.classSubjects.some((subject) => subject.teacherId === actorId)
+      || classroom.teacherAssignments.length > 0
     );
     if (role !== 'ADMIN' && !isAssignedTeacher) {
       throw new ForbiddenException('You do not have access to this class');
@@ -76,7 +85,13 @@ export class EnrollmentService {
       select: {
         id: true,
         parents: { select: { parentId: true } },
-        enrollments: { select: { classId: true, class: { select: { teacherId: true, classSubjects: { select: { teacherId: true } } } } } },
+        enrollments: { select: { classId: true, class: {
+          select: {
+            teacherId: true,
+            classSubjects: { select: { teacherId: true } },
+            teacherAssignments: { where: { teacherId: actorId }, select: { teacherId: true } },
+          },
+        } } },
       },
     });
     if (!student) throw new NotFoundException('Student not found in this school');
@@ -84,7 +99,9 @@ export class EnrollmentService {
     const allowed = role === 'ADMIN'
       || (role === 'PARENT' && student.parents.some((parent) => parent.parentId === actorId))
       || (role === 'TEACHER' && student.enrollments.some(({ class: classroom }) =>
-        classroom.teacherId === actorId || classroom.classSubjects.some((subject) => subject.teacherId === actorId),
+        classroom.teacherId === actorId
+        || classroom.classSubjects.some((subject) => subject.teacherId === actorId)
+        || classroom.teacherAssignments.length > 0,
       ));
     if (!allowed) throw new ForbiddenException('You do not have access to this student');
 

@@ -232,6 +232,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return [
         { teacherId: userId },
         { classSubjects: { some: { teacherId: userId } } },
+        { teacherAssignments: { some: { teacherId: userId } } },
       ];
     }
     if (SCHOOL_STAFF_ROLES.has(role)) return [];

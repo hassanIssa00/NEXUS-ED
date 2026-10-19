@@ -34,7 +34,13 @@ export class AiContentGeneratorService {
   async getQuestionBanks(teacherId: string, subjectId?: string) {
     const where = {
       ...(subjectId ? { subjectId } : {}),
-      subject: { OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }] },
+      subject: {
+        OR: [
+          { teacherId },
+          { classSubjects: { some: { teacherId } } },
+          { class: { teacherAssignments: { some: { teacherId } } } },
+        ],
+      },
     };
     return this.prisma.questionBank.findMany({
       where,
@@ -50,7 +56,11 @@ export class AiContentGeneratorService {
     const subject = await this.prisma.subject.findFirst({
       where: {
         id: subjectId,
-        OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }],
+        OR: [
+          { teacherId },
+          { classSubjects: { some: { teacherId } } },
+          { class: { teacherAssignments: { some: { teacherId } } } },
+        ],
       },
       select: { id: true },
     });

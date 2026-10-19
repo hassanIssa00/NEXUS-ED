@@ -9,6 +9,7 @@ import {
     Req,
     UnauthorizedException,
     Inject,
+    Put,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
@@ -24,10 +25,10 @@ import { Roles } from '../../../infrastructure/decorators/roles.decorator';
 import { RolesGuard } from '../../../auth/roles.guard';
 import { Role } from '../../../shared/enums/roles.enum';
 import { AccountLockGuard } from '../guards/account-lock.guard';
-import { GoogleLoginDto } from '../dto/google-login.dto';
 import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
 import { ConfirmPasswordResetDto } from '../dto/confirm-password-reset.dto';
 import { FirebaseLoginDto } from '../dto/firebase-login.dto';
+import { SaveTeacherProfileDto } from '../dto/teacher-profile.dto';
 
 const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
@@ -42,24 +43,6 @@ export class AuthController {
     @Throttle({ short: { limit: 5, ttl: 60000 } })
     async register(@Body() registerDto: RegisterDto) {
         return this.authService.register(registerDto);
-    }
-
-    @Post('google')
-    @Throttle({ short: { limit: 5, ttl: 60000 } })
-    async googleLogin(
-        @Body() dto: GoogleLoginDto,
-        @Res({ passthrough: true }) res: Response,
-    ) {
-        const result = await this.authService.loginWithGoogle(dto);
-        const isProduction = process.env.NODE_ENV === 'production';
-        res.cookie('refresh_token', result.refresh_token, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? 'none' : 'lax',
-            path: '/',
-        });
-        const { refresh_token, ...responseData } = result;
-        return responseData;
     }
 
     @Post('firebase')
@@ -224,6 +207,20 @@ export class AuthController {
     @UseGuards(AuthGuard('jwt'))
     getProfile(@Request() req: any) {
         return this.authService.getSessionProfile(req.user.userId || req.user.sub || req.user.id);
+    }
+
+    @Get('teacher-profile/options')
+    @UseGuards(AuthGuard('jwt'), RolesGuard)
+    @Roles(Role.TEACHER)
+    getTeacherProfileOptions(@Request() req: any) {
+        return this.authService.getTeacherProfileOptions(req.user.userId || req.user.sub || req.user.id);
+    }
+
+    @Put('teacher-profile')
+    @UseGuards(AuthGuard('jwt'), RolesGuard)
+    @Roles(Role.TEACHER)
+    saveTeacherProfile(@Request() req: any, @Body() dto: SaveTeacherProfileDto) {
+        return this.authService.saveTeacherProfile(req.user.userId || req.user.sub || req.user.id, dto);
     }
 
     @Get('admin-only')
