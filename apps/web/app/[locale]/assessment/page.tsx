@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, GraduationCap, LoaderCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api/client';
 import { useAuth } from '@/contexts/auth-context';
@@ -128,14 +129,13 @@ export default function AssessmentPage() {
         <section className="w-full space-y-5 rounded-md border bg-card p-6 text-center md:p-8">
           <CheckCircle2 className="mx-auto h-11 w-11 text-emerald-600" />
           <div>
-            <p className="text-sm font-semibold text-muted-foreground">تم حفظ نتيجتك في ملف الطالب</p>
             <h1 className="mt-2 text-2xl font-black text-foreground">نتيجة {data.assessment.title}</h1>
           </div>
           <div className="grid grid-cols-2 gap-3 rounded-md bg-muted/50 p-4">
             <div><p className="text-sm text-muted-foreground">الدرجة</p><p className="mt-1 text-2xl font-bold text-foreground">{data.attempt.score}%</p></div>
             <div><p className="text-sm text-muted-foreground">الإجابات الصحيحة</p><p className="mt-1 text-2xl font-bold text-foreground">{data.attempt.correctCount} / {data.attempt.questionCount}</p></div>
           </div>
-          <p className="text-sm leading-6 text-muted-foreground">هذه نتيجة تشخيصية للاسترشاد، ولا تغيّر الصف الدراسي أو تمثل قرار قبول. يمكن للمدرسة الاطلاع على التقرير من حساباتها المخولة.</p>
+          <p className="text-sm leading-6 text-muted-foreground">تم التصحيح تلقائيًا، وحُفظت النتيجة في تقارير المدرسة.</p>
           <Button asChild><Link href="/student">العودة إلى لوحة الطالب</Link></Button>
         </section>
       </main>
@@ -146,20 +146,16 @@ export default function AssessmentPage() {
     <main className="mx-auto min-h-[70vh] max-w-3xl p-4 py-8 md:p-8" dir="rtl">
       <section className="space-y-5 rounded-md border bg-card p-5 md:p-7">
         <header className="flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300"><ClipboardList className="h-5 w-5" /></span>
+          <div className="flex shrink-0 items-center gap-2">
+            <Image src="/second_logo.webp" alt="شعار مدارس الإخلاص الأهلية" width={48} height={48} className="h-12 w-12 rounded-full border border-border bg-white object-contain p-0.5" />
+            <Image src="/logo_new.webp" alt="شعار منصة Nexus EDU" width={48} height={48} className="h-12 w-12 rounded-xl border border-border bg-white object-contain p-0.5" />
+          </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-muted-foreground">اختبار تشخيصي · الصف {data.gradeLevel === 0 ? 'رياض الأطفال' : data.gradeLevel}</p>
             <h1 className="mt-1 text-xl font-black text-foreground">{data.assessment.title}</h1>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">{data.assessment.subtitle}</p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{data.foundationalForGradeOne ? 'يُصحّح الاختبار تلقائيًا، وتظهر النتيجة للمدرسة.' : data.assessment.subtitle}</p>
           </div>
         </header>
-
-        {data.foundationalForGradeOne && (
-          <div className="flex gap-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm leading-6 text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
-            <GraduationCap className="mt-0.5 h-4 w-4 shrink-0" />
-            اختبار الصف الأول هنا تأسيسي واختياري؛ اعتماد التقييم التفصيلي يحتاج مراجعة المدرسة، لذلك هذه الدرجة لا تغيّر الصف الدراسي أو قرار القبول.
-          </div>
-        )}
 
         {error && <p role="alert" className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
 

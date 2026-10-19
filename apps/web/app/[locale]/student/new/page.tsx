@@ -335,9 +335,8 @@ export default function StudentNewPage() {
                 </button>
               </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div>
               <button type="button" onClick={() => router.push('/assessment')} className="w-full rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white hover:bg-teal-800">بدء الاختبار التشخيصي</button>
-              <button type="button" onClick={() => router.push('/student')} className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/10">الدخول إلى لوحة الطالب</button>
             </div>
           </div>
         )}
