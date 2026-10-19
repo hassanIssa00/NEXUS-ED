@@ -153,6 +153,9 @@ export default function StudentNewPage() {
           }
         }
         const { data } = await apiClient.post('/users/student-link-code');
+        if (profile?.id && data.code && data.expiresAt) {
+          sessionStorage.setItem(`nexus-student-parent-link-code:${profile.id}`, JSON.stringify({ code: data.code, expiresAt: data.expiresAt }));
+        }
         await refreshProfile();
         setIssuedLinkCode(data.code);
       } else {

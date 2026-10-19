@@ -177,7 +177,7 @@ export default function StudentDashboardPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/student/new?flow=student" className="inline-flex items-center gap-2 rounded-lg border border-white/30 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10">
+            <Link href="/student/parent-code" className="inline-flex items-center gap-2 rounded-lg border border-white/30 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10">
               <Users className="h-4 w-4" /> رمز ولي الأمر
             </Link>
             <Link href="/student/assignments" className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-violet-900 hover:bg-violet-50">
