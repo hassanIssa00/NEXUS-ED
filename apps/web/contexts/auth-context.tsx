@@ -69,6 +69,7 @@ interface AuthContextType {
     confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<void>;
     refreshProfile: () => Promise<UserProfile | null>;
     markParentLinked: (studentId: string) => void;
+    markParentSurveyComplete: () => void;
     refreshVerifiedSession: () => Promise<UserProfile | null>;
     signOut: () => Promise<void>;
 }
@@ -557,6 +558,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 onboardingComplete: false,
                 onboardingStep: 'parent-survey',
                 onboardingStudentId: studentId,
+            }
+            : currentProfile);
+    };
+
+    const markParentSurveyComplete = () => {
+        setProfile((currentProfile) => currentProfile?.role === 'parent'
+            ? {
+                ...currentProfile,
+                onboardingComplete: true,
+                onboardingStep: 'complete',
+                onboardingStudentId: undefined,
             }
             : currentProfile);
     };
@@ -1207,6 +1219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         confirmPasswordReset,
         refreshProfile,
         markParentLinked,
+        markParentSurveyComplete,
         refreshVerifiedSession,
         signOut,
     };
