@@ -1,10 +1,10 @@
 'use client';
 
-import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Link } from '@/i18n/routing';
 import { apiClient } from '@/lib/api/client';
 import { useAuth } from '@/contexts/auth-context';
 import { Circle, Minus, Square, Triangle } from 'lucide-react';
@@ -29,9 +29,6 @@ type AssessmentState = {
   };
   attempt: {
     id: string;
-    score: number;
-    correctCount: number;
-    questionCount: number;
     completedAt: string;
   } | null;
 };
@@ -129,14 +126,10 @@ export default function AssessmentPage() {
         <section className="w-full space-y-5 rounded-md border bg-card p-6 text-center md:p-8">
           <CheckCircle2 className="mx-auto h-11 w-11 text-emerald-600" />
           <div>
-            <h1 className="mt-2 text-2xl font-black text-foreground">نتيجة {data.assessment.title}</h1>
+            <h1 className="mt-2 text-2xl font-black text-foreground">تم إكمال الاختبار</h1>
           </div>
-          <div className="grid grid-cols-2 gap-3 rounded-md bg-muted/50 p-4">
-            <div><p className="text-sm text-muted-foreground">الدرجة</p><p className="mt-1 text-2xl font-bold text-foreground">{data.attempt.score}%</p></div>
-            <div><p className="text-sm text-muted-foreground">الإجابات الصحيحة</p><p className="mt-1 text-2xl font-bold text-foreground">{data.attempt.correctCount} / {data.attempt.questionCount}</p></div>
-          </div>
-          <p className="text-sm leading-6 text-muted-foreground">تم التصحيح تلقائيًا، وحُفظت النتيجة في تقارير المدرسة.</p>
-          <Button asChild><Link href="/student">العودة إلى لوحة الطالب</Link></Button>
+          <p className="text-sm leading-6 text-muted-foreground">أُرسلت النتيجة تلقائيًا إلى المدرسة.</p>
+          <Button asChild><Link href="/student">الذهاب إلى صفحة الطالب</Link></Button>
         </section>
       </main>
     );
