@@ -19,7 +19,7 @@ function getErrorMessage(error: any) {
 
 export default function ParentOnboardingPage() {
   const router = useRouter();
-  const { profile, loading, refreshProfile } = useAuth();
+  const { profile, loading, refreshProfile, markParentLinked } = useAuth();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [relationship, setRelationship] = useState('');
@@ -62,7 +62,12 @@ export default function ParentOnboardingPage() {
     try {
       await apiClient.patch('/users/me', { name: name.trim(), phone: phone.trim() });
       const { data } = await apiClient.post('/users/link-student', { code, relationship });
-      await refreshProfile();
+      try {
+        await refreshProfile();
+      } catch (refreshError) {
+        console.warn('Student link succeeded, but the parent profile could not be refreshed.', refreshError);
+      }
+      markParentLinked(data.student.id);
       router.replace(`/survey?student=${encodeURIComponent(data.student.id)}`);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
