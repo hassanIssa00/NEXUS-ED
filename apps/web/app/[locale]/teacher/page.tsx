@@ -1,9 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Link } from '@/i18n/routing'
 import { dashboardApi, type TeacherDashboardResponse } from '@/lib/api/dashboard'
 import { useRealtimeAssignments, useRealtimeNotifications } from '@/lib/providers/socket-provider'
+import NexusToolsTab from './_components/NexusToolsTab'
 import {
   AlertCircle,
   BarChart3,
@@ -42,7 +45,9 @@ function Metric({ label, value, detail, icon: Icon }: { label: string; value: st
   )
 }
 
-export default function TeacherDashboardPage() {
+function TeacherDashboardContent() {
+  const searchParams = useSearchParams()
+  const activeTab = searchParams.get('tab')
   const [data, setData] = useState<TeacherDashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -59,10 +64,18 @@ export default function TeacherDashboardPage() {
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    if (activeTab === 'tools') {
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    void load()
+  }, [activeTab, load])
 
   useRealtimeAssignments(() => {
-    void load()
+    if (activeTab !== 'tools') void load()
     setNotice('تم تحديث بيانات الواجبات')
     window.setTimeout(() => setNotice(null), 4000)
   })
@@ -73,6 +86,8 @@ export default function TeacherDashboardPage() {
     setNotice(message)
     window.setTimeout(() => setNotice(null), 4000)
   })
+
+  if (activeTab === 'tools') return <NexusToolsTab />
 
   if (loading) return <div className="flex min-h-[50vh] items-center justify-center text-sm text-gray-500">جار تحميل لوحة المعلم...</div>
 
@@ -143,5 +158,13 @@ export default function TeacherDashboardPage() {
         </div>
       </section>
     </div>
+  )
+}
+
+export default function TeacherDashboardPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[50vh] items-center justify-center text-sm text-gray-500">جار تحميل أدوات المعلم...</div>}>
+      <TeacherDashboardContent />
+    </Suspense>
   )
 }
