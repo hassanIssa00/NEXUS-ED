@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLocale } from "next-intl";
 import {
   AlertCircle,
@@ -13,13 +13,62 @@ import {
 } from "lucide-react";
 import { useAuth, isAuthenticationConfigured } from "@/contexts/auth-context";
 
-type AccountRole = "student" | "parent" | "teacher";
-
 export default function ForgotPasswordPage() {
   const locale = useLocale();
+  const isArabic = locale === "ar";
+  const copy = isArabic
+    ? {
+        back: "العودة لتسجيل الدخول",
+        title: "استعادة كلمة المرور",
+        enterCode: "أدخل رمز التحقق",
+        done: "تم تحديث كلمة المرور",
+        requestDescription: "أدخل بريد حسابك لإرسال تعليمات استعادة كلمة المرور.",
+        codeDescription: (address: string) => `أدخل الرمز المرسل إلى ${address} واختر كلمة مرور جديدة.`,
+        linkDescription: "إذا كان البريد مرتبطًا بحساب، تحقق من صندوق الوارد واتبع رابط إعادة التعيين.",
+        doneDescription: "تم تغيير كلمة المرور. يمكنك تسجيل الدخول الآن.",
+        unavailable: "خدمة الحسابات غير مهيأة حاليًا.",
+        requestError: "تعذر إرسال طلب الاستعادة. حاول مرة أخرى لاحقًا.",
+        mismatch: "كلمتا المرور غير متطابقتين.",
+        confirmError: "تعذر تغيير كلمة المرور. راجع الرمز وحاول مرة أخرى.",
+        email: "البريد الإلكتروني",
+        send: "إرسال تعليمات الاستعادة",
+        sending: "جارٍ الإرسال...",
+        emailCode: "رمز البريد الإلكتروني",
+        newPassword: "كلمة المرور الجديدة",
+        confirmPassword: "تأكيد كلمة المرور",
+        verify: "جارٍ التحقق...",
+        changePassword: "تغيير كلمة المرور",
+        resend: "إعادة إرسال الرمز",
+        returnLogin: "العودة لتسجيل الدخول",
+        requestAnother: "طلب رسالة أخرى",
+      }
+    : {
+        back: "Back to sign in",
+        title: "Reset your password",
+        enterCode: "Enter the verification code",
+        done: "Password updated",
+        requestDescription: "Enter your account email to receive password reset instructions.",
+        codeDescription: (address: string) => `Enter the code sent to ${address} and choose a new password.`,
+        linkDescription: "If an account is associated with this email, check your inbox and follow the reset link.",
+        doneDescription: "Your password has been changed. You can sign in now.",
+        unavailable: "Account services are not configured right now.",
+        requestError: "We could not send the reset request. Please try again later.",
+        mismatch: "The passwords do not match.",
+        confirmError: "We could not change your password. Check the code and try again.",
+        email: "Email address",
+        send: "Send reset instructions",
+        sending: "Sending...",
+        emailCode: "Email verification code",
+        newPassword: "New password",
+        confirmPassword: "Confirm password",
+        verify: "Verifying...",
+        changePassword: "Change password",
+        resend: "Send another code",
+        returnLogin: "Return to sign in",
+        requestAnother: "Request another email",
+      };
   const { requestPasswordReset, confirmPasswordReset } = useAuth();
   const authConfigured = isAuthenticationConfigured();
-  const [role, setRole] = useState<AccountRole>("student");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -29,26 +78,18 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const requestedRole = new URLSearchParams(window.location.search).get(
-      "role",
-    );
-    if (requestedRole === "parent" || requestedRole === "student" || requestedRole === "teacher")
-      setRole(requestedRole);
-  }, []);
-
   const handleRequest = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const method = await requestPasswordReset(email, role);
+      const method = await requestPasswordReset(email);
       setDelivery(method);
       setStage(method === "code" ? "verify" : "done");
     } catch (requestError: any) {
       setError(
         requestError?.message ||
-          "تعذر إرسال طلب الاستعادة. حاول مرة أخرى لاحقًا.",
+          copy.requestError,
       );
     } finally {
       setLoading(false);
@@ -59,7 +100,7 @@ export default function ForgotPasswordPage() {
     event.preventDefault();
     setError("");
     if (password !== confirmPassword) {
-      setError("كلمتا المرور غير متطابقتين.");
+      setError(copy.mismatch);
       return;
     }
     setLoading(true);
@@ -69,7 +110,7 @@ export default function ForgotPasswordPage() {
     } catch (resetError: any) {
       setError(
         resetError?.message ||
-          "تعذر تغيير كلمة المرور. راجع الرمز وحاول مرة أخرى.",
+          copy.confirmError,
       );
     } finally {
       setLoading(false);
@@ -79,14 +120,14 @@ export default function ForgotPasswordPage() {
   return (
     <main
       className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10"
-      dir="rtl"
+      dir={isArabic ? "rtl" : "ltr"}
     >
       <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-xl sm:p-9">
         <Link
           href={`/${locale}/login`}
           className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900"
         >
-          <ArrowRight className="h-4 w-4" /> العودة لتسجيل الدخول
+          <ArrowRight className={`h-4 w-4 ${isArabic ? "" : "rotate-180"}`} /> {copy.back}
         </Link>
 
         <div className="mb-7 text-center">
@@ -101,21 +142,21 @@ export default function ForgotPasswordPage() {
           </div>
           <h1 className="text-2xl font-black text-slate-900">
             {stage === "request"
-              ? "استعادة كلمة المرور"
+              ? copy.title
               : stage === "verify"
-                ? "أدخل رمز التحقق"
+                ? copy.enterCode
                 : delivery === "link"
-                  ? "تحقق من بريدك الإلكتروني"
-                  : "تم تحديث كلمة المرور"}
+                  ? (isArabic ? "تحقق من بريدك الإلكتروني" : "Check your email")
+                  : copy.done}
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">
             {stage === "request"
-              ? "أدخل بريد حسابك لإرسال تعليمات استعادة كلمة المرور."
+              ? copy.requestDescription
               : stage === "verify"
-                ? `أدخل الرمز المرسل إلى ${email} واختر كلمة مرور جديدة.`
+                ? copy.codeDescription(email)
                 : delivery === "link"
-                  ? "إذا كان البريد مرتبطًا بحساب، تحقق من صندوق الوارد واتبع رابط إعادة التعيين."
-                  : "تم تغيير كلمة المرور. يمكنك تسجيل الدخول الآن."}
+                  ? copy.linkDescription
+                  : copy.doneDescription}
           </p>
         </div>
 
@@ -125,7 +166,7 @@ export default function ForgotPasswordPage() {
             className="mb-5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>خدمة الحسابات غير مهيأة حاليًا.</span>
+            <span>{copy.unavailable}</span>
           </div>
         )}
 
@@ -142,19 +183,7 @@ export default function ForgotPasswordPage() {
         {stage === "request" && (
           <form onSubmit={handleRequest} className="space-y-5">
             <label className="block text-sm font-bold text-slate-700">
-              نوع الحساب
-              <select
-                value={role}
-                onChange={(event) => setRole(event.target.value as AccountRole)}
-                className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              >
-                <option value="student">طالب</option>
-                <option value="parent">ولي أمر</option>
-                <option value="teacher">معلم</option>
-              </select>
-            </label>
-            <label className="block text-sm font-bold text-slate-700">
-              البريد الإلكتروني
+              {copy.email}
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -170,7 +199,7 @@ export default function ForgotPasswordPage() {
               disabled={loading || !authConfigured}
               className="h-12 w-full rounded-xl bg-blue-700 text-sm font-bold text-white transition hover:bg-blue-800 disabled:opacity-50"
             >
-              {loading ? "جارٍ الإرسال..." : "إرسال تعليمات الاستعادة"}
+              {loading ? copy.sending : copy.send}
             </button>
           </form>
         )}
@@ -178,7 +207,7 @@ export default function ForgotPasswordPage() {
         {stage === "verify" && (
           <form onSubmit={handleConfirm} className="space-y-4">
             <label className="block text-sm font-bold text-slate-700">
-              رمز البريد الإلكتروني
+              {copy.emailCode}
               <input
                 value={code}
                 onChange={(event) =>
@@ -195,7 +224,7 @@ export default function ForgotPasswordPage() {
               />
             </label>
             <label className="block text-sm font-bold text-slate-700">
-              كلمة المرور الجديدة
+              {copy.newPassword}
               <span className="relative mt-2 block">
                 <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
@@ -211,7 +240,7 @@ export default function ForgotPasswordPage() {
               </span>
             </label>
             <label className="block text-sm font-bold text-slate-700">
-              تأكيد كلمة المرور
+              {copy.confirmPassword}
               <input
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
@@ -227,7 +256,7 @@ export default function ForgotPasswordPage() {
               disabled={loading || code.length !== 6}
               className="h-12 w-full rounded-xl bg-blue-700 text-sm font-bold text-white transition hover:bg-blue-800 disabled:opacity-50"
             >
-              {loading ? "جارٍ التحقق..." : "تغيير كلمة المرور"}
+              {loading ? copy.verify : copy.changePassword}
             </button>
             <button
               type="button"
@@ -237,17 +266,17 @@ export default function ForgotPasswordPage() {
               }}
               className="w-full py-2 text-sm font-semibold text-slate-500 hover:text-slate-800"
             >
-              إعادة إرسال الرمز
+              {copy.resend}
             </button>
           </form>
         )}
 
         {stage === "done" && delivery === "code" && (
           <Link
-            href={`/${locale}/login/${role}`}
+          href={`/${locale}/login`}
             className="flex h-12 items-center justify-center rounded-xl bg-blue-700 text-sm font-bold text-white hover:bg-blue-800"
           >
-            العودة لتسجيل الدخول
+            {copy.returnLogin}
           </Link>
         )}
         {stage === "done" && delivery === "link" && (
@@ -258,7 +287,7 @@ export default function ForgotPasswordPage() {
             }}
             className="h-12 w-full rounded-xl border border-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-50"
           >
-            طلب رسالة أخرى
+            {copy.requestAnother}
           </button>
         )}
       </section>

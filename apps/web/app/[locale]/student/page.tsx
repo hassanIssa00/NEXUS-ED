@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from '@/i18n/routing'
 import { dashboardApi, type StudentDashboardResponse } from '@/lib/api/dashboard'
 import Image from 'next/image'
+import CurrentScheduleCard from '@/components/schedule/CurrentScheduleCard'
+import ParentLinkCodeButton from '@/components/student/parent-link-code-button'
 import { useRealtimeAssignments, useRealtimeNotifications } from '@/lib/providers/socket-provider'
 import { motion } from 'framer-motion'
 import {
@@ -177,9 +179,7 @@ export default function StudentDashboardPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/student/new?flow=student" className="inline-flex items-center gap-2 rounded-lg border border-white/30 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10">
-              <Users className="h-4 w-4" /> رمز ولي الأمر
-            </Link>
+            <ParentLinkCodeButton />
             <Link href="/student/assignments" className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-violet-900 hover:bg-violet-50">
               <ClipboardList className="h-4 w-4" /> الواجبات
             </Link>
@@ -189,6 +189,8 @@ export default function StudentDashboardPage() {
           </div>
         </div>
       </section>
+
+      <CurrentScheduleCard />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={BookOpen} label="المواد" value={summary.totalSubjects} detail="حسب تسجيلك الدراسي" tone="bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300" />
@@ -311,7 +313,7 @@ export default function StudentDashboardPage() {
                   <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                   <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                   <Tooltip />
-                  <Area type="monotone" dataKey="تسليمات" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.18} />
+                  <Area type="monotone" dataKey="تسليمات" stroke="#234A65" fill="#234A65" fillOpacity={0.18} />
                   <Area type="monotone" dataKey="أيام الحضور" stroke="#059669" fill="#059669" fillOpacity={0.12} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -331,7 +333,7 @@ export default function StudentDashboardPage() {
                   <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                   <Tooltip />
                   <Bar dataKey="الدرجة" radius={[5, 5, 0, 0]}>
-                    {gradedSubjects.map((subject) => <Cell key={subject.id} fill="#7c3aed" />)}
+                    {gradedSubjects.map((subject) => <Cell key={subject.id} fill="#234A65" />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
