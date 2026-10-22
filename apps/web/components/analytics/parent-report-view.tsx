@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
-    FileText, Download, Printer, TrendingUp, TrendingDown, Minus, 
+    FileText, Printer, TrendingUp, TrendingDown, Minus,
     User, Calendar, Award, Clock, BookOpen, Lightbulb, CheckCircle 
 } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
+import { ReportPrintFooter, ReportPrintIdentity } from '@/components/reports/report-print-tools';
 
 interface ParentReport {
     studentInfo: {
@@ -22,7 +23,6 @@ interface ParentReport {
         attendanceRate: number | null;
         assignmentsCompleted: number;
         totalAssignments: number;
-        behaviorScore: number;
         rank: number | null;
         totalStudents: number;
     };
@@ -56,32 +56,28 @@ interface ParentReportViewProps {
 export function ParentReportView({ studentId, period = 'month', data: propData }: ParentReportViewProps) {
     const [data, setData] = useState<ParentReport | null>(propData || null);
     const [loading, setLoading] = useState(!propData);
+    const [loadError, setLoadError] = useState('');
     const reportRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (!propData) {
-            fetchData();
-        }
-    }, [studentId, period]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
+            setLoadError('');
             const { data } = await apiClient.get(`/analytics/student/${studentId}/parent-report`, { params: { period } });
             setData(data);
         } catch {
-            console.error('Failed to fetch parent report');
+            setLoadError('تعذر تحميل بيانات التقرير من النظام. حدّث الصفحة أو حاول مرة أخرى.');
         } finally {
             setLoading(false);
         }
-    };
+    }, [period, studentId]);
+
+    useEffect(() => {
+        if (!propData) fetchData();
+    }, [fetchData, propData]);
 
     const handlePrint = () => {
         window.print();
-    };
-
-    const handleDownload = async () => {
-        handlePrint();
     };
 
     const TrendIcon = ({ trend }: { trend: 'UP' | 'DOWN' | 'STABLE' | 'NO_BASELINE' }) => {
@@ -115,6 +111,17 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
         );
     }
 
+    if (!data && loadError) {
+        return (
+            <Card role="alert">
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6 text-sm text-destructive">
+                    <span>{loadError}</span>
+                    <Button type="button" variant="outline" onClick={() => void fetchData()}>إعادة المحاولة</Button>
+                </CardContent>
+            </Card>
+        );
+    }
+
     if (!data) {
         return (
             <Card>
@@ -126,7 +133,8 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
     }
 
     return (
-        <div className="space-y-6" ref={reportRef}>
+        <div className="report-print-root space-y-6" ref={reportRef}>
+            <ReportPrintIdentity title="تقرير الأداء الدراسي" subtitle={`${data.studentInfo.name} · ${data.studentInfo.class} · ${data.studentInfo.period} · ${new Date().toLocaleDateString('ar-SA')}`} />
             {/* Header with Actions */}
             <Card className="border-2 border-primary/20">
                 <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg">
@@ -143,11 +151,7 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
                         <div className="flex gap-2 print:hidden">
                             <Button variant="secondary" size="sm" onClick={handlePrint}>
                                 <Printer className="w-4 h-4 ml-2" />
-                                طباعة
-                            </Button>
-                            <Button variant="secondary" size="sm" onClick={handleDownload}>
-                                <Download className="w-4 h-4 ml-2" />
-                                تحميل PDF
+                                طباعة / حفظ PDF
                             </Button>
                         </div>
                     </div>
@@ -293,6 +297,7 @@ export function ParentReportView({ studentId, period = 'month', data: propData }
                     </ul>
                 </CardContent>
             </Card>
+            <ReportPrintFooter />
         </div>
     );
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Req, ForbiddenException } from '@nestjs/common';
 import { GamesService } from './games.service';
 import { JwtAuthGuard } from '../../infrastructure/guards/auth.guard';
 
@@ -8,8 +8,9 @@ export class GamesController {
   constructor(private readonly gamesService: GamesService) {}
 
   @Get()
-  async getAllGames() {
-    const data = await this.gamesService.findAll();
+  async getAllGames(@Req() req: any) {
+    if (!req.user.schoolId) throw new ForbiddenException('The account is not assigned to a school');
+    const data = await this.gamesService.findAll(req.user.schoolId);
     return { success: true, data };
   }
 

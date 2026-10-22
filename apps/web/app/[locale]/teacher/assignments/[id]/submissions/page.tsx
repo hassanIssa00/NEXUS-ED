@@ -3,18 +3,20 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import { Link } from '@/i18n/routing';
 import { assignmentService, Submission } from '@/lib/services/assignment.service';
 import { VoiceRecorder } from '@/components/assignments/voice-recorder';
 
 export default function SubmissionsPage() {
   const t = useTranslations('teacher');
   const tAssign = useTranslations('assignment');
+  const tCommon = useTranslations('common');
   const params = useParams();
   const assignmentId = params.id as string;
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submissionsError, setSubmissionsError] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [gradeData, setGradeData] = useState({ score: 0, feedback: '' });
   const [aiData, setAiData] = useState<{ strengths?: string[], weaknesses?: string[], isAiGenerated?: boolean } | null>(null);
@@ -27,11 +29,13 @@ export default function SubmissionsPage() {
 
   const fetchSubmissions = async () => {
     setLoading(true);
+    setSubmissionsError(false);
     try {
       const data = await assignmentService.getSubmissions(assignmentId);
       setSubmissions(data);
     } catch (error) {
       console.error('Failed to fetch submissions', error);
+      setSubmissionsError(true);
     } finally {
       setLoading(false);
     }
@@ -79,7 +83,7 @@ export default function SubmissionsPage() {
       setSelectedSubmission(null);
       fetchSubmissions();
     } catch (error: any) {
-      alert(error.message || 'Failed to grade submission');
+      alert(error.message || tAssign('gradeError'));
     }
   };
 
@@ -90,7 +94,14 @@ export default function SubmissionsPage() {
       </h1>
 
       {loading ? (
-        <div>Loading...</div>
+        <p role="status" className="text-gray-500 dark:text-gray-400">{tAssign('loading')}</p>
+      ) : submissionsError ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-5 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+          <p>{tAssign('submissionsLoadError')}</p>
+          <button type="button" onClick={fetchSubmissions} className="mt-3 rounded-md bg-red-700 px-4 py-2 font-medium text-white hover:bg-red-800">
+            {tAssign('retry')}
+          </button>
+        </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -106,7 +117,7 @@ export default function SubmissionsPage() {
                   {tAssign('score')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  {t('actions')}
+                  {tCommon('actions')}
                 </th>
               </tr>
             </thead>
@@ -267,13 +278,13 @@ export default function SubmissionsPage() {
                   onClick={() => setSelectedSubmission(null)}
                   className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
                 >
-                  {t('cancel')}
+                  {tCommon('cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 >
-                  {t('save')}
+                  {tCommon('save')}
                 </button>
               </div>
             </form>

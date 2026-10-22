@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { MillionRoomsController } from './million.rooms.controller';
+import { MillionGateway } from './million.gateway';
 
 /**
  * Million Dialogue Module
@@ -6,7 +8,7 @@ import { Module } from '@nestjs/common';
  */
 @Module({
   imports: [],
-  controllers: [],
-  providers: [],
+  controllers: [MillionRoomsController],
+  providers: [MillionGateway],
 })
 export class MillionModule {}

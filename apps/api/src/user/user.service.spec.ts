@@ -58,4 +58,20 @@ describe('UserService parent/student onboarding', () => {
     });
     expect(tx.studentLinkCode.updateMany).toHaveBeenCalled();
   });
+
+  it('returns parent-submitted intake answers in the student own-file report', async () => {
+    const parentSurvey = { findMany: jest.fn().mockResolvedValue([]) };
+    const service = new UserService({ parentSurvey } as never);
+
+    await service.listMyIntakeSurveys('student-1', 'STUDENT');
+
+    expect(parentSurvey.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { studentId: 'student-1' },
+      select: expect.objectContaining({
+        answers: true,
+        respondentRole: true,
+        respondent: { select: { id: true, name: true, email: true, role: true } },
+      }),
+    }));
+  });
 });

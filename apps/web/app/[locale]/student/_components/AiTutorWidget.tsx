@@ -26,7 +26,7 @@ export function AiTutorWidget() {
     <>
       <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}
         onClick={() => setOpen(p => !p)}
-        className="fixed bottom-6 left-6 z-50 w-16 h-16 rounded-full bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-[0_0_30px_rgba(124,58,237,0.5)] flex items-center justify-center border-4 border-white dark:border-[#12121a]"
+        className="fixed bottom-6 left-6 z-50 w-16 h-16 rounded-full bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-[0_0_30px_rgba(35,74,101,0.5)] flex items-center justify-center border-4 border-white dark:border-[#12121a]"
         aria-label="AI Tutor">
         <BrainCircuit className="w-7 h-7" />
         <span className="absolute top-0 right-0 w-4 h-4 bg-emerald-400 border-2 border-white dark:border-[#12121a] rounded-full animate-pulse" />

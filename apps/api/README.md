@@ -11,7 +11,7 @@ Requirements: Node.js 22, npm 11, and a reachable PostgreSQL database.
 2. Copy `apps/api/.env.example` to `apps/api/.env` and set the database URLs,
    two JWT secrets, the public frontend origin, and Firebase project ID. Keep
    the pooled database URL in `DATABASE_URL` and the direct PostgreSQL URL in
-   `DIRECT_URL` for migrations. SMTP and Google OAuth are optional integrations.
+   `DIRECT_URL` for migrations. Gmail API OAuth2 or SMTP can enable API-sent email.
 3. Generate separate JWT secrets with
    `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"`.
    Do not reuse either value for another application or commit them.
@@ -43,6 +43,27 @@ The API exits unsuccessfully when production configuration is incomplete. A
 production deployment needs valid database, JWT, and HTTPS frontend-origin
 values. Store connection strings and JWT secrets only in the hosting provider's
 encrypted variables, never in Git.
+
+### Gmail API email setup
+
+If Google App Passwords are unavailable, configure Gmail API OAuth2 instead:
+
+1. In the Google Cloud project used for the sender, enable the Gmail API and
+   create an OAuth client ID and client secret.
+2. Configure OAuth consent for the sender account and authorize only
+   `https://www.googleapis.com/auth/gmail.send`.
+3. Obtain an offline refresh token for `nexuseduplatform@gmail.com` using that
+   OAuth client. Keep the client secret and refresh token private.
+4. In the API deployment environment, keep `SMTP_USER` and `SMTP_FROM_EMAIL` set
+   to `nexuseduplatform@gmail.com`; set `GMAIL_OAUTH_CLIENT_ID`,
+   `GMAIL_OAUTH_CLIENT_SECRET`, and `GMAIL_OAUTH_REFRESH_TOKEN`. When all three
+   are present, Gmail API OAuth2 is used instead of SMTP. Do not put these values
+   in frontend variables, source code, screenshots, or chat.
+
+Google OAuth consent apps left in **Testing** can have refresh tokens expire
+after seven days for Gmail scopes. Complete the consent-screen publishing and
+verification steps Google requires for the chosen audience before relying on
+this for long-term production email.
 
 ## Verification
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { CalendarDays, CircleAlert, Loader2 } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import ScheduleWeekView from '@/components/schedule/ScheduleWeekView';
+import CurrentScheduleCard from '@/components/schedule/CurrentScheduleCard';
 
 export default function SchedulePage() {
   const [schedule, setSchedule] = useState<Record<string, any[]>>({});
@@ -25,7 +26,7 @@ export default function SchedulePage() {
         <CalendarDays className="h-6 w-6 text-primary" />
         <div><h1 className="text-2xl font-bold">جدول الحصص</h1><p className="mt-1 text-sm text-muted-foreground">المواعيد المسجلة للفصول والمواد المرتبطة بحسابك.</p></div>
       </header>
-      {loading ? <div className="flex items-center justify-center gap-2 py-14 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />تحميل الجدول...</div> : error ? <p role="alert" className="flex items-center gap-2 rounded-md border border-destructive/30 p-4 text-sm text-destructive"><CircleAlert className="h-4 w-4" />{error}</p> : <ScheduleWeekView schedule={schedule} />}
+      {loading ? <div className="flex items-center justify-center gap-2 py-14 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />تحميل الجدول...</div> : error ? <p role="alert" className="flex items-center gap-2 rounded-md border border-destructive/30 p-4 text-sm text-destructive"><CircleAlert className="h-4 w-4" />{error}</p> : <div className="space-y-5"><CurrentScheduleCard scheduleData={schedule} /><ScheduleWeekView schedule={schedule} /></div>}
     </main>
   );
 }

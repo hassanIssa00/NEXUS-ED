@@ -17,7 +17,9 @@ export default function LessonsPage() {
     const t = useTranslations('teacher');
     const [lessons, setLessons] = useState<Lesson[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [lessonsError, setLessonsError] = useState(false);
+    const [subjectsError, setSubjectsError] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
     const [formData, setFormData] = useState({
@@ -35,22 +37,26 @@ export default function LessonsPage() {
 
     const fetchLessons = async () => {
         setLoading(true);
+        setLessonsError(false);
         try {
             const data = await lessonService.getMyLessons();
             setLessons(data);
         } catch (error) {
             console.error('Failed to fetch lessons', error);
+            setLessonsError(true);
         } finally {
             setLoading(false);
         }
     };
 
     const fetchSubjects = async () => {
+        setSubjectsError(false);
         try {
             const data = await subjectService.getAll();
             setSubjects(data);
         } catch (error) {
             console.error('Failed to fetch subjects', error);
+            setSubjectsError(true);
         }
     };
 
@@ -66,7 +72,7 @@ export default function LessonsPage() {
             resetForm();
             fetchLessons();
         } catch (error: any) {
-            alert(error.message || 'Failed to save lesson');
+            alert(error.message || t('saveError'));
         }
     };
 
@@ -77,6 +83,7 @@ export default function LessonsPage() {
                 fetchLessons();
             } catch (error) {
                 console.error('Failed to delete lesson', error);
+                alert(t('deleteError'));
             }
         }
     };
@@ -132,7 +139,14 @@ export default function LessonsPage() {
             </div>
 
             {loading ? (
-                <div>Loading...</div>
+                <p role="status" className="text-gray-500 dark:text-gray-400">{t('loading')}</p>
+            ) : lessonsError ? (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-5 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+                    <p>{t('loadError')}</p>
+                    <button type="button" onClick={fetchLessons} className="mt-3 rounded-md bg-red-700 px-4 py-2 font-medium text-white hover:bg-red-800">
+                        {t('retry')}
+                    </button>
+                </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {lessons.length === 0 ? (
@@ -221,6 +235,8 @@ export default function LessonsPage() {
                                             </option>
                                         ))}
                                     </select>
+                                    {subjectsError && <p role="alert" className="mt-2 text-sm text-red-600">{t('subjectsError')}</p>}
+                                    {!subjectsError && subjects.length === 0 && <p className="mt-2 text-sm text-gray-500">{t('noSubjects')}</p>}
                                 </div>
 
                                 <div>

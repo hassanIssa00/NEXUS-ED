@@ -183,7 +183,7 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                                     <YAxis stroke="#6b7280" fontSize={12} domain={[0, 100]} />
                                     <Tooltip contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', direction: 'rtl' }} />
                                     <Legend />
-                                    <Line type="monotone" dataKey="averageGrade" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', strokeWidth: 2 }} name="الدرجات" />
+                                    <Line type="monotone" dataKey="averageGrade" stroke="#4A687C" strokeWidth={3} dot={{ fill: '#4A687C', strokeWidth: 2 }} name="الدرجات" />
                                     <Line type="monotone" dataKey="attendanceRate" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', strokeWidth: 2 }} name="الحضور" />
                                 </LineChart>
                             </ResponsiveContainer>
@@ -196,7 +196,7 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                                     <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
                                     <YAxis stroke="#6b7280" fontSize={12} domain={[0, 100]} />
                                     <Tooltip contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px' }} />
-                                    <Area type="monotone" dataKey="averageGrade" stroke="#3b82f6" strokeWidth={3} fill="#3b82f6" fillOpacity={0.12} name="متوسط الدرجات" />
+                                    <Area type="monotone" dataKey="averageGrade" stroke="#4A687C" strokeWidth={3} fill="#4A687C" fillOpacity={0.12} name="متوسط الدرجات" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </TabsContent>

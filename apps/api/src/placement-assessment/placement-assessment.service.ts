@@ -6,6 +6,46 @@ import { getPlacementAssessment, PlacementGradeKey, PlacementQuestion } from './
 
 const LEADERSHIP_ROLES = ['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'COUNSELOR', 'SUPERVISOR'];
 
+function describeAssessmentAnswers(rawAnswers: Prisma.JsonValue, rawSnapshot: Prisma.JsonValue) {
+  const answers = rawAnswers && typeof rawAnswers === 'object' && !Array.isArray(rawAnswers)
+    ? rawAnswers as Record<string, unknown>
+    : {};
+  const questions = Array.isArray(rawSnapshot) ? rawSnapshot as Array<{
+    id: string;
+    category?: string;
+    prompt?: string;
+    correctAnswer?: string;
+    explanation?: string;
+  }> : [];
+  const details = questions.map((question) => ({
+    id: question.id,
+    category: question.category ?? 'عام',
+    prompt: question.prompt ?? '',
+    selectedAnswer: typeof answers[question.id] === 'string' ? answers[question.id] as string : null,
+    correctAnswer: question.correctAnswer ?? null,
+    isCorrect: Boolean(question.correctAnswer) && answers[question.id] === question.correctAnswer,
+    explanation: question.explanation ?? '',
+  }));
+  const categories = new Map<string, { total: number; correct: number }>();
+  for (const answer of details) {
+    const score = categories.get(answer.category) ?? { total: 0, correct: 0 };
+    score.total += 1;
+    if (answer.isCorrect) score.correct += 1;
+    categories.set(answer.category, score);
+  }
+  const weakAreas = [...categories.entries()]
+    .map(([category, score]) => ({
+      category,
+      total: score.total,
+      correct: score.correct,
+      incorrect: score.total - score.correct,
+      accuracy: Math.round((score.correct / score.total) * 100),
+    }))
+    .filter((area) => area.incorrect > 0)
+    .sort((left, right) => left.accuracy - right.accuracy || right.incorrect - left.incorrect);
+  return { answers: details, weakAreas };
+}
+
 @Injectable()
 export class PlacementAssessmentService {
   constructor(
@@ -77,14 +117,14 @@ export class PlacementAssessmentService {
           studentId,
           gradeLevel: student.studentProfile.gradeLevel,
           assessmentKey,
-          answers: answers as Prisma.InputJsonValue,
+          answers,
           questionSnapshot: questions.map((question) => ({
             id: question.id,
             category: question.categoryLabel,
             prompt: question.prompt,
             correctAnswer: question.correct,
             explanation: question.explanation,
-          })) as Prisma.InputJsonValue,
+          })),
           correctCount,
           questionCount,
           score,
@@ -104,11 +144,13 @@ export class PlacementAssessmentService {
     if (!actor?.schoolId) throw new ForbiddenException('الحساب غير مرتبط بمدرسة');
     const safePage = Math.max(1, Math.floor(page));
     const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
-    if (!['TEACHER', 'PARENT'].includes(actorRole) && !LEADERSHIP_ROLES.includes(actorRole)) {
+    if (!['STUDENT', 'TEACHER', 'PARENT'].includes(actorRole) && !LEADERSHIP_ROLES.includes(actorRole)) {
       throw new ForbiddenException('لا تملك صلاحية عرض تقارير الاختبارات');
     }
     const studentScope: Prisma.UserWhereInput = { schoolId: actor.schoolId };
-    if (actorRole === 'TEACHER') {
+    if (actorRole === 'STUDENT') {
+      studentScope.id = actorId;
+    } else if (actorRole === 'TEACHER') {
       studentScope.enrollments = {
         some: {
           class: {
@@ -146,6 +188,10 @@ export class PlacementAssessmentService {
         score: item.score,
         completedAt: item.completedAt,
         studentName: this.studentName(item.student),
+        // Keep answer keys and individual answers out of teacher reports. The
+        // student, their linked parent, and leadership/counseling reports can
+        // access the full diagnostic detail for support and follow-up.
+        ...(actorRole === 'TEACHER' ? {} : describeAssessmentAnswers(item.answers, item.questionSnapshot)),
       })),
       page: safePage,
       limit: safeLimit,
@@ -173,14 +219,7 @@ export class PlacementAssessmentService {
     if (!attempt) throw new NotFoundException('تقرير الاختبار غير موجود');
     await this.studentAnalytics.assertCanAccessStudent(actorId, actorRole, attempt.studentId);
 
-    const answers = attempt.answers as Record<string, string>;
-    const questions = attempt.questionSnapshot as Array<{
-      id: string;
-      category: string;
-      prompt: string;
-      correctAnswer: string;
-      explanation: string;
-    }>;
+    const assessmentDetails = describeAssessmentAnswers(attempt.answers, attempt.questionSnapshot);
     return {
       id: attempt.id,
       studentId: attempt.studentId,
@@ -191,15 +230,7 @@ export class PlacementAssessmentService {
       correctCount: attempt.correctCount,
       questionCount: attempt.questionCount,
       completedAt: attempt.completedAt,
-      answers: questions.map((question) => ({
-        id: question.id,
-        category: question.category,
-        prompt: question.prompt,
-        selectedAnswer: answers[question.id] ?? null,
-        correctAnswer: question.correctAnswer,
-        isCorrect: answers[question.id] === question.correctAnswer,
-        explanation: question.explanation,
-      })),
+      ...(actorRole === 'TEACHER' ? {} : assessmentDetails),
     };
   }
 

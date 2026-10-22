@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from '@/i18n/routing';
 import { CalendarDays, Check, CheckCheck, CircleAlert, Clock3, Loader2, Save, UserX, X } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -181,7 +182,7 @@ export default function AttendancePage() {
                       <li key={student.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex min-w-0 items-center gap-3">
                           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold">{fullName.slice(0, 1)}</span>
-                          <span className="truncate text-sm font-medium">{fullName}</span>
+                          <Link href={`/teacher/students/${student.id}` as never} className="truncate text-sm font-medium text-primary hover:underline">{fullName}</Link>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'] as const).map((status) => {

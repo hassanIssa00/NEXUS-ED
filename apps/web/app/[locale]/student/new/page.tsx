@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from '@/i18n/routing';
-import { CalendarDays, Camera, Check, Copy, GraduationCap, LoaderCircle, ShieldCheck, UserRound } from 'lucide-react';
+import { Camera, Check, Copy, GraduationCap, LoaderCircle, ShieldCheck, UserRound } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api/client';
 import { uploadService } from '@/lib/services/upload.service';
@@ -31,11 +31,52 @@ function errorMessage(error: any) {
   return Array.isArray(message) ? message.join('، ') : message || 'تعذر حفظ البيانات. حاول مرة أخرى.';
 }
 
+function normalizeDigits(value: string) {
+  return value
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/\D/g, '');
+}
+
+function dateOfBirthParts(value: unknown) {
+  const match = String(value ?? '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? { day: match[3], month: match[2], year: match[1] } : null;
+}
+
+function serializeDateOfBirth(dayValue: string, monthValue: string, yearValue: string) {
+  const parts = [dayValue, monthValue, yearValue].map((value) => value.trim());
+  if (parts.every((part) => !part)) return undefined;
+  if (parts.some((part) => !part)) {
+    throw new Error('أدخل اليوم والشهر والسنة كاملين، أو اترك تاريخ الميلاد فارغًا.');
+  }
+
+  const [day, month, year] = parts.map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    year < 1900
+    || year > 9999
+    || date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) {
+    throw new Error('تاريخ الميلاد غير صحيح. راجع اليوم والشهر والسنة.');
+  }
+
+  const serializedDate = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  if (serializedDate > new Date().toISOString().slice(0, 10)) {
+    throw new Error('تاريخ الميلاد لا يمكن أن يكون في المستقبل.');
+  }
+
+  return `${serializedDate}T00:00:00.000Z`;
+}
+
 export default function StudentNewPage() {
   const router = useRouter();
   const { profile, loading: authLoading, refreshProfile } = useAuth();
   const [gradeLevel, setGradeLevel] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [birthDay, setBirthDay] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthYear, setBirthYear] = useState('');
   const [nationalId, setNationalId] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState('');
@@ -75,7 +116,14 @@ export default function StudentNewPage() {
         const birthDate = apiProfile?.dateOfBirth ?? firebaseProfile?.dateOfBirth;
         if (typeof apiProfile?.nationalId === 'string') setNationalId(apiProfile.nationalId);
         if (grade !== null && grade !== undefined) setGradeLevel(String(grade));
-        if (birthDate) setDateOfBirth(String(birthDate).slice(0, 10));
+        if (birthDate) {
+          const parts = dateOfBirthParts(birthDate);
+          if (parts) {
+            setBirthDay(parts.day);
+            setBirthMonth(parts.month);
+            setBirthYear(parts.year);
+          }
+        }
       }).catch(() => setError('تعذر تحميل ملف الطالب الحالي. حاول إعادة فتح صفحة استكمال البيانات.'));
     }
   }, [authLoading, profile, router]);
@@ -90,17 +138,19 @@ export default function StudentNewPage() {
         if (!nationalId || !/^\d{10}$/.test(nationalId)) throw new Error('أدخل رقم الهوية الوطنية أو الإقامة المكوّن من 10 أرقام.')
         if (!photoFile && !profile?.avatar_url) throw new Error('ارفع صورة الطالب لإكمال إنشاء الملف الدراسي.')
         const firebaseUser = getCurrentUser();
+        const serializedDate = serializeDateOfBirth(birthDay, birthMonth, birthYear);
         if (photoFile) await uploadService.uploadStudentAvatar(photoFile);
-        const serializedDate = dateOfBirth
-          ? new Date(`${dateOfBirth}T00:00:00.000Z`).toISOString()
-          : undefined;
         await apiClient.put('/users/me/student-profile', {
           gradeLevel: Number(gradeLevel),
           nationalId,
           ...(serializedDate ? { dateOfBirth: serializedDate } : {}),
         });
         if (firebaseUser?.uid === profile?.id && profile?.emailVerified !== false) {
-          await syncStudentOnboardingMetadata(Number(gradeLevel), serializedDate);
+          try {
+            await syncStudentOnboardingMetadata(Number(gradeLevel), serializedDate);
+          } catch (syncError) {
+            console.warn('Student profile was saved to the API, but Firebase metadata could not be synchronized.', syncError);
+          }
         }
         const { data } = await apiClient.post('/users/student-link-code');
         await refreshProfile();
@@ -184,10 +234,45 @@ export default function StudentNewPage() {
                 </label>
                 <label className="block space-y-2 text-sm font-bold text-gray-700 dark:text-gray-200">
                   تاريخ الميلاد (اختياري)
-                  <span className="relative block">
-                    <CalendarDays className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                    <input type="date" value={dateOfBirth} max={new Date().toISOString().slice(0, 10)} onChange={(event) => setDateOfBirth(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white py-3 pe-10 ps-3 text-sm dark:border-white/10 dark:bg-white/5" />
+                  <span className="grid grid-cols-[1fr_1fr_1.5fr] gap-2" dir="rtl">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="bday-day"
+                      aria-label="يوم الميلاد"
+                      dir="ltr"
+                      maxLength={2}
+                      value={birthDay}
+                      onChange={(event) => setBirthDay(normalizeDigits(event.target.value).slice(0, 2))}
+                      placeholder="يوم"
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-3 text-center text-sm dark:border-white/10 dark:bg-white/5"
+                    />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="bday-month"
+                      aria-label="شهر الميلاد"
+                      dir="ltr"
+                      maxLength={2}
+                      value={birthMonth}
+                      onChange={(event) => setBirthMonth(normalizeDigits(event.target.value).slice(0, 2))}
+                      placeholder="شهر"
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-3 text-center text-sm dark:border-white/10 dark:bg-white/5"
+                    />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="bday-year"
+                      aria-label="سنة الميلاد"
+                      dir="ltr"
+                      maxLength={4}
+                      value={birthYear}
+                      onChange={(event) => setBirthYear(normalizeDigits(event.target.value).slice(0, 4))}
+                      placeholder="سنة الميلاد"
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-3 text-center text-sm dark:border-white/10 dark:bg-white/5"
+                    />
                   </span>
+                  <span className="block text-xs font-normal text-gray-500">اكتب اليوم ثم الشهر ثم السنة. مثال: 03 / 02 / 2012.</span>
                 </label>
                 <div className="space-y-2">
                   <label htmlFor="student-photo" className="block text-sm font-bold text-gray-700 dark:text-gray-200">صورة الطالب <span className="text-rose-600">*</span></label>
@@ -250,9 +335,8 @@ export default function StudentNewPage() {
                 </button>
               </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div>
               <button type="button" onClick={() => router.push('/assessment')} className="w-full rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white hover:bg-teal-800">بدء الاختبار التشخيصي</button>
-              <button type="button" onClick={() => router.push('/student')} className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/10">الدخول إلى لوحة الطالب</button>
             </div>
           </div>
         )}

@@ -78,7 +78,7 @@ export class SubjectService {
 
     const subjects = new Map<string, any>();
     for (const enrollment of enrollments) {
-      const classroom = enrollment.class as typeof enrollment.class & { classSubjects?: any[] };
+      const classroom = enrollment.class;
       const linkedSubjects = classroom.classSubjects?.length
         ? classroom.classSubjects.map((item) => item.subject)
         : classroom.subjects;

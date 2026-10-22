@@ -7,7 +7,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { SubmitPlacementAssessmentDto } from './dto/submit-placement-assessment.dto';
 import { PlacementAssessmentService } from './placement-assessment.service';
 
-const REPORT_ROLES = [Role.PARENT, Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR];
+const REPORT_ROLES = [Role.STUDENT, Role.PARENT, Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR];
 
 @ApiTags('Placement assessments')
 @ApiBearerAuth()

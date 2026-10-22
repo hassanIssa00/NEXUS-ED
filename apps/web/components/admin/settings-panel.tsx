@@ -59,6 +59,7 @@ export function AdminSettingsPanel() {
     const [settings, setSettings] = useState<SchoolSettings>(defaultSettings);
     const [loading, setLoading] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [saveError, setSaveError] = useState('');
     const [fetching, setFetching] = useState(true);
     const [loadFailed, setLoadFailed] = useState(false);
     const [savedSettings, setSavedSettings] = useState<SchoolSettings>(defaultSettings);
@@ -82,6 +83,7 @@ export function AdminSettingsPanel() {
 
     const handleSave = async () => {
         setLoading(true);
+        setSaveError('');
         try {
             const { data } = await apiClient.put<SchoolSettings>('/admin/settings', settings);
             setSettings(data);
@@ -89,7 +91,8 @@ export function AdminSettingsPanel() {
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
         } catch {
-            console.error('Failed to save settings');
+            setSaved(false);
+            setSaveError('تعذر حفظ الإعدادات. حاول مرة أخرى.');
         } finally {
             setLoading(false);
         }
@@ -148,7 +151,7 @@ export function AdminSettingsPanel() {
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={handleReset}>
                         <RotateCcw className="w-4 h-4 ml-2" />
-                        استعادة الافتراضي
+                        استعادة آخر نسخة محفوظة
                     </Button>
                     <Button onClick={handleSave} disabled={loading}>
                         {saved ? (
@@ -165,6 +168,8 @@ export function AdminSettingsPanel() {
                     </Button>
                 </div>
             </motion.div>
+
+            {saveError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{saveError}</p>}
 
             {/* Settings Tabs */}
             <Tabs defaultValue="grading" className="w-full">

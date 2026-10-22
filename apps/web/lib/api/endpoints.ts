@@ -1,3 +1,5 @@
+import { hasExplicitlySignedOut } from '@/lib/auth-session-state';
+
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/+$/, '');
 
 export function getApiBaseUrl(): string | null {
@@ -42,6 +44,7 @@ export function getSocketBaseUrl(): string | null {
 
 export function getStoredAccessToken(): string | null {
   if (typeof window === 'undefined') return null;
+  if (hasExplicitlySignedOut()) return null;
   return sessionStorage.getItem('access_token')
     || localStorage.getItem('access_token')
     || localStorage.getItem('token');

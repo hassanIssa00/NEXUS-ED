@@ -1,7 +1,7 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
-import { Bell, Search, Sun, Moon, Menu, LogOut } from 'lucide-react'
+import { useLocale } from 'next-intl'
+import { Bell, Search, Sun, Moon, Menu, LogOut, Languages } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from 'next-themes'
 import {
@@ -14,6 +14,7 @@ import { EnhancedNotifications } from '@/components/dashboard/notifications-popo
 import { GlobalSearch } from '@/components/search/global-search'
 import { XpBar } from '@/components/gamification/xp-bar'
 import { useAuth } from '@/contexts/auth-context'
+import { usePathname, useRouter } from '@/i18n/routing'
 
 // Map routes to Arabic page titles
 const PAGE_TITLES: Record<string, string> = {
@@ -78,6 +79,8 @@ interface DashboardHeaderProps {
 export function DashboardHeader({ title, onMenuClick }: DashboardHeaderProps) {
     const { setTheme } = useTheme()
     const pathname = usePathname()
+    const router = useRouter()
+    const locale = useLocale()
     const { signOut } = useAuth()
     const pageTitle = title || getPageTitle(pathname)
 
@@ -93,6 +96,18 @@ export function DashboardHeader({ title, onMenuClick }: DashboardHeaderProps) {
             </div>
 
             <div className="flex items-center gap-4">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 gap-2 px-2"
+                    aria-label={locale === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}
+                    onClick={() => router.replace(pathname, { locale: locale === 'ar' ? 'en' : 'ar' })}
+                >
+                    <Languages className="h-4 w-4" />
+                    <span className="text-xs font-semibold">{locale === 'ar' ? 'English' : 'العربية'}</span>
+                </Button>
+
                 {/* XP Bar (Students Only) */}
                 {pathname.includes('/student') && (
                     <div className="hidden md:block">

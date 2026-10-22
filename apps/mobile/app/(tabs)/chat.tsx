@@ -48,7 +48,7 @@ export default function ChatScreen() {
     () => selected?.participants.find((participant) => participant.userId !== user?.id)?.user,
     [selected, user?.id],
   );
-  const canMessage = user?.role === 'STUDENT' || user?.role === 'PARENT';
+  const canMessage = Boolean(user);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -150,7 +150,7 @@ export default function ChatScreen() {
   };
 
   if (!canMessage) {
-    return <View style={styles.center}><Text style={styles.empty}>الرسائل متاحة حاليًا لحسابات الطلاب وأولياء الأمور فقط.</Text></View>;
+    return <View style={styles.center}><Text style={styles.empty}>سجّل الدخول لعرض محادثات الحسابات المصرح بها.</Text></View>;
   }
 
   return (

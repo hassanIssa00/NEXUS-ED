@@ -37,7 +37,7 @@ export default function ComparisonChart({ lastWeek, thisWeek, lastMonth, thisMon
                                 borderRadius: '8px',
                             }}
                         />
-                        <Bar dataKey="points" name="النقاط" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="points" name="النقاط" fill="#98793E" radius={[4, 4, 0, 0]} />
                     </BarChart>
                 </ResponsiveContainer>
             )}

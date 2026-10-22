@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { BookOpen, CircleAlert, Loader2 } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
+import { PrintReportButton, ReportPrintFooter, ReportPrintIdentity } from '@/components/reports/report-print-tools';
 
 type Child = { id: string; name: string };
 type Grade = { id: string; subjectName: string; subjectCode?: string; grade: number; maxGrade: number; percentage: number; letterGrade: string; date: string };
@@ -49,10 +50,11 @@ export default function ParentGradesPage() {
   const selectedChild = children.find((child) => child.id === studentId);
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 pb-10" dir="rtl">
+    <main className="report-print-root mx-auto max-w-5xl space-y-6 pb-10" dir="rtl">
+      <ReportPrintIdentity title="تقرير درجات الأبناء" subtitle={selectedChild ? `الطالب: ${selectedChild.name}` : 'الدرجات المسجلة في نظام المدرسة'} />
       <header className="flex items-center gap-3 border-b pb-5">
         <BookOpen className="h-6 w-6 text-primary" />
-        <div><h1 className="text-2xl font-bold">الدرجات المسجلة</h1><p className="mt-1 text-sm text-muted-foreground">السجل مرتبط بدرجات الطالب المحفوظة في قاعدة بيانات المدرسة.</p></div>
+        <div className="flex flex-1 flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">الدرجات المسجلة</h1><p className="mt-1 text-sm text-muted-foreground">السجل مرتبط بدرجات الطالب المحفوظة في قاعدة بيانات المدرسة.</p></div>{!loadingChildren && !loadingGrades && !error && grades.length > 0 && <PrintReportButton />}</div>
       </header>
 
       {loadingChildren ? <div className="flex items-center justify-center gap-2 py-14 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />تحميل ملفات الأبناء...</div> : children.length === 0 ? <p className="rounded-md border p-6 text-sm text-muted-foreground">لا يوجد طالب مرتبط بحساب ولي الأمر.</p> : (
@@ -73,6 +75,7 @@ export default function ParentGradesPage() {
           )}
         </>
       )}
+      <ReportPrintFooter />
     </main>
   );
 }

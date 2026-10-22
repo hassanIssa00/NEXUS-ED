@@ -12,6 +12,7 @@ apps/flutter_app/ios/Pods/
 apps/mobile/.expo/
 apps/mobile/dist/
 apps/mobile/android/.gradle/
+apps/mobile/android/app/.cxx/
 apps/mobile/android/app/build/
 apps/mobile/ios/Pods/
 apps/api/dist/

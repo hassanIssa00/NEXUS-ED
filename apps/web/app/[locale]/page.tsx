@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
 import {
-    GraduationCap, BookOpen, Users, Award, ArrowLeft, CheckCircle,
-    Trophy, ShieldCheck, Brain,
-    ChevronLeft, ChevronRight, Sparkles, Zap, Globe, Menu, X,
+    ArrowLeft, CheckCircle, Trophy, ShieldCheck, Brain,
+    ChevronLeft, ChevronRight, GraduationCap, BookOpen, School, Menu, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslations } from 'next-intl'
@@ -23,37 +22,16 @@ const heroImages = [
     { src: '/images/nexus-promo-07.webp', alt: 'إدارة واعية تصنع فرقاً حقيقياً - نكسس التعليمية' },
 ]
 
-// How it works steps
-const howItWorksSteps = [
-    {
-        step: '01',
-        icon: '📱',
-        title: 'أنشئ الحساب',
-        description: 'سجّل بيانات الطالب أو ولي الأمر لإكمال التهيئة المطلوبة.'
-    },
-    {
-        step: '02',
-        icon: '🎯',
-        title: 'أكمل التهيئة',
-        description: 'أكمل ملف الطالب أو خطوات ولي الأمر بحسب نوع الحساب.'
-    },
-    {
-        step: '03',
-        icon: '⚡',
-        title: 'افتح خدماتك',
-        description: 'اعرض الصفوف والمواد والتكليفات المرتبطة بحسابك.'
-    },
-    {
-        step: '04',
-        icon: '🏆',
-        title: 'تابع تقدمك',
-        description: 'راجع الدرجات والحضور والسجلات المتاحة لحسابك.'
-    },
+const schoolStages = [
+    { key: 'elementary', icon: <BookOpen className="h-6 w-6" /> },
+    { key: 'middle', icon: <School className="h-6 w-6" /> },
+    { key: 'secondary', icon: <GraduationCap className="h-6 w-6" /> },
 ]
+
+const schoolValues = ['creativity', 'quality', 'achievement', 'initiative', 'institutionalWork', 'transparency', 'integration'] as const
 
 export default function LandingPage() {
     const t = useTranslations('landing')
-    const tCommon = useTranslations('common')
     const tAuth = useTranslations('auth')
     const [currentImage, setCurrentImage] = useState(0)
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -101,9 +79,9 @@ export default function LandingPage() {
                     {/* Desktop Nav */}
                     <div className="hidden md:flex items-center gap-8">
                         <nav className="flex gap-6 text-sm font-bold text-slate-800">
-                            <Link href="#features" className="hover:text-primary-500 transition-colors">{t('nav.features')}</Link>
-                            <Link href="#how-it-works" className="hover:text-primary-500 transition-colors">كيف يعمل؟</Link>
-                            <Link href="#stats" className="hover:text-primary-500 transition-colors">الإحصائيات</Link>
+                            <Link href="#school" className="hover:text-primary-500 transition-colors">{t('nav.story')}</Link>
+                            <Link href="#journey" className="hover:text-primary-500 transition-colors">{t('nav.stages')}</Link>
+                            <Link href="#values" className="hover:text-primary-500 transition-colors">{t('nav.values')}</Link>
                         </nav>
                         <div className="flex items-center gap-3">
                             <LanguageSwitcher />
@@ -162,9 +140,9 @@ export default function LandingPage() {
                             </div>
                             <nav className="flex flex-col gap-1">
                                 {[
-                                    { href: '#features', label: 'المميزات' },
-                                    { href: '#how-it-works', label: 'كيف يعمل؟' },
-                                    { href: '#stats', label: 'إمكانيات المنصة' },
+                                    { href: '#school', label: t('nav.story') },
+                                    { href: '#journey', label: t('nav.stages') },
+                                    { href: '#values', label: t('nav.values') },
                                 ].map(item => (
                                     <Link
                                         key={item.href}
@@ -220,10 +198,12 @@ export default function LandingPage() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.6, delay: 0.3 }}
-                                className="hero-title text-5xl lg:text-6xl mb-6 leading-tight"
+                                className="hero-title mb-7 max-w-full"
                             >
-                                {t('hero.title')} <br />
-                                <span className="animated-gradient-text">
+                                <span className="hero-title-name">
+                                    {t('hero.title')}
+                                </span>
+                                <span className="hero-title-highlight animated-gradient-text">
                                     {t('hero.titleHighlight')}
                                 </span>
                             </motion.h1>
@@ -252,6 +232,11 @@ export default function LandingPage() {
                                         </span>
                                     </Button>
                                 </Link>
+                                <Button asChild size="xl" variant="outline" className="bg-white/80 border-slate-300 text-slate-800 hover:bg-white">
+                                    <a href="https://alekhlas.edu.sa/site/admission.php" target="_blank" rel="noreferrer">
+                                        {t('hero.ctaAdmission')}
+                                    </a>
+                                </Button>
                             </motion.div>
 
                         </motion.div>
@@ -292,21 +277,21 @@ export default function LandingPage() {
                                 </AnimatePresence>
 
                                 {/* Carousel controls */}
-                                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3">
-                                    <button aria-label="الصورة السابقة" onClick={() => setCurrentImage((prev) => (prev - 1 + heroImages.length) % heroImages.length)} className="glass-card rounded-full w-8 h-8 flex items-center justify-center hover:bg-white/10 transition-colors">
-                                        <ChevronRight className="w-4 h-4 text-slate-900" />
+                                <div className="hero-carousel-controls absolute bottom-4 left-1/2 -translate-x-1/2 z-20" role="group" aria-label="التنقل بين الصور">
+                                    <button aria-label="الصورة السابقة" onClick={() => setCurrentImage((prev) => (prev - 1 + heroImages.length) % heroImages.length)} className="hero-carousel-arrow">
+                                        <ChevronRight aria-hidden="true" className="h-4 w-4" />
                                     </button>
                                     {heroImages.map((_, i) => (
                                         <button
                                             key={i}
                                             aria-label={`عرض الصورة ${i + 1}`}
-                                            aria-current={i === currentImage}
+                                            aria-current={i === currentImage ? 'true' : undefined}
                                             onClick={() => setCurrentImage(i)}
-                                            className={`h-2 rounded-full transition-all ${i === currentImage ? 'bg-primary-500 w-8' : 'bg-white/30 w-2'}`}
+                                            className={`hero-carousel-dot ${i === currentImage ? 'is-active' : ''}`}
                                         />
                                     ))}
-                                    <button aria-label="الصورة التالية" onClick={() => setCurrentImage((prev) => (prev + 1) % heroImages.length)} className="glass-card rounded-full w-8 h-8 flex items-center justify-center hover:bg-white/10 transition-colors">
-                                        <ChevronLeft className="w-4 h-4 text-slate-900" />
+                                    <button aria-label="الصورة التالية" onClick={() => setCurrentImage((prev) => (prev + 1) % heroImages.length)} className="hero-carousel-arrow">
+                                        <ChevronLeft aria-hidden="true" className="h-4 w-4" />
                                     </button>
                                 </div>
                             </div>
@@ -318,115 +303,128 @@ export default function LandingPage() {
 
 
 
-            {/* ═══════════ PLATFORM CAPABILITIES ═══════════ */}
-            <section id="stats" className="py-24 relative overflow-hidden">
-                <div className="absolute inset-0 nexus-gradient opacity-[0.07]"></div>
-                <div className="container mx-auto px-6 relative z-10">
-                    <div className="mx-auto mb-12 max-w-2xl text-center">
-                        <h2 className="text-3xl font-bold text-slate-900">إمكانيات المنصة</h2>
-                        <p className="mt-3 text-slate-600">أدوات مرتبطة ببيانات الحساب المدرسي.</p>
-                    </div>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-                        {capabilities.map((capability, index) => (
-                            <motion.div
-                                key={index}
-                                initial={{ opacity: 0, y: 30, scale: 0.9 }}
-                                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: index * 0.15, type: 'spring', stiffness: 200 }}
-                                className="text-center group cursor-pointer"
-                            >
-                                <div className="w-16 h-16 mx-auto mb-4 rounded-[16px] glass-glow flex items-center justify-center group-hover:animate-bounce-subtle">
-                                    {capability.icon}
-                                </div>
-                                <p className="text-lg font-semibold text-slate-800">{capability.label}</p>
-                            </motion.div>
-                        ))}
+            {/* ═══════════ SCHOOL STORY ═══════════ */}
+            <section id="school" className="relative overflow-hidden bg-slate-50 py-24 text-slate-900">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(35,74,101,0.045),transparent_48%),radial-gradient(ellipse_at_bottom_right,rgba(152,121,62,0.045),transparent_45%)]" />
+                <div className="container relative z-10 mx-auto px-6">
+                    <div className="grid items-stretch gap-8 lg:grid-cols-12">
+                        <motion.div
+                            initial={{ opacity: 0, y: 28 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.55 }}
+                            className="relative flex min-h-[300px] flex-col justify-between overflow-hidden rounded-[28px] border border-slate-200 bg-white/90 p-8 shadow-[0_24px_70px_rgba(35,74,101,0.08)] backdrop-blur-sm lg:col-span-4 lg:p-10"
+                        >
+                            <div className="absolute -bottom-20 -left-14 h-56 w-56 rounded-full border border-slate-200" />
+                            <div className="relative">
+                                <span className="text-sm font-semibold tracking-wide text-slate-600">{t('story.foundedLabel')}</span>
+                                <p className="mt-4 text-6xl font-black tracking-tight text-slate-950">1413<span className="mr-2 text-2xl font-bold text-[#98793E]">هـ</span></p>
+                            </div>
+                            <div className="relative mt-10 border-t border-slate-200 pt-6">
+                                <p className="text-sm text-slate-500">{t('story.founderLabel')}</p>
+                                <p className="mt-2 text-lg font-bold text-slate-900">{t('story.founder')}</p>
+                            </div>
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ opacity: 0, y: 28 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.55, delay: 0.12 }}
+                            className="flex flex-col justify-center rounded-[28px] border border-white/90 bg-white/75 p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] backdrop-blur-sm lg:col-span-8 lg:p-12"
+                        >
+                            <p className="mb-4 text-sm font-bold text-[#87682F]">{t('story.eyebrow')}</p>
+                            <h2 className="max-w-3xl text-3xl font-black leading-tight text-slate-950 sm:text-4xl lg:text-5xl">{t('story.title')}</h2>
+                            <p className="mt-6 max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">{t('story.description')}</p>
+                            <a href="https://alekhlas.edu.sa/site/about.php" target="_blank" rel="noreferrer" className="mt-7 inline-flex w-fit items-center gap-2 font-bold text-[#234A65] transition-colors hover:text-[#87682F]">
+                                {t('story.readMore')} <ArrowLeft className="h-4 w-4 rotate-180" />
+                            </a>
+                        </motion.div>
                     </div>
                 </div>
             </section>
 
-            {/* ═══════════ HOW IT WORKS ═══════════ */}
-            <section id="how-it-works" className="py-24 bg-slate-50/60">
+            {/* ═══════════ SCHOOL VISION & VALUES ═══════════ */}
+            <section id="values" className="py-24">
                 <div className="container mx-auto px-6">
-                    <div className="text-center max-w-2xl mx-auto mb-16">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card text-primary-500 text-sm font-semibold mb-6">
-                            <Zap className="w-4 h-4" />
-                            خطوات بسيطة
-                        </div>
-                        <h2 className="text-3xl lg:text-4xl font-bold text-slate-900 mb-4">كيف يعمل نِكْسُس؟</h2>
-                        <p className="text-lg text-slate-600">أربع خطوات بسيطة تفصلك عن تجربة تعليمية استثنائية</p>
+                    <div className="grid gap-5 lg:grid-cols-2">
+                        <motion.article
+                            initial={{ opacity: 0, x: -24 }}
+                            whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }}
+                            className="rounded-[26px] border border-slate-200 bg-white p-8 lg:p-10"
+                        >
+                            <span className="text-sm font-bold text-indigo-700">{t('values.visionLabel')}</span>
+                            <h2 className="mt-4 text-3xl font-black text-slate-950">{t('values.visionTitle')}</h2>
+                            <p className="mt-5 text-lg leading-8 text-slate-700">{t('values.vision')}</p>
+                        </motion.article>
+                        <motion.article
+                            initial={{ opacity: 0, x: 24 }}
+                            whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }}
+                            className="rounded-[26px] border border-slate-200 bg-white p-8 lg:p-10"
+                        >
+                            <span className="text-sm font-bold text-[#87682F]">{t('values.missionLabel')}</span>
+                            <h2 className="mt-4 text-3xl font-black text-slate-950">{t('values.missionTitle')}</h2>
+                            <p className="mt-5 text-base leading-8 text-slate-700">{t('values.mission')}</p>
+                        </motion.article>
                     </div>
 
-                    <div className="grid md:grid-cols-4 gap-8 relative">
-                        {/* Connector line */}
-                        <div className="hidden md:block absolute top-16 left-[12.5%] right-[12.5%] h-0.5 bg-gradient-to-r from-primary-500/30 via-secondary-500/30 to-primary-500/30" />
+                    <div className="mt-12">
+                        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                                <p className="text-sm font-bold text-primary-600">{t('values.eyebrow')}</p>
+                                <h2 className="mt-2 text-2xl font-black text-slate-950">{t('values.title')}</h2>
+                            </div>
+                            <p className="max-w-xl text-sm leading-6 text-slate-600">{t('values.description')}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            {schoolValues.map((value, index) => (
+                                <motion.span
+                                    key={value}
+                                    initial={{ opacity: 0, scale: 0.94 }}
+                                    whileInView={{ opacity: 1, scale: 1 }}
+                                    viewport={{ once: true }}
+                                    transition={{ delay: index * 0.045 }}
+                                    className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 shadow-sm"
+                                >
+                                    {t(`values.items.${value}`)}
+                                </motion.span>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-                        {howItWorksSteps.map((step, index) => (
-                            <motion.div
-                                key={index}
-                                initial={{ opacity: 0, y: 30 }}
+            {/* ═══════════ LEARNING JOURNEY ═══════════ */}
+            <section id="journey" className="relative overflow-hidden bg-slate-50 py-24">
+                <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-indigo-100/60 to-transparent" />
+                <div className="container relative z-10 mx-auto px-6">
+                    <div className="mx-auto mb-14 max-w-3xl text-center">
+                        <p className="mb-3 text-sm font-bold text-primary-600">{t('journey.eyebrow')}</p>
+                        <h2 className="text-3xl font-black text-slate-950 sm:text-4xl">{t('journey.title')}</h2>
+                        <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg">{t('journey.description')}</p>
+                    </div>
+                    <div className="grid gap-5 md:grid-cols-3">
+                        {schoolStages.map((stage, index) => (
+                            <motion.article
+                                key={stage.key}
+                                initial={{ opacity: 0, y: 24 }}
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
-                                transition={{ delay: index * 0.15, type: 'spring', stiffness: 200 }}
-                                className="text-center relative"
+                                transition={{ duration: 0.45, delay: index * 0.1 }}
+                                whileHover={reduceMotion ? undefined : { y: -5 }}
+                                className="group relative overflow-hidden rounded-[24px] border border-slate-200 bg-white p-7 shadow-[0_12px_40px_rgba(15,23,42,0.045)] transition-shadow hover:shadow-[0_20px_50px_rgba(35,74,101,0.12)]"
                             >
-                                {/* Step icon */}
-                                <div className="relative inline-flex mb-6">
-                                    <div className="w-20 h-20 mx-auto nexus-gradient rounded-[20px] flex items-center justify-center text-3xl shadow-lg animate-glow-ring">
-                                        {step.icon}
-                                    </div>
-                                    <div className="absolute -top-2 -right-2 w-7 h-7 bg-white border-2 border-primary-500 rounded-full flex items-center justify-center text-xs font-black text-primary-500 shadow-md">
-                                        {index + 1}
-                                    </div>
+                                <div className="absolute inset-x-0 top-0 h-1 bg-[#98793E]" />
+                                <div className="flex items-center justify-between">
+                                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-[#234A65] transition-transform group-hover:scale-105">{stage.icon}</span>
+                                    <span className="text-sm font-black tracking-[0.18em] text-slate-300">0{index + 1}</span>
                                 </div>
-                                <h3 className="text-lg font-bold text-slate-900 mb-2">{step.title}</h3>
-                                <p className="text-sm text-slate-600 leading-relaxed">{step.description}</p>
-                            </motion.div>
-                        ))}
-                    </div>
-
-                    <div className="text-center mt-12">
-                        <Link href="/register">
-                            <Button size="xl" className="primary-btn">
-                                افتح حسابك المدرسي
-                                <ArrowLeft className="mr-2 h-5 w-5 rotate-180" />
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
-            </section>
-
-            {/* ═══════════ FEATURES ═══════════ */}
-            <section id="features" className="py-24">
-                <div className="container mx-auto px-6">
-                    <div className="text-center max-w-2xl mx-auto mb-16">
-                        <h2 className="text-3xl lg:text-4xl font-bold text-slate-900 mb-4">
-                            {t('features.title')}
-                        </h2>
-                        <p className="text-lg text-slate-600">
-                            {t('features.subtitle')}
-                        </p>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {features.map((feature, index) => (
-                            <motion.div
-                                key={index}
-                                initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                                viewport={{ once: true }}
-                                transition={{ duration: 0.5, delay: index * 0.1, type: 'spring', stiffness: 200 }}
-                                whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(79, 70, 229, 0.1)' }}
-                                className="glass-card-interactive group"
-                            >
-                                <div className={`w-12 h-12 rounded-[12px] ${feature.color} flex items-center justify-center mb-5 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300`}>
-                                    {feature.icon}
-                                </div>
-                                <h3 className="text-lg font-semibold text-slate-900 mb-2">{t(`features.${feature.key}.title`)}</h3>
-                                <p className="text-sm text-slate-600 leading-relaxed">{t(`features.${feature.key}.description`)}</p>
-                                <div className="mt-4 w-0 group-hover:w-full h-0.5 bg-gradient-to-r from-primary-500 to-secondary-500 transition-all duration-500 rounded-full"></div>
-                            </motion.div>
+                                <h3 className="mt-7 text-2xl font-extrabold text-slate-900">{t(`journey.stages.${stage.key}.title`)}</h3>
+                                <p className="mt-2 text-sm leading-6 text-slate-600">{t(`journey.stages.${stage.key}.description`)}</p>
+                                <p className="mt-6 border-t border-slate-100 pt-5 text-sm font-bold text-[#234A65]">{t(`journey.stages.${stage.key}.grades`)}</p>
+                            </motion.article>
                         ))}
                     </div>
                 </div>
@@ -610,40 +608,37 @@ export default function LandingPage() {
                 </div>
             </section>
 
-            {/* ═══════════ CTA SECTION ═══════════ */}
-            <section className="py-24 container mx-auto px-6">
-                <div className="relative rounded-[16px] p-12 lg:p-20 text-center overflow-hidden border border-white/10">
-                    <div className="absolute inset-0 nexus-gradient opacity-90"></div>
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2"></div>
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2"></div>
-                    <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-
-                    <div className="relative z-10 max-w-3xl mx-auto">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.5 }}
-                            whileInView={{ opacity: 1, scale: 1 }}
-                            viewport={{ once: true }}
-                            className="text-6xl mb-6 float-badge inline-block"
-                        >
-                            🚀
-                        </motion.div>
-                        <h2 className="text-4xl lg:text-5xl font-bold text-white mb-6">{t('cta.title')}</h2>
-                        <p className="text-xl text-white/85 mb-10">
-                            {t('cta.description')}
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                            <Link href="/register">
-                                <Button size="xl" className="bg-white text-indigo-700 hover:bg-white/90 shadow-2xl font-bold">
-                                    {t('cta.button')}
-                                    <ArrowLeft className="mr-2 h-5 w-5 rotate-180" />
-                                </Button>
-                            </Link>
-                            <Link href="/login">
-                                <Button size="xl" variant="outline" className="border-white/40 text-white hover:bg-white/10 font-bold">
-                                    تسجيل الدخول
-                                </Button>
-                            </Link>
-                        </div>
+            {/* ═══════════ OFFICIAL SCHOOL ADMISSION ROUTE ═══════════ */}
+            <section className="border-y border-slate-200 bg-slate-50/80 py-20">
+                <div className="container mx-auto px-6">
+                    <div className="mx-auto max-w-3xl text-center">
+                        <p className="text-sm font-bold text-primary-600">{t('admission.eyebrow')}</p>
+                        <h2 className="mt-3 text-3xl font-black text-slate-950 sm:text-4xl">{t('admission.title')}</h2>
+                        <p className="mt-4 text-base leading-7 text-slate-600">{t('admission.description')}</p>
+                    </div>
+                    <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {(['request', 'number', 'review', 'enrollment'] as const).map((step, index) => (
+                            <motion.div
+                                key={step}
+                                initial={{ opacity: 0, y: 18 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: index * 0.07 }}
+                                className="rounded-2xl border border-slate-200 bg-white p-5"
+                            >
+                                <span className="text-xs font-black tracking-[0.18em] text-indigo-500">0{index + 1}</span>
+                                <h3 className="mt-3 font-extrabold text-slate-900">{t(`admission.steps.${step}.title`)}</h3>
+                                <p className="mt-2 text-sm leading-6 text-slate-600">{t(`admission.steps.${step}.description`)}</p>
+                            </motion.div>
+                        ))}
+                    </div>
+                    <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                        <a href="https://alekhlas.edu.sa/site/admission.php" target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 font-bold text-white shadow-lg shadow-indigo-600/15 transition hover:bg-indigo-700">
+                            {t('admission.schoolForm')} <ArrowLeft className="h-4 w-4 rotate-180" />
+                        </a>
+                        <Link href="/login" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-6 font-bold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700">
+                            {t('admission.portalLogin')}
+                        </Link>
                     </div>
                 </div>
             </section>
@@ -671,8 +666,8 @@ export default function LandingPage() {
                         <div>
                             <h4 className="text-slate-900 font-semibold mb-6">{t('footer.quickLinks')}</h4>
                             <ul className="space-y-3">
-                                <li><Link href="#features" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('footer.features')}</Link></li>
-                                <li><Link href="#how-it-works" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">كيف تعمل المنصة</Link></li>
+                                <li><Link href="#school" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('nav.story')}</Link></li>
+                                <li><Link href="#journey" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('nav.stages')}</Link></li>
                                 <li><Link href="/login" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">تسجيل الدخول</Link></li>
                             </ul>
                         </div>
@@ -680,8 +675,8 @@ export default function LandingPage() {
                         <div>
                             <h4 className="text-slate-900 font-semibold mb-6">{t('footer.support')}</h4>
                             <ul className="space-y-3">
-                                <li><Link href="/register" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">إنشاء حساب</Link></li>
-                                <li><Link href="#stats" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">إمكانيات المنصة</Link></li>
+                                <li><Link href="/register" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{tAuth('signUp')}</Link></li>
+                                <li><a href="https://alekhlas.edu.sa/site/admission.php" target="_blank" rel="noreferrer" className="text-slate-600 hover:text-primary-500 transition-colors text-sm">{t('admission.schoolForm')}</a></li>
                             </ul>
                         </div>
                     </div>
@@ -706,17 +701,3 @@ export default function LandingPage() {
         </div>
     )
 }
-
-const capabilities = [
-    { icon: <Users className="w-7 h-7 text-primary-500" />, label: 'الفصول الدراسية' },
-    { icon: <BookOpen className="w-7 h-7 text-primary-500" />, label: 'المواد والواجبات' },
-    { icon: <CheckCircle className="w-7 h-7 text-primary-500" />, label: 'الحضور والدرجات' },
-    { icon: <Award className="w-7 h-7 text-primary-500" />, label: 'التقارير المدرسية' },
-]
-
-const features = [
-    { icon: <BookOpen className="w-6 h-6 text-primary-500" />, key: 'contentManagement', color: 'bg-primary-500/10' },
-    { icon: <Users className="w-6 h-6 text-secondary-400" />, key: 'communication', color: 'bg-secondary-500/10' },
-    { icon: <Award className="w-6 h-6 text-yellow-400" />, key: 'evaluation', color: 'bg-yellow-500/10' },
-    { icon: <GraduationCap className="w-6 h-6 text-primary-400" />, key: 'virtualClasses', color: 'bg-primary-500/10' },
-]

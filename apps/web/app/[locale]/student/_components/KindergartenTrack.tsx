@@ -8,15 +8,15 @@ export function KindergartenTrack() {
   const [selectedLetter, setSelectedLetter] = useState('أ')
   const [starsCount, setStarsCount] = useState(12)
   const [appleCount, setAppleCount] = useState(3)
-  const [selectedColor, setSelectedColor] = useState('#ec4899')
+  const [selectedColor, setSelectedColor] = useState('#98793E')
 
   const LETTERS = [
     { char: 'أ', word: 'أرنب', emoji: '🐰', color: '#f43f5e' },
     { char: 'ب', word: 'بطة', emoji: '🦆', color: '#f59e0b' },
     { char: 'ت', word: 'تفاحة', emoji: '🍎', color: '#10b981' },
-    { char: 'ث', word: 'ثعلب', emoji: '🦊', color: '#3b82f6' },
-    { char: 'ج', word: 'جمل', emoji: '🐪', color: '#8b5cf6' },
-    { char: 'ح', word: 'حصان', emoji: '🐴', color: '#ec4899' },
+    { char: 'ث', word: 'ثعلب', emoji: '🦊', color: '#4A687C' },
+    { char: 'ج', word: 'جمل', emoji: '🐪', color: '#234A65' },
+    { char: 'ح', word: 'حصان', emoji: '🐴', color: '#98793E' },
   ]
 
   const playLetterSound = (char: string, word: string) => {
@@ -41,7 +41,7 @@ export function KindergartenTrack() {
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         className="relative overflow-hidden rounded-[2.5rem] p-8 text-white shadow-xl"
-        style={{ background: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 40%, #fbbf24 100%)' }}
+        style={{ background: 'linear-gradient(135deg, #98793E 0%, #f43f5e 40%, #fbbf24 100%)' }}
       >
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full blur-2xl -translate-y-12 translate-x-12 pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-right">
@@ -173,9 +173,9 @@ export function KindergartenTrack() {
           <div className="space-y-2.5">
             {[
               { surah: 'سورة الفاتحة', verses: '7 آيات', color: '#10b981' },
-              { surah: 'سورة الإخلاص', verses: '4 آيات', color: '#06b6d4' },
-              { surah: 'سورة الفلق', verses: '5 آيات', color: '#6366f1' },
-              { surah: 'سورة الناس', verses: '6 آيات', color: '#ec4899' },
+              { surah: 'سورة الإخلاص', verses: '4 آيات', color: '#35556B' },
+              { surah: 'سورة الفلق', verses: '5 آيات', color: '#35556B' },
+              { surah: 'سورة الناس', verses: '6 آيات', color: '#98793E' },
             ].map((s, i) => (
               <div
                 key={i}

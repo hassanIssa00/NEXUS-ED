@@ -28,13 +28,13 @@ export class ClassController {
   }
 
   @Get()
-  @Roles(Role.ADMIN, Role.TEACHER, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.ACCOUNTANT, Role.HR)
   findAll(@Request() req: any) {
     return this.classService.findAll(req.user.userId || req.user.sub || req.user.id, req.user.role, req.user.schoolId);
   }
 
   @Get(':id')
-  @Roles(Role.ADMIN, Role.TEACHER, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.SUPERVISOR)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.ACCOUNTANT, Role.HR)
   findOne(@Param('id') id: string, @Request() req: any) {
     return this.classService.findOne(id, req.user.userId || req.user.sub || req.user.id, req.user.role, req.user.schoolId);
   }

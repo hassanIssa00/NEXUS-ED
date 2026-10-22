@@ -110,7 +110,9 @@ export default function proxy(request: NextRequest) {
             ? { body: request.body, duplex: 'half' as const }
             : {}),
     });
-    const response = intlProxy(requestWithNonce);
+    // The monorepo currently resolves two Next.js type copies; the request is
+    // still the same runtime object, so use the middleware's own request type.
+    const response = intlProxy(requestWithNonce as unknown as Parameters<typeof intlProxy>[0]);
     response.headers.set('Content-Security-Policy', policy);
 
     return response;

@@ -25,7 +25,7 @@ import { arSA } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api/client'
-import { useRouter } from 'next/navigation'
+import { useRouter } from '@/i18n/routing'
 
 interface Subject {
     id: string;

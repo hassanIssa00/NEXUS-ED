@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Post, Body, Get, Query, UseGuards, Request, Param, Inject, Optional, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Controller, Post, Body, Get, UseGuards, Request, Param, ForbiddenException, Headers, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -11,11 +11,11 @@ import { PrismaService } from '../prisma.service';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '../auth/role.enum';
+import { timingSafeEqual } from 'node:crypto';
 
 @ApiTags('Notifications')
 @Controller('notifications')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class NotificationController {
   constructor(
     private readonly notificationService: SmartNotificationService,
@@ -24,100 +24,173 @@ export class NotificationController {
 
 
   @Post('absence')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @ApiOperation({ summary: 'Send absence notification to parents' })
   @ApiResponse({ status: 200, description: 'Notification sent successfully' })
-  async notifyAbsence(@Body() body: { studentId: string; date: string }) {
+  async notifyAbsence(@Request() req: any, @Body() body: { studentId: string; date: string }) {
+    const date = new Date(body.date);
+    if (!body.studentId || !body.date || !Number.isFinite(date.getTime())) throw new BadRequestException('A valid student and attendance date are required');
+    const start = new Date(date); start.setUTCHours(0, 0, 0, 0);
+    const end = new Date(start); end.setUTCDate(end.getUTCDate() + 1);
+    const schoolId = this.requireSchool(req.user);
+    const attendance = await this.prisma.attendance.findFirst({
+      where: {
+        studentId: body.studentId, status: 'ABSENT', date: { gte: start, lt: end },
+        class: { schoolId, ...(req.user.role === Role.TEACHER ? { OR: [{ teacherId: this.actorId(req.user) }, { classSubjects: { some: { teacherId: this.actorId(req.user) } } }] } : {}) },
+      },
+      select: { classId: true },
+    });
+    if (!attendance) throw new ForbiddenException('No matching absence record exists in your school scope');
     return this.notificationService.notifyStudentAbsence(
       body.studentId,
-      new Date(body.date),
+      start,
     );
   }
 
   @Post('exam-reminder')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @ApiOperation({ summary: 'Send exam reminder to student' })
   async notifyExamReminder(
+    @Request() req: any,
     @Body()
     body: {
-      studentId: string;
-      examTitle: string;
-      examDate: string;
-      subjectName: string;
+      studentId: string; quizId: string;
     },
   ) {
+    if (!body.studentId || !body.quizId) throw new BadRequestException('A student and published quiz are required');
+    const schoolId = this.requireSchool(req.user);
+    const quiz = await this.prisma.teacherQuiz.findFirst({
+      where: { id: body.quizId, schoolId, published: true, class: { students: { some: { studentId: body.studentId } } } },
+      include: { subject: { select: { name: true } }, class: { select: { teacherId: true, classSubjects: { select: { teacherId: true } } } } },
+    });
+    if (!quiz || (req.user.role === Role.TEACHER && quiz.teacherId !== this.actorId(req.user) && !quiz.class.classSubjects.some((entry) => entry.teacherId === this.actorId(req.user)))) {
+      throw new ForbiddenException('The published assessment is outside your assigned school classes');
+    }
     return this.notificationService.notifyExamReminder(
       body.studentId,
-      body.examTitle,
-      new Date(body.examDate),
-      body.subjectName,
+      quiz.title,
+      quiz.dueAt ?? new Date(),
+      quiz.subject.name,
     );
   }
 
   @Post('late-assignment')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @ApiOperation({ summary: 'Notify about late assignment' })
   async notifyLateAssignment(
+    @Request() req: any,
     @Body()
     body: {
       studentId: string;
-      assignmentTitle: string;
       assignmentId: string;
-      daysLate: number;
     },
   ) {
+    if (!body.studentId || !body.assignmentId) throw new BadRequestException('A student and assignment are required');
+    const schoolId = this.requireSchool(req.user);
+    const assignment = await this.prisma.assignment.findFirst({
+      where: { id: body.assignmentId, schoolId, dueDate: { lt: new Date() } },
+      include: { submissions: { where: { studentId: body.studentId }, select: { id: true } } },
+    });
+    if (!assignment || !assignment.dueDate || !assignment.classId) {
+      throw new ForbiddenException('The assignment is outside your assigned school classes');
+    }
+    const [schoolClass, enrollment] = await Promise.all([
+      this.prisma.class.findFirst({
+        where: { id: assignment.classId, schoolId },
+        select: { teacherId: true, classSubjects: { select: { teacherId: true } } },
+      }),
+      this.prisma.enrollment.findFirst({
+        where: { classId: assignment.classId, studentId: body.studentId },
+        select: { id: true },
+      }),
+    ]);
+    if (!schoolClass || !enrollment || (req.user.role === Role.TEACHER && assignment.teacherId !== this.actorId(req.user) && schoolClass.teacherId !== this.actorId(req.user) && !schoolClass.classSubjects.some((entry) => entry.teacherId === this.actorId(req.user)))) {
+      throw new ForbiddenException('The assignment is outside your assigned school classes');
+    }
+    if (assignment.submissions.length) throw new BadRequestException('The student has already submitted this assignment');
+    const daysLate = Math.max(0, Math.floor((Date.now() - assignment.dueDate.getTime()) / 86_400_000));
     return this.notificationService.notifyLateAssignment(
       body.studentId,
-      body.assignmentTitle,
-      body.assignmentId,
-      body.daysLate,
+      assignment.title,
+      assignment.id,
+      daysLate,
     );
   }
 
   @Post('grade')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @ApiOperation({ summary: 'Notify about new grade' })
   async notifyGrade(
+    @Request() req: any,
     @Body()
     body: {
       studentId: string;
       subjectName: string;
-      score: number;
-      maxScore: number;
       assignmentTitle?: string;
     },
   ) {
+    if (!body.studentId || !body.subjectName?.trim()) throw new BadRequestException('A student and recorded subject grade are required');
+    const schoolId = this.requireSchool(req.user);
+    const grade = await this.prisma.grade.findFirst({
+      where: {
+        studentId: body.studentId,
+        subject: {
+          name: body.subjectName.trim(), schoolId,
+          class: { students: { some: { studentId: body.studentId } }, ...(req.user.role === Role.TEACHER ? { OR: [{ teacherId: this.actorId(req.user) }, { classSubjects: { some: { teacherId: this.actorId(req.user) } } }] } : {}) },
+        },
+        ...(body.assignmentTitle ? { assignment: { title: body.assignmentTitle.trim() } } : {}),
+      },
+      include: { subject: { select: { name: true } }, assignment: { select: { title: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!grade) throw new ForbiddenException('No matching recorded grade exists in your school scope');
     return this.notificationService.notifyGradePosted(
       body.studentId,
-      body.subjectName,
-      body.score,
-      body.maxScore,
-      body.assignmentTitle,
+      grade.subject.name,
+      grade.grade,
+      grade.maxScore,
+      grade.assignment?.title,
     );
   }
 
   @Post('check-late-assignments')
-  @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Check and notify all late assignments (cron)' })
-  async checkLateAssignments() {
+  async checkLateAssignments(@Headers('authorization') authorization?: string) {
+    const secret = process.env.CRON_SECRET;
+    if (!secret || secret.length < 16) throw new ServiceUnavailableException('Notification schedule is not configured');
+    const expected = Buffer.from(`Bearer ${secret}`);
+    const provided = Buffer.from(authorization || '');
+    if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) throw new UnauthorizedException();
     return this.notificationService.checkLateAssignments();
   }
 
+  private actorId(user: any): string { return user?.userId || user?.sub || user?.id || ''; }
+
+  private requireSchool(user: any): string {
+    if (!user?.schoolId || !this.actorId(user)) throw new ForbiddenException('The account is not assigned to a school');
+    return user.schoolId;
+  }
+
   @Get()
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiOperation({ summary: 'Get user notifications' })
   async getUserNotifications(@Request() req: any) {
     return this.notificationService.getUserNotifications(req.user.userId);
   }
 
   @Post(':id/read')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiOperation({ summary: 'Mark notification as read' })
   async markAsRead(@Param('id') id: string, @Request() req: any) {
     return this.notificationService.markAsRead(id, req.user.userId);
   }
 
   @Post('read-all')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiOperation({ summary: 'Mark all notifications as read' })
   async markAllAsRead(@Request() req: any) {
     return this.notificationService.markAllAsRead(req.user.userId || req.user.sub);
@@ -125,6 +198,7 @@ export class NotificationController {
 
   /** Teacher: Get their classes to populate dropdown */
   @Get('my-classes')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.TEACHER, Role.ADMIN)
   @ApiOperation({ summary: 'Get teacher classes for notification targeting' })
   async getMyClasses(@Request() req: any) {
@@ -147,6 +221,7 @@ export class NotificationController {
 
   /** Teacher: Send a custom notification to a class or all students */
   @Post('send')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.TEACHER, Role.ADMIN)
   @ApiOperation({ summary: 'Send a custom notification to students' })
   async sendCustomNotification(

@@ -13,6 +13,8 @@ import { winstonConfig } from './config/logger.config';
 import { SanitizeInterceptor } from './infrastructure/interceptors/sanitize.interceptor';
 import { PerformanceInterceptor } from './infrastructure/interceptors/performance.interceptor';
 import { validateProductionConfiguration } from './config/jwt';
+import { PrismaRateLimitStore, configureQuotaStorage } from './common/persistent-quota-storage';
+import { PrismaService } from './prisma.service';
 
 const envPath = path.resolve(process.cwd(), '.env');
 dotenv.config({ path: envPath });
@@ -24,6 +26,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: winstonConfig,
   });
+  configureQuotaStorage(app.get(PrismaService));
 
   if (process.env.VERCEL === '1') {
     app.getHttpAdapter().getInstance().set('trust proxy', 1);
@@ -71,6 +74,7 @@ async function bootstrap() {
 
   // Strict Auth rate limiting: 10 attempts per 15 min
   app.use('/api/auth/login', rateLimit({
+    store: new PrismaRateLimitStore('http-auth-login'),
     windowMs: 15 * 60 * 1000,
     max: 10,
     standardHeaders: true,
@@ -80,6 +84,7 @@ async function bootstrap() {
   }));
 
   app.use('/api/auth/register', rateLimit({
+    store: new PrismaRateLimitStore('http-auth-register'),
     windowMs: 60 * 60 * 1000,
     max: 5,
     standardHeaders: true,
@@ -89,6 +94,7 @@ async function bootstrap() {
 
   // General auth rate limit
   app.use('/api/auth/', rateLimit({
+    store: new PrismaRateLimitStore('http-auth-general'),
     windowMs: 15 * 60 * 1000,
     max: 50,
     standardHeaders: true,
@@ -97,10 +103,14 @@ async function bootstrap() {
   }));
 
 
-  // Serve static files from uploads directory
-  app.useStaticAssets(path.join(__dirname, '..', 'uploads'), {
-    prefix: '/uploads/',
-  });
+  // Legacy local uploads and queued reports are private data. Do not expose
+  // the filesystem as an unauthenticated static route in production; cloud
+  // uploads use short-lived signed URLs after the API checks file ownership.
+  if (process.env.NODE_ENV !== 'production') {
+    app.useStaticAssets(path.join(__dirname, '..', 'uploads'), {
+      prefix: '/uploads/',
+    });
+  }
 
   // Enable validation
   app.useGlobalPipes(

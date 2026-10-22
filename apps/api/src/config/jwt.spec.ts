@@ -11,7 +11,6 @@ const names = [
   'DATABASE_URL',
   'DIRECT_URL',
   'FRONTEND_URL',
-  'GOOGLE_CLIENT_ID',
   'SMTP_HOST',
   'SMTP_PORT',
   'SMTP_USER',
@@ -29,7 +28,6 @@ describe('production configuration', () => {
     process.env.DATABASE_URL = 'postgresql://nexus:secret@localhost:5432/nexus';
     process.env.DIRECT_URL = 'postgresql://nexus:secret@localhost:5432/nexus';
     process.env.FRONTEND_URL = 'https://nexus.masarplatform.org';
-    process.env.GOOGLE_CLIENT_ID = '000000000000-ci.apps.googleusercontent.com';
     process.env.SMTP_HOST = '127.0.0.1';
     process.env.SMTP_PORT = '587';
     process.env.SMTP_USER = 'ci@nexus.test';

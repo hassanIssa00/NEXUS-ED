@@ -7,8 +7,12 @@ import {
     Request,
     Res,
     Req,
+    BadRequestException,
     UnauthorizedException,
     Inject,
+    Headers,
+    UploadedFile,
+    UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
@@ -24,10 +28,12 @@ import { Roles } from '../../../infrastructure/decorators/roles.decorator';
 import { RolesGuard } from '../../../auth/roles.guard';
 import { Role } from '../../../shared/enums/roles.enum';
 import { AccountLockGuard } from '../guards/account-lock.guard';
-import { GoogleLoginDto } from '../dto/google-login.dto';
 import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
 import { ConfirmPasswordResetDto } from '../dto/confirm-password-reset.dto';
 import { FirebaseLoginDto } from '../dto/firebase-login.dto';
+import { RegistrationAttemptDto, VerifyTeacherRegistrationCodeDto } from '../dto/registration-attempt.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 
 const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
@@ -43,22 +49,42 @@ export class AuthController {
         return this.authService.register(registerDto);
     }
 
-    @Post('google')
-    @Throttle({ short: { limit: 5, ttl: 60000 } })
-    async googleLogin(
-        @Body() dto: GoogleLoginDto,
-        @Res({ passthrough: true }) res: Response,
+    @Post('registration-attempt')
+    @Throttle({ short: { limit: 5, ttl: 15 * 60 * 1000 } })
+    registrationAttempt(@Body() dto: RegistrationAttemptDto) {
+        return this.authService.recordRegistrationAttempt(dto);
+    }
+
+    @Post('teacher-registration/verify-code')
+    @Throttle({ short: { limit: 5, ttl: 15 * 60 * 1000 } })
+    verifyTeacherRegistrationCode(@Body() dto: VerifyTeacherRegistrationCodeDto) {
+        return this.authService.verifyTeacherRegistrationCode(dto.code);
+    }
+
+    @Post('teacher-registration/avatar')
+    @Throttle({ short: { limit: 3, ttl: 60 * 60 * 1000 } })
+    @UseInterceptors(FileInterceptor('file', {
+        storage: memoryStorage(),
+        limits: { fileSize: 512 * 1024, files: 1, fields: 0, parts: 1 },
+    }))
+    uploadTeacherRegistrationAvatar(
+        @Headers('authorization') authorization: string | undefined,
+        @UploadedFile() file: Express.Multer.File | undefined,
     ) {
-        const result = await this.authService.loginWithGoogle(dto);
-        const isProduction = process.env.NODE_ENV === 'production';
-        res.cookie('refresh_token', result.refresh_token, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? 'none' : 'lax',
-            path: '/',
-        });
-        const { refresh_token, ...responseData } = result;
-        return responseData;
+        const token = authorization?.match(/^Bearer\s+(\S+)$/i)?.[1];
+        if (!token || token.length > 8192) {
+            throw new UnauthorizedException('A valid Firebase authorization token is required');
+        }
+        if (!file) throw new BadRequestException('No teacher profile image was uploaded');
+        return this.authService.uploadTeacherRegistrationAvatar(token, file);
+    }
+
+    @Get('registration-archive')
+    @UseGuards(AuthGuard('jwt'), RolesGuard)
+    @Roles(Role.ADMIN)
+    registrationArchive(@Request() req: any) {
+        const actor = req.user;
+        return this.authService.getRegistrationArchive(actor.schoolId, actor.userId || actor.sub || actor.id);
     }
 
     @Post('firebase')

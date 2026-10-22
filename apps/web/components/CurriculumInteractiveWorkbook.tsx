@@ -28,12 +28,12 @@ const UNIT_COLORS = [
 
 const COLOR_PALETTE = [
   { name: 'أسود', value: '#0f172a' },
-  { name: 'كحلي', value: '#1e3a8a' },
+  { name: 'كحلي', value: '#203D52' },
   { name: 'أحمر', value: '#dc2626' },
   { name: 'أخضر', value: '#059669' },
-  { name: 'بنفسجي', value: '#7c3aed' },
+  { name: 'بنفسجي', value: '#234A65' },
   { name: 'ذهبي', value: '#d97706' },
-  { name: 'أزرق سماوي', value: '#0284c7' },
+  { name: 'أزرق سماوي', value: '#4A687C' },
 ];
 
 type Tool = 'view' | 'pen' | 'highlighter' | 'eraser';
@@ -76,6 +76,9 @@ export default function CurriculumInteractiveWorkbook({
 }) {
   const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const readerRootRef = useRef<HTMLDivElement>(null);
+  const pageFrameRef = useRef<HTMLDivElement>(null);
+  const pageNavRef = useRef<HTMLDivElement>(null);
   const drawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -85,12 +88,46 @@ export default function CurriculumInteractiveWorkbook({
   const [color, setColor] = useState('#0f172a');
   const [brush, setBrush] = useState(4);
   const [zoom, setZoom] = useState(100);
+  const [fitToViewport, setFitToViewport] = useState(true);
+  const [fitPageHeight, setFitPageHeight] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [savedAt, setSavedAt] = useState('');
   const [imageLoaded, setImageLoaded] = useState(false);
   const [loadingPage, setLoadingPage] = useState(false);
 
   const totalPages = curriculum.pageCount;
+
+  useEffect(() => {
+    const measurePageSpace = () => {
+      const frame = pageFrameRef.current;
+      if (!frame) return;
+
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const frameTop = frame.getBoundingClientRect().top;
+      const navHeight = pageNavRef.current?.getBoundingClientRect().height ?? 0;
+      const frameStyle = window.getComputedStyle(frame);
+      const verticalPadding =
+        Number.parseFloat(frameStyle.paddingTop) + Number.parseFloat(frameStyle.paddingBottom);
+      const availableHeight = Math.floor(
+        viewportHeight - frameTop - navHeight - verticalPadding - 12,
+      );
+
+      setFitPageHeight(Math.max(140, Math.min(1000, availableHeight)));
+    };
+
+    measurePageSpace();
+    const observer = new ResizeObserver(measurePageSpace);
+    if (readerRootRef.current) observer.observe(readerRootRef.current);
+    if (pageFrameRef.current) observer.observe(pageFrameRef.current);
+    window.addEventListener('resize', measurePageSpace);
+    window.visualViewport?.addEventListener('resize', measurePageSpace);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measurePageSpace);
+      window.visualViewport?.removeEventListener('resize', measurePageSpace);
+    };
+  }, [isFullscreen]);
 
   function pageSrc(pageNum: number) {
     return `/resources/curricula/${curriculum.slug}/page-${String(pageNum).padStart(3, '0')}.jpg`;
@@ -376,16 +413,16 @@ export default function CurriculumInteractiveWorkbook({
 
         {/* Zoom */}
         <div className="flex items-center gap-1.5">
-          <button onClick={() => setZoom((z) => Math.max(60, z - 15))}
+          <button onClick={() => { setFitToViewport(false); setZoom((z) => Math.max(60, z - 15)); }}
             className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition">
             <ZoomOut size={15} />
           </button>
-          <span className="text-xs font-black text-slate-600 min-w-[36px] text-center">{zoom}%</span>
-          <button onClick={() => setZoom((z) => Math.min(200, z + 15))}
+          <span className="text-xs font-black text-slate-600 min-w-[48px] text-center">{fitToViewport ? 'ملاءمة' : `${zoom}%`}</span>
+          <button onClick={() => { setFitToViewport(false); setZoom((z) => Math.min(200, z + 15)); }}
             className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition">
             <ZoomIn size={15} />
           </button>
-          <button onClick={() => setZoom(100)} title="إعادة ضبط"
+          <button onClick={() => { setFitToViewport(true); setZoom(100); }} title="احتواء الصفحة بالكامل"
             className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition">
             <RotateCcw size={14} />
           </button>
@@ -416,8 +453,12 @@ export default function CurriculumInteractiveWorkbook({
       )}
 
       {/* ── Page Display with Canvas ── */}
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-[#f8f8f6] shadow-sm">
-        <div className="relative flex items-center justify-center p-4 sm:p-6 min-h-[70vh]">
+      <div ref={readerRootRef} className="overflow-hidden rounded-3xl border border-slate-200 bg-[#f8f8f6] shadow-sm">
+        <div
+          ref={pageFrameRef}
+          className="relative flex items-center justify-center p-2 sm:p-3"
+          style={fitToViewport && fitPageHeight !== null ? { minHeight: `${fitPageHeight + 24}px` } : undefined}
+        >
           {/* Loading indicator */}
           {(loadingPage || !imageLoaded) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#f8f8f6]/90 z-10">
@@ -435,7 +476,9 @@ export default function CurriculumInteractiveWorkbook({
             alt={`${curriculum.title} - صفحة ${page}`}
             onLoad={() => { setImageLoaded(true); syncCanvasSize(); redrawSavedDrawing(page); }}
             className="absolute rounded-xl shadow-xl select-none"
-            style={{ width: `${zoom}%`, maxWidth: '900px', minWidth: '260px', display: 'block', margin: '0 auto', position: 'relative' }}
+            style={fitToViewport && fitPageHeight !== null
+              ? { height: `${fitPageHeight}px`, width: 'auto', maxWidth: '100%', minWidth: 0, display: 'block', margin: '0 auto', position: 'relative' }
+              : { width: `${zoom}%`, maxWidth: '900px', minWidth: '260px', height: 'auto', display: 'block', margin: '0 auto', position: 'relative' }}
           />
 
           {/* Drawing canvas overlay */}
@@ -444,9 +487,9 @@ export default function CurriculumInteractiveWorkbook({
               ref={canvasRef}
               className="absolute rounded-xl"
               style={{
-                width: `${zoom}%`,
-                maxWidth: '900px',
-                minWidth: '260px',
+                ...(fitToViewport && fitPageHeight !== null
+                  ? { height: `${fitPageHeight}px`, width: 'auto', maxWidth: '100%', minWidth: 0 }
+                  : { width: `${zoom}%`, maxWidth: '900px', minWidth: '260px', height: 'auto' }),
                 cursor: tool === 'view' ? 'default' : tool === 'eraser' ? 'cell' : 'crosshair',
                 touchAction: 'none',
                 opacity: tool === 'view' ? 0.3 : 1,
@@ -460,7 +503,7 @@ export default function CurriculumInteractiveWorkbook({
         </div>
 
         {/* Bottom nav bar */}
-        <div className="flex items-center justify-between border-t border-slate-200 bg-white p-3">
+        <div ref={pageNavRef} className="flex items-center justify-between border-t border-slate-200 bg-white p-3">
           <button onClick={() => goToPage(page - 1)} disabled={page <= 1}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition">
             <ChevronRight size={15} /> السابقة

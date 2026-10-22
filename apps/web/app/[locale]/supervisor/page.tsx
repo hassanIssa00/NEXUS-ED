@@ -1,5 +1,5 @@
-import { ClassRiskMonitor } from '@/components/analytics/class-risk-monitor'
+import SupervisorDashboard from '@/components/dashboard/SupervisorDashboard'
 
-export default function SupervisorDashboard() {
-  return <ClassRiskMonitor title="متابعة الفصول والمؤشرات" description="مراجعة مؤشرات التعثر المبنية على الدرجات والحضور والواجبات المسجلة فعليًا." />
+export default function SupervisorDashboardPage() {
+  return <SupervisorDashboard />
 }

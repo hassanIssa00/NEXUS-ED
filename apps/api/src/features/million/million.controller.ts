@@ -2,6 +2,10 @@ import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import millionService from './million.service';
 
+function routeParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+}
+
 /**
  * Million Dialogue Controller
  * Handles HTTP requests for the Million Dialogue API
@@ -156,7 +160,7 @@ export const submitAnswer = async (req: AuthRequest, res: Response) => {
  */
 export const getRoom = async (req: AuthRequest, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const roomId = routeParam(req.params.roomId);
 
     const room = await millionService.getRoom(roomId);
 
@@ -183,7 +187,7 @@ export const getRoom = async (req: AuthRequest, res: Response) => {
  */
 export const getLeaderboard = async (req: AuthRequest, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const roomId = routeParam(req.params.roomId);
 
     const leaderboard = await millionService.getLeaderboard(roomId);
 
@@ -206,7 +210,7 @@ export const getLeaderboard = async (req: AuthRequest, res: Response) => {
  */
 export const getUserHistory = async (req: AuthRequest, res: Response) => {
   try {
-    const { userId } = req.params;
+    const userId = routeParam(req.params.userId);
     const limit = parseInt(req.query.limit as string) || 10;
 
     // Only allow users to view their own history (or admins)
@@ -238,7 +242,7 @@ export const getUserHistory = async (req: AuthRequest, res: Response) => {
  */
 export const getRoundQuestions = async (req: AuthRequest, res: Response) => {
   try {
-    const { roundId } = req.params;
+    const roundId = routeParam(req.params.roundId);
 
     const questions = await millionService.getRoundQuestions(roundId);
 

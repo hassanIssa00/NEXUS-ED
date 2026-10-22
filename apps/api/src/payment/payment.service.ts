@@ -70,13 +70,13 @@ export class PaymentService {
   ) {
     return this.requireStripe().paymentIntents.create({
       amount: Math.round(amount * 100), // Stripe expects cents
-      currency,
+      currency: currency.toLowerCase(),
       metadata,
       automatic_payment_methods: { enabled: true },
     }, idempotencyKey ? { idempotencyKey } : undefined);
   }
 
-  async createInvoice(studentId: string, amount: number, description: string, schoolId: string) {
+  async createInvoice(studentId: string, amount: number, description: string, schoolId: string, actorId: string, currency = 'SAR') {
     const student = await this.prisma.user.findFirst({
       where: { id: studentId, schoolId, role: Role.STUDENT, isActive: true },
       select: { id: true, schoolId: true, email: true },
@@ -89,6 +89,7 @@ export class PaymentService {
         amount,
         description,
         schoolId,
+        currency,
         status: InvoiceStatus.PENDING,
       },
     });
@@ -96,11 +97,12 @@ export class PaymentService {
     await this.createAuditLog({
       action: 'payment.invoice_created',
       entityId: invoice.id,
-      userId: studentId,
+      userId: actorId,
       schoolId: invoice.schoolId,
       metadata: {
         amount,
         currency: invoice.currency,
+        studentId,
       },
     });
 
@@ -247,6 +249,37 @@ export class PaymentService {
         count: _count._all,
       })),
     };
+  }
+
+  async getSchoolStudents(schoolId: string, page: number, limit: number, search?: string) {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const query = search?.trim();
+    const where: Prisma.UserWhereInput = {
+      schoolId,
+      role: Role.STUDENT,
+      isActive: true,
+      ...(query ? {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { firstName: { contains: query, mode: 'insensitive' } },
+          { lastName: { contains: query, mode: 'insensitive' } },
+          { email: { contains: query, mode: 'insensitive' } },
+        ],
+      } : {}),
+    };
+    const [data, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip: (safePage - 1) * safeLimit,
+        take: safeLimit,
+        select: { id: true, name: true, firstName: true, lastName: true, email: true },
+        orderBy: [{ name: 'asc' }, { email: 'asc' }],
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return { data, meta: { total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) } };
   }
 
   async handleStripeWebhook(signature: string, payload: Buffer) {

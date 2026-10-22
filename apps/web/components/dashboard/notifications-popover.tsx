@@ -258,7 +258,7 @@ function NotifRow({ n, onRead, onDismiss }: {
 
     return (
         <motion.div
-            initial={n.isLive ? { backgroundColor: '#8b5cf610', x: -4 } : { opacity: 0 }}
+            initial={n.isLive ? { backgroundColor: '#234A6510', x: -4 } : { opacity: 0 }}
             animate={{ backgroundColor: 'transparent', x: 0, opacity: 1 }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.4 }}

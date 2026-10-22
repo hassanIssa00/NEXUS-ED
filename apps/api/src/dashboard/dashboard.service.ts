@@ -2,8 +2,6 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { AttendanceStatus, InvoiceStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
-type ChartPoint = { label: string; value: number };
-
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
@@ -26,7 +24,7 @@ export class DashboardService {
   }
 
   private monthLabel(date: Date) {
-    return date.toLocaleString('en-US', { month: 'short' });
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }
 
   private buildSeries<T extends { createdAt?: Date; paidAt?: Date }>(
@@ -45,11 +43,13 @@ export class DashboardService {
       monthly.set(label, (monthly.get(label) ?? 0) + 1);
     });
 
-    return Array.from(monthly.entries()).map(([label, value]) => ({ label, value }));
+    return Array.from(monthly.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([label, value]) => ({ label, value }));
   }
 
-  private buildRevenueSeries(items: Array<{ paidAt: Date | null; amount: number }>) {
-    const monthly = new Map<string, number>();
+  private buildRevenueSeries(items: Array<{ paidAt: Date | null; amount: number; currency: string }>) {
+    const monthly = new Map<string, { label: string; currency: string; value: number }>();
 
     items.forEach((item) => {
       if (!item.paidAt) {
@@ -57,13 +57,15 @@ export class DashboardService {
       }
 
       const label = this.monthLabel(item.paidAt);
-      monthly.set(label, (monthly.get(label) ?? 0) + Number(item.amount));
+      const key = `${label}:${item.currency}`;
+      const entry = monthly.get(key) ?? { label, currency: item.currency, value: 0 };
+      entry.value += Number(item.amount);
+      monthly.set(key, entry);
     });
 
-    return Array.from(monthly.entries()).map(([label, value]) => ({
-      label,
-      value: this.round(value),
-    }));
+    return Array.from(monthly.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([, entry]) => ({ ...entry, value: this.round(entry.value) }));
   }
 
   async getStudentDashboard(userId: string) {
@@ -240,6 +242,7 @@ export class DashboardService {
       student: {
         id: student.id,
         name: student.name ?? student.email,
+        avatar: student.avatar,
         schoolId: student.schoolId,
         classes: student.enrollments.map(({ class: enrolledClass }) => ({
           id: enrolledClass.id,
@@ -419,7 +422,9 @@ export class DashboardService {
         ...classItem.classSubjects.map((subject) => subject.subjectId),
       ]);
       const classGrades = taughtSubjects
-        .filter((subject) => subjectIds.has(subject.id) && subject.classId === classItem.id)
+        .filter((subject) => subjectIds.has(subject.id) && (
+          subject.classId === classItem.id || subject.classSubjects.some((item) => item.classId === classItem.id)
+        ))
         .flatMap((subject) => subject.grades || []);
       const validGrades = classGrades.filter(
         (grade) => Number(grade.maxScore) > 0 && Number.isFinite(Number(grade.grade)),
@@ -528,13 +533,14 @@ export class DashboardService {
         select: {
           id: true,
           amount: true,
+          currency: true,
           status: true,
           createdAt: true,
           paidAt: true,
         },
       }),
       this.prisma.auditLog.findMany({
-        where: scope,
+        where: { ...scope, NOT: { action: { startsWith: 'auth.' } } },
         include: {
           user: {
             select: { id: true, name: true, email: true },
@@ -553,10 +559,22 @@ export class DashboardService {
     const teachers = users.filter((user) => user.role === Role.TEACHER);
     const activeUsers = users.filter((user) => user.isActive).length;
     const paidInvoices = invoices.filter((invoice) => invoice.status === InvoiceStatus.PAID);
-    const totalRevenue = paidInvoices.reduce((sum, invoice) => sum + Number(invoice.amount), 0);
+    const revenueTotals = new Map<string, number>();
+    paidInvoices.forEach((invoice) => {
+      revenueTotals.set(invoice.currency, (revenueTotals.get(invoice.currency) ?? 0) + Number(invoice.amount));
+    });
+    const revenueByCurrency = Array.from(revenueTotals.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([currency, total]) => ({ currency, total: this.round(total) }));
+    const totalRevenue = revenueByCurrency.length > 1
+      ? null
+      : revenueByCurrency.length === 1
+        ? revenueByCurrency[0].total
+        : 0;
     const failedInvoices = invoices.filter((invoice) => invoice.status === InvoiceStatus.FAILED).length;
-    const attendanceRate = attendance.length
-      ? this.round((attendance.filter((record) => record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.LATE).length / attendance.length) * 100)
+    const countedAttendance = attendance.filter((record) => record.status !== AttendanceStatus.EXCUSED);
+    const attendanceRate = countedAttendance.length
+      ? this.round((countedAttendance.filter((record) => record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.LATE).length / countedAttendance.length) * 100)
       : null;
 
     return {
@@ -572,14 +590,19 @@ export class DashboardService {
         totalClasses: classes.length,
         totalSubjects: subjects.length,
         activeUsers,
-        totalRevenue: this.round(totalRevenue),
+        totalRevenue,
+        revenueByCurrency,
         attendanceRate,
       },
-      enrollmentSeries: this.buildSeries(students, 'createdAt'),
+      enrollmentSeries: this.buildSeries(
+        classes.flatMap((schoolClass) => schoolClass.students.map((enrollment) => ({ createdAt: enrollment.enrolledAt }))),
+        'createdAt',
+      ),
       revenueSeries: this.buildRevenueSeries(
         paidInvoices.map((invoice) => ({
           paidAt: invoice.paidAt,
           amount: Number(invoice.amount),
+          currency: invoice.currency,
         })),
       ),
       invoiceSummary: {
@@ -598,26 +621,6 @@ export class DashboardService {
         actor: log.user?.name ?? log.user?.email ?? 'System',
         createdAt: log.createdAt,
       })),
-      systemHealth: [
-        {
-          name: 'Users',
-          status: activeUsers > 0 ? 'healthy' : 'warning',
-          value: activeUsers,
-          detail: `${activeUsers} active users`,
-        },
-        {
-          name: 'Payments',
-          status: failedInvoices > 0 ? 'warning' : 'healthy',
-          value: paidInvoices.length,
-          detail: `${paidInvoices.length} paid invoices`,
-        },
-        {
-          name: 'Classes',
-          status: classes.length > 0 ? 'healthy' : 'warning',
-          value: classes.length,
-          detail: `${classes.reduce((sum, item) => sum + item.students.length, 0)} enrollments`,
-        },
-      ],
     };
   }
 
@@ -679,6 +682,7 @@ export class DashboardService {
       return {
         id: student.id,
         name: student.name || [student.firstName, student.lastName].filter(Boolean).join(' ') || 'طالب',
+        avatar: student.avatar,
         className: student.enrollments.map((enrollment: any) => enrollment.class.name).filter(Boolean).join('، ') || null,
         averageGrade: validGrades.length > 0
           ? this.round(validGrades.reduce((sum: number, grade: any) => sum + (Number(grade.grade) / Number(grade.maxScore)) * 100, 0) / validGrades.length)

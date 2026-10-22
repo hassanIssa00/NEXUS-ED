@@ -5,6 +5,7 @@ import { Role } from '../auth/role.enum';
 import { RolesGuard } from '../auth/roles.guard';
 import { AttendanceService } from './attendance.service';
 import { MarkClassAttendanceDto } from './dto/mark-class-attendance.dto';
+import { GeofenceCheckInDto } from './dto/geofence-check-in.dto';
 
 @Controller('attendance')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -47,6 +48,16 @@ export class AttendanceController {
       req.user.userId || req.user.sub || req.user.id,
       req.user.role,
       req.user.schoolId,
+    );
+  }
+
+  @Post('student/geofence/check-in')
+  @Roles(Role.STUDENT)
+  verifyStudentGeofenceAndCheckIn(@Body() body: GeofenceCheckInDto, @Request() req: any) {
+    return this.attendanceService.verifyStudentGeofenceAndCheckIn(
+      req.user.userId || req.user.sub || req.user.id,
+      req.user.schoolId,
+      body,
     );
   }
 }

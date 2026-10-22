@@ -1,20 +1,20 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { Grade, AttendanceStatus } from '@prisma/client';
+import { AttendanceStatus } from '@prisma/client';
 
 export interface StudentProgressPoint {
   date: string;
-  averageGrade: number;
-  attendanceRate: number;
+  averageGrade: number | null;
+  attendanceRate: number | null;
   assignmentsCompleted: number;
 }
 
 export interface ClassComparison {
-  studentAverage: number;
-  classAverage: number;
-  studentRank: number;
+  studentAverage: number | null;
+  classAverage: number | null;
+  studentRank: number | null;
   totalStudents: number;
-  percentile: number;
+  percentile: number | null;
 }
 
 export interface EarlyWarning {
@@ -37,11 +37,11 @@ export interface ParentReport {
     period: string;
   };
   summary: {
-    overallGrade: number;
-    attendanceRate: number;
+    overallGrade: number | null;
+    attendanceRate: number | null;
     assignmentsCompleted: number;
     totalAssignments: number;
-    rank: number;
+    rank: number | null;
     totalStudents: number;
   };
   subjects: {
@@ -169,14 +169,15 @@ export class StudentAnalyticsService {
     studentId: string,
     days: number = 30,
   ): Promise<StudentProgressPoint[]> {
-    const startDate = new Date();
+    const endDate = new Date();
+    const startDate = new Date(endDate);
     startDate.setDate(startDate.getDate() - days);
 
     // Get all grades in the period
     const grades = await this.prisma.grade.findMany({
       where: {
         studentId,
-        createdAt: { gte: startDate },
+        createdAt: { gte: startDate, lte: endDate },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -185,7 +186,7 @@ export class StudentAnalyticsService {
     const attendance = await this.prisma.attendance.findMany({
       where: {
         studentId,
-        date: { gte: startDate },
+        date: { gte: startDate, lte: endDate },
       },
       orderBy: { date: 'asc' },
     });
@@ -194,7 +195,7 @@ export class StudentAnalyticsService {
     const submissions = await this.prisma.submission.findMany({
       where: {
         studentId,
-        submittedAt: { gte: startDate },
+        submittedAt: { gte: startDate, lte: endDate },
       },
       orderBy: { submittedAt: 'asc' },
     });
@@ -236,9 +237,11 @@ export class StudentAnalyticsService {
         totalDays: 0,
         submissions: 0,
       };
-      existing.totalDays++;
-      if (record.status === 'PRESENT' || record.status === 'LATE') {
-        existing.presentDays++;
+      if (record.status !== 'EXCUSED') {
+        existing.totalDays++;
+        if (record.status === 'PRESENT' || record.status === 'LATE') {
+          existing.presentDays++;
+        }
       }
       progressMap.set(weekStart, existing);
     });
@@ -280,7 +283,7 @@ export class StudentAnalyticsService {
   /**
    * Compare student with their class
    */
-  async getClassComparison(studentId: string): Promise<ClassComparison> {
+  async getClassComparison(studentId: string, sinceDate?: Date, untilDate?: Date): Promise<ClassComparison> {
     // Get student's class
     const enrollment = await this.prisma.enrollment.findFirst({
       where: { studentId },
@@ -309,7 +312,18 @@ export class StudentAnalyticsService {
     const allGrades = await this.prisma.grade.findMany({
       where: {
         studentId: { in: studentIds },
-        subject: { classId: enrollment.classId },
+        subject: {
+          OR: [
+            { classId: enrollment.classId },
+            { classSubjects: { some: { classId: enrollment.classId } } },
+          ],
+        },
+        ...(sinceDate || untilDate ? {
+          createdAt: {
+            ...(sinceDate ? { gte: sinceDate } : {}),
+            ...(untilDate ? { lte: untilDate } : {}),
+          },
+        } : {}),
         maxScore: { gt: 0 },
       },
     });
@@ -371,7 +385,10 @@ export class StudentAnalyticsService {
     const dueAssignments = await this.prisma.assignment.findMany({
       where: {
         dueDate: { lte: new Date() },
-        OR: [{ classId }, { classId: null, subject: { classId } }],
+        OR: [
+          { classId },
+          { classId: null, subject: { OR: [{ classId }, { classSubjects: { some: { classId } } }] } },
+        ],
       },
       select: { id: true },
     });
@@ -383,7 +400,7 @@ export class StudentAnalyticsService {
         where: {
           studentId: { in: studentIds },
           createdAt: { gte: thirtyDaysAgo },
-          subject: { classId },
+          subject: { OR: [{ classId }, { classSubjects: { some: { classId } } }] },
           maxScore: { gt: 0 },
         },
         select: { studentId: true, grade: true, maxScore: true },
@@ -521,8 +538,11 @@ export class StudentAnalyticsService {
     period: 'week' | 'month' = 'month',
   ): Promise<ParentReport> {
     const days = period === 'week' ? 7 : 30;
-    const startDate = new Date();
+    const endDate = new Date();
+    const startDate = new Date(endDate);
     startDate.setDate(startDate.getDate() - days);
+    const previousStartDate = new Date(startDate);
+    previousStartDate.setDate(previousStartDate.getDate() - days);
 
     // Get student info
     const student = await this.prisma.user.findUnique({
@@ -534,13 +554,23 @@ export class StudentAnalyticsService {
       },
     });
     if (!student || student.role !== 'STUDENT') throw new NotFoundException('Student not found');
-    const enrollment = student.enrollments[0];
-    const classId = enrollment?.classId;
+    const classIds = [...new Set(student.enrollments.map((item) => item.classId))];
+    const classScope = {
+      OR: [
+        { classId: { in: classIds } },
+        { classSubjects: { some: { classId: { in: classIds } } } },
+      ],
+    };
 
     // Get grades
     const grades = await this.prisma.grade.findMany({
-      where: { studentId, ...(classId ? { subject: { classId } } : {}), maxScore: { gt: 0 } },
-      include: { subject: true },
+      where: {
+        studentId,
+        createdAt: { gte: previousStartDate, lte: endDate },
+        ...(classIds.length ? { subject: classScope } : {}),
+        maxScore: { gt: 0 },
+      },
+      include: { subject: true, assignment: { select: { title: true } } },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -549,21 +579,31 @@ export class StudentAnalyticsService {
 
     // Get attendance
     const attendance = await this.prisma.attendance.findMany({
-      where: { studentId, ...(classId ? { classId } : {}), date: { gte: startDate } },
+      where: { studentId, ...(classIds.length ? { classId: { in: classIds } } : {}), date: { gte: startDate, lte: endDate } },
     });
 
-    // Get submissions
-    const submissions = await this.prisma.submission.findMany({
+    // Count work assigned during the report period, then match submissions to
+    // those exact assignments so a class-wide submission cannot inflate the count.
+    const assignments = await this.prisma.assignment.findMany({
       where: {
-        studentId,
-        submittedAt: { gte: startDate },
-        ...(classId ? { assignment: { OR: [{ classId }, { classId: null, subject: { classId } }] } } : {}),
+        createdAt: { gte: startDate, lte: endDate },
+        OR: [
+          { classId: { in: classIds } },
+          { classId: null, subject: classScope },
+        ],
       },
-      include: { assignment: { include: { subject: true } } },
+      select: { id: true },
     });
+    const assignmentIds = assignments.map((assignment) => assignment.id);
+    const submissions = assignmentIds.length
+      ? await this.prisma.submission.findMany({
+        where: { studentId, assignmentId: { in: assignmentIds } },
+        select: { assignmentId: true },
+      })
+      : [];
 
     // Get class comparison for rank
-    const comparison = await this.getClassComparison(studentId);
+    const comparison = await this.getClassComparison(studentId, startDate, endDate);
 
     // Calculate subject grades
     const subjectGrades = new Map<
@@ -581,7 +621,7 @@ export class StudentAnalyticsService {
 
       if (g.createdAt >= startDate) {
         existing.grades.push(score);
-      } else {
+      } else if (g.createdAt >= previousStartDate) {
         existing.previous.push(score);
       }
       subjectGrades.set(subjectName, existing);
@@ -619,21 +659,7 @@ export class StudentAnalyticsService {
 
     // Get total assignments for the period
     let totalAssignments = 0;
-    if (enrollment) {
-      const classSubjects = await this.prisma.subject.findMany({
-        where: { classId: enrollment.classId },
-        include: {
-          assignments: {
-            where: {
-              createdAt: { gte: startDate },
-            },
-          },
-        },
-      });
-      classSubjects.forEach((s) => {
-        totalAssignments += s.assignments.length;
-      });
-    }
+    if (classIds.length) totalAssignments = assignments.length;
 
     // Generate recommendations
     const recommendations: string[] = [];
@@ -645,10 +671,11 @@ export class StudentAnalyticsService {
           0,
         ) / validRecentGrades.length
         : null;
+    const countedAttendance = attendance.filter((record) => record.status !== 'EXCUSED');
     const attendanceRate =
-      attendance.length > 0
+      countedAttendance.length > 0
         ? ((attendanceStats.present + attendanceStats.late) /
-          attendance.length) *
+          countedAttendance.length) *
         100
         : null;
 
@@ -662,7 +689,7 @@ export class StudentAnalyticsService {
         'يُرجى متابعة انتظام الحضور، الغياب المتكرر يؤثر على التحصيل',
       );
     }
-    if (submissions.length < totalAssignments * 0.7) {
+    if (totalAssignments > 0 && submissions.length < totalAssignments * 0.7) {
       recommendations.push('يُنصح بتشجيع الطالب على تسليم الواجبات في موعدها');
     }
     if (subjects.some((s) => s.trend === 'DOWN')) {
@@ -683,7 +710,7 @@ export class StudentAnalyticsService {
           student?.name ||
           `${student?.firstName || ''} ${student?.lastName || ''}`.trim() ||
           'Unknown',
-        class: enrollment?.class.name || 'غير محدد',
+        class: student.enrollments.map((item) => item.class.name).filter(Boolean).join('، ') || 'غير محدد',
         period: period === 'week' ? 'أسبوعي' : 'شهري',
       },
       summary: {
@@ -696,14 +723,14 @@ export class StudentAnalyticsService {
       },
       subjects,
       attendance: attendanceStats,
-      recentGrades: submissions
-        .filter((submission) => submission.grade !== null || submission.score !== null)
-        .slice(0, 5).map((s) => ({
-        subject: s.assignment.subject?.name || 'Unknown',
-        assignment: s.assignment.title,
-        score: Number(s.grade ?? s.score),
-        maxScore: Number(s.assignment.maxScore),
-        date: s.submittedAt,
+      recentGrades: recentGrades
+        .filter((grade) => Number.isFinite(Number(grade.grade)) && Number(grade.maxScore) > 0)
+        .slice(0, 5).map((grade) => ({
+        subject: grade.subject?.name || 'Unknown',
+        assignment: grade.assignment?.title || 'تقييم مسجل',
+        score: Number(grade.grade),
+        maxScore: Number(grade.maxScore),
+        date: grade.createdAt,
       })),
       recommendations,
     };

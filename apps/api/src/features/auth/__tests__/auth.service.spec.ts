@@ -5,10 +5,10 @@ import { BadRequestException, ConflictException, ForbiddenException, ServiceUnav
 import * as bcrypt from 'bcrypt';
 import { createHash, createHmac } from 'crypto';
 import { AuthService } from '../services/auth.service';
-import { GoogleIdentityService } from '../services/google-identity.service';
 import { FirebaseIdentityService } from '../services/firebase-identity.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { EmailService } from '../../../notifications/email.service';
+import { UploadService } from '../../../upload/upload.service';
 
 jest.mock('bcrypt');
 
@@ -18,6 +18,13 @@ describe('AuthService', () => {
     const mockPrismaService = {
         school: {
             findUnique: jest.fn(),
+            findMany: jest.fn(),
+        },
+        class: {
+            findFirst: jest.fn(),
+        },
+        registrationArchive: {
+            upsert: jest.fn(),
             findMany: jest.fn(),
         },
         user: {
@@ -61,8 +68,12 @@ describe('AuthService', () => {
     };
 
     const mockEmailService = { isConfigured: jest.fn(), sendEmail: jest.fn() };
-    const mockGoogleIdentityService = { verifyIdToken: jest.fn() };
     const mockFirebaseIdentityService = { verifyAndReadProfile: jest.fn() };
+    const mockUploadService = {
+        uploadTeacherRegistrationAvatar: jest.fn(),
+        deleteFromSupabase: jest.fn(),
+        getSignedUrlsForReferences: jest.fn(),
+    };
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
@@ -81,8 +92,8 @@ describe('AuthService', () => {
                     useValue: mockConfigService,
                 },
                 { provide: EmailService, useValue: mockEmailService },
-                { provide: GoogleIdentityService, useValue: mockGoogleIdentityService },
                 { provide: FirebaseIdentityService, useValue: mockFirebaseIdentityService },
+                { provide: UploadService, useValue: mockUploadService },
             ],
         }).compile();
 
@@ -199,35 +210,159 @@ describe('AuthService', () => {
             role: 'STUDENT',
         };
 
-        it('should create a new user successfully', async () => {
-            mockPrismaService.school.findMany.mockResolvedValue([{ id: 'school-1' }]);
-            mockPrismaService.user.findUnique.mockResolvedValue(null);
-            (bcrypt.hash as jest.Mock).mockResolvedValue('hashedPassword');
-            mockPrismaService.user.create.mockResolvedValue({
-                id: '1',
-                email: registerDto.email,
-                name: registerDto.name,
-                role: registerDto.role,
-                password: 'hashedPassword',
-                schoolId: 'school-1',
-            });
-
-            const result = await service.register(registerDto);
-
-            expect(result).toHaveProperty('id', '1');
-            expect(result).not.toHaveProperty('password');
-            expect(mockPrismaService.user.create).toHaveBeenCalled();
+        it('requires verified Firebase confirmation before creating public accounts', async () => {
+            await expect(service.register(registerDto)).rejects.toThrow(ForbiddenException);
+            expect(mockPrismaService.user.create).not.toHaveBeenCalled();
         });
 
-        it('should throw ConflictException if user exists', async () => {
-            mockPrismaService.user.findUnique.mockResolvedValue({ id: '1' });
-
-            await expect(service.register(registerDto)).rejects.toThrow(ConflictException);
-        });
-
-        it('should never allow public registration to assign a staff role', async () => {
+        it('never allows the public registration endpoint to assign staff roles', async () => {
             await expect(service.register({ ...registerDto, role: 'ADMIN' })).rejects.toThrow(ForbiddenException);
             expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('teacher registration archive', () => {
+        const originalPublicSchoolId = process.env.PUBLIC_SCHOOL_ID;
+
+        beforeEach(() => {
+            process.env.PUBLIC_SCHOOL_ID = 'school-1';
+            mockConfigService.get.mockImplementation((key: string) => {
+                if (key === 'TEACHER_REGISTRATION_CODE') return 'test-teacher-code';
+                if (key === 'FIREBASE_STORAGE_BUCKET') return 'nexus-test.appspot.com';
+                return undefined;
+            });
+            mockPrismaService.school.findUnique.mockResolvedValue({ id: 'school-1', isActive: true });
+            mockPrismaService.class.findFirst.mockResolvedValue({ id: 'class-1' });
+            mockPrismaService.registrationArchive.upsert.mockResolvedValue({ id: 'archive-1' });
+        });
+
+        afterAll(() => {
+            if (originalPublicSchoolId === undefined) delete process.env.PUBLIC_SCHOOL_ID;
+            else process.env.PUBLIC_SCHOOL_ID = originalPublicSchoolId;
+        });
+
+        it('checks the configured code without returning it', () => {
+            expect(service.verifyTeacherRegistrationCode('test-teacher-code')).toEqual({ valid: true });
+            expect(service.verifyTeacherRegistrationCode('wrong-code')).toEqual({ valid: false });
+        });
+
+        it('fails closed if the teacher registration code is not configured', () => {
+            mockConfigService.get.mockReturnValue(undefined);
+            expect(() => service.verifyTeacherRegistrationCode('anything')).toThrow(ServiceUnavailableException);
+        });
+
+        it('rejects an invalid teacher code before creating an archive record', async () => {
+            mockFirebaseIdentityService.verifyAndReadProfile.mockResolvedValue({
+                uid: 'firebase-teacher',
+                email: 'teacher@example.com',
+                emailVerified: false,
+                fullName: 'Teacher Example',
+                role: 'TEACHER',
+                status: 'pending',
+            });
+
+            await expect(service.recordRegistrationAttempt({
+                idToken: 'firebase-id-token',
+                teacherCode: 'wrong-code',
+                teacherProfile: { nationalId: '1234567890', specialization: 'ARABIC', yearsExperience: 0 },
+            } as any)).rejects.toThrow(ForbiddenException);
+            expect(mockPrismaService.registrationArchive.upsert).not.toHaveBeenCalled();
+        });
+
+        it('archives teacher onboarding details, but never the registration code', async () => {
+            mockFirebaseIdentityService.verifyAndReadProfile.mockResolvedValue({
+                uid: 'firebase-teacher',
+                email: 'teacher@example.com',
+                emailVerified: false,
+                fullName: 'Teacher Example',
+                role: 'TEACHER',
+                status: 'pending',
+            });
+
+            await service.recordRegistrationAttempt({
+                idToken: 'firebase-id-token',
+                teacherCode: 'test-teacher-code',
+                teacherProfile: {
+                    nationalId: '1234567890',
+                    specialization: 'ARABIC',
+                    yearsExperience: 4,
+                    homeroomClass: 'class-1',
+                },
+            } as any);
+
+            expect(mockPrismaService.class.findFirst).toHaveBeenCalledWith({
+                where: { id: 'class-1', schoolId: 'school-1' },
+                select: { id: true },
+            });
+            expect(mockPrismaService.registrationArchive.upsert).toHaveBeenCalledWith(expect.objectContaining({
+                where: { firebaseUid: 'firebase-teacher' },
+                create: expect.objectContaining({
+                    firebaseUid: 'firebase-teacher',
+                    nationalId: '1234567890',
+                    specialization: 'ARABIC',
+                    yearsExperience: 4,
+                    homeroomClassId: 'class-1',
+                }),
+                update: expect.objectContaining({
+                    nationalId: '1234567890',
+                    specialization: 'ARABIC',
+                    yearsExperience: 4,
+                    homeroomClassId: 'class-1',
+                }),
+            }));
+            const serialized = JSON.stringify(mockPrismaService.registrationArchive.upsert.mock.calls[0][0]);
+            expect(serialized).not.toContain('test-teacher-code');
+            expect(mockPrismaService.registrationArchive.upsert.mock.calls[0][0].create).not.toHaveProperty('avatarUrl');
+        });
+
+        it('does not trust a client supplied teacher avatar URL in registration metadata', async () => {
+            mockFirebaseIdentityService.verifyAndReadProfile.mockResolvedValue({
+                uid: 'firebase-teacher',
+                email: 'teacher@example.com',
+                emailVerified: false,
+                fullName: 'Teacher Example',
+                role: 'TEACHER',
+                status: 'pending',
+            });
+
+            await service.recordRegistrationAttempt({
+                idToken: 'firebase-id-token',
+                teacherCode: 'test-teacher-code',
+                teacherProfile: {
+                    nationalId: '1234567890',
+                    specialization: 'ARABIC',
+                    avatarUrl: 'https://attacker.example/teacher.jpg',
+                },
+            } as any);
+            expect(mockPrismaService.registrationArchive.upsert).toHaveBeenCalled();
+            expect(mockPrismaService.registrationArchive.upsert.mock.calls[0][0].create).not.toHaveProperty('avatarUrl');
+        });
+
+        it('allows teacher registration without optional experience', async () => {
+            mockFirebaseIdentityService.verifyAndReadProfile.mockResolvedValue({
+                uid: 'firebase-teacher',
+                email: 'teacher@example.com',
+                emailVerified: false,
+                fullName: 'Teacher Example',
+                role: 'TEACHER',
+                status: 'pending',
+            });
+
+            await service.recordRegistrationAttempt({
+                idToken: 'firebase-id-token',
+                teacherCode: 'test-teacher-code',
+                teacherProfile: { nationalId: '2234567890', specialization: 'MATHEMATICS' },
+            } as any);
+
+            expect(mockPrismaService.registrationArchive.upsert).toHaveBeenCalledWith(expect.objectContaining({
+                create: expect.objectContaining({
+                    nationalId: '2234567890',
+                    specialization: 'MATHEMATICS',
+                }),
+            }));
+            const create = mockPrismaService.registrationArchive.upsert.mock.calls[0][0].create;
+            expect(create).not.toHaveProperty('yearsExperience');
+            expect(create).not.toHaveProperty('avatarUrl');
         });
     });
 
@@ -294,47 +429,8 @@ describe('AuthService', () => {
         });
     });
 
-    describe('loginWithGoogle', () => {
-        it('creates only a student or parent identity after a verified Google token', async () => {
-            mockGoogleIdentityService.verifyIdToken.mockResolvedValue({
-                subject: 'google-subject',
-                email: 'student@example.com',
-                name: 'Student Example',
-            });
-            mockPrismaService.authIdentity.findUnique.mockResolvedValue(null);
-            mockPrismaService.user.findUnique.mockResolvedValue(null);
-            mockPrismaService.school.findMany.mockResolvedValue([{ id: 'school-1' }]);
-            (bcrypt.hash as jest.Mock).mockResolvedValue('unusable-random-password-hash');
-            mockTransaction.user.create.mockResolvedValue({
-                id: 'student-1',
-                email: 'student@example.com',
-                role: 'STUDENT',
-                name: 'Student Example',
-                schoolId: 'school-1',
-                phone: null,
-            });
-            mockJwtService.signAsync.mockResolvedValueOnce('access-token').mockResolvedValueOnce('refresh-token');
-            mockPrismaService.refreshToken.create.mockResolvedValue({});
-
-            const result = await service.loginWithGoogle({ idToken: 'google-id-token', role: 'STUDENT' } as any);
-
-            expect(result.is_new_user).toBe(true);
-            expect(result.user.role).toBe('STUDENT');
-            expect(mockTransaction.authIdentity.create).toHaveBeenCalledWith({
-                data: { provider: 'google', providerSubject: 'google-subject', userId: 'student-1' },
-            });
-            expect(mockPrismaService.user.create).not.toHaveBeenCalled();
-        });
-
-        it('rejects Google registration for staff roles before verifying the token', async () => {
-            await expect(service.loginWithGoogle({ idToken: 'google-id-token', role: 'ADMIN' } as any))
-                .rejects.toThrow(ForbiddenException);
-            expect(mockGoogleIdentityService.verifyIdToken).not.toHaveBeenCalled();
-        });
-    });
-
     describe('loginWithFirebase', () => {
-        it('creates a restricted onboarding session for an unverified student without a refresh token', async () => {
+        it('does not provision or create a session for an unverified student', async () => {
             mockFirebaseIdentityService.verifyAndReadProfile.mockResolvedValue({
                 uid: 'firebase-student',
                 email: 'student@example.com',
@@ -343,33 +439,14 @@ describe('AuthService', () => {
                 role: 'STUDENT',
                 status: 'active',
             });
-            mockPrismaService.authIdentity.findUnique.mockResolvedValue(null);
-            mockPrismaService.user.findUnique.mockResolvedValue(null);
-            mockPrismaService.school.findMany.mockResolvedValue([{ id: 'school-1' }]);
-            (bcrypt.hash as jest.Mock).mockResolvedValue('random-password-hash');
-            mockTransaction.user.create.mockResolvedValue({
-                id: 'student-1',
-                email: 'student@example.com',
-                role: 'STUDENT',
-                name: 'Student Example',
-                schoolId: 'school-1',
-                phone: null,
-                emailVerified: false,
-            });
-            mockJwtService.signAsync.mockResolvedValue('onboarding-access-token');
-
-            const result = await service.loginWithFirebase('firebase-id-token', true);
+            await expect(service.loginWithFirebase('firebase-id-token', true))
+                .rejects.toThrow('A verified Firebase account is required');
 
             expect(mockFirebaseIdentityService.verifyAndReadProfile).toHaveBeenCalledWith(
                 'firebase-id-token',
                 { allowUnverified: true },
             );
-            expect(mockJwtService.signAsync).toHaveBeenCalledWith(
-                expect.objectContaining({ sub: 'student-1', onboardingOnly: true }),
-                { expiresIn: '2h' },
-            );
-            expect(result.access_token).toBe('onboarding-access-token');
-            expect(result).not.toHaveProperty('refresh_token');
+            expect(mockTransaction.user.create).not.toHaveBeenCalled();
             expect(mockPrismaService.refreshToken.create).not.toHaveBeenCalled();
         });
 
@@ -408,7 +485,7 @@ describe('AuthService', () => {
             });
 
             await expect(service.loginWithFirebase('firebase-id-token', true)).rejects.toThrow(
-                'Verify your email before linking this account',
+                'A verified Firebase account is required',
             );
             expect(mockTransaction.authIdentity.create).not.toHaveBeenCalled();
         });
@@ -424,8 +501,25 @@ describe('AuthService', () => {
 
             const result = await service.requestPasswordReset({ email: 'missing@example.com' });
 
-            expect(result.message).toContain('لو البريد مرتبط');
+            expect(result.message).toContain('إذا كان البريد مرتبطًا بحساب');
             expect(mockEmailService.sendEmail).not.toHaveBeenCalled();
+        });
+
+        it('allows a provisioned teacher to receive the same single-use reset code', async () => {
+            mockPrismaService.user.findUnique.mockResolvedValue({
+                id: 'teacher-1', email: 'teacher@example.com', role: 'TEACHER', isActive: true,
+                schoolId: 'school-1',
+            });
+            mockPrismaService.passwordResetCode.count.mockResolvedValue(0);
+            mockPrismaService.passwordResetCode.create.mockResolvedValue({ id: 'teacher-reset-1' });
+            mockPrismaService.passwordResetCode.updateMany.mockResolvedValue({ count: 1 });
+            mockPrismaService.passwordResetCode.deleteMany.mockResolvedValue({ count: 0 });
+            mockEmailService.sendEmail.mockResolvedValue(true);
+
+            const result = await service.requestPasswordReset({ email: 'teacher@example.com' });
+
+            expect(result.message).toContain('إذا كان البريد مرتبطًا بحساب');
+            expect(mockEmailService.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'teacher@example.com' }));
         });
 
         it('fails closed before checking account existence when SMTP is not configured', async () => {
@@ -539,6 +633,7 @@ describe('AuthService', () => {
                 name: 'Test User',
                 schoolId: 'school-1',
                 isActive: true,
+                emailVerified: true,
             });
             mockPrismaService.refreshToken.update.mockResolvedValue({});
             mockPrismaService.refreshToken.create.mockResolvedValue({});

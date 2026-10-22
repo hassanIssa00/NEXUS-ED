@@ -1,7 +1,7 @@
 'use client';
 
-import BackendStatus from '@/components/common/BackendStatus';
+import { CommunityFeed } from '@/components/community/community-feed';
 
-export default function Page() {
-  return <BackendStatus title="مجتمع المدرسة" detail="لا يوجد API للمجتمع العام يضبط النشر والمراجعة ونطاق الفصل. المحادثات الفردية المتصلة بالنظام موجودة في صفحة الرسائل." />;
+export default function TeacherCommunityPage() {
+  return <CommunityFeed audience="teacher" />;
 }

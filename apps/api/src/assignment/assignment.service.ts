@@ -306,9 +306,7 @@ export class AssignmentService {
     });
 
     const assignments = enrollments.flatMap((enrollment) => {
-      const enrollmentClass = enrollment.class as typeof enrollment.class & {
-        subjects?: Array<{ assignments: any[] }>;
-      };
+      const enrollmentClass = enrollment.class;
       if (enrollment.class.schoolId !== actor.schoolId) return [];
       const classSubjects =
         enrollmentClass.classSubjects?.length > 0 

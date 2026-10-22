@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import Link from 'next/link';
+import { Link } from '@/i18n/routing';
 import { assignmentService, Assignment, CreateAssignmentDto } from '@/lib/services/assignment.service';
 import { apiClient } from '@/lib/api/client';
 import { UploadResponse } from '@/lib/services/upload.service';
@@ -15,11 +15,13 @@ interface Subject {
 }
 
 export default function AssignmentsPage() {
-    const t = useTranslations('teacher');
     const tAssign = useTranslations('assignment');
+    const tCommon = useTranslations('common');
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [assignmentsError, setAssignmentsError] = useState(false);
+    const [subjectsError, setSubjectsError] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
@@ -40,23 +42,25 @@ export default function AssignmentsPage() {
 
     const fetchAssignments = async () => {
         setLoading(true);
+        setAssignmentsError(false);
         try {
             setAssignments(await assignmentService.getMyAssignments());
         } catch (error) {
             console.error('Failed to fetch assignments', error);
-            setAssignments([]);
+            setAssignmentsError(true);
         } finally {
             setLoading(false);
         }
     };
 
     const fetchSubjects = async () => {
+        setSubjectsError(false);
         try {
             const { data } = await apiClient.get('/subjects/teacher/my');
             setSubjects(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Failed to fetch teacher subjects', error);
-            setSubjects([]);
+            setSubjectsError(true);
         }
     };
 
@@ -79,17 +83,18 @@ export default function AssignmentsPage() {
             resetForm();
             fetchAssignments();
         } catch (error: any) {
-            alert(error.message || 'Failed to save assignment');
+            alert(error.message || tAssign('saveError'));
         }
     };
 
     const handleDelete = async (id: string) => {
-        if (confirm(t('confirmDelete'))) {
+        if (confirm(tAssign('confirmDelete'))) {
             try {
                 await assignmentService.delete(id);
                 fetchAssignments();
             } catch (error) {
                 console.error('Failed to delete assignment', error);
+                alert(tAssign('deleteError'));
             }
         }
     };
@@ -143,11 +148,18 @@ export default function AssignmentsPage() {
             </div>
 
             {loading ? (
-                <div>Loading...</div>
+                <p role="status" className="text-gray-500 dark:text-gray-400">{tAssign('loading')}</p>
+            ) : assignmentsError ? (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-5 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+                    <p>{tAssign('loadError')}</p>
+                    <button type="button" onClick={fetchAssignments} className="mt-3 rounded-md bg-red-700 px-4 py-2 font-medium text-white hover:bg-red-800">
+                        {tAssign('retry')}
+                    </button>
+                </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {assignments.length === 0 ? (
-                        <p className="text-gray-500 dark:text-gray-400 col-span-full">{t('noLessons')}</p> // Reusing noLessons or add noAssignments
+                        <p className="text-gray-500 dark:text-gray-400 col-span-full">{tAssign('empty')}</p>
                     ) : (
                         assignments.map((assignment) => (
                             <div
@@ -191,13 +203,13 @@ export default function AssignmentsPage() {
                                         onClick={() => handleEdit(assignment)}
                                         className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded hover:bg-gray-300"
                                     >
-                                        {t('edit')}
+                                        {tAssign('edit')}
                                     </button>
                                     <button
                                         onClick={() => handleDelete(assignment.id)}
                                         className="px-3 py-1 text-sm bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded hover:bg-red-200"
                                     >
-                                        {t('delete')}
+                                        {tAssign('delete')}
                                     </button>
                                 </div>
                             </div>
@@ -230,7 +242,7 @@ export default function AssignmentsPage() {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        {t('subject')}
+                                        {tAssign('subject')}
                                     </label>
                                     <select
                                         required
@@ -238,13 +250,15 @@ export default function AssignmentsPage() {
                                         onChange={(e) => setFormData({ ...formData, subjectId: e.target.value })}
                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
                                     >
-                                        <option value="">{t('selectSubject')}</option>
+                                        <option value="">{tAssign('selectSubject')}</option>
                                         {subjects.map((subject) => (
                                             <option key={subject.id} value={subject.id}>
                                                 {subject.name}
                                             </option>
                                         ))}
                                     </select>
+                                    {subjectsError && <p role="alert" className="mt-2 text-sm text-red-600">{tAssign('subjectsError')}</p>}
+                                    {!subjectsError && subjects.length === 0 && <p className="mt-2 text-sm text-gray-500">{tAssign('noSubjects')}</p>}
                                 </div>
 
                                 <div>
@@ -293,7 +307,7 @@ export default function AssignmentsPage() {
                                     {formData.attachments && formData.attachments.length > 0 && (
                                         <div className="mt-4">
                                             <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                {t('uploadedFiles')}:
+                                                {tAssign('uploadedFiles')}:
                                             </p>
                                             <div className="space-y-2">
                                                 {formData.attachments.map((url, index) => (
@@ -328,13 +342,13 @@ export default function AssignmentsPage() {
                                     }}
                                     className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
                                 >
-                                    {t('cancel')}
+                                        {tCommon('cancel')}
                                 </button>
                                 <button
                                     type="submit"
                                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                                 >
-                                    {t('save')}
+                                    {tCommon('save')}
                                 </button>
                             </div>
                         </form>

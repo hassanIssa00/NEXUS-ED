@@ -44,8 +44,14 @@ export class UserController {
     return this.userService.update(userId, safeData, req.user.schoolId);
   }
 
+  @Post('me/presence')
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT, Role.PARENT, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.ACCOUNTANT, Role.HR)
+  recordMyPresence(@Request() req: any) {
+    return this.userService.recordActivity(this.userId(req));
+  }
+
   @Get()
-  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.HR)
+  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.ACCOUNTANT, Role.HR)
   findAll(@Query() filters: UserFilterDto, @Request() req: any) {
     return this.userService.findAll(filters, this.schoolId(req));
   }
@@ -60,6 +66,12 @@ export class UserController {
   @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.HR)
   findStaff(@Query() filters: UserFilterDto, @Request() req: any) {
     return this.userService.findStaff(filters, this.schoolId(req));
+  }
+
+  @Get('students/:id/record')
+  @Roles(Role.ADMIN, Role.TEACHER, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.ACCOUNTANT, Role.HR)
+  getSchoolStudentRecord(@Param('id') id: string, @Request() req: any) {
+    return this.userService.getSchoolStudentRecord(id, this.schoolId(req), this.userId(req), req.user.role);
   }
 
   @Get('me/student-profile')
@@ -89,9 +101,15 @@ export class UserController {
   }
 
   @Post('parent-survey')
-  @Roles(Role.PARENT)
+  @Roles(Role.PARENT, Role.STUDENT)
   submitParentSurvey(@Request() req: any, @Body() body: SubmitParentSurveyDto) {
-    return this.userService.submitParentSurvey(this.userId(req), body.studentId, body.answers, body.consent);
+    return this.userService.submitParentSurvey(this.userId(req), req.user.role, body.studentId, body.answers, body.consent);
+  }
+
+  @Get('me/intake-surveys')
+  @Roles(Role.PARENT, Role.STUDENT)
+  listMyIntakeSurveys(@Request() req: any) {
+    return this.userService.listMyIntakeSurveys(this.userId(req), req.user.role);
   }
 
   @Get('parent-surveys')
@@ -101,7 +119,7 @@ export class UserController {
   }
 
   @Get(':id')
-  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.HR)
+  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.ACCOUNTANT, Role.HR)
   findOne(@Param('id') id: string, @Request() req: any) {
     return this.userService.findById(id, this.schoolId(req));
   }

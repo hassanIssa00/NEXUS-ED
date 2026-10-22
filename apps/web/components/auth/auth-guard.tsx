@@ -31,6 +31,7 @@ const SHARED_ROLE_ROUTES: Array<{ path: string; roles: UserRole[]; exact?: boole
     { path: '/student/new', roles: ['student'] },
     { path: '/survey', roles: ['parent'], exact: true },
     { path: '/assessment', roles: ['student'], exact: true },
+    { path: '/assessment/reports', roles: ['parent'], exact: true },
 ];
 
 function matchesRoute(pathname: string, route: string) {
@@ -106,10 +107,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
                 router.replace(destination);
                 return;
             }
+            if (profile.role === 'parent' && matchesRoute(pathname, '/verify-email')) {
+                router.replace(ROLE_ROUTES[profile.role]);
+                return;
+            }
+            if (profile.emailVerified && (profile.role === 'student' || profile.role === 'teacher') && matchesRoute(pathname, '/verify-email')) {
+                router.replace(ROLE_ROUTES[profile.role]);
+                return;
+            }
         }
 
-        // Email verification comes after the student assessment or parent survey.
+        // Public student and teacher accounts must verify their email before using the portal.
         if (user && profile?.emailVerified === false
+            && (profile.role === 'student' || profile.role === 'teacher')
             && !matchesRoute(pathname, '/verify-email')
             && !isAllowedOnboardingPath(pathname, profile.role, profile.onboardingStep)) {
             router.replace('/verify-email');
@@ -142,6 +152,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     const isPendingVerification = user && profile?.emailVerified === false
+        && (profile.role === 'student' || profile.role === 'teacher')
         && !matchesRoute(pathname, '/verify-email')
         && !isAllowedOnboardingPath(pathname, profile.role, profile.onboardingStep);
     const isWrongRole = user && profile && !canAccessRoute(pathname, profile.role)

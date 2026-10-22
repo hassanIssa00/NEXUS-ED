@@ -5,6 +5,7 @@ import { AlertTriangle, CircleAlert, Loader2, Search, ShieldCheck } from 'lucide
 import { apiClient } from '@/lib/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PrintReportButton, ReportPrintFooter, ReportPrintIdentity } from '@/components/reports/report-print-tools';
 
 type SchoolClass = { id: string; name: string };
 type RiskAlert = { type: string; severity: 'LOW' | 'MEDIUM' | 'HIGH'; message: string; value: number; threshold: number };
@@ -46,13 +47,15 @@ export default function StudentRiskReportPage() {
   }), [warnings, search, classId, classes]);
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 pb-10" dir="rtl">
+    <main className="report-print-root mx-auto max-w-6xl space-y-6 pb-10" dir="rtl">
+      <ReportPrintIdentity title="إنذارات المتابعة الأكاديمية" subtitle="مؤشرات مبنية على سجلات الحضور والدرجات والواجبات" />
       <header className="flex items-start gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-800"><AlertTriangle className="h-5 w-5" /></span>
-        <div><h1 className="text-2xl font-bold">إنذارات المتابعة الأكاديمية</h1><p className="mt-1 text-sm text-muted-foreground">يعرض مؤشرات لها سجلات فعلية فقط، ولا يصنف الطلاب عند غياب البيانات.</p></div>
+        <div className="flex-1"><h1 className="text-2xl font-bold">إنذارات المتابعة الأكاديمية</h1><p className="mt-1 text-sm text-muted-foreground">يعرض مؤشرات لها سجلات فعلية فقط، ولا يصنف الطلاب عند غياب البيانات.</p></div>
+        {!loading && !error && <PrintReportButton />}
       </header>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="print:hidden flex flex-col gap-3 sm:flex-row">
         <div className="relative max-w-sm flex-1"><Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pr-9" placeholder="ابحث باسم الطالب" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
         <select value={classId} onChange={(event) => setClassId(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
           <option value="all">كل الفصول المتاحة</option>
@@ -73,6 +76,7 @@ export default function StudentRiskReportPage() {
                   </CardContent>
                 </Card>
               ))}</section>}
+      <ReportPrintFooter />
     </main>
   );
 }

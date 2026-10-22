@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Link, usePathname } from '@/i18n/routing'
 import { cn } from '@/lib/utils'
 import {
@@ -41,20 +42,22 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useLocale } from 'next-intl'
 import { useAuth, type UserRole } from '@/contexts/auth-context'
 import { UserProfileModal } from '@/components/dashboard/user-profile-modal'
+import Image from 'next/image'
 
 // Role color map — matches login portal colors
 const ROLE_COLORS: Record<string, { gradient: string; accent: string; light: string }> = {
-    student:       { gradient: 'from-[#00D1B2] to-[#059669]', accent: '#00D1B2', light: 'bg-teal-50 dark:bg-teal-900/20' },
-    teacher:       { gradient: 'from-[#3B82F6] to-[#2563EB]', accent: '#3B82F6', light: 'bg-blue-50 dark:bg-blue-900/20' },
+    student:       { gradient: 'from-[#98793E] to-[#059669]', accent: '#98793E', light: 'bg-teal-50 dark:bg-teal-900/20' },
+    teacher:       { gradient: 'from-[#4A687C] to-[#35556B]', accent: '#4A687C', light: 'bg-blue-50 dark:bg-blue-900/20' },
     parent:        { gradient: 'from-[#F59E0B] to-[#D97706]', accent: '#F59E0B', light: 'bg-amber-50 dark:bg-amber-900/20' },
     admin:         { gradient: 'from-[#F43F5E] to-[#E11D48]', accent: '#F43F5E', light: 'bg-rose-50 dark:bg-rose-900/20' },
     manager:       { gradient: 'from-[#F43F5E] to-[#E11D48]', accent: '#F43F5E', light: 'bg-rose-50 dark:bg-rose-900/20' },
-    principal:     { gradient: 'from-[#8B5CF6] to-[#6D28D9]', accent: '#8B5CF6', light: 'bg-purple-50 dark:bg-purple-900/20' },
-    vice_principal:{ gradient: 'from-[#EC4899] to-[#BE185D]', accent: '#EC4899', light: 'bg-pink-50 dark:bg-pink-900/20' },
-    counselor:     { gradient: 'from-[#14B8A6] to-[#0F766E]', accent: '#14B8A6', light: 'bg-teal-50 dark:bg-teal-900/20' },
-    supervisor:    { gradient: 'from-[#6366F1] to-[#4338CA]', accent: '#6366F1', light: 'bg-indigo-50 dark:bg-indigo-900/20' },
+    principal:     { gradient: 'from-[#234A65] to-[#203D52]', accent: '#234A65', light: 'bg-purple-50 dark:bg-purple-900/20' },
+    vice_principal:{ gradient: 'from-[#98793E] to-[#BE185D]', accent: '#98793E', light: 'bg-pink-50 dark:bg-pink-900/20' },
+    counselor:     { gradient: 'from-[#98793E] to-[#35556B]', accent: '#98793E', light: 'bg-teal-50 dark:bg-teal-900/20' },
+    supervisor:    { gradient: 'from-[#35556B] to-[#234A65]', accent: '#35556B', light: 'bg-indigo-50 dark:bg-indigo-900/20' },
     accountant:    { gradient: 'from-[#10B981] to-[#059669]', accent: '#10B981', light: 'bg-emerald-50 dark:bg-emerald-900/20' },
     hr:            { gradient: 'from-[#F97316] to-[#EA580C]', accent: '#F97316', light: 'bg-orange-50 dark:bg-orange-900/20' },
 }
@@ -67,9 +70,11 @@ export function Sidebar({ role }: SidebarProps) {
     const [collapsed, setCollapsed] = useState(false)
     const [mobileOpen, setMobileOpen] = useState(false)
     const pathname = usePathname()
+    const searchParams = useSearchParams()
     const { user, profile, signOut } = useAuth()
 
-    const navigation = getNavigationByRole(role)
+    const isEnglish = useLocale() === 'en'
+    const navigation = getNavigationByRole(role, isEnglish)
     const colors = ROLE_COLORS[role] ?? ROLE_COLORS.student
 
     // Close mobile sidebar on route change
@@ -128,7 +133,7 @@ export function Sidebar({ role }: SidebarProps) {
             {(!collapsed || mobile) && (
                 <div className={cn('mx-3 mt-3 mb-1 px-3 py-2 rounded-[10px]', colors.light)}>
                     <p className="text-xs font-bold" style={{ color: colors.accent }}>
-                        {getRoleLabel(role)}
+                        {getRoleLabel(role, isEnglish)}
                     </p>
                 </div>
             )}
@@ -136,7 +141,11 @@ export function Sidebar({ role }: SidebarProps) {
             {/* Navigation */}
             <nav className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
                 {navigation.map((item) => {
-                    const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                    const [itemPath, itemQuery] = item.href.split('?')
+                    const isRoleHome = /^\/(student|teacher|parent|admin|manager|principal|vice_principal|counselor|supervisor|accountant|hr)$/.test(itemPath)
+                    const queryMatches = itemQuery ? new URLSearchParams(itemQuery).toString() === searchParams.toString() : !isRoleHome || searchParams.toString() === ''
+                    const pathMatches = pathname === itemPath || (!isRoleHome && pathname.startsWith(itemPath + '/'))
+                    const isActive = pathMatches && queryMatches
                     return (
                         <Link
                             key={item.href}
@@ -175,8 +184,10 @@ export function Sidebar({ role }: SidebarProps) {
             <div className="p-3 border-t border-border flex-shrink-0">
                 <div className={cn('flex items-center gap-3', collapsed && !mobile && 'justify-center')}>
                     <div className="relative flex-shrink-0">
-                        <div className={cn('w-9 h-9 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-sm shadow-sm', colors.gradient)}>
-                            {(profile?.full_name || user?.email || 'U')[0].toUpperCase()}
+                        <div className={cn('relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br text-sm font-bold text-white shadow-sm', colors.gradient)}>
+                            {profile?.avatar_url
+                                ? <Image src={profile.avatar_url} alt={`صورة ${profile.full_name || 'المستخدم'}`} width={36} height={36} unoptimized className="h-full w-full object-cover" />
+                                : (profile?.full_name || user?.email || 'N')[0].toUpperCase()}
                         </div>
                         <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-card rounded-full" />
                     </div>
@@ -192,7 +203,7 @@ export function Sidebar({ role }: SidebarProps) {
                                     <p className="text-sm font-semibold text-foreground truncate">
                                         {profile?.full_name || user?.email?.split('@')[0] || 'المستخدم'}
                                     </p>
-                                    <p className="text-xs text-muted-foreground truncate">{getRoleLabel(role)}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{getRoleLabel(role, isEnglish)}</p>
                                 </motion.div>
                             </UserProfileModal>
 
@@ -262,7 +273,7 @@ export function Sidebar({ role }: SidebarProps) {
     )
 }
 
-function getRoleLabel(role: string): string {
+function getRoleLabel(role: string, english = false): string {
     const labels: Record<string, string> = {
         student: 'طالب',
         teacher: 'معلم',
@@ -276,12 +287,17 @@ function getRoleLabel(role: string): string {
         accountant: 'محاسب',
         hr: 'موارد بشرية',
     }
-    return labels[role] ?? role
+    const englishLabels: Record<string, string> = {
+        student: 'Student', teacher: 'Teacher', parent: 'Parent', admin: 'School administrator', manager: 'School administrator',
+        principal: 'Principal', vice_principal: 'Vice principal', counselor: 'Student counselor', supervisor: 'Educational supervisor',
+        accountant: 'Accountant', hr: 'Human resources',
+    }
+    return (english ? englishLabels : labels)[role] ?? role
 }
 
-function getNavigationByRole(role: string) {
+function getNavigationByRole(role: string, english = false) {
     const settings = [
-        { href: `/${role}/settings` as any, label: 'الإعدادات', icon: Settings },
+        { href: `/${role}/settings` as any, label: english ? 'Settings' : 'الإعدادات', icon: Settings },
     ]
 
     switch (role) {
@@ -292,6 +308,7 @@ function getNavigationByRole(role: string) {
                 { href: '/student/subjects' as any, label: 'المناهج والكتب الدراسية', icon: BookOpen },
                 { href: '/student/quran' as any, label: 'المصحف الشريف', icon: BookMarked },
                 { href: '/student/assignments' as any, label: 'الواجبات المدرسية', icon: FileText },
+                { href: '/student/quizzes' as any, label: 'الاختبارات', icon: Target },
                 { href: '/student/attendance' as any, label: 'سجل الحضور والغياب', icon: QrCode },
                 { href: '/student/grades' as any, label: 'الدرجات والتقييم', icon: Award },
                 { href: '/student/certificates' as any, label: 'الإنجازات والشهادات', icon: Trophy },
@@ -299,6 +316,7 @@ function getNavigationByRole(role: string) {
                 { href: '/student/games' as any, label: 'الألعاب التعليمية', icon: Gamepad2 },
                 { href: '/student/million' as any, label: 'مسابقة نكسس الكبرى', icon: Star },
                 { href: '/student/photos' as any, label: 'معرض الفعاليات والأنشطة', icon: Camera },
+                { href: '/student/community' as any, label: 'مجتمع المدرسة', icon: Users },
                 { href: '/student/messages' as any, label: 'التواصل والرسائل', icon: MessageSquare },
                 { href: '/student/profile' as any, label: 'الملف الذكي للطالب', icon: Brain },
                 ...settings,
@@ -348,74 +366,73 @@ function getNavigationByRole(role: string) {
         case 'admin':
         case 'manager':
             return [
-                { href: '/admin' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/admin/users' as any, label: 'المستخدمين', icon: Users },
-                { href: '/admin/classes' as any, label: 'الفصول الدراسية', icon: BookOpen },
-                { href: '/admin/subjects' as any, label: 'المواد الدراسية', icon: BookMarked },
-                { href: '/admin/enrollments' as any, label: 'التسجيلات', icon: GraduationCap },
-                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: BarChart3 },
-                { href: '/admin/content' as any, label: 'إدارة المحتوى', icon: Video },
-                { href: '/admin/games' as any, label: 'إدارة الألعاب', icon: Gamepad2 },
-                { href: '/admin/permissions' as any, label: 'الصلاحيات', icon: Shield },
+                { href: '/admin' as any, label: english ? 'Dashboard' : 'لوحة التحكم', icon: LayoutDashboard },
+                { href: '/admin/students' as any, label: english ? 'Student records' : 'سجلات الطلاب', icon: GraduationCap },
+                { href: '/admin/users' as any, label: english ? 'User accounts' : 'المستخدمين', icon: Users },
+                { href: '/admin/registration-archive' as any, label: english ? 'Signup archive' : 'أرشيف التسجيلات', icon: Archive },
+                { href: '/admin/classes' as any, label: english ? 'Classes' : 'الفصول الدراسية', icon: BookOpen },
+                { href: '/admin/subjects' as any, label: english ? 'Subjects' : 'المواد الدراسية', icon: BookMarked },
+                { href: '/admin/enrollments' as any, label: english ? 'Enrollments' : 'التسجيلات', icon: GraduationCap },
+                { href: '/assessment/reports' as any, label: english ? 'Placement assessment reports' : 'تقارير اختبارات القبول', icon: BarChart3 },
+                { href: '/admin/content' as any, label: english ? 'Educational library' : 'المكتبة التعليمية', icon: Video },
+                { href: '/admin/games' as any, label: english ? 'Educational games' : 'الألعاب التعليمية', icon: Gamepad2 },
+                { href: '/admin/permissions' as any, label: english ? 'Accounts by role' : 'الحسابات حسب الدور', icon: Shield },
                 ...settings,
             ]
 
         case 'principal':
             return [
-                { href: '/principal' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/principal/classes' as any, label: 'الفصول', icon: Users },
-                { href: '/principal/teachers' as any, label: 'المعلمون', icon: BookOpen },
-                { href: '/principal/analytics' as any, label: 'التقارير والإحصاءات', icon: BarChart3 },
-                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: GraduationCap },
-                ...settings,
+                { href: '/principal' as any, label: english ? 'Dashboard' : 'لوحة التحكم', icon: LayoutDashboard },
+                { href: '/principal/students' as any, label: english ? 'Student records' : 'سجلات الطلاب', icon: GraduationCap },
+                { href: '/principal/classes' as any, label: english ? 'Classes' : 'الفصول', icon: Users },
+                { href: '/principal/teachers' as any, label: english ? 'Teachers' : 'المعلمون', icon: BookOpen },
+                { href: '/principal/analytics' as any, label: english ? 'Reports and analytics' : 'التقارير والإحصاءات', icon: BarChart3 },
             ]
 
         case 'vice_principal':
             return [
-                { href: '/vice_principal' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/vice_principal/schedules' as any, label: 'الجداول الدراسية', icon: Calendar },
-                { href: '/vice_principal/attendance' as any, label: 'الحضور العام', icon: QrCode },
-                { href: '/vice_principal/students' as any, label: 'سجلات الطلاب', icon: GraduationCap },
-                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: BarChart3 },
-                ...settings,
+                { href: '/vice_principal' as any, label: english ? 'Dashboard' : 'لوحة التحكم', icon: LayoutDashboard },
+                { href: '/vice_principal/schedules' as any, label: english ? 'Class schedules' : 'الجداول الدراسية', icon: Calendar },
+                { href: '/vice_principal/attendance' as any, label: english ? 'School attendance' : 'الحضور العام', icon: QrCode },
+                { href: '/vice_principal/students' as any, label: english ? 'Student records' : 'سجلات الطلاب', icon: GraduationCap },
+                { href: '/vice_principal/classes' as any, label: english ? 'Classes' : 'الفصول', icon: BookOpen },
             ]
 
         case 'counselor':
             return [
-                { href: '/counselor' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/counselor/students' as any, label: 'الطلاب', icon: Users },
-                { href: '/counselor/cases' as any, label: 'الحالات', icon: HeartHandshake },
-                { href: '/counselor/attendance' as any, label: 'الغيابات', icon: Calendar },
-                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: BarChart3 },
-                ...settings,
+                { href: '/counselor' as any, label: english ? 'Dashboard' : 'لوحة التحكم', icon: LayoutDashboard },
+                { href: '/counselor/students' as any, label: english ? 'Students' : 'الطلاب', icon: Users },
+                { href: '/counselor/classes' as any, label: english ? 'Classes' : 'الفصول الدراسية', icon: BookOpen },
+                { href: '/counselor/cases' as any, label: english ? 'Follow-up cases' : 'الحالات', icon: HeartHandshake },
+                { href: '/counselor/attendance' as any, label: english ? 'Absences' : 'الغيابات', icon: Calendar },
+                { href: '/counselor/parent-surveys' as any, label: english ? 'Parent surveys' : 'استبيانات أولياء الأمور', icon: ClipboardList },
             ]
 
         case 'supervisor':
             return [
-                { href: '/supervisor' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/supervisor/schools' as any, label: 'المدارس', icon: Building2 },
-                { href: '/supervisor/teachers' as any, label: 'المعلمون', icon: Eye },
-                { href: '/supervisor/reports' as any, label: 'التقارير', icon: BarChart3 },
-                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: GraduationCap },
-                ...settings,
+                { href: '/supervisor' as any, label: english ? 'Dashboard' : 'لوحة التحكم', icon: LayoutDashboard },
+                { href: '/supervisor/students' as any, label: english ? 'Student records' : 'سجلات الطلاب', icon: GraduationCap },
+                { href: '/supervisor/teachers' as any, label: english ? 'Teachers' : 'المعلمون', icon: Eye },
+                { href: '/supervisor/classes' as any, label: english ? 'Classes' : 'الفصول', icon: BookOpen },
+                { href: '/supervisor/reports' as any, label: english ? 'Reports' : 'التقارير', icon: BarChart3 },
             ]
 
         case 'accountant':
             return [
-                { href: '/accountant' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/accountant/invoices' as any, label: 'الفواتير', icon: FileText },
-                { href: '/accountant/payments' as any, label: 'المدفوعات', icon: CreditCard },
-                { href: '/accountant/reports' as any, label: 'التقارير المالية', icon: BarChart3 },
-                ...settings,
+                { href: '/accountant' as any, label: english ? 'Dashboard' : 'لوحة التحكم', icon: LayoutDashboard },
+                { href: '/accountant/students' as any, label: english ? 'Student records' : 'سجلات الطلاب', icon: GraduationCap },
+                { href: '/accountant/classes' as any, label: english ? 'Classes' : 'الفصول الدراسية', icon: BookOpen },
+                { href: '/accountant/reports' as any, label: english ? 'Financial reports' : 'التقارير المالية', icon: BarChart3 },
+                { href: '/accountant/invoices' as any, label: english ? 'Invoices and collections' : 'الفواتير والتحصيل', icon: CreditCard },
             ]
 
         case 'hr':
             return [
-                { href: '/hr' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/hr/employees' as any, label: 'الموظفون', icon: Users },
-                { href: '/hr/contracts' as any, label: 'العقود', icon: FileText },
-                { href: '/hr/attendance' as any, label: 'حضور الموظفين', icon: Calendar },
-                { href: '/hr/settings' as any, label: 'الإعدادات', icon: UserCog },
+                { href: '/hr' as any, label: english ? 'Dashboard' : 'لوحة التحكم', icon: LayoutDashboard },
+                { href: '/hr/students' as any, label: english ? 'Student records' : 'سجلات الطلاب', icon: GraduationCap },
+                { href: '/hr/classes' as any, label: english ? 'Classes' : 'الفصول الدراسية', icon: BookOpen },
+                { href: '/hr/employees' as any, label: english ? 'Staff directory' : 'دليل الموظفين', icon: Users },
+                { href: '/hr/reports' as any, label: english ? 'HR summary' : 'ملخص الموارد البشرية', icon: BarChart3 },
             ]
 
         default:

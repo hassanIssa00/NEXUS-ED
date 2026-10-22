@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, BarChart3, ChevronLeft, ChevronRight, CircleHelp, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api/client';
+import { PrintReportButton, ReportPrintFooter, ReportPrintIdentity } from '@/components/reports/report-print-tools';
 
 type AssessmentAttempt = {
   id: string;
@@ -84,7 +85,8 @@ export function PlacementAssessmentReports() {
   };
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 p-4 py-7 md:p-8" dir="rtl">
+    <main className="report-print-root mx-auto max-w-6xl space-y-6 p-4 py-7 md:p-8" dir="rtl">
+      <ReportPrintIdentity title="تقارير الاختبارات التشخيصية" subtitle="نتائج محفوظة في ملفات الطلاب ضمن نطاق صلاحيات حسابك" />
       <header className="flex flex-wrap items-start gap-3 border-b pb-5">
         <BarChart3 className="mt-1 h-6 w-6 text-teal-700 dark:text-teal-300" />
         <div>
@@ -92,6 +94,7 @@ export function PlacementAssessmentReports() {
           <p className="mt-1 text-sm text-muted-foreground">نتائج محفوظة في ملفات الطلاب ضمن نطاق صلاحيات حسابك.</p>
         </div>
         <span className="me-auto text-sm tabular-nums text-muted-foreground">{total} تقرير</span>
+        {!loading && !error && (items.length > 0 || selected) && <PrintReportButton />}
       </header>
 
       {error && <div role="alert" className="flex items-start gap-2 border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
@@ -113,14 +116,14 @@ export function PlacementAssessmentReports() {
                 <span className="font-bold tabular-nums text-foreground">{item.score}%</span>
                 <span className="tabular-nums text-muted-foreground">{item.correctCount} / {item.questionCount}</span>
                 <time className="text-xs text-muted-foreground" dateTime={item.completedAt}>{formatDate(item.completedAt)}</time>
-                <Button variant="outline" size="sm" onClick={() => openReport(item.id)} disabled={detailLoading}>
+                <Button className="print:hidden" variant="outline" size="sm" onClick={() => openReport(item.id)} disabled={detailLoading}>
                   {detailLoading ? <LoaderCircle className="ms-2 h-4 w-4 animate-spin" /> : null}عرض التقرير
                 </Button>
               </div>
             ))}
           </div>
         )}
-        <div className="flex items-center justify-between border-t pt-3">
+        <div className="print:hidden flex items-center justify-between border-t pt-3">
           <span className="text-xs text-muted-foreground">صفحة {page} من {Math.max(1, Math.ceil(total / limit))}</span>
           <div className="flex gap-2">
             <Button variant="outline" size="icon" aria-label="الصفحة السابقة" title="الصفحة السابقة" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1 || loading}><ChevronRight className="h-4 w-4" /></Button>
@@ -136,7 +139,7 @@ export function PlacementAssessmentReports() {
               <h2 id="report-detail-title" className="text-lg font-bold text-foreground">{selected.studentName}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{gradeName(selected.gradeLevel)} · {selected.correctCount} من {selected.questionCount} إجابة صحيحة · {selected.score}%</p>
             </div>
-            <Button type="button" variant="outline" onClick={() => setSelected(null)}>إغلاق التقرير</Button>
+            <Button className="print:hidden" type="button" variant="outline" onClick={() => setSelected(null)}>إغلاق التقرير</Button>
           </header>
           <ol className="divide-y border-y">
             {selected.answers.map((answer, index) => (
@@ -154,6 +157,7 @@ export function PlacementAssessmentReports() {
           </ol>
         </section>
       )}
+      <ReportPrintFooter />
     </main>
   );
 }

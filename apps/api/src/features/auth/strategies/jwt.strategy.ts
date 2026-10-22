@@ -7,6 +7,8 @@ import { getJwtSecret } from '../../../config/jwt';
 
 const ONBOARDING_ROUTES = new Set([
     'GET /auth/profile',
+    'GET /users/me',
+    'PATCH /users/me',
     'GET /users/me/student-profile',
     'PUT /users/me/student-profile',
     'PATCH /upload/me/avatar',

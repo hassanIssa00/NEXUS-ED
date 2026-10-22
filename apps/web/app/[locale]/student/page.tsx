@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from '@/i18n/routing'
 import { dashboardApi, type StudentDashboardResponse } from '@/lib/api/dashboard'
+import Image from 'next/image'
+import CurrentScheduleCard from '@/components/schedule/CurrentScheduleCard'
+import ParentLinkCodeButton from '@/components/student/parent-link-code-button'
 import { useRealtimeAssignments, useRealtimeNotifications } from '@/lib/providers/socket-provider'
 import { motion } from 'framer-motion'
 import {
@@ -159,7 +162,13 @@ export default function StudentDashboardPage() {
 
       <section className="rounded-2xl bg-gradient-to-l from-violet-950 to-violet-800 p-6 text-white md:p-8">
         <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
-          <div>
+          <div className="flex items-center gap-4">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 border-white/80 bg-white/15 shadow-sm md:h-20 md:w-20">
+              {student.avatar
+                ? <Image src={student.avatar} alt={`صورة ${student.name}`} fill unoptimized sizes="80px" className="object-cover" />
+                : <div className="flex h-full w-full items-center justify-center"><GraduationCap className="h-8 w-8 text-white/75" /></div>}
+            </div>
+            <div>
             <p className="text-sm font-semibold text-violet-200">لوحة الطالب</p>
             <h1 style={{ color: '#fff' }} className="mt-2 text-2xl font-black md:text-3xl">أهلًا، {student.name}</h1>
             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-violet-100">
@@ -167,11 +176,10 @@ export default function StudentDashboardPage() {
               <span className="inline-flex items-center gap-2"><Flame className="h-4 w-4" /> {gamification.streakDays} يوم تتابع مسجل</span>
               <span className="inline-flex items-center gap-2"><Zap className="h-4 w-4" /> {gamification.totalXP.toLocaleString('ar-SA')} نقطة خبرة</span>
             </div>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/student/new?flow=student" className="inline-flex items-center gap-2 rounded-lg border border-white/30 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10">
-              <Users className="h-4 w-4" /> رمز ولي الأمر
-            </Link>
+            <ParentLinkCodeButton />
             <Link href="/student/assignments" className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-violet-900 hover:bg-violet-50">
               <ClipboardList className="h-4 w-4" /> الواجبات
             </Link>
@@ -181,6 +189,8 @@ export default function StudentDashboardPage() {
           </div>
         </div>
       </section>
+
+      <CurrentScheduleCard />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={BookOpen} label="المواد" value={summary.totalSubjects} detail="حسب تسجيلك الدراسي" tone="bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300" />
@@ -303,7 +313,7 @@ export default function StudentDashboardPage() {
                   <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                   <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                   <Tooltip />
-                  <Area type="monotone" dataKey="تسليمات" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.18} />
+                  <Area type="monotone" dataKey="تسليمات" stroke="#234A65" fill="#234A65" fillOpacity={0.18} />
                   <Area type="monotone" dataKey="أيام الحضور" stroke="#059669" fill="#059669" fillOpacity={0.12} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -323,7 +333,7 @@ export default function StudentDashboardPage() {
                   <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                   <Tooltip />
                   <Bar dataKey="الدرجة" radius={[5, 5, 0, 0]}>
-                    {gradedSubjects.map((subject) => <Cell key={subject.id} fill="#7c3aed" />)}
+                    {gradedSubjects.map((subject) => <Cell key={subject.id} fill="#234A65" />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

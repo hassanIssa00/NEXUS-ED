@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { apiClient } from '@/lib/api/client'
 import { Pencil, Plus, RefreshCw, Search, UserRound, UserRoundX } from 'lucide-react'
+import { PresenceBadge } from '@/components/ui/presence-badge'
 
 type UserRecord = {
   id: string
@@ -13,6 +14,7 @@ type UserRecord = {
   role: string
   phone: string | null
   isActive: boolean
+  lastActiveDate: string | null
 }
 type UserResponse = { data: UserRecord[]; meta: { total: number; page: number; limit: number; totalPages: number } }
 
@@ -54,6 +56,12 @@ export default function UsersPage() {
   }, [page, appliedSearch, role])
 
   useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load()
+    }, 60_000)
+    return () => window.clearInterval(timer)
+  }, [load])
 
   const beginCreate = () => { setEditing(null); setForm(blankForm); setModalOpen(true) }
   const beginEdit = (user: UserRecord) => {
@@ -127,8 +135,8 @@ export default function UsersPage() {
       </form>
 
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#1e1e2d]">
-        <table className="w-full min-w-[800px] text-right text-sm"><thead className="bg-gray-50 text-xs text-gray-500 dark:bg-white/5"><tr><th className="px-4 py-3">الاسم</th><th className="px-4 py-3">البريد الإلكتروني</th><th className="px-4 py-3">الدور</th><th className="px-4 py-3">الهاتف</th><th className="px-4 py-3">الحالة</th><th className="px-4 py-3">إجراءات</th></tr></thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-white/10">{result?.data.map((user) => <tr key={user.id}><td className="px-4 py-3 font-bold text-gray-900 dark:text-white">{user.name || [user.firstName, user.lastName].filter(Boolean).join(' ') || '—'}</td><td className="px-4 py-3 text-gray-600 dark:text-gray-300">{user.email}</td><td className="px-4 py-3 text-gray-600 dark:text-gray-300">{roleNames[user.role] || user.role}</td><td className="px-4 py-3 text-gray-600 dark:text-gray-300">{user.phone || '—'}</td><td className="px-4 py-3">{user.isActive ? 'نشط' : 'غير نشط'}</td><td className="px-4 py-3"><div className="flex gap-2"><button title="تعديل الحساب" onClick={() => beginEdit(user)} className="rounded-md border border-gray-200 p-2 dark:border-white/10"><Pencil className="h-4 w-4" /></button><button title={user.isActive ? 'تعطيل الحساب' : 'تفعيل الحساب'} onClick={() => void toggleActive(user)} className="rounded-md border border-gray-200 p-2 dark:border-white/10">{user.isActive ? <UserRoundX className="h-4 w-4 text-rose-600" /> : <UserRound className="h-4 w-4 text-emerald-600" />}</button></div></td></tr>)}</tbody>
+        <table className="w-full min-w-[980px] text-right text-sm"><thead className="bg-gray-50 text-xs text-gray-500 dark:bg-white/5"><tr><th className="px-4 py-3">الاسم</th><th className="px-4 py-3">البريد الإلكتروني</th><th className="px-4 py-3">الدور</th><th className="px-4 py-3">الهاتف</th><th className="px-4 py-3">حالة الحساب</th><th className="px-4 py-3">النشاط وآخر ظهور</th><th className="px-4 py-3">إجراءات</th></tr></thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-white/10">{result?.data.map((user) => <tr key={user.id}><td className="px-4 py-3 font-bold text-gray-900 dark:text-white">{user.name || [user.firstName, user.lastName].filter(Boolean).join(' ') || '—'}</td><td className="px-4 py-3 text-gray-600 dark:text-gray-300">{user.email}</td><td className="px-4 py-3 text-gray-600 dark:text-gray-300">{roleNames[user.role] || user.role}</td><td className="px-4 py-3 text-gray-600 dark:text-gray-300">{user.phone || '—'}</td><td className="px-4 py-3">{user.isActive ? 'مفعّل' : 'موقوف'}</td><td className="px-4 py-3"><PresenceBadge lastActiveDate={user.lastActiveDate} /></td><td className="px-4 py-3"><div className="flex gap-2"><button title="تعديل الحساب" onClick={() => beginEdit(user)} className="rounded-md border border-gray-200 p-2 dark:border-white/10"><Pencil className="h-4 w-4" /></button><button title={user.isActive ? 'تعطيل الحساب' : 'تفعيل الحساب'} onClick={() => void toggleActive(user)} className="rounded-md border border-gray-200 p-2 dark:border-white/10">{user.isActive ? <UserRoundX className="h-4 w-4 text-rose-600" /> : <UserRound className="h-4 w-4 text-emerald-600" />}</button></div></td></tr>)}</tbody>
         </table>
         {loading && <p className="p-8 text-center text-sm text-gray-500">جار تحميل المستخدمين...</p>}
         {!loading && !error && result?.data.length === 0 && <p className="p-8 text-center text-sm text-gray-500">لا توجد حسابات مطابقة.</p>}

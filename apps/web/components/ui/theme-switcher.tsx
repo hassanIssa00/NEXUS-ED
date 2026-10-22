@@ -22,8 +22,8 @@ interface ThemeConfig {
 }
 
 const colorSchemes: Record<ColorScheme, { name: string; primary: string; accent: string }> = {
-    blue: { name: 'أزرق', primary: '#3b82f6', accent: '#60a5fa' },
-    purple: { name: 'بنفسجي', primary: '#8b5cf6', accent: '#a78bfa' },
+    blue: { name: 'كحلي', primary: '#234A65', accent: '#98793E' },
+    purple: { name: 'ذهبي', primary: '#98793E', accent: '#234A65' },
     green: { name: 'أخضر', primary: '#10b981', accent: '#34d399' },
     orange: { name: 'برتقالي', primary: '#f59e0b', accent: '#fbbf24' },
     rose: { name: 'وردي', primary: '#f43f5e', accent: '#fb7185' },

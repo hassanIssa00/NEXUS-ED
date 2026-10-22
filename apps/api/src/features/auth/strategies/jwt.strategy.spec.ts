@@ -3,6 +3,8 @@ import { isOnboardingRouteAllowed } from './jwt.strategy';
 describe('onboarding JWT route restrictions', () => {
   it('allows only the profile and onboarding endpoints', () => {
     expect(isOnboardingRouteAllowed('GET', '/api/auth/profile')).toBe(true);
+    expect(isOnboardingRouteAllowed('GET', '/api/users/me')).toBe(true);
+    expect(isOnboardingRouteAllowed('PATCH', '/api/users/me')).toBe(true);
     expect(isOnboardingRouteAllowed('GET', '/api/users/me/student-profile')).toBe(true);
     expect(isOnboardingRouteAllowed('PUT', '/api/users/me/student-profile')).toBe(true);
     expect(isOnboardingRouteAllowed('PATCH', '/api/upload/me/avatar')).toBe(true);

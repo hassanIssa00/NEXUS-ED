@@ -14,18 +14,27 @@ export const apiClient = axios.create({
 
 let refreshInFlight: Promise<string | null> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
+let sessionRefreshHandler: (() => Promise<string | null>) | null = null;
 
 export function setSessionExpiredHandler(handler: (() => void) | null) {
   sessionExpiredHandler = handler;
+}
+
+export function setSessionRefreshHandler(handler: (() => Promise<string | null>) | null) {
+  sessionRefreshHandler = handler;
 }
 
 function isMobileAuthRequest(url?: string) {
   return url?.includes('/auth/mobile/') ?? false;
 }
 
+function isFirebaseRegistrationRequest(url?: string) {
+  return url?.includes('/auth/teacher-registration/avatar') ?? false;
+}
+
 apiClient.interceptors.request.use(async (config) => {
   if (!API_URL) throw new Error(API_CONFIG_ERROR ?? 'Nexus API is not configured.');
-  if (!isMobileAuthRequest(config.url)) {
+  if (!isMobileAuthRequest(config.url) && !isFirebaseRegistrationRequest(config.url)) {
     const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
     if (token) config.headers.Authorization = `Bearer ${token}`;
   }
@@ -44,7 +53,7 @@ apiClient.interceptors.response.use(undefined, async (error: unknown) => {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
       const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
-      if (!refreshToken) return null;
+      if (!refreshToken) return sessionRefreshHandler ? sessionRefreshHandler() : null;
 
       const response = await apiClient.post<RefreshResponse>('/auth/mobile/refresh', {
         refresh_token: refreshToken,

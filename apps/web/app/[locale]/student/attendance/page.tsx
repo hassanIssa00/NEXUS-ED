@@ -6,7 +6,7 @@ import { apiClient } from '@/lib/api/client'
 import { SocketProvider, useRealtimeAttendance } from '@/lib/providers/socket-provider'
 import {
   Calendar, CheckCircle2, XCircle, AlertCircle, Clock, TrendingUp,
-  Loader2, RefreshCw, Bell, Award
+  Loader2, RefreshCw, Bell, Award, MapPin, Navigation, ShieldCheck
 } from 'lucide-react'
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts'
 
@@ -33,6 +33,9 @@ function AttendancePageInner() {
   const [loadError, setLoadError] = useState(false)
   const [liveAlert, setLiveAlert] = useState<string | null>(null)
   const [monthFilter, setMonthFilter] = useState<number>(new Date().getMonth())
+  const [geofenceState, setGeofenceState] = useState<'checking' | 'outside' | 'error' | 'inside'>('checking')
+  const [geofenceError, setGeofenceError] = useState<string | null>(null)
+  const [geofenceResult, setGeofenceResult] = useState<any>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -48,14 +51,94 @@ function AttendancePageInner() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  const verifyGeofence = useCallback(async (scheduleEventId?: string) => {
+    setGeofenceState('checking')
+    setGeofenceError(null)
+    try {
+      if (!navigator.geolocation) {
+        throw new Error('المتصفح لا يدعم تحديد الموقع. افتح المنصة من متصفح حديث على جهاز يدعم GPS.');
+      }
+
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, (error) => {
+          const messages: Record<number, string> = {
+            1: 'إذن الموقع مرفوض. اسمح للمتصفح باستخدام الموقع ثم أعد المحاولة.',
+            2: 'تعذر تحديد الموقع الحالي. فعّل GPS أو خدمات الموقع وحاول مرة أخرى.',
+            3: 'استغرق تحديد الموقع وقتًا طويلًا. حاول مرة أخرى من مكان مفتوح.',
+          };
+          reject(new Error(messages[error.code] || 'تعذر قراءة موقعك الحالي.'));
+        }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+      });
+
+      const response = await apiClient.post('/attendance/student/geofence/check-in', {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracyMeters: position.coords.accuracy,
+        ...(scheduleEventId ? { scheduleEventId } : {}),
+      });
+      setGeofenceResult(response.data);
+      setGeofenceState('inside');
+      await load();
+    } catch (error: any) {
+      const apiMessage = error?.response?.data?.message;
+      const message = Array.isArray(apiMessage) ? apiMessage.join('، ') : apiMessage;
+      setGeofenceError(message || error?.message || 'تعذر التحقق من موقعك. أعد المحاولة.');
+      setGeofenceResult(null);
+      setData(null);
+      setGeofenceState(error?.response?.status === 403 ? 'outside' : 'error');
+    }
+  }, [load]);
+
+  useEffect(() => { void verifyGeofence() }, [verifyGeofence])
 
   useRealtimeAttendance(useCallback((a: any) => {
+    if (geofenceState !== 'inside') return
     const msg = a.status === 'PRESENT' ? '✅ تم تسجيل حضورك اليوم' : '⚠️ تم تسجيل غيابك اليوم'
     setLiveAlert(msg)
     setTimeout(() => setLiveAlert(null), 6000)
     load()
-  }, [load]))
+  }, [geofenceState, load]))
+
+  if (geofenceState !== 'inside') {
+    const checking = geofenceState === 'checking'
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-2xl items-center justify-center p-4" dir="rtl">
+        <section className="w-full overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+          <div className={`px-6 py-7 text-white sm:px-8 ${checking ? 'bg-gradient-to-l from-sky-700 to-teal-600' : geofenceState === 'outside' ? 'bg-gradient-to-l from-rose-700 to-orange-600' : 'bg-gradient-to-l from-slate-700 to-slate-600'}`}>
+            <div className="flex items-center gap-4">
+              <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-white/15">
+                {checking ? <Navigation className="size-7 animate-pulse" /> : <MapPin className="size-7" />}
+              </div>
+              <div>
+                <p className="text-sm text-white/75">الحضور الذكي</p>
+                <h1 className="mt-1 text-xl font-bold sm:text-2xl">التحقق من وجودك داخل المدرسة</h1>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-5 p-6 sm:p-8">
+            {checking ? (
+              <div className="flex items-center gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100">
+                <Loader2 className="size-5 shrink-0 animate-spin" />
+                <div><p className="font-semibold">جارٍ تحديد موقعك الحالي…</p><p className="mt-1 text-sm opacity-80">اسمح للمتصفح باستخدام الموقع. يلزم اتصال آمن وخدمة GPS مفعّلة.</p></div>
+              </div>
+            ) : (
+              <div role="alert" className={`rounded-2xl border p-4 ${geofenceState === 'outside' ? 'border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-100' : 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100'}`}>
+                <div className="flex items-start gap-3">
+                  <MapPin className="mt-0.5 size-5 shrink-0" />
+                  <div><p className="font-semibold">{geofenceState === 'outside' ? 'لا يمكن فتح سجل الحضور من خارج المدرسة' : 'تعذر التحقق من الموقع'}</p><p className="mt-1 text-sm leading-6 opacity-90">{geofenceError}</p></div>
+                </div>
+              </div>
+            )}
+            <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+              <ShieldCheck className="mt-0.5 size-5 shrink-0 text-teal-700" />
+              <p>يُفتح سجل الحضور عند التحقق من وجود الجهاز داخل نطاق المدرسة المحدد بـ 50 مترًا. الموقع ودقته يُعاد التحقق منهما على الخادم قبل حفظ الحضور.</p>
+            </div>
+            {!checking && <button type="button" onClick={() => void verifyGeofence()} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800"><RefreshCw className="size-4" />إعادة فحص الموقع</button>}
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -107,6 +190,45 @@ function AttendancePageInner() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm" aria-live="polite">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="grid size-11 place-items-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300"><MapPin className="size-5" /></div>
+            <div><h2 className="font-bold text-foreground">الحضور من موقع المدرسة</h2><p className="mt-0.5 text-xs text-muted-foreground">نطاق التسجيل {geofenceResult?.radiusMeters ?? 50} متر حول المدرسة</p></div>
+          </div>
+          <div className="text-left text-xs text-muted-foreground">
+            <p>المسافة: <strong className="text-foreground">{geofenceResult?.distanceMeters ?? '—'} م</strong></p>
+            <p className="mt-1">دقة الموقع: ±{geofenceResult?.accuracyMeters ?? '—'} م</p>
+          </div>
+        </div>
+
+        <div className="space-y-3 p-5">
+          {geofenceResult?.checkIn ? (
+            <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+              <div><p className="font-semibold">{geofenceResult.checkIn.alreadyRecorded ? 'حضورك مسجل بالفعل' : 'تم تسجيل حضورك في الحصة'}</p><p className="mt-1 text-sm">{geofenceResult.checkIn.subjectName} · الحصة {geofenceResult.checkIn.periodNumber} · {geofenceResult.checkIn.className}</p></div>
+            </div>
+          ) : geofenceResult?.requiresPeriodSelection ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">هناك أكثر من حصة في فصولك الآن. اختر حصتك ليُسجل حضورك، وسيُعاد فحص موقعك قبل الحفظ.</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {geofenceResult.currentPeriods.map((period: any) => (
+                  <button key={period.scheduleEventId} type="button" disabled={period.alreadyRecorded} onClick={() => void verifyGeofence(period.scheduleEventId)} className="flex min-h-14 items-center justify-between gap-3 rounded-xl border border-border px-4 py-3 text-right transition hover:border-teal-500 hover:bg-teal-50/60 disabled:cursor-default disabled:opacity-60 dark:hover:bg-teal-950/20">
+                    <span><span className="block text-sm font-semibold text-foreground">{period.subjectName} · الحصة {period.periodNumber}</span><span className="mt-1 block text-xs text-muted-foreground">{period.className} · {period.startTime}–{period.endTime}</span></span>
+                    <span className="shrink-0 text-xs font-semibold text-teal-700 dark:text-teal-300">{period.alreadyRecorded ? 'تم التسجيل' : 'تسجيل الحضور'}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : geofenceResult?.currentPeriods?.length === 0 ? (
+            <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100">
+              <ShieldCheck className="mt-0.5 size-5 shrink-0 text-sky-700" />
+              <div><p className="font-semibold">تم التحقق من وجودك داخل المدرسة</p><p className="mt-1 text-sm">لا توجد حصة مجدولة لك في الوقت الحالي. يمكنك متابعة سجل الحضور المسجل أدناه.</p></div>
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       {/* Hero */}
       <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}

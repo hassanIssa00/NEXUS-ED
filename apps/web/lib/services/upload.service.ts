@@ -12,6 +12,13 @@ export interface UploadResponse {
 }
 
 class UploadServiceClass {
+    async uploadProfileAvatar(
+        file: File,
+        onProgress?: (progress: number) => void
+    ): Promise<void> {
+        return this.uploadStudentAvatar(file, onProgress)
+    }
+
     async uploadStudentAvatar(
         file: File,
         onProgress?: (progress: number) => void

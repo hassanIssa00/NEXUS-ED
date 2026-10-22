@@ -2,18 +2,23 @@
   "expo": {
     "name": "Nexus EDU",
     "slug": "nexus-edu",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/ikhlas-school-icon.png",
     "scheme": "nexus-edu",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "org.masarplatform.nexusedu",
+      "buildNumber": "3",
       "supportsTablet": true
     },
     "android": {
+      "package": "org.masarplatform.nexusedu",
+      "versionCode": 3,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/ikhlas-adaptive-foreground.png",
+        "backgroundColor": "#F7F9FC"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -28,15 +33,29 @@
       "expo-font",
       "expo-secure-store",
       [
-        "expo-splash-screen",
+        "expo-image-picker",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "photosPermission": "يتيح اختيار صورة الطالب أو المعلم من معرض الصور لإضافتها إلى ملفه الدراسي."
         }
       ],
-      "expo-status-bar"
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/nexus-school-splash.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ],
+      "expo-status-bar",
+      "expo-sharing",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "يستخدم التطبيق موقعك فقط عند طلب تسجيل الحضور للتحقق من وجودك داخل المدرسة."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

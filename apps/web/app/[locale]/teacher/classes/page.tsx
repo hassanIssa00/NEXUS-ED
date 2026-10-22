@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { Link } from '@/i18n/routing';
 import { CalendarDays, CircleAlert, Loader2, Save, Search } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
@@ -154,7 +154,7 @@ export default function TeacherClassesPage() {
                   <tbody className="divide-y">
                     {filteredStudents.map((student) => (
                       <tr key={student.id}>
-                        <td className="px-4 py-3 font-medium">{student.name || [student.firstName, student.lastName].filter(Boolean).join(' ') || 'اسم غير مسجل'}</td>
+                        <td className="px-4 py-3 font-medium"><Link href={`/teacher/students/${student.id}` as never} className="text-primary hover:underline" aria-label={`فتح ملف الطالب ${student.name || student.email || ''}`}>{student.name || [student.firstName, student.lastName].filter(Boolean).join(' ') || 'اسم غير مسجل'}</Link></td>
                         <td className="px-4 py-3 text-muted-foreground">{student.email || '—'}</td>
                         <td className="px-4 py-3"><Select value={attendance[student.id] || ''} onValueChange={(value: AttendanceStatus) => setAttendance((current) => ({ ...current, [student.id]: value }))}><SelectTrigger className="w-36"><SelectValue placeholder="اختر الحالة" /></SelectTrigger><SelectContent>{statuses.map((status) => <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>)}</SelectContent></Select></td>
                       </tr>

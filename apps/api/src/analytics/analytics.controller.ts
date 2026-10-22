@@ -16,15 +16,15 @@ export class AnalyticsController {
 
   @Get('overview')
   @Roles(Role.ADMIN)
-  getOverview() {
-    return this.analyticsService.getOverview();
+  getOverview(@Request() req: any) {
+    return this.analyticsService.getOverview(req.user.schoolId);
   }
 
   @Get('user-growth')
   @Roles(Role.ADMIN)
-  getUserGrowth(@Query('days') days?: string) {
+  getUserGrowth(@Query('days') days?: string, @Request() req?: any) {
     const daysNumber = days ? parseInt(days, 10) : 30;
-    return this.analyticsService.getUserGrowth(daysNumber);
+    return this.analyticsService.getUserGrowth(req?.user?.schoolId, daysNumber);
   }
 
   @Get('student')

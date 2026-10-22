@@ -6,18 +6,19 @@ import { apiClient } from '@/lib/api/client'
 import { useRealtimeGrades } from '@/lib/providers/socket-provider'
 import {
   Award, TrendingUp, TrendingDown, BookOpen, AlertCircle,
-  Download, Sparkles, BrainCircuit, ChevronDown, ChevronUp,
+  Printer, Sparkles, BrainCircuit, ChevronDown, ChevronUp,
   Target, Zap, RefreshCw, Star, Loader2
 } from 'lucide-react'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar
 } from 'recharts'
+import { ReportPrintFooter, ReportPrintIdentity } from '@/components/reports/report-print-tools'
 
 // ── helpers ────────────────────────────────────────────────
 function gradeColor(pct: number) {
   if (pct >= 90) return '#22c55e'
-  if (pct >= 80) return '#3b82f6'
+  if (pct >= 80) return '#4A687C'
   if (pct >= 70) return '#f59e0b'
   if (pct >= 60) return '#f97316'
   return '#ef4444'
@@ -248,7 +249,8 @@ export default function StudentGradesPage() {
     .map(g => ({ name: g.name.substring(0, 6), درجة: g.pct }))
 
   return (
-    <div className="space-y-6 pb-10" dir="rtl">
+    <div className="report-print-root space-y-6 pb-10" dir="rtl">
+      <ReportPrintIdentity title="التقرير الأكاديمي للطالب" subtitle="سجل الدرجات المحفوظ في نظام المدرسة" />
       {/* Live toast */}
       <AnimatePresence>
         {liveGrade && (
@@ -272,6 +274,9 @@ export default function StudentGradesPage() {
             <h1 className="text-3xl font-extrabold mb-2">أدائي الأكاديمي</h1>
             <p className="text-white/80 text-sm">{grades.length} سجل درجة · {scoredGrades.length} درجة مكتملة</p>
           </div>
+          <button type="button" onClick={() => window.print()} disabled={loading || grades.length === 0} className="no-print inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-indigo-700 shadow-md disabled:cursor-not-allowed disabled:opacity-50">
+            <Printer className="h-4 w-4" /> طباعة تقرير الدرجات A4
+          </button>
           {/* Summary Cards */}
           <div className="flex gap-4 flex-wrap">
             {[
@@ -303,8 +308,8 @@ export default function StudentGradesPage() {
               <RadarChart data={radarData}>
                 <PolarGrid stroke="hsl(var(--border))" />
                 <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                <Radar dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.3} strokeWidth={2.5}
-                  dot={{ r: 4, fill: '#8b5cf6' }} />
+                <Radar dataKey="value" stroke="#234A65" fill="#234A65" fillOpacity={0.3} strokeWidth={2.5}
+                  dot={{ r: 4, fill: '#234A65' }} />
               </RadarChart>
             </ResponsiveContainer>
           </motion.div>
@@ -322,7 +327,7 @@ export default function StudentGradesPage() {
                 <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
                   formatter={(v: any) => [`${v}%`, 'الدرجة']} />
                 <Bar dataKey="درجة" radius={[4, 4, 0, 0]} maxBarSize={32}
-                  fill="#8b5cf6"
+                  fill="#234A65"
                   label={{ position: 'top', fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
               </BarChart>
             </ResponsiveContainer>
@@ -372,6 +377,7 @@ export default function StudentGradesPage() {
           </div>
         )}
       </div>
+      <ReportPrintFooter />
     </div>
   )
 }

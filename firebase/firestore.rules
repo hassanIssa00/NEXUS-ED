@@ -11,14 +11,23 @@ service cloud.firestore {
     }
 
     function userRole(uid) {
-      return get(userPath(uid)).data.role;
+      return exists(userPath(uid)) ? get(userPath(uid)).data.get('role', '') : '';
+    }
+
+    function userStatus(uid) {
+      return exists(userPath(uid)) ? get(userPath(uid)).data.get('status', '') : '';
     }
 
     function hasRole(role) {
-      return signedIn()
-        && request.auth.token.email_verified == true
-        && userRole(request.auth.uid) == role
-        && (role in ['student', 'parent'] || get(userPath(request.auth.uid)).data.status == 'active');
+      return signedIn() ? (
+        request.auth.token.email_verified == true ? (
+          exists(userPath(request.auth.uid)) ? (
+            userRole(request.auth.uid) == role
+            && ((role in ['student', 'parent'] && userStatus(request.auth.uid) in ['active', 'pending'])
+              || userStatus(request.auth.uid) == 'active')
+          ) : false
+        ) : false
+      ) : false;
     }
 
     function isBootstrapAdmin() {
@@ -28,7 +37,10 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isBootstrapAdmin() || hasRole('admin');
+      // Privileges come from the verified, active Firestore admin profile.
+      // The bootstrap email may create its first profile, but the email alone
+      // must never bypass role and status checks for later requests.
+      return hasRole('admin');
     }
 
     function validSelfProfile(uid) {
@@ -102,7 +114,7 @@ service cloud.firestore {
         signedIn()
         && request.auth.token.email_verified == true
         && request.auth.uid == uid
-        && resource.data.role in ['student', 'parent']
+        && resource.data.role in ['student', 'parent', 'teacher']
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.email == resource.data.email
         && request.resource.data.role == resource.data.role

@@ -40,6 +40,7 @@ export class UserService {
     const skip = (page - 1) * limit;
 
     const where: any = { schoolId: scopedSchoolId };
+    where.AND = [{ OR: [{ role: { notIn: [Role.STUDENT, Role.TEACHER] } }, { emailVerified: true }] }];
 
     if (role) {
       where.role = role;
@@ -69,6 +70,7 @@ export class UserService {
           phone: true,
           isActive: true,
           emailVerified: true,
+          lastActiveDate: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -91,7 +93,7 @@ export class UserService {
   async findById(id: string, schoolId?: string) {
     const scopedSchoolId = this.requireSchool(schoolId);
     const user = await this.prisma.user.findFirst({
-      where: { id, schoolId: scopedSchoolId },
+      where: { id, schoolId: scopedSchoolId, NOT: { role: { in: [Role.STUDENT, Role.TEACHER] }, emailVerified: false } },
       select: {
         id: true,
         email: true,
@@ -103,12 +105,201 @@ export class UserService {
         avatar: true,
         isActive: true,
         emailVerified: true,
+        lastActiveDate: true,
         createdAt: true,
         updatedAt: true,
       },
     });
     if (!user) throw new NotFoundException('User not found');
     return user;
+  }
+
+  async getSchoolStudentRecord(id: string, schoolId: string | undefined, actorId: string, actorRole: string) {
+    const scopedSchoolId = this.requireSchool(schoolId);
+    const normalizedActorRole = String(actorRole).toUpperCase();
+    const isTeacher = normalizedActorRole === Role.TEACHER;
+    const teacherClassScope: Prisma.ClassWhereInput = {
+      schoolId: scopedSchoolId,
+      OR: [
+        { teacherId: actorId },
+        { classSubjects: { some: { teacherId: actorId } } },
+      ],
+    };
+
+    // A teacher can open records only for students enrolled in a class they teach.
+    // Keep every class-based part of the response inside that same scope.
+    if (isTeacher) {
+      const assignedEnrollment = await this.prisma.enrollment.findFirst({
+        where: { studentId: id, class: teacherClassScope },
+        select: { id: true },
+      });
+      if (!assignedEnrollment) throw new ForbiddenException('You do not have access to this student record');
+    }
+
+    const visibleClassScope: Prisma.ClassWhereInput = isTeacher
+      ? teacherClassScope
+      : { schoolId: scopedSchoolId };
+    const student = await this.prisma.user.findFirst({
+      where: { id, schoolId: scopedSchoolId, role: Role.STUDENT, emailVerified: true },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        name: true,
+        role: true,
+        phone: true,
+        avatar: true,
+        isActive: true,
+        createdAt: true,
+        studentProfile: { select: { gradeLevel: true, nationalId: true, dateOfBirth: true } },
+        enrollments: {
+          where: { class: visibleClassScope },
+          orderBy: { enrolledAt: 'desc' },
+          select: {
+            enrolledAt: true,
+            class: {
+              select: {
+                id: true,
+                name: true,
+                academicYear: true,
+                teacher: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+        attendance: {
+          where: { class: visibleClassScope },
+          orderBy: { date: 'desc' },
+          take: 100,
+          select: { id: true, date: true, status: true, notes: true, class: { select: { id: true, name: true } } },
+        },
+        studentGrades: {
+          where: { subject: { class: visibleClassScope } },
+          orderBy: { createdAt: 'desc' },
+          take: 100,
+          select: {
+            id: true,
+            score: true,
+            grade: true,
+            maxScore: true,
+            comments: true,
+            createdAt: true,
+            subject: { select: { id: true, name: true } },
+            assignment: { select: { id: true, title: true } },
+          },
+        },
+        parents: {
+          where: { parent: { schoolId: scopedSchoolId } },
+          select: { relationship: true, parent: { select: { id: true, name: true, email: true, phone: true } } },
+        },
+        placementAssessmentAttempts: {
+          where: { schoolId: scopedSchoolId },
+          orderBy: { completedAt: 'desc' },
+          select: { id: true, gradeLevel: true, assessmentKey: true, answers: true, questionSnapshot: true, correctCount: true, questionCount: true, score: true, completedAt: true },
+        },
+        childSurveys: {
+          where: { schoolId: scopedSchoolId },
+          orderBy: { updatedAt: 'desc' },
+          select: {
+            id: true,
+            parentId: true,
+            respondentId: true,
+            respondentRole: true,
+            answers: true,
+            consentedAt: true,
+            consentVersion: true,
+            createdAt: true,
+            updatedAt: true,
+            parent: { select: { id: true, name: true, email: true } },
+            respondent: { select: { id: true, name: true, email: true, role: true } },
+          },
+        },
+        smartProfile: { select: { learningStyle: true, strengthSubjects: true, weakSubjects: true, performanceTrend: true } },
+        skillMasteries: {
+          where: { skillNode: { subject: { class: visibleClassScope } } },
+          select: { id: true, masteryLevel: true, skillNode: { select: { name: true, subject: { select: { name: true } } } } },
+        },
+      },
+    });
+    if (!student) throw new NotFoundException('Student not found in this school');
+
+    await this.prisma.auditLog.create({
+      data: {
+        schoolId: scopedSchoolId,
+        userId: actorId,
+        action: 'student.record_viewed',
+        entityType: 'student',
+        entityId: id,
+      },
+    });
+
+    const includeSensitiveResponses = ['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'COUNSELOR'].includes(normalizedActorRole);
+    const includeAssessmentAnswers = includeSensitiveResponses || isTeacher;
+    const placementAssessmentAttempts = student.placementAssessmentAttempts.map((attempt) => {
+      const answers = (attempt.answers ?? {}) as Record<string, string>;
+      const questions = (attempt.questionSnapshot ?? []) as Array<{
+        id: string;
+        category?: string;
+        prompt?: string;
+        correctAnswer?: string;
+        explanation?: string;
+      }>;
+      const detailedAnswers = questions.map((question) => ({
+        id: question.id,
+        category: question.category ?? 'عام',
+        prompt: question.prompt ?? '',
+        selectedAnswer: answers[question.id] ?? null,
+        correctAnswer: question.correctAnswer ?? null,
+        isCorrect: Boolean(question.correctAnswer) && answers[question.id] === question.correctAnswer,
+        explanation: question.explanation ?? '',
+      }));
+      const categories = new Map<string, { total: number; correct: number }>();
+      for (const answer of detailedAnswers) {
+        const score = categories.get(answer.category) ?? { total: 0, correct: 0 };
+        score.total += 1;
+        if (answer.isCorrect) score.correct += 1;
+        categories.set(answer.category, score);
+      }
+      const weakAreas = [...categories.entries()]
+        .map(([category, score]) => ({ category, total: score.total, correct: score.correct, incorrect: score.total - score.correct, accuracy: Math.round((score.correct / score.total) * 100) }))
+        .filter((area) => area.incorrect > 0)
+        .sort((left, right) => left.accuracy - right.accuracy || right.incorrect - left.incorrect);
+      return {
+        id: attempt.id,
+        gradeLevel: attempt.gradeLevel,
+        assessmentKey: attempt.assessmentKey,
+        correctCount: attempt.correctCount,
+        questionCount: attempt.questionCount,
+        score: attempt.score,
+        completedAt: attempt.completedAt,
+        ...(includeAssessmentAnswers ? { answers: detailedAnswers, weakAreas } : {}),
+      };
+    });
+    const parentSurveys = isTeacher
+      ? student.childSurveys.map(({ id: surveyId, respondentRole, consentedAt, createdAt, updatedAt }) => ({ surveyId, respondentRole, consentedAt, createdAt, updatedAt }))
+      : includeSensitiveResponses
+      ? student.childSurveys
+      : student.childSurveys.map(({ answers: _answers, ...survey }) => ({ ...survey, answers: undefined }));
+    const { placementAssessmentAttempts: _attempts, childSurveys: _surveys, ...studentRecord } = student;
+    const teacherSafeRecord = isTeacher
+      ? {
+          ...studentRecord,
+          studentProfile: studentRecord.studentProfile ? { gradeLevel: studentRecord.studentProfile.gradeLevel, nationalId: null, dateOfBirth: null } : null,
+          parents: studentRecord.parents.map(({ relationship, parent }) => ({ relationship, parent: { id: parent.id, name: parent.name, email: '', phone: null } })),
+        }
+      : studentRecord;
+    return { ...teacherSafeRecord, placementAssessmentAttempts, parentSurveys };
+  }
+
+  async recordActivity(userId: string) {
+    const lastActiveDate = new Date();
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastActiveDate },
+      select: { id: true },
+    });
+    return { lastActiveDate };
   }
 
   async findStaff(filters: UserFilterDto = {}, schoolId?: string) {
@@ -147,6 +338,7 @@ export class UserService {
           role: true,
           phone: true,
           isActive: true,
+          lastActiveDate: true,
           createdAt: true,
         },
         orderBy: [{ role: 'asc' }, { name: 'asc' }],
@@ -222,12 +414,18 @@ export class UserService {
 
   async getStats(schoolId?: string) {
     const scopedSchoolId = this.requireSchool(schoolId);
-    const [total, students, teachers, parents, admins] = await Promise.all([
-      this.prisma.user.count({ where: { schoolId: scopedSchoolId, isActive: true } }),
-      this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: 'STUDENT', isActive: true } }),
-      this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: 'TEACHER', isActive: true } }),
+    const [total, students, teachers, parents, admins, principals, vicePrincipals, counselors, supervisors, accountants, hr] = await Promise.all([
+      this.prisma.user.count({ where: { schoolId: scopedSchoolId, isActive: true, OR: [{ role: { notIn: [Role.STUDENT, Role.TEACHER] } }, { emailVerified: true }] } }),
+      this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: Role.STUDENT, isActive: true, emailVerified: true } }),
+      this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: Role.TEACHER, isActive: true, emailVerified: true } }),
       this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: 'PARENT', isActive: true } }),
       this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: 'ADMIN', isActive: true } }),
+      this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: 'PRINCIPAL', isActive: true } }),
+      this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: 'VICE_PRINCIPAL', isActive: true } }),
+      this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: 'COUNSELOR', isActive: true } }),
+      this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: 'SUPERVISOR', isActive: true } }),
+      this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: 'ACCOUNTANT', isActive: true } }),
+      this.prisma.user.count({ where: { schoolId: scopedSchoolId, role: 'HR', isActive: true } }),
     ]);
 
     return {
@@ -236,6 +434,12 @@ export class UserService {
       teachers,
       parents,
       admins,
+      principals,
+      vicePrincipals,
+      counselors,
+      supervisors,
+      accountants,
+      hr,
     };
   }
 
@@ -390,7 +594,7 @@ export class UserService {
     });
   }
 
-  async submitParentSurvey(parentId: string, studentId: string, answers: Record<string, string>, consent: boolean) {
+  async submitParentSurvey(respondentId: string, respondentRole: string, studentId: string, answers: Record<string, string>, consent: boolean) {
     if (consent !== true) throw new BadRequestException('يلزم الموافقة على استخدام بيانات الاستبيان');
     const keys = Object.keys(answers ?? {});
     if (keys.length !== Object.keys(PARENT_SURVEY_OPTIONS).length || keys.some((key) => !PARENT_SURVEY_OPTIONS[key])) {
@@ -402,40 +606,89 @@ export class UserService {
       }
     }
 
-    const parent = await this.prisma.user.findFirst({
-      where: { id: parentId, role: Role.PARENT, isActive: true, schoolId: { not: null } },
+    const role = String(respondentRole).toUpperCase();
+    if (role !== Role.PARENT && role !== Role.STUDENT) throw new ForbiddenException('هذا الاستبيان متاح للطالب أو ولي أمره فقط');
+    const respondent = await this.prisma.user.findFirst({
+      where: { id: respondentId, role, isActive: true, schoolId: { not: null } },
       select: { id: true, schoolId: true },
     });
-    if (!parent?.schoolId) throw new ForbiddenException('يمكن إرسال الاستبيان للطلاب المرتبطين بحسابك فقط');
-    const linkedStudent = await this.prisma.parentStudent.findFirst({
-      where: {
-        parentId,
-        studentId,
-        student: { role: Role.STUDENT, isActive: true, schoolId: parent.schoolId },
-      },
+    if (!respondent?.schoolId) throw new ForbiddenException('الحساب غير مرتبط بمدرسة');
+    if (role === Role.STUDENT && studentId !== respondentId) {
+      throw new ForbiddenException('يمكن للطالب تعبئة استبيان ملفه فقط');
+    }
+    const student = await this.prisma.user.findFirst({
+      where: { id: studentId, role: Role.STUDENT, isActive: true, schoolId: respondent.schoolId },
       select: { id: true },
     });
-    if (!linkedStudent) throw new ForbiddenException('يمكن إرسال الاستبيان للطلاب المرتبطين بحسابك فقط');
+    if (!student) throw new ForbiddenException('الطالب لا يتبع المدرسة المرتبطة بهذا الحساب');
+    if (role === Role.PARENT) {
+      const linkedStudent = await this.prisma.parentStudent.findFirst({
+        where: { parentId: respondentId, studentId },
+        select: { id: true },
+      });
+      if (!linkedStudent) throw new ForbiddenException('يمكن إرسال الاستبيان للطلاب المرتبطين بحسابك فقط');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const survey = await tx.parentSurvey.upsert({
-        where: { parentId_studentId: { parentId, studentId } },
-        create: { parentId, studentId, schoolId: parent.schoolId, answers, consentedAt: new Date() },
-        update: { schoolId: parent.schoolId, answers, consentedAt: new Date(), consentVersion: 'parent-survey-v1' },
-        select: { id: true, studentId: true, updatedAt: true, consentedAt: true, consentVersion: true },
+        where: { respondentId_studentId: { respondentId, studentId } },
+        create: {
+          respondentId,
+          respondentRole: role,
+          parentId: role === Role.PARENT ? respondentId : null,
+          studentId,
+          schoolId: respondent.schoolId,
+          answers,
+          consentedAt: new Date(),
+        },
+        update: {
+          respondentRole: role,
+          parentId: role === Role.PARENT ? respondentId : null,
+          schoolId: respondent.schoolId,
+          answers,
+          consentedAt: new Date(),
+          consentVersion: 'parent-survey-v1',
+        },
+        select: { id: true, studentId: true, respondentRole: true, updatedAt: true, consentedAt: true, consentVersion: true },
       });
       await tx.auditLog.create({
         data: {
-          schoolId: parent.schoolId,
-          userId: parentId,
+          schoolId: respondent.schoolId,
+          userId: respondentId,
           action: 'parent_survey.submitted',
           entityType: 'parent_survey',
           entityId: survey.id,
-          metadata: { studentId },
+          metadata: { studentId, respondentRole: role },
         },
       });
       return survey;
     });
+  }
+
+  async listMyIntakeSurveys(userId: string, userRole: string) {
+    const role = String(userRole).toUpperCase();
+    if (role !== Role.STUDENT && role !== Role.PARENT) throw new ForbiddenException();
+    const where: Prisma.ParentSurveyWhereInput = role === Role.PARENT
+      ? { respondentId: userId }
+      : { studentId: userId };
+    const data = await this.prisma.parentSurvey.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        studentId: true,
+        respondentId: true,
+        respondentRole: true,
+        answers: true,
+        respondent: { select: { id: true, name: true, email: true, role: true } },
+        consentedAt: true,
+        consentVersion: true,
+        createdAt: true,
+        updatedAt: true,
+        student: { select: { id: true, name: true } },
+      },
+    });
+    return { data };
   }
 
   async listParentSurveys(schoolId: string, actorId: string, page = 1, limit = 25) {
@@ -450,6 +703,7 @@ export class UserService {
         take: safeLimit,
         include: {
           parent: { select: { id: true, name: true, email: true } },
+          respondent: { select: { id: true, name: true, email: true, role: true } },
           student: { select: { id: true, name: true, email: true } },
         },
         orderBy: { updatedAt: 'desc' },

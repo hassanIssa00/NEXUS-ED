@@ -23,6 +23,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
 import * as canvas from '@napi-rs/canvas';
 import { PrismaService } from '../core/database/prisma.service';
+import { isValidAvatarImage } from './avatar-validation';
+import { hasValidFileSignature } from './file-signature-validation';
 
 Object.assign(globalThis, {
   DOMMatrix: canvas.DOMMatrix,
@@ -34,19 +36,7 @@ Object.assign(globalThis, {
 const pdfParse = require('pdf-parse');
 
 export function isValidStudentAvatarUpload(file: Express.Multer.File | null | undefined): boolean {
-  if (!file || file.size < 1 || file.size > 512 * 1024) return false;
-  if (!Buffer.isBuffer(file.buffer)) return false;
-
-  if (file.mimetype === 'image/jpeg') {
-    return file.buffer.length >= 3 && file.buffer[0] === 0xff && file.buffer[1] === 0xd8 && file.buffer[2] === 0xff;
-  }
-  if (file.mimetype === 'image/png') {
-    return file.buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-  }
-  return file.mimetype === 'image/webp'
-    && file.buffer.length >= 12
-    && file.buffer.toString('ascii', 0, 4) === 'RIFF'
-    && file.buffer.toString('ascii', 8, 12) === 'WEBP';
+  return isValidAvatarImage(file?.buffer, file?.mimetype, file?.size);
 }
 
 @Controller('upload')
@@ -66,6 +56,9 @@ export class UploadController {
   ) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
+    }
+    if (!hasValidFileSignature(file.buffer, file.mimetype)) {
+      throw new BadRequestException('محتوى الملف لا يطابق نوعه المعلن');
     }
 
     const userId = req.user.userId;
@@ -107,6 +100,9 @@ export class UploadController {
   ) {
     if (!files || files.length === 0) {
       throw new BadRequestException('No files uploaded');
+    }
+    if (files.some((file) => !hasValidFileSignature(file.buffer, file.mimetype))) {
+      throw new BadRequestException('محتوى أحد الملفات لا يطابق نوعه المعلن');
     }
 
     const userId = req.user.userId;
@@ -151,6 +147,10 @@ export class UploadController {
       select: { avatar: true },
     });
     if (!user?.avatar) return { url: null };
+    if (user.avatar.startsWith('storage://')) {
+      const [url] = await this.uploadService.getSignedUrlsForReferences([user.avatar], 24 * 60 * 60);
+      return { url };
+    }
     if (!user.avatar.startsWith('file:')) return { url: user.avatar };
 
     const fileId = user.avatar.slice('file:'.length);
@@ -162,7 +162,7 @@ export class UploadController {
   }
 
   @Patch('me/avatar')
-  @Roles(Role.STUDENT)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT, Role.PARENT, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.ACCOUNTANT, Role.HR)
   @Throttle({ short: { limit: 3, ttl: 60000 } })
   @UseInterceptors(FileInterceptor('file', {
     storage: memoryStorage(),
@@ -212,7 +212,7 @@ export class UploadController {
       throw new BadRequestException('No PDF file uploaded');
     }
 
-    if (file.mimetype !== 'application/pdf') {
+    if (file.mimetype !== 'application/pdf' || !hasValidFileSignature(file.buffer, file.mimetype)) {
       throw new BadRequestException('File must be a PDF');
     }
 
