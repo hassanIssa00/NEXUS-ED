@@ -2,14 +2,85 @@
 
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BookOpen, CheckCircle2, Clock, Sparkles, X, Send, Award, FileText } from 'lucide-react'
+import { CheckCircle2, Clock, Sparkles, X, Send } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 
+type StudentAssignment = {
+  id: string
+  title: string
+  description: string
+  dueDate: string | null
+  maxScore: number
+  subjectName: string
+  status: 'pending' | 'submitted' | 'graded'
+  grade: number | null
+  submission: { content: string; feedback: string } | null
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function displayText(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return fallback
+}
+
+function displayNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  return fallback
+}
+
+function normalizeAssignments(payload: unknown): StudentAssignment[] {
+  const root = isRecord(payload) ? payload : null
+  const rows = Array.isArray(payload)
+    ? payload
+    : root && Array.isArray(root.data)
+      ? root.data
+      : []
+
+  return rows.filter(isRecord).map((row, index) => {
+    const rawSubmission = isRecord(row.submission) ? row.submission : null
+    const rawSubject = row.subject
+    const subject = isRecord(rawSubject) ? rawSubject : null
+    const rawStatus = displayText(row.status).toLowerCase()
+    const status: StudentAssignment['status'] = rawStatus === 'graded' || Boolean(rawSubmission?.gradedAt)
+      ? 'graded'
+      : rawStatus === 'submitted' || rawSubmission
+        ? 'submitted'
+        : 'pending'
+    const dueDateValue = displayText(row.dueDate)
+    const dueDate = dueDateValue && Number.isFinite(new Date(dueDateValue).getTime()) ? dueDateValue : null
+    const gradeValue = row.grade == null ? null : displayNumber(row.grade, Number.NaN)
+
+    return {
+      id: displayText(row.id, `assignment-${index}`),
+      title: displayText(row.title, 'واجب بدون عنوان'),
+      description: displayText(row.description),
+      dueDate,
+      maxScore: displayNumber(row.maxScore),
+      subjectName: typeof rawSubject === 'string'
+        ? rawSubject
+        : displayText(subject?.name, 'مادة غير محددة'),
+      status,
+      grade: gradeValue !== null && Number.isFinite(gradeValue) ? gradeValue : null,
+      submission: rawSubmission
+        ? {
+            content: displayText(rawSubmission.content),
+            feedback: displayText(rawSubmission.feedback),
+          }
+        : null,
+    }
+  })
+}
+
 export default function StudentAssignmentsPage() {
-  const [assignments, setAssignments] = useState<any[]>([])
+  const [assignments, setAssignments] = useState<StudentAssignment[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'submitted'>('all')
-  const [selectedHw, setSelectedHw] = useState<any | null>(null)
+  const [selectedHw, setSelectedHw] = useState<StudentAssignment | null>(null)
   const [hwAnswer, setHwAnswer] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -17,7 +88,7 @@ export default function StudentAssignmentsPage() {
   const loadData = async () => {
     try {
       const response = await apiClient.get('/assignments/student')
-      setAssignments(Array.isArray(response.data) ? response.data : [])
+      setAssignments(normalizeAssignments(response.data))
     } catch (err) {
       setError('تعذر تحميل الواجبات من النظام.')
     } finally {
@@ -118,7 +189,7 @@ export default function StudentAssignmentsPage() {
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-black text-gray-900 dark:text-white text-base">{hw.title}</h3>
                         <span className="px-2.5 py-0.5 rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400 text-xs font-bold">
-                          {hw.subject?.name || 'مادة غير محددة'}
+                          {hw.subjectName}
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 font-medium leading-relaxed max-w-xl">{hw.description}</p>
@@ -181,7 +252,7 @@ export default function StudentAssignmentsPage() {
               <div className="flex items-center justify-between border-b border-gray-100 dark:border-white/5 pb-4">
                 <div>
                   <h3 className="font-black text-lg text-gray-900 dark:text-white">{selectedHw.title}</h3>
-                  <p className="text-xs text-gray-500">{selectedHw.subject} • موعد التسليم: {selectedHw.dueDate}</p>
+                  <p className="text-xs text-gray-500">{selectedHw.subjectName} • موعد التسليم: {selectedHw.dueDate ? new Date(selectedHw.dueDate).toLocaleDateString('ar-SA') : 'غير محدد'}</p>
                 </div>
                 <button onClick={() => setSelectedHw(null)} className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-white/5 flex items-center justify-center hover:bg-gray-200 transition-colors">
                   <X className="w-4 h-4" />
