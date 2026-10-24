@@ -6,7 +6,11 @@ export const routing = defineRouting({
     locales: ['en', 'ar'],
 
     // Used when no locale matches
-    defaultLocale: 'ar'
+    defaultLocale: 'ar',
+    // Always use Arabic for unprefixed entry URLs, regardless of browser
+    // language or a previously stored NEXT_LOCALE preference. Explicit /en
+    // URLs and the language switcher continue to work normally.
+    localeDetection: false,
 });
 
 // Lightweight wrappers around Next.js' navigation APIs
