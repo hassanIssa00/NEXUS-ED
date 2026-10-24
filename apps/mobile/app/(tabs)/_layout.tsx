@@ -11,9 +11,10 @@ export default function TabLayout() {
   return <Tabs screenOptions={{
     headerShown: false,
     tabBarActiveTintColor: BRAND.teal,
-    tabBarInactiveTintColor: '#7C8998',
-    tabBarLabelStyle: { fontSize: 10, fontWeight: '700', paddingBottom: 3 },
-    tabBarStyle: { height: 62, paddingTop: 5, borderTopColor: BRAND.line, backgroundColor: '#FFFFFF' },
+    tabBarInactiveTintColor: '#84939E',
+    tabBarLabelStyle: { fontSize: 9.5, fontWeight: '800', paddingBottom: 3, marginTop: 1 },
+    tabBarIconStyle: { marginTop: 2 },
+    tabBarStyle: { height: 72, paddingTop: 6, paddingBottom: 5, borderTopWidth: 1, borderTopColor: BRAND.line, backgroundColor: '#FFFFFF', elevation: 10, shadowColor: '#173149', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: -4 } },
   }}>
     <Tabs.Screen name="index" options={{ title: 'الرئيسية', tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} /> }} />
     <Tabs.Screen name="workspace" options={{ title: workspaceTitle, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? 'grid' : 'grid-outline'} size={size} color={color} /> }} />

@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   photoTitle: { color: BRAND.ink, fontSize: 14, fontWeight: '700', writingDirection: 'rtl' },
   photoHint: { color: BRAND.muted, fontSize: 12, writingDirection: 'rtl' },
   grades: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 7 },
-  gradeCell: { width: '48.5%' },
+  gradeCell: { flexGrow: 1, flexShrink: 1, flexBasis: '45%', minWidth: 124 },
   dateField: { gap: 7 },
   dateButton: { minHeight: 50, flexDirection: 'row-reverse', alignItems: 'center', gap: 9, paddingHorizontal: 13, borderWidth: 1, borderColor: BRAND.line, borderRadius: 12, backgroundColor: '#FFFFFF' },
   dateText: { color: BRAND.ink, fontSize: 14, fontWeight: '700', writingDirection: 'rtl' },

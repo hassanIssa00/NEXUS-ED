@@ -95,6 +95,7 @@ export default function WelcomeScreen() {
             <Text style={styles.schoolName}>مدارس الإخلاص الأهلية · جدة</Text>
             <Text style={styles.title}>كل مدرستك في مكان واحد</Text>
             <Text style={styles.subtitle}>فصولك، واجباتك، وحضورك… تجربة تعليمية أسهل مع نكسس.</Text>
+            <Text style={styles.audience}>للطلاب والمعلمين وأولياء الأمور، من الروضة حتى المرحلة الثانوية.</Text>
           </View>
         </ImageBackground>
       </Animated.View>
@@ -121,7 +122,8 @@ export default function WelcomeScreen() {
 
       <View style={styles.footer}>
         <View style={styles.footerRule} />
-        <Text style={styles.footerText}>منصة نكسس التعليمية · مدارس الإخلاص الأهلية</Text>
+        <Text style={styles.footerText}>منصة نكسس التعليمية · مدارس الإخلاص الأهلية · جدة</Text>
+        <Text style={styles.footerCredit}>Developed by Eng. Hassan Issa</Text>
       </View>
     </AppPage>
   );
@@ -143,7 +145,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 10,
     paddingBottom: 18,
-    gap: 16,
+    gap: 15,
     backgroundColor: BRAND.canvas,
   },
   brandBar: {
@@ -232,7 +234,8 @@ const styles = StyleSheet.create({
   heroCopy: { alignItems: 'flex-end', gap: 7, paddingTop: 8 },
   schoolName: { color: '#F4D88B', fontSize: 12, fontWeight: '800', textAlign: 'right', writingDirection: 'rtl' },
   title: { color: '#FFFFFF', fontSize: 25, lineHeight: 34, fontWeight: '900', textAlign: 'right', writingDirection: 'rtl' },
-  subtitle: { color: '#E5EDF3', fontSize: 13, lineHeight: 20, textAlign: 'right', writingDirection: 'rtl' },
+  subtitle: { color: '#E5EDF3', fontSize: 13, lineHeight: 21, textAlign: 'right', writingDirection: 'rtl' },
+  audience: { color: '#D1E7E2', fontSize: 11, lineHeight: 17, fontWeight: '700', textAlign: 'right', writingDirection: 'rtl' },
   featureRow: { width: '100%', flexDirection: 'row-reverse', justifyContent: 'space-between', gap: 7 },
   feature: {
     flex: 1,
@@ -244,14 +247,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     borderRadius: 13,
     borderWidth: 1,
-    borderColor: '#DDEBE8',
+    borderColor: '#DDE8E5',
     backgroundColor: '#FFFFFF',
   },
   featureText: { color: '#526579', fontSize: 10, fontWeight: '700', writingDirection: 'rtl' },
   actions: {
     width: '100%',
     gap: 11,
-    padding: 16,
+    padding: 17,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: BRAND.line,
@@ -269,5 +272,6 @@ const styles = StyleSheet.create({
   description: { color: BRAND.muted, fontSize: 12, lineHeight: 18, textAlign: 'right', writingDirection: 'rtl' },
   footer: { width: '100%', alignItems: 'center', gap: 8, marginTop: 'auto', paddingTop: 1 },
   footerRule: { width: '100%', height: 1, backgroundColor: BRAND.line },
-  footerText: { color: '#8795A7', fontSize: 10, textAlign: 'center', writingDirection: 'rtl' },
+  footerText: { color: '#728493', fontSize: 10, textAlign: 'center', writingDirection: 'rtl' },
+  footerCredit: { color: '#8997A1', fontSize: 9, fontWeight: '700', letterSpacing: 0.25 },
 });

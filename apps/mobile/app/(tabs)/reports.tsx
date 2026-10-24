@@ -5,6 +5,7 @@ import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { AppPage, BrandHeader, EmptyState, ErrorNotice, PrimaryButton, SectionHeading, Surface } from '@/components/mobile-ui';
 import { BRAND } from '@/constants/Config';
+import { buildBrandedReportHtml, escapePdfHtml } from '@/lib/report-pdf';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/lib/api';
 
@@ -177,12 +178,17 @@ function arrayPayload<T>(value: any): T[] {
 }
 
 function htmlEscape(value: string) {
-  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
+  return escapePdfHtml(value);
 }
 
 function reportHtml(report: ReportData) {
-  const content = report.sections.map((section) => `<section><h2>${htmlEscape(section.title)}</h2>${section.lines?.length ? `<table>${section.lines.map((line) => `<tr><th>${htmlEscape(line.label)}</th><td>${htmlEscape(line.value)}</td></tr>`).join('')}</table>` : ''}${section.rows?.length ? `<div class="rows">${section.rows.map((row) => `<article><strong>${htmlEscape(row.title)}</strong><p>${htmlEscape(row.detail)}</p></article>`).join('')}</div>` : ''}${!section.lines?.length && !section.rows?.length ? '<p class="muted">لا توجد سجلات مسجلة خلال الفترة.</p>' : ''}</section>`).join('');
-  return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Tahoma,sans-serif;color:#14233B;direction:rtl;font-size:12pt}header{border-bottom:3px solid #008A78;padding-bottom:16px;margin-bottom:20px}h1{font-size:23pt;margin:0 0 8px}header p,.muted{color:#64758B;margin:0}section{margin:0 0 18px;page-break-inside:avoid}h2{font-size:15pt;color:#008A78;margin:0 0 9px;border-right:4px solid #008A78;padding-right:9px}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #D9E2E9;text-align:right;vertical-align:top}th{width:38%;background:#F2F7F7}article{border:1px solid #D9E2E9;border-radius:8px;padding:9px;margin:6px 0}article p{margin:5px 0 0;color:#526176;line-height:1.6}footer{margin-top:20px;padding-top:9px;border-top:1px solid #D9E2E9;color:#64758B;font-size:9pt}</style></head><body><header><h1>${htmlEscape(report.title)}</h1><p>نكسس التعليمية · تقرير مستخرج من سجلات المدرسة</p></header>${content}<footer>تاريخ الإصدار: ${htmlEscape(new Date(report.generatedAt).toLocaleString('ar-SA'))}</footer></body></html>`;
+  const content = report.sections.map((section) => `<section class="report-section"><h2>${htmlEscape(section.title)}</h2>${section.lines?.length ? `<table><tbody>${section.lines.map((line) => `<tr><th>${htmlEscape(line.label)}</th><td>${htmlEscape(line.value)}</td></tr>`).join('')}</tbody></table>` : ''}${section.rows?.length ? `<div class="rows">${section.rows.map((row) => `<article><strong>${htmlEscape(row.title)}</strong><p>${htmlEscape(row.detail)}</p></article>`).join('')}</div>` : ''}${!section.lines?.length && !section.rows?.length ? '<p class="muted">لا توجد سجلات مسجلة خلال الفترة.</p>' : ''}</section>`).join('');
+  return buildBrandedReportHtml({
+    title: report.title,
+    subtitle: 'تقارير حسب بيانات النظام',
+    content,
+    issuedAt: new Date(report.generatedAt).toLocaleString('ar-SA'),
+  });
 }
 
 export default function ReportsScreen() {

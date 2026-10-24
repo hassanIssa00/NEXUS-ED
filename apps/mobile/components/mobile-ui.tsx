@@ -38,12 +38,13 @@ export function ScreenTitle({ title, subtitle }: { title: string; subtitle?: str
   );
 }
 
-export function Field({ label, icon, style, secureTextEntry, ...props }: TextInputProps & { label: string; icon?: React.ComponentProps<typeof Ionicons>['name'] }) {
+export function Field({ label, icon, style, secureTextEntry, onFocus, onBlur, ...props }: TextInputProps & { label: string; icon?: React.ComponentProps<typeof Ionicons>['name'] }) {
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.label}>{label}</Text>
-      <View style={styles.inputFrame}>
+      <View style={[styles.inputFrame, focused && styles.inputFrameFocused]}>
         {icon ? <Ionicons name={icon} size={18} color={BRAND.muted} /> : null}
         <TextInput
           {...props}
@@ -55,6 +56,8 @@ export function Field({ label, icon, style, secureTextEntry, ...props }: TextInp
           placeholderTextColor="#95A2B2"
           textAlign="right"
           selectionColor={BRAND.teal}
+          onFocus={(event) => { setFocused(true); onFocus?.(event); }}
+          onBlur={(event) => { setFocused(false); onBlur?.(event); }}
         />
         {secureTextEntry ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={passwordVisible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} onPress={() => setPasswordVisible((value) => !value)} hitSlop={10}>
           <Ionicons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={19} color={BRAND.muted} />
@@ -125,40 +128,43 @@ export function ChoiceButton({ title, selected, onPress, tone = 'teal' }: { titl
 }
 
 export function SectionHeading({ title, action }: { title: string; action?: React.ReactNode }) {
-  return <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>{title}</Text>{action}</View>;
+  return <View style={styles.sectionHeading}><View style={styles.sectionLabel}><View style={styles.sectionMarker} /><Text style={styles.sectionTitle}>{title}</Text></View>{action}</View>;
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: BRAND.canvas },
   flex: { flex: 1 },
-  content: { width: '100%', maxWidth: 620, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 14, paddingBottom: 40, gap: 18 },
-  brandRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 4 },
+  content: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 18, paddingTop: 12, paddingBottom: 38, gap: 16 },
+  brandRow: { minHeight: 58, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 2, paddingVertical: 4 },
   brandCopy: { flex: 1, alignItems: 'flex-end' },
-  brandTitle: { color: BRAND.ink, fontSize: 18, fontWeight: '900', writingDirection: 'rtl' },
+  brandTitle: { color: BRAND.ink, fontSize: 18, fontWeight: '900', writingDirection: 'rtl', letterSpacing: 0.1 },
   brandEyebrow: { color: BRAND.muted, fontSize: 11, marginTop: 3, textAlign: 'right', writingDirection: 'rtl' },
   brandLogos: { flexDirection: 'row-reverse', alignItems: 'center', gap: 7 },
-  nexusLogo: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#FFFFFF' },
+  nexusLogo: { width: 43, height: 43, borderRadius: 13, backgroundColor: '#FFFFFF' },
   schoolLogo: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#FFFFFF' },
-  titleBlock: { alignItems: 'flex-end', gap: 5, marginTop: 8 },
+  titleBlock: { alignItems: 'flex-end', gap: 6, marginTop: 4 },
   title: { color: BRAND.ink, fontSize: 25, fontWeight: '900', textAlign: 'right', writingDirection: 'rtl' },
   subtitle: { color: BRAND.muted, fontSize: 14, lineHeight: 22, textAlign: 'right', writingDirection: 'rtl' },
   fieldWrap: { gap: 7 },
   label: { color: BRAND.ink, fontSize: 13, fontWeight: '700', textAlign: 'right', writingDirection: 'rtl' },
-  inputFrame: { flexDirection: 'row-reverse', alignItems: 'center', gap: 10, minHeight: 50, paddingHorizontal: 13, borderWidth: 1, borderColor: BRAND.line, borderRadius: 12, backgroundColor: '#FBFCFD' },
+  inputFrame: { flexDirection: 'row-reverse', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 14, borderWidth: 1, borderColor: BRAND.line, borderRadius: 14, backgroundColor: '#FBFCFD' },
+  inputFrameFocused: { borderColor: BRAND.teal, backgroundColor: '#FFFFFF', shadowColor: BRAND.teal, shadowOpacity: 0.08, shadowRadius: 7, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   input: { flex: 1, minHeight: 48, color: '#111827', opacity: 1, backgroundColor: 'transparent', fontSize: 16, writingDirection: 'rtl', paddingVertical: 8, includeFontPadding: false },
-  primary: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 9, minHeight: 52, paddingHorizontal: 16, borderRadius: 12 },
+  primary: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 9, minHeight: 54, paddingHorizontal: 16, borderRadius: 15, elevation: 2, shadowColor: BRAND.ink, shadowOpacity: 0.1, shadowRadius: 7, shadowOffset: { width: 0, height: 3 } },
   primaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', writingDirection: 'rtl' },
-  outline: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, paddingHorizontal: 14, borderWidth: 1, borderColor: BRAND.line, borderRadius: 12, backgroundColor: '#FFFFFF' },
+  outline: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, paddingHorizontal: 14, borderWidth: 1, borderColor: BRAND.line, borderRadius: 15, backgroundColor: '#FFFFFF' },
   outlineText: { color: BRAND.ink, fontSize: 14, fontWeight: '700', writingDirection: 'rtl' },
-  surface: { gap: 14, padding: 16, borderWidth: 1, borderColor: BRAND.line, borderRadius: 16, backgroundColor: '#FFFFFF' },
+  surface: { gap: 13, padding: 17, borderWidth: 1, borderColor: BRAND.line, borderRadius: 19, backgroundColor: '#FFFFFF', elevation: 1, shadowColor: '#203A4D', shadowOpacity: 0.035, shadowRadius: 11, shadowOffset: { width: 0, height: 4 } },
   disabled: { opacity: 0.55 },
   error: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#FFF1F0', borderWidth: 1, borderColor: '#F3C7C3' },
   errorText: { flex: 1, color: BRAND.red, fontSize: 13, lineHeight: 19, textAlign: 'right', writingDirection: 'rtl' },
-  empty: { alignItems: 'center', gap: 8, padding: 24, borderWidth: 1, borderColor: BRAND.line, borderRadius: 14, backgroundColor: '#FFFFFF' },
+  empty: { alignItems: 'center', gap: 9, padding: 24, borderWidth: 1, borderColor: BRAND.line, borderRadius: 17, backgroundColor: '#F9FBFA' },
   emptyTitle: { color: BRAND.ink, fontSize: 15, fontWeight: '800', textAlign: 'center', writingDirection: 'rtl' },
   emptyDetail: { color: BRAND.muted, fontSize: 13, lineHeight: 20, textAlign: 'center', writingDirection: 'rtl' },
   choice: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', minHeight: 50, paddingHorizontal: 13, borderWidth: 1, borderColor: BRAND.line, borderRadius: 12, backgroundColor: '#FFFFFF' },
   choiceText: { flex: 1, color: BRAND.ink, fontSize: 14, textAlign: 'right', writingDirection: 'rtl' },
-  sectionHeading: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  sectionTitle: { color: BRAND.ink, fontSize: 17, fontWeight: '800', textAlign: 'right', writingDirection: 'rtl' },
+  sectionHeading: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 1 },
+  sectionLabel: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
+  sectionMarker: { width: 3, height: 18, borderRadius: 2, backgroundColor: BRAND.teal },
+  sectionTitle: { color: BRAND.ink, fontSize: 16, fontWeight: '900', textAlign: 'right', writingDirection: 'rtl' },
 });

@@ -41,6 +41,6 @@ export function TeacherToolsHub({ onOpen }: { onOpen: (action: string) => void }
 
 const styles = StyleSheet.create({
   root: { gap: 14 }, aiSection: { gap: 10 }, note: { color: BRAND.muted, fontSize: 12, lineHeight: 19, textAlign: 'right', writingDirection: 'rtl' },
-  grid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 9 }, card: { width: '48%', minHeight: 124, position: 'relative', alignItems: 'flex-end', gap: 6, padding: 12, borderWidth: 1, borderColor: BRAND.line, borderRadius: 14, backgroundColor: '#FFFFFF' },
+  grid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 9 }, card: { flexGrow: 1, flexShrink: 1, flexBasis: '45%', minWidth: 122, minHeight: 132, position: 'relative', alignItems: 'flex-end', gap: 7, padding: 13, borderWidth: 1, borderColor: BRAND.line, borderRadius: 17, backgroundColor: '#FFFFFF', elevation: 1, shadowColor: '#173149', shadowOpacity: 0.035, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
   icon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: BRAND.tealSoft }, cardTitle: { color: BRAND.ink, fontSize: 12, fontWeight: '900', textAlign: 'right', writingDirection: 'rtl' }, cardDetail: { color: BRAND.muted, fontSize: 10, lineHeight: 15, textAlign: 'right', writingDirection: 'rtl' }, arrow: { position: 'absolute', left: 10, bottom: 10 },
 });

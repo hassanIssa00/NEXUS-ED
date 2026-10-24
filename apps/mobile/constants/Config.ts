@@ -80,16 +80,16 @@ try {
 export const WEB_URL = webUrl;
 
 export const BRAND = {
-  ink: '#14233B',
-  muted: '#64758B',
-  line: '#E3EAF0',
-  canvas: '#F5F8FA',
+  ink: '#173149',
+  muted: '#627789',
+  line: '#DEE7E9',
+  canvas: '#F4F7F6',
   paper: '#FFFFFF',
-  teal: '#008A78',
-  tealSoft: '#E2F6F1',
-  blue: '#2863E8',
-  blueSoft: '#EAF1FF',
-  amber: '#B96808',
-  amberSoft: '#FFF3DA',
-  red: '#B42318',
+  teal: '#08786C',
+  tealSoft: '#E6F3F0',
+  blue: '#315F7B',
+  blueSoft: '#EAF1F5',
+  amber: '#A97832',
+  amberSoft: '#F8F1E5',
+  red: '#A94747',
 };

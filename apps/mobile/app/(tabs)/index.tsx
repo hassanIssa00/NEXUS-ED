@@ -74,24 +74,24 @@ function actionsForRole(role: string | undefined): HomeAction[] {
     { label: 'فصولي', icon: 'people-outline', tab: 'classes', color: BRAND.teal, background: BRAND.tealSoft },
     { label: 'إنشاء واجب', icon: 'document-text-outline', tab: 'assignments', color: BRAND.blue, background: BRAND.blueSoft },
     { label: 'الحضور', icon: 'calendar-outline', tab: 'attendance', color: BRAND.amber, background: BRAND.amberSoft },
-    { label: 'أدوات نكسس', icon: 'sparkles-outline', tab: 'tools', color: '#7156B8', background: '#F1ECFF' },
+    { label: 'أدوات نكسس', icon: 'sparkles-outline', tab: 'tools', color: BRAND.blue, background: BRAND.blueSoft },
   ];
   if (role === 'PARENT') return [
     { label: 'الأبناء', icon: 'people-outline', href: '/(tabs)/workspace', color: BRAND.teal, background: BRAND.tealSoft },
     { label: 'التقارير', icon: 'bar-chart-outline', href: '/(tabs)/reports', color: BRAND.blue, background: BRAND.blueSoft },
     { label: 'الرسائل', icon: 'chatbubble-ellipses-outline', href: '/(tabs)/chat', color: BRAND.amber, background: BRAND.amberSoft },
-    { label: 'مساعد نكسس', icon: 'sparkles-outline', href: '/(tabs)/assistant', color: '#7156B8', background: '#F1ECFF' },
+    { label: 'مساعد نكسس', icon: 'sparkles-outline', href: '/(tabs)/assistant', color: BRAND.blue, background: BRAND.blueSoft },
   ];
   if (role === 'STUDENT') return [
     { label: 'مواد وواجبات', icon: 'book-outline', href: '/(tabs)/workspace', color: BRAND.teal, background: BRAND.tealSoft },
     { label: 'التقارير', icon: 'bar-chart-outline', href: '/(tabs)/reports', color: BRAND.blue, background: BRAND.blueSoft },
     { label: 'الرسائل', icon: 'chatbubble-ellipses-outline', href: '/(tabs)/chat', color: BRAND.amber, background: BRAND.amberSoft },
-    { label: 'مساعد نكسس', icon: 'sparkles-outline', href: '/(tabs)/assistant', color: '#7156B8', background: '#F1ECFF' },
+    { label: 'مساعد نكسس', icon: 'sparkles-outline', href: '/(tabs)/assistant', color: BRAND.blue, background: BRAND.blueSoft },
   ];
   return [
     { label: 'مساحة العمل', icon: 'grid-outline', href: '/(tabs)/workspace', color: BRAND.teal, background: BRAND.tealSoft },
     { label: 'التقارير', icon: 'bar-chart-outline', href: '/(tabs)/reports', color: BRAND.blue, background: BRAND.blueSoft },
-    { label: 'مساعد نكسس', icon: 'sparkles-outline', href: '/(tabs)/assistant', color: '#7156B8', background: '#F1ECFF' },
+    { label: 'مساعد نكسس', icon: 'sparkles-outline', href: '/(tabs)/assistant', color: BRAND.blue, background: BRAND.blueSoft },
     { label: 'حسابي', icon: 'person-circle-outline', href: '/(tabs)/profile', color: BRAND.amber, background: BRAND.amberSoft },
   ];
 }
@@ -295,8 +295,8 @@ export default function DashboardScreen() {
           <View style={styles.metrics}>
             {allMetricItems.slice(0, 4).map((metric, index) => (
               <Surface key={`${metric.label}-${index}`} style={styles.metric}>
-                <View style={[styles.metricIcon, { backgroundColor: [BRAND.tealSoft, BRAND.blueSoft, BRAND.amberSoft, '#F1ECFF'][index] }]}>
-                  <Ionicons name={['stats-chart-outline', 'book-outline', 'checkmark-done-outline', 'calendar-outline'][index] as any} size={19} color={[BRAND.teal, BRAND.blue, BRAND.amber, '#7156B8'][index]} />
+                <View style={[styles.metricIcon, { backgroundColor: [BRAND.tealSoft, BRAND.blueSoft, BRAND.amberSoft, BRAND.blueSoft][index] }]}>
+                  <Ionicons name={['stats-chart-outline', 'book-outline', 'checkmark-done-outline', 'calendar-outline'][index] as any} size={19} color={[BRAND.teal, BRAND.blue, BRAND.amber, BRAND.blue][index]} />
                 </View>
                 <Text style={styles.metricValue}>{metric.value}</Text>
                 <Text style={styles.metricLabel}>{metric.label}</Text>
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
   surveyActionText: { color: BRAND.ink, fontSize: 12, fontWeight: '800', writingDirection: 'rtl' },
   surveyDone: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
   surveyDoneText: { color: BRAND.teal, fontSize: 13, fontWeight: '800', textAlign: 'right', writingDirection: 'rtl' },
-  metric: { width: '48.5%', minHeight: 112, justifyContent: 'space-between', padding: 13, borderRadius: 18 },
+  metric: { flexGrow: 1, flexShrink: 1, flexBasis: '45%', minWidth: 132, minHeight: 112, justifyContent: 'space-between', padding: 14, borderRadius: 18 },
   metricIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
   metricValue: { color: BRAND.ink, fontSize: 23, fontWeight: '900', textAlign: 'right' },
   metricLabel: { color: BRAND.muted, fontSize: 12, textAlign: 'right', writingDirection: 'rtl' },

@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { BRAND } from '@/constants/Config';
+import * as WebBrowser from 'expo-web-browser';
+import { BRAND, WEB_URL } from '@/constants/Config';
 import { SectionHeading, Surface } from '@/components/mobile-ui';
 
-type Feature = { id: string; title: string; subtitle: string; icon: React.ComponentProps<typeof Ionicons>['name']; group: string; tab?: string; route?: string };
+type Feature = { id: string; title: string; subtitle: string; icon: React.ComponentProps<typeof Ionicons>['name']; group: string; tab?: string; route?: string; browserPath?: string };
 
 const definitions: Record<string, Feature[]> = {
   STUDENT: [
@@ -43,7 +44,14 @@ const definitions: Record<string, Feature[]> = {
 export function featuresForRole(role?: string) {
   const key = role === 'MANAGER' ? 'ADMIN' : role ?? '';
   const features = definitions[key];
-  return features ? [...features, { id: 'account-settings', title: 'إعدادات الحساب', subtitle: 'تعديل بياناتك وتغيير كلمة المرور', icon: 'settings-outline' as Feature['icon'], group: 'حسابي' }] : [];
+  if (!features) return [];
+  const rolePath: Record<string, string> = { STUDENT: 'student', TEACHER: 'teacher', PARENT: 'parent', ADMIN: 'admin', MANAGER: 'admin', PRINCIPAL: 'principal', VICE_PRINCIPAL: 'vice_principal', COUNSELOR: 'counselor', SUPERVISOR: 'supervisor', ACCOUNTANT: 'accountant', HR: 'hr' };
+  return [
+    ...features,
+    { id: 'meeting-rooms', title: 'قاعات الاجتماعات', subtitle: 'ادخل غرف الاجتماعات الداخلية حسب دور حسابك', icon: 'videocam-outline' as Feature['icon'], group: 'التواصل', browserPath: '/ar/meetings' },
+    { id: 'full-platform', title: 'باقي خدمات المنصة', subtitle: 'افتح بوابة الويب للوصول إلى جميع صفحات وصلاحيات حسابك', icon: 'open-outline' as Feature['icon'], group: 'المنصة كاملة', browserPath: `/ar/${rolePath[role ?? ''] ?? 'login'}` },
+    { id: 'account-settings', title: 'إعدادات الحساب', subtitle: 'تعديل بياناتك وتغيير كلمة المرور', icon: 'settings-outline' as Feature['icon'], group: 'حسابي' },
+  ];
 }
 
 export function PortalFeatureCatalog({ role, onOpen }: { role?: string; onOpen?: (feature: Feature) => void }) {
@@ -53,6 +61,11 @@ export function PortalFeatureCatalog({ role, onOpen }: { role?: string; onOpen?:
   const groups = useMemo(() => Array.from(new Set(features.map((feature) => feature.group))), [features]);
   const roleLabel = ({STUDENT:'الطالب',TEACHER:'المعلم',PARENT:'ولي الأمر',ADMIN:'الإدارة',MANAGER:'الإدارة',PRINCIPAL:'مدير المدرسة',VICE_PRINCIPAL:'وكيل المدرسة',COUNSELOR:'المرشد الطلابي',SUPERVISOR:'المشرف التربوي',ACCOUNTANT:'المحاسب',HR:'الموارد البشرية'} as Record<string,string>)[role ?? ''] ?? 'بوابة المدرسة';
   const open = (feature: Feature) => {
+    if (feature.browserPath) {
+      const url = new URL(feature.browserPath, `${WEB_URL}/`).toString();
+      void WebBrowser.openBrowserAsync(url).catch(() => Alert.alert('تعذر فتح المنصة', 'تحقق من اتصال الإنترنت ثم أعد المحاولة.'));
+      return;
+    }
     if (onOpen) return onOpen(feature);
     if (feature.id === 'messages') return router.push('/(tabs)/chat' as never);
     if (feature.id === 'reports') return router.push('/(tabs)/reports' as never);
@@ -69,5 +82,5 @@ export function PortalFeatureCatalog({ role, onOpen }: { role?: string; onOpen?:
 
 const styles = StyleSheet.create({
   root:{gap:15}, titleRow:{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between',gap:8}, heading:{flex:1,alignItems:'flex-end',gap:4}, eyebrow:{fontSize:11,fontWeight:'800',color:BRAND.teal,textAlign:'right',writingDirection:'rtl'}, title:{fontSize:19,fontWeight:'900',color:BRAND.ink,textAlign:'right',writingDirection:'rtl'}, subtitle:{fontSize:12,lineHeight:18,color:BRAND.muted,textAlign:'right',writingDirection:'rtl'}, badge:{flexDirection:'row-reverse',alignItems:'center',gap:4,paddingHorizontal:9,paddingVertical:7,borderRadius:20,backgroundColor:BRAND.tealSoft},badgeText:{fontSize:10,fontWeight:'800',color:BRAND.teal,writingDirection:'rtl'},
-  search:{minHeight:46,flexDirection:'row-reverse',alignItems:'center',gap:8,paddingHorizontal:12,borderWidth:1,borderColor:BRAND.line,borderRadius:13,backgroundColor:'#FFFFFF'},searchInput:{flex:1,color:BRAND.ink,fontSize:13,writingDirection:'rtl'},group:{gap:9},grid:{flexDirection:'row-reverse',flexWrap:'wrap',gap:9},card:{width:'48%',minHeight:124,position:'relative',alignItems:'flex-end',gap:7,padding:12,borderWidth:1,borderColor:BRAND.line,borderRadius:15,backgroundColor:'#FFFFFF'},icon:{width:35,height:35,borderRadius:11,alignItems:'center',justifyContent:'center',backgroundColor:BRAND.tealSoft},cardTitle:{color:BRAND.ink,fontSize:12,fontWeight:'900',textAlign:'right',writingDirection:'rtl'},cardSubtitle:{color:BRAND.muted,fontSize:10,lineHeight:15,textAlign:'right',writingDirection:'rtl'},arrow:{position:'absolute',left:11,bottom:11},noResult:{color:BRAND.muted,textAlign:'center',padding:10,writingDirection:'rtl'}
+  search:{minHeight:48,flexDirection:'row-reverse',alignItems:'center',gap:8,paddingHorizontal:13,borderWidth:1,borderColor:BRAND.line,borderRadius:14,backgroundColor:'#FFFFFF'},searchInput:{flex:1,color:BRAND.ink,fontSize:13,writingDirection:'rtl'},group:{gap:10},grid:{flexDirection:'row-reverse',flexWrap:'wrap',gap:9},card:{flexGrow:1,flexShrink:1,flexBasis:'45%',minWidth:122,minHeight:132,position:'relative',alignItems:'flex-end',gap:7,padding:13,borderWidth:1,borderColor:BRAND.line,borderRadius:17,backgroundColor:'#FFFFFF',elevation:1,shadowColor:'#173149',shadowOpacity:0.035,shadowRadius:8,shadowOffset:{width:0,height:3}},icon:{width:36,height:36,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:BRAND.tealSoft},cardTitle:{color:BRAND.ink,fontSize:12,fontWeight:'900',textAlign:'right',writingDirection:'rtl'},cardSubtitle:{color:BRAND.muted,fontSize:10,lineHeight:15,textAlign:'right',writingDirection:'rtl'},arrow:{position:'absolute',left:11,bottom:11},noResult:{color:BRAND.muted,textAlign:'center',padding:10,writingDirection:'rtl'}
 });
