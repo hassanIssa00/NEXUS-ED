@@ -178,6 +178,7 @@ export default function StudentDashboardPage() {
                 <span className="inline-flex items-center gap-2"><Zap className="h-4 w-4" /> {gamification.totalXP.toLocaleString(isEnglish ? 'en-US' : 'ar-SA')} {text('نقطة خبرة', 'XP')}</span>
               </div>
             </div>
+          </div>
           <div className="flex flex-wrap gap-2">
             <ParentLinkCodeButton />
             <Link href="/student/assignments" className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-violet-900 hover:bg-violet-50">
