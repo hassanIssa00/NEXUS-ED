@@ -56,6 +56,7 @@ function RegisterForm() {
   const [error, setError] = useState('');
 
   const copy = isArabic ? {
+    logoAlt: 'شعار منصة Nexus EDU',
     unavailable: 'إنشاء الحساب غير متاح حاليًا. يُرجى التواصل مع إدارة المدرسة.',
     missingName: 'يرجى كتابة الاسم كاملاً', invalidEmail: 'يرجى إدخال بريد إلكتروني صحيح',
     shortPassword: 'كلمة المرور يجب ألا تقل عن 8 أحرف أو أرقام', mismatch: 'كلمات المرور غير متطابقة',
@@ -75,6 +76,7 @@ function RegisterForm() {
     invalidCode: 'كود تسجيل المعلم غير صحيح.', invalidId: 'أدخل رقم هوية أو إقامة مكوّنًا من 10 أرقام.', chooseSpecialty: 'اختر التخصص أو المادة.',
     invalidPhoto: 'اختر صورة JPG أو PNG أو WebP لا يتجاوز حجمها 512 كيلوبايت.', uploadPhoto: 'تعذر رفع الصورة. أعد المحاولة مع اتصال مستقر.',
   } : {
+    logoAlt: 'Nexus EDU logo',
     unavailable: 'Account creation is currently unavailable. Please contact the school administration.',
     missingName: 'Enter your full name.', invalidEmail: 'Enter a valid email address.',
     shortPassword: 'Password must be at least 8 characters.', mismatch: 'Passwords do not match.',

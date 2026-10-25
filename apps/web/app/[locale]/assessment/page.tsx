@@ -30,6 +30,9 @@ type AssessmentState = {
   };
   attempt: {
     id: string;
+    score: number;
+    correctCount: number;
+    questionCount: number;
     completedAt: string;
   } | null;
 };
