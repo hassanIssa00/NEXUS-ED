@@ -35,7 +35,9 @@ async function cleanupExpiredCounters(prisma: PrismaService) {
 
 /** Shared PostgreSQL-backed store so rate limits survive restarts and replicas. */
 export class PrismaRateLimitStore implements Store {
-  readonly localKeys = false;
+  // Each limiter gets an independent namespace in PostgreSQL, so stores with
+  // the same implementation class do not share counter keys.
+  readonly localKeys = true;
   private windowMs = 60_000;
 
   constructor(private readonly namespace: string) {}

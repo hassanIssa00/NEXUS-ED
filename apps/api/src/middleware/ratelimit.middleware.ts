@@ -1,6 +1,14 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { Request, Response } from 'express';
 import { PrismaRateLimitStore } from '../common/persistent-quota-storage';
+
+function accountOrIpKey(req: Request): string {
+  const userId = (req as any).user?.id;
+  if (typeof userId === 'string' && userId.length > 0) return `user:${userId}`;
+
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  return `ip:${ipKeyGenerator(ip)}`;
+}
 
 /**
  * Rate limiting configuration for different endpoints
@@ -62,10 +70,7 @@ export const answerLimiter = rateLimit({
     error: 'Too many answer submissions. Please slow down.',
     retryAfter: '1 minute',
   },
-  keyGenerator: (req: Request) => {
-    // Rate limit per user instead of IP for authenticated endpoints
-    return (req as any).user?.id || req.ip;
-  },
+  keyGenerator: accountOrIpKey,
   handler: (req: Request, res: Response) => {
     res.status(429).json({
       success: false,
@@ -85,9 +90,7 @@ export const roomCreationLimiter = rateLimit({
     error: 'Too many rooms created. Please wait before creating another.',
     retryAfter: '10 minutes',
   },
-  keyGenerator: (req: Request) => {
-    return (req as any).user?.id || req.ip;
-  },
+  keyGenerator: accountOrIpKey,
   handler: (req: Request, res: Response) => {
     res.status(429).json({
       success: false,
@@ -107,9 +110,7 @@ export const questionGenerationLimiter = rateLimit({
     error: 'Question generation quota exceeded.',
     retryAfter: '1 hour',
   },
-  keyGenerator: (req: Request) => {
-    return (req as any).user?.id || req.ip;
-  },
+  keyGenerator: accountOrIpKey,
   handler: (req: Request, res: Response) => {
     res.status(429).json({
       success: false,
@@ -129,9 +130,7 @@ export const uploadLimiter = rateLimit({
     error: 'Upload rate limit exceeded.',
     retryAfter: '1 hour',
   },
-  keyGenerator: (req: Request) => {
-    return (req as any).user?.id || req.ip;
-  },
+  keyGenerator: accountOrIpKey,
 });
 
 // WebSocket connection rate limiter (use with socket.io handshake)

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const baseUrl = (
   process.env.API_SMOKE_URL || 'http://127.0.0.1:4000/api'
@@ -11,6 +12,7 @@ const studentEmail = `student-${runId}@example.invalid`;
 const parentEmail = `parent-${runId}@example.invalid`;
 const password = 'CI-only-Password-93!';
 const schoolSlug = process.env.PUBLIC_SCHOOL_SLUG || 'al-ikhlas-jeddah';
+const roles = ['STUDENT', 'PARENT'];
 
 async function request(path, options = {}) {
   return fetch(`${baseUrl}${path}`, {
@@ -44,27 +46,32 @@ try {
   const school = await prisma.school.findUnique({ where: { slug: schoolSlug } });
   assert.ok(school?.isActive, `seeded active school ${schoolSlug} must exist`);
 
-  for (const [email, role] of [
-    [studentEmail, 'STUDENT'],
-    [parentEmail, 'PARENT'],
-  ]) {
-    const registration = await request('/auth/register', {
+  const passwordHash = await bcrypt.hash(password, 10);
+  const accounts = [
+    [studentEmail, roles[0]],
+    [parentEmail, roles[1]],
+  ];
+
+  for (const [email, role] of accounts) {
+    await prisma.user.create({
+      data: {
+        email,
+        password: passwordHash,
+        role,
+        name: `CI ${role}`,
+        schoolId: school.id,
+        emailVerified: true,
+      },
+    });
+
+    const directRegistration = await request('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, password, role, name: `CI ${role}` }),
     });
-    const registered = await assertOk(registration, `${role} registration`);
-    assert.equal(registered.role, role);
-    assert.equal(registered.schoolId, school.id);
-    assert.equal(Object.hasOwn(registered, 'password'), false);
-
-    const duplicate = await request('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ email, password, role }),
-    });
     assert.equal(
-      duplicate.status,
-      409,
-      `${role} duplicate registration must conflict`,
+      directRegistration.status,
+      403,
+      `${role} password-only registration must be rejected in favor of verified Firebase onboarding`,
     );
 
     const login = await request('/auth/login', {
@@ -119,7 +126,7 @@ try {
   }
 
   console.log(
-    'Student and parent registration, login, profile, refresh rotation, and logout passed.',
+    'Password-only student and parent registration is blocked; verified accounts passed login, profile, refresh rotation, and logout.',
   );
 } finally {
   await prisma.user.deleteMany({
