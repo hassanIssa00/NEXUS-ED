@@ -170,16 +170,14 @@ export default function StudentDashboardPage() {
                 : <div className="flex h-full w-full items-center justify-center"><GraduationCap className="h-8 w-8 text-white/75" /></div>}
             </div>
             <div>
-            <p className="text-sm font-semibold text-violet-200">{text('لوحة الطالب', 'Student dashboard')}</p>
-            <h1 style={{ color: '#fff' }} className="mt-2 text-2xl font-black md:text-3xl">{text('أهلًا،', 'Welcome,')} {student.name}</h1>
-            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-violet-100">
-              <span className="inline-flex items-center gap-2"><GraduationCap className="h-4 w-4" /> {summary.totalSubjects} {text('مادة مسجلة', 'subjects enrolled')}</span>
-              <span className="inline-flex items-center gap-2"><Flame className="h-4 w-4" /> {gamification.streakDays} {text('يوم تتابع مسجل', 'day streak')}</span>
-              <span className="inline-flex items-center gap-2"><Zap className="h-4 w-4" /> {gamification.totalXP.toLocaleString(isEnglish ? 'en-US' : 'ar-SA')} {text('نقطة خبرة', 'XP')}</span>
+              <p className="text-sm font-semibold text-violet-200">{text('لوحة الطالب', 'Student dashboard')}</p>
+              <h1 style={{ color: '#fff' }} className="mt-2 text-2xl font-black md:text-3xl">{text('أهلًا،', 'Welcome,')} {student.name}</h1>
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-violet-100">
+                <span className="inline-flex items-center gap-2"><GraduationCap className="h-4 w-4" /> {summary.totalSubjects} {text('مادة مسجلة', 'subjects enrolled')}</span>
+                <span className="inline-flex items-center gap-2"><Flame className="h-4 w-4" /> {gamification.streakDays} {text('يوم تتابع مسجل', 'day streak')}</span>
+                <span className="inline-flex items-center gap-2"><Zap className="h-4 w-4" /> {gamification.totalXP.toLocaleString(isEnglish ? 'en-US' : 'ar-SA')} {text('نقطة خبرة', 'XP')}</span>
+              </div>
             </div>
-            </div>
-            </div>
-          </div>
           <div className="flex flex-wrap gap-2">
             <ParentLinkCodeButton />
             <Link href="/student/assignments" className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-violet-900 hover:bg-violet-50">

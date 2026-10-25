@@ -5,7 +5,6 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Link } from '@/i18n/routing';
 import { apiClient } from '@/lib/api/client';
 import { useAuth } from '@/contexts/auth-context';
 import { Circle, Minus, Square, Triangle } from 'lucide-react';
