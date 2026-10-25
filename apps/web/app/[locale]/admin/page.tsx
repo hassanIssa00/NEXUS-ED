@@ -5,14 +5,21 @@ import { useLocale } from 'next-intl';
 import { Activity, AlertCircle, BookOpen, FileText, Printer, RefreshCw, School, Users } from 'lucide-react';
 import { dashboardApi, type AdminDashboardResponse } from '@/lib/api/dashboard';
 import { apiClient } from '@/lib/api/client';
+import { formatSchoolActivity } from '@/lib/dashboard-utils';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ReportPrintFooter, ReportPrintIdentity } from '@/components/reports/report-print-tools';
+import { DashboardBarChart, DashboardComparisonChart, DashboardDonutChart } from '@/components/dashboard/analytics-charts';
 import styles from './page.module.css';
 
 type Account = { id: string; name?: string | null; firstName?: string | null; lastName?: string | null; email: string; role: string; isActive: boolean; createdAt: string };
-type SchoolSetup = { stats: { totalClasses: number; totalSubjects: number; unassignedStudents: number } };
+type SchoolSetup = {
+  stats: { totalClasses: number; totalSubjects: number; unassignedStudents: number };
+  attendance?: { todayPresent: number; todayAbsent: number; todayLate: number; todayRecordCount: number };
+  assignments?: { pending: number; submitted: number; graded: number };
+};
+type ClassActivity = { classId: string; className: string; avgAttendance: number | null; avgGrade: number | null };
 
 const roleLabels: Record<string, string> = {
   ADMIN: 'مدير النظام', PRINCIPAL: 'مدير المدرسة', VICE_PRINCIPAL: 'وكيل المدرسة', TEACHER: 'معلم',
@@ -26,6 +33,7 @@ const adminCopy = {
     users: 'المستخدمون', students: 'الطلاب', teachers: 'المعلمون', classes: 'الفصول', subjects: 'المواد',
     financeActivity: 'الفواتير والنشاط', paidInvoices: 'فواتير مدفوعة', pendingInvoices: 'فواتير معلقة', attendance: 'حضور آخر 30 يومًا',
     recentActivity: 'آخر أنشطة المدرسة', accounts: 'الحسابات المسجلة', accountName: 'الاسم', role: 'الدور', status: 'الحالة', active: 'مفعّل', inactive: 'موقوف',
+    attendanceChart: 'توزيع الحضور اليوم', assignmentChart: 'حالة تسليمات الواجبات', invoiceStatus: 'حالة الفواتير المدرسية', enrollmentChart: 'تسجيل الطلاب عبر الوقت', classChart: 'مقارنة الحضور والدرجات حسب الفصل', noChartData: 'لا توجد سجلات كافية لعرض الرسم البياني.',
     loadingActivity: 'تحميل الأنشطة...', noActivity: 'لا توجد أنشطة مدرسية مسجلة.', loadingAccounts: 'تحميل الحسابات...', noAccounts: 'لا توجد حسابات في المدرسة.',
     accountLink: 'إدارة الحسابات', schoolManagement: 'إدارة المدرسة', links: { accounts: 'الحسابات', classes: 'الفصول', subjects: 'المواد', settings: 'الإعدادات', enrollments: 'التسجيلات' },
     loadError: 'تعذر تحميل البيانات الإدارية من الخادم.', setup: 'بيانات المدرسة تحتاج إلى استكمال', setupBody: (students: number, classes: number, subjects: number) => `${[...(classes === 0 ? ['لا توجد فصول مسجلة'] : []), ...(subjects === 0 ? ['لا توجد مواد دراسية'] : []), ...(students > 0 ? [`${students} طالبًا بلا فصل`] : [])].join('، ')}. أكمل إعداد المدرسة وربط الطلاب حتى تعمل المتابعة الأكاديمية.`,
@@ -37,6 +45,7 @@ const adminCopy = {
     users: 'Users', students: 'Students', teachers: 'Teachers', classes: 'Classes', subjects: 'Subjects',
     financeActivity: 'Invoices and activity', paidInvoices: 'Paid invoices', pendingInvoices: 'Pending invoices', attendance: 'Attendance, last 30 days',
     recentActivity: 'Recent school activity', accounts: 'Registered accounts', accountName: 'Name', role: 'Role', status: 'Status', active: 'Active', inactive: 'Suspended',
+    attendanceChart: 'Today’s attendance', assignmentChart: 'Assignment submission status', invoiceStatus: 'School invoice status', enrollmentChart: 'Student enrollment over time', classChart: 'Attendance and grades by class', noChartData: 'There are not enough records to show this chart.',
     loadingActivity: 'Loading activity...', noActivity: 'No school activity has been recorded.', loadingAccounts: 'Loading accounts...', noAccounts: 'There are no accounts at this school.',
     accountLink: 'Manage accounts', schoolManagement: 'School management', links: { accounts: 'Accounts', classes: 'Classes', subjects: 'Subjects', settings: 'Settings', enrollments: 'Enrollments' },
     loadError: 'Could not load administration data from the server.', setup: 'School setup needs attention', setupBody: (students: number, classes: number, subjects: number) => `${[...(classes === 0 ? ['No classes are registered'] : []), ...(subjects === 0 ? ['No subjects are registered'] : []), ...(students > 0 ? [`${students} students are not assigned to a class`] : [])].join('; ')}. Complete school setup and student enrollment before academic follow-up.`,
@@ -49,6 +58,7 @@ export default function AdminDashboardPage() {
   const t = adminCopy[locale === 'en' ? 'en' : 'ar'];
   const [data, setData] = useState<AdminDashboardResponse | null>(null);
   const [setup, setSetup] = useState<SchoolSetup | null>(null);
+  const [classActivity, setClassActivity] = useState<ClassActivity[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -58,16 +68,18 @@ export default function AdminDashboardPage() {
     setLoading(true);
     setError('');
     try {
-      const [dashboardResult, userListResult, setupResult] = await Promise.allSettled([
+      const [dashboardResult, userListResult, setupResult, classResult] = await Promise.allSettled([
         dashboardApi.getAdminDashboard(),
         apiClient.get('/users', { params: { page: 1, limit: 100 } }),
         apiClient.get<SchoolSetup>('/admin/dashboard/overview'),
+        apiClient.get<ClassActivity[]>('/admin/dashboard/classes'),
       ]);
       if (dashboardResult.status === 'fulfilled') setData(dashboardResult.value);
       if (userListResult.status === 'fulfilled') {
         setAccounts(Array.isArray(userListResult.value.data?.data) ? userListResult.value.data.data : []);
       }
       if (setupResult.status === 'fulfilled') setSetup(setupResult.value.data);
+      if (classResult.status === 'fulfilled') setClassActivity(classResult.value.data);
       const failure = dashboardResult.status === 'rejected' ? dashboardResult.reason : userListResult.status === 'rejected' ? userListResult.reason : setupResult.status === 'rejected' ? setupResult.reason : null;
       if (failure) setError(failure?.response?.data?.message || t.loadError);
     } finally {
@@ -110,6 +122,26 @@ export default function AdminDashboardPage() {
       {activeTab === 'overview' && <Card>
           <CardHeader><CardTitle className="text-base">{t.financeActivity}</CardTitle></CardHeader>
           <CardContent className="space-y-3">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <DashboardDonutChart title={t.attendanceChart} emptyLabel={t.noChartData} data={setup?.attendance ? [
+                { label: locale === 'en' ? 'Present' : 'حاضر', value: setup.attendance.todayPresent, color: '#0f766e' },
+                { label: locale === 'en' ? 'Absent' : 'غائب', value: setup.attendance.todayAbsent, color: '#dc2626' },
+                { label: locale === 'en' ? 'Late' : 'متأخر', value: setup.attendance.todayLate, color: '#d97706' },
+              ] : []} />
+              <DashboardDonutChart title={t.assignmentChart} emptyLabel={t.noChartData} data={setup?.assignments ? [
+                { label: locale === 'en' ? 'Awaiting grading' : 'بانتظار التصحيح', value: setup.assignments.pending, color: '#d97706' },
+                { label: locale === 'en' ? 'Graded' : 'تم التصحيح', value: setup.assignments.graded, color: '#0f766e' },
+              ] : []} />
+              <DashboardBarChart title={t.enrollmentChart} emptyLabel={t.noChartData} data={(data?.enrollmentSeries || []).map((item) => ({ label: item.label, value: item.value }))} color="#0f766e" />
+              <DashboardComparisonChart title={t.classChart} emptyLabel={t.noChartData} leftLabel={locale === 'en' ? 'Attendance' : 'الحضور'} rightLabel={locale === 'en' ? 'Average grade' : 'متوسط الدرجات'} data={classActivity.map((item) => ({ label: item.className, first: item.avgAttendance, second: item.avgGrade }))} />
+              <DashboardDonutChart title={t.invoiceStatus} emptyLabel={t.noChartData} data={data ? [
+                { label: locale === 'en' ? 'Paid' : 'مدفوعة', value: data.invoiceSummary.paid, color: '#0f766e' },
+                { label: locale === 'en' ? 'Pending' : 'معلقة', value: data.invoiceSummary.pending, color: '#d97706' },
+                { label: locale === 'en' ? 'Requires action' : 'تحتاج إجراء', value: data.invoiceSummary.requiresAction, color: '#2563eb' },
+                { label: locale === 'en' ? 'Failed' : 'فشلت', value: data.invoiceSummary.failed, color: '#dc2626' },
+                { label: locale === 'en' ? 'Refunded' : 'مستردة', value: data.invoiceSummary.refunded, color: '#7c3aed' },
+              ] : []} />
+            </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <p>{t.paidInvoices} <strong className="block text-lg">{data?.invoiceSummary.paid ?? '—'}</strong></p>
               <p>{t.pendingInvoices} <strong className="block text-lg">{data?.invoiceSummary.pending ?? '—'}</strong></p>
@@ -117,7 +149,7 @@ export default function AdminDashboardPage() {
             </div>
             <div className="border-t pt-3">
               <h2 className="mb-2 text-sm font-semibold">{t.recentActivity}</h2>
-              {loading ? <p className="text-sm text-muted-foreground">{t.loadingActivity}</p> : data?.recentActivity.length ? <ul className="space-y-2">{data.recentActivity.slice(0, 6).map((item) => <li key={item.id} className="flex justify-between gap-3 text-sm"><span className="min-w-0 truncate">{item.actor} · {item.action}</span><time className="shrink-0 text-xs text-muted-foreground">{new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'ar-SA').format(new Date(item.createdAt))}</time></li>)}</ul> : <p className="text-sm text-muted-foreground">{t.noActivity}</p>}
+              {loading ? <p className="text-sm text-muted-foreground">{t.loadingActivity}</p> : data?.recentActivity.length ? <ul className="space-y-2">{data.recentActivity.slice(0, 6).map((item) => <li key={item.id} className="flex justify-between gap-3 text-sm"><span className="min-w-0 truncate">{item.actor} · {formatSchoolActivity(item.action, locale)}</span><time className="shrink-0 text-xs text-muted-foreground">{new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'ar-SA').format(new Date(item.createdAt))}</time></li>)}</ul> : <p className="text-sm text-muted-foreground">{t.noActivity}</p>}
             </div>
           </CardContent>
       </Card>}

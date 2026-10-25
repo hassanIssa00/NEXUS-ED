@@ -16,7 +16,8 @@ type CertificateData = {
   createdAt: Date;
   school: { name: string };
   student: { name?: string | null };
-  issuer: { name?: string | null };
+  issuer?: { name?: string | null };
+  schoolPrincipalName?: string | null;
 };
 
 let assetsPromise: Promise<{ schoolSeal: Awaited<ReturnType<typeof loadImage>>; nexusLogo: Awaited<ReturnType<typeof loadImage>> }> | undefined;
@@ -80,79 +81,52 @@ function roundedRect(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext
   ctx.closePath();
 }
 
-function drawStar(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, cx: number, cy: number, outer: number, inner: number, color: string, points = 5) {
-  ctx.beginPath();
-  for (let index = 0; index < points * 2; index += 1) {
-    const radius = index % 2 === 0 ? outer : inner;
-    const angle = -Math.PI / 2 + (index * Math.PI) / points;
-    const x = cx + Math.cos(angle) * radius;
-    const y = cy + Math.sin(angle) * radius;
-    if (index === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
+function drawImageContain(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, image: Awaited<ReturnType<typeof loadImage>>, x: number, y: number, width: number, height: number) {
+  const scale = Math.min(width / image.width, height / image.height);
+  const drawWidth = image.width * scale;
+  const drawHeight = image.height * scale;
+  ctx.drawImage(image, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
+}
+
+function drawDiamond(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, cx: number, cy: number, size: number, color: string) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.PI / 4);
   ctx.fillStyle = color;
-  ctx.fill();
-}
-
-function drawLogo(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, image: Awaited<ReturnType<typeof loadImage>>, cx: number, cy: number, diameter: number) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, diameter / 2, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  ctx.clip();
-  const scale = Math.min((diameter - 10) / image.width, (diameter - 10) / image.height);
-  const width = image.width * scale;
-  const height = image.height * scale;
-  ctx.drawImage(image, cx - width / 2, cy - height / 2, width, height);
+  ctx.fillRect(-size / 2, -size / 2, size, size);
   ctx.restore();
-  ctx.strokeStyle = 'rgba(255,255,255,0.68)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(cx, cy, diameter / 2, 0, Math.PI * 2);
-  ctx.stroke();
 }
 
-function drawMedal(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, cx: number, cy: number) {
+function drawMedallion(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, cx: number, cy: number) {
   ctx.save();
-  ctx.fillStyle = '#ec6651';
-  ctx.beginPath();
-  ctx.moveTo(cx - 14, cy + 15);
-  ctx.lineTo(cx - 12, cy + 40);
-  ctx.lineTo(cx, cy + 32);
-  ctx.lineTo(cx + 12, cy + 40);
-  ctx.lineTo(cx + 14, cy + 15);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = '#21b7a5';
-  ctx.beginPath();
-  ctx.moveTo(cx - 8, cy + 16);
-  ctx.lineTo(cx - 5, cy + 34);
-  ctx.lineTo(cx, cy + 29);
-  ctx.lineTo(cx + 5, cy + 34);
-  ctx.lineTo(cx + 8, cy + 16);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.beginPath();
-  for (let index = 0; index < 12; index += 1) {
-    const angle = -Math.PI / 2 + (index * Math.PI) / 6;
-    const radius = index % 2 === 0 ? 27 : 23;
-    const x = cx + Math.cos(angle) * radius;
-    const y = cy + Math.sin(angle) * radius;
-    if (index === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-  ctx.fillStyle = '#f4bd4d';
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(cx, cy, 18, 0, Math.PI * 2);
   ctx.fillStyle = '#fffaf0';
+  ctx.strokeStyle = '#c79a49';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 30, 0, Math.PI * 2);
   ctx.fill();
-  drawStar(ctx, cx, cy, 12, 5, '#ef7657');
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, 24, 0, Math.PI * 2);
+  ctx.strokeStyle = '#e1c27e';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+  ctx.fillStyle = '#152b49';
+  ctx.beginPath();
+  ctx.moveTo(cx - 15, cy - 9);
+  ctx.quadraticCurveTo(cx - 6, cy - 13, cx, cy - 8);
+  ctx.quadraticCurveTo(cx + 6, cy - 13, cx + 15, cy - 9);
+  ctx.lineTo(cx + 15, cy + 11);
+  ctx.quadraticCurveTo(cx + 6, cy + 6, cx, cy + 11);
+  ctx.quadraticCurveTo(cx - 6, cy + 6, cx - 15, cy + 11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#d5ad5c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 8);
+  ctx.lineTo(cx, cy + 11);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -169,184 +143,187 @@ async function renderCertificatePage(certificate: CertificateData) {
   const canvas = createCanvas(3508, 2480);
   const ctx = canvas.getContext('2d');
   ctx.scale(SCALE, SCALE);
-  ctx.fillStyle = '#f2f7f8';
+  ctx.fillStyle = '#f4f0e7';
   ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+  ctx.fillStyle = '#fbfaf6';
+  ctx.fillRect(18, 18, PAGE_WIDTH - 36, PAGE_HEIGHT - 36);
 
-  ctx.save();
-  ctx.shadowColor = 'rgba(17, 48, 72, 0.12)';
-  ctx.shadowBlur = 18;
-  ctx.shadowOffsetY = 5;
-  roundedRect(ctx, 24, 22, PAGE_WIDTH - 48, PAGE_HEIGHT - 44, 18);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  ctx.restore();
-  roundedRect(ctx, 24, 22, PAGE_WIDTH - 48, PAGE_HEIGHT - 44, 18);
-  ctx.strokeStyle = '#dce7e9';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  ctx.strokeStyle = '#152b49';
+  ctx.lineWidth = 2.2;
+  ctx.strokeRect(18, 18, PAGE_WIDTH - 36, PAGE_HEIGHT - 36);
+  ctx.strokeStyle = '#c79a49';
+  ctx.lineWidth = 0.9;
+  ctx.strokeRect(24, 24, PAGE_WIDTH - 48, PAGE_HEIGHT - 48);
 
-  ctx.save();
-  roundedRect(ctx, 25, 23, PAGE_WIDTH - 50, 112, 17);
-  ctx.clip();
   ctx.fillStyle = '#152b49';
-  ctx.fillRect(25, 23, PAGE_WIDTH - 50, 112);
-  ctx.fillStyle = '#1b927f';
   ctx.beginPath();
-  ctx.moveTo(25, 112);
-  ctx.bezierCurveTo(190, 91, 260, 144, 420, 118);
-  ctx.bezierCurveTo(585, 92, 683, 128, 817, 101);
-  ctx.lineTo(817, 137);
-  ctx.lineTo(25, 137);
+  ctx.moveTo(18, 18);
+  ctx.lineTo(125, 18);
+  ctx.lineTo(18, 124);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = '#f0b94b';
   ctx.beginPath();
-  ctx.arc(789, 47, 41, 0, Math.PI * 2);
+  ctx.moveTo(PAGE_WIDTH - 18, PAGE_HEIGHT - 18);
+  ctx.lineTo(PAGE_WIDTH - 125, PAGE_HEIGHT - 18);
+  ctx.lineTo(PAGE_WIDTH - 18, PAGE_HEIGHT - 124);
+  ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = '#ed7057';
+  ctx.strokeStyle = '#d5ad5c';
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(53, 118, 27, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  drawLogo(ctx, schoolSeal, 81, 76, 66);
-  drawLogo(ctx, nexusLogo, PAGE_WIDTH - 81, 76, 66);
-  ctx.direction = 'rtl';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#ffffff';
-  ctx.font = font(700, 18);
-  ctx.fillText(certificate.school.name || 'مدارس الإخلاص الأهلية', PAGE_WIDTH / 2, 67, 490);
-  ctx.fillStyle = '#d3e3ed';
-  ctx.font = font(400, 11);
-  ctx.fillText('نكسس التعليمية  ·  نصنع مساحة لكل إنجاز', PAGE_WIDTH / 2, 91);
-
-  ctx.fillStyle = '#f4bd4d';
-  ctx.beginPath();
-  ctx.arc(146, 154, 3, 0, Math.PI * 2);
-  ctx.fill();
-  drawStar(ctx, 693, 157, 7, 3, '#ed7057');
-  drawStar(ctx, 171, 202, 5, 2, '#20ad9a');
-  drawStar(ctx, 671, 203, 5, 2, '#f4bd4d');
-  drawMedal(ctx, PAGE_WIDTH / 2, 151);
-
-  ctx.direction = 'rtl';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#152b49';
-  ctx.font = font(700, 31);
-  ctx.fillText('شهادة إنجاز وتقدير', PAGE_WIDTH / 2, 215);
-  ctx.fillStyle = '#607286';
-  ctx.font = font(400, 13);
-  ctx.fillText('تُمنح بكل فخر واعتزاز إلى', PAGE_WIDTH / 2, 242);
-
-  roundedRect(ctx, 103, 254, PAGE_WIDTH - 206, 65, 13);
-  ctx.fillStyle = '#e9f7f4';
-  ctx.fill();
-  ctx.strokeStyle = '#b9e5dc';
-  ctx.lineWidth = 1;
+  ctx.moveTo(28, 109);
+  ctx.lineTo(109, 28);
+  ctx.moveTo(PAGE_WIDTH - 28, PAGE_HEIGHT - 109);
+  ctx.lineTo(PAGE_WIDTH - 109, PAGE_HEIGHT - 28);
   ctx.stroke();
-  drawStar(ctx, 132, 286, 11, 5, '#f0b94b');
-  drawStar(ctx, PAGE_WIDTH - 132, 286, 11, 5, '#ed7057');
-  const studentName = certificate.student.name || 'الطالب';
-  ctx.fillStyle = '#137968';
-  ctx.font = font(700, fitSize(ctx, studentName, 32, 590));
-  ctx.fillText(studentName, PAGE_WIDTH / 2, 295, 585);
 
-  ctx.fillStyle = '#607286';
-  ctx.font = font(400, 12);
-  ctx.fillText('نحتفي بإنجاز', PAGE_WIDTH / 2, 348);
-  const titleSize = fitSize(ctx, certificate.title, 19, 650);
+  drawImageContain(ctx, schoolSeal, 48, 38, 100, 100);
+  drawImageContain(ctx, nexusLogo, PAGE_WIDTH - 164, 36, 118, 96);
+  ctx.textAlign = 'center';
+  ctx.direction = 'ltr';
+  ctx.fillStyle = '#8c6428';
+  ctx.font = '700 13px NotoSansLatin';
+  ctx.fillText('N E X U S   E D U', PAGE_WIDTH / 2, 54);
   ctx.fillStyle = '#152b49';
-  ctx.font = font(700, titleSize);
-  ctx.fillText(certificate.title, PAGE_WIDTH / 2, 377, 650);
+  ctx.font = '400 8px NotoSansLatin';
+  ctx.fillText('EMPOWERING MINDS  ·  SHAPING TOMORROW', PAGE_WIDTH / 2, 72);
+  ctx.direction = 'rtl';
+  ctx.fillStyle = '#7a684a';
+  ctx.font = font(700, 10);
+  ctx.fillText(certificate.school.name || 'مدارس الإخلاص الأهلية', PAGE_WIDTH / 2, 96, 310);
 
-  if (certificate.description?.trim()) {
-    ctx.fillStyle = '#607286';
-    ctx.font = font(400, 11);
-    const lines = wrapText(ctx, certificate.description, 610);
-    lines.forEach((line, index) => ctx.fillText(line, PAGE_WIDTH / 2, 402 + index * 16, 610));
-  }
+  ctx.strokeStyle = '#c79a49';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(265, 116);
+  ctx.lineTo(397, 116);
+  ctx.moveTo(445, 116);
+  ctx.lineTo(577, 116);
+  ctx.stroke();
+  drawDiamond(ctx, PAGE_WIDTH / 2, 116, 8, '#c79a49');
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#152b49';
+  ctx.font = font(700, 36);
+  ctx.fillText('شهادة إنجاز', PAGE_WIDTH / 2, 180);
+  ctx.direction = 'ltr';
+  ctx.fillStyle = '#9a7135';
+  ctx.font = '700 15px NotoSansLatin';
+  ctx.fillText('CERTIFICATE OF ACHIEVEMENT', PAGE_WIDTH / 2, 205);
+
+  ctx.strokeStyle = '#d8c18c';
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(272, 221);
+  ctx.lineTo(397, 221);
+  ctx.moveTo(445, 221);
+  ctx.lineTo(570, 221);
+  ctx.stroke();
+  drawDiamond(ctx, PAGE_WIDTH / 2, 221, 9, '#c79a49');
+
+  ctx.direction = 'rtl';
+  ctx.fillStyle = '#53647a';
+  ctx.font = font(400, 13);
+  ctx.fillText('تُمنح بكل فخر واعتزاز إلى', PAGE_WIDTH / 2, 254);
+  const studentName = certificate.student.name || 'الطالب';
+  ctx.fillStyle = '#9a7135';
+  ctx.font = font(700, fitSize(ctx, studentName, 39, 610));
+  ctx.fillText(studentName, PAGE_WIDTH / 2, 316, 610);
+  ctx.strokeStyle = '#c79a49';
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(230, 330);
+  ctx.lineTo(612, 330);
+  ctx.stroke();
+  drawDiamond(ctx, PAGE_WIDTH / 2, 330, 8, '#c79a49');
+
+  ctx.fillStyle = '#53647a';
+  ctx.font = font(400, 11);
+  const description = certificate.description?.trim() || 'نحتفي بإنجاز يستحق الفخر والتقدير.';
+  const descriptionLines = wrapText(ctx, description, 590);
+  descriptionLines.forEach((line, index) => ctx.fillText(line, PAGE_WIDTH / 2, 359 + index * 16, 590));
+
+  ctx.strokeStyle = '#c79a49';
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(259, 436);
+  ctx.lineTo(379, 436);
+  ctx.moveTo(463, 436);
+  ctx.lineTo(583, 436);
+  ctx.stroke();
+  ctx.direction = 'rtl';
+  ctx.fillStyle = '#152b49';
+  ctx.font = font(700, fitSize(ctx, certificate.title, 24, 490));
+  ctx.fillText(certificate.title, PAGE_WIDTH / 2, 416, 490);
+  drawDiamond(ctx, PAGE_WIDTH / 2, 436, 7, '#c79a49');
 
   const date = new Intl.DateTimeFormat('ar-SA-u-nu-arab', { year: 'numeric', month: 'long', day: 'numeric' }).format(certificate.createdAt);
-  roundedRect(ctx, 45, 442, PAGE_WIDTH - 90, 111, 12);
-  ctx.fillStyle = '#f7f9fb';
-  ctx.fill();
-  ctx.strokeStyle = '#e3eaee';
-  ctx.stroke();
-
-  ctx.strokeStyle = '#dce5e9';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = '#c79a49';
+  ctx.lineWidth = 0.9;
   ctx.beginPath();
-  ctx.moveTo(233, 458);
-  ctx.lineTo(233, 536);
-  ctx.moveTo(423, 458);
-  ctx.lineTo(423, 536);
-  ctx.moveTo(613, 458);
-  ctx.lineTo(613, 536);
+  ctx.moveTo(42, 459);
+  ctx.lineTo(PAGE_WIDTH - 42, 459);
   ctx.stroke();
 
-  ctx.direction = 'rtl';
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#718194';
+  ctx.fillStyle = '#7d6743';
   ctx.font = font(400, 9);
-  ctx.fillText('تاريخ الإصدار', 138, 470);
+  ctx.fillText('تاريخ الإصدار', 99, 486);
   ctx.fillStyle = '#152b49';
-  ctx.font = font(700, 11);
-  ctx.fillText(date, 138, 499, 174);
+  ctx.font = font(700, 10);
+  ctx.fillText(date, 99, 505, 138);
+  ctx.strokeStyle = '#a98a54';
+  ctx.beginPath();
+  ctx.moveTo(51, 518);
+  ctx.lineTo(147, 518);
+  ctx.stroke();
+  ctx.fillStyle = '#7d6743';
+  ctx.font = font(400, 8);
+  ctx.fillText('تاريخ الاعتماد', 99, 533);
 
-  ctx.fillStyle = '#718194';
+  ctx.fillStyle = '#7d6743';
   ctx.font = font(400, 9);
-  ctx.fillText('رقم الشهادة', 328, 470);
-  roundedRect(ctx, 244, 480, 168, 29, 8);
-  ctx.fillStyle = '#e5eff5';
-  ctx.fill();
+  ctx.fillText('مدير المدرسة', 276, 486);
+  ctx.fillStyle = '#152b49';
+  ctx.font = font(700, fitSize(ctx, certificate.schoolPrincipalName || 'مدير المدرسة', 10, 150));
+  ctx.fillText(certificate.schoolPrincipalName || 'مدير المدرسة', 276, 505, 150);
+  ctx.strokeStyle = '#a98a54';
+  ctx.beginPath();
+  ctx.moveTo(199, 518);
+  ctx.lineTo(353, 518);
+  ctx.stroke();
+  ctx.fillStyle = '#7d6743';
+  ctx.font = font(400, 8);
+  ctx.fillText('الإدارة المدرسية', 276, 533);
+
+  drawMedallion(ctx, PAGE_WIDTH / 2, 510);
+
   ctx.direction = 'ltr';
   ctx.fillStyle = '#152b49';
   ctx.font = '700 10px NotoSansLatin';
-  ctx.fillText(certificate.serial, 328, 499, 158);
-  ctx.direction = 'rtl';
-
-  ctx.fillStyle = '#ffffff';
+  ctx.fillText('Nexus EDU', 566, 504, 128);
+  ctx.strokeStyle = '#a98a54';
   ctx.beginPath();
-  ctx.arc(518, 488, 31, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.drawImage(schoolSeal, 496, 466, 44, 44);
-  ctx.strokeStyle = '#f0b94b';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(518, 488, 29, 0, Math.PI * 2);
+  ctx.moveTo(507, 518);
+  ctx.lineTo(625, 518);
   ctx.stroke();
-  ctx.fillStyle = '#718194';
-  ctx.font = font(400, 9);
   ctx.direction = 'rtl';
-  ctx.fillText('ختم المدرسة', 518, 530);
-
-  ctx.fillStyle = '#718194';
-  ctx.font = font(400, 9);
-  ctx.fillText('جهة الإصدار', 680, 470);
-  ctx.fillStyle = '#152b49';
-  ctx.font = font(700, fitSize(ctx, certificate.school.name || 'مدارس الإخلاص الأهلية', 10, 104));
-  ctx.fillText(certificate.school.name || 'مدارس الإخلاص الأهلية', 680, 491, 104);
-  ctx.strokeStyle = '#8595a5';
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(640, 514);
-  ctx.lineTo(720, 514);
-  ctx.stroke();
-  ctx.fillStyle = '#8595a5';
+  ctx.fillStyle = '#7d6743';
   ctx.font = font(400, 8);
-  ctx.fillText('الإدارة المدرسية', 680, 529);
+  ctx.fillText('المنصة التعليمية', 566, 533);
 
-  roundedRect(ctx, 741, 470, 52, 52, 7);
+  roundedRect(ctx, 711, 475, 48, 48, 4);
   ctx.fillStyle = '#ffffff';
   ctx.fill();
-  ctx.strokeStyle = '#dce5e9';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.drawImage(verificationCode, 746, 475, 42, 42);
-  ctx.fillStyle = '#718194';
+  ctx.drawImage(verificationCode, 714, 478, 42, 42);
+  ctx.fillStyle = '#7d6743';
   ctx.font = font(400, 7);
-  ctx.textAlign = 'center';
-  ctx.fillText('تحقق رقمي', 767, 534);
+  ctx.fillText('تحقق من الشهادة', 735, 538);
+  ctx.direction = 'ltr';
+  ctx.fillStyle = '#152b49';
+  ctx.font = '700 5.4px NotoSansLatin';
+  ctx.fillText(certificate.serial, 735, 550, 86);
 
   return canvas.toBuffer('image/png');
 }

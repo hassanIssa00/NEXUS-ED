@@ -6,6 +6,8 @@ import { Activity, AlertTriangle, BookOpen, CheckCircle2, CircleAlert, Clipboard
 import { Link } from '@/i18n/routing'
 import { apiClient } from '@/lib/api/client'
 import { dashboardApi, type AdminDashboardResponse } from '@/lib/api/dashboard'
+import { formatSchoolActivity } from '@/lib/dashboard-utils'
+import { DashboardBarChart, DashboardComparisonChart, DashboardDonutChart } from '@/components/dashboard/analytics-charts'
 
 type DashboardRole = 'principal' | 'vice_principal'
 type Overview = {
@@ -39,6 +41,7 @@ const copy = {
     teachersTitle: 'أداء المعلمين', teacher: 'المعلم', teacherClasses: 'الفصول', teacherSubjects: 'المواد', teacherAssignments: 'الواجبات', teacherGrading: 'تم تصحيحها', teacherAverage: 'متوسط الدرجات', noTeachers: 'لا توجد حسابات معلمين نشطة.',
     schoolSnapshot: 'ملخص المدرسة', activeAccounts: 'الحسابات النشطة', weeklyAttendance: 'الحضور خلال 7 أيام', noWeekly: 'لا توجد سجلات حضور خلال آخر 7 أيام.', completion: 'نسبة إنجاز الواجبات', activity: 'آخر نشاط مسجل', noActivity: 'لا يوجد نشاط مسجل بعد.',
     partial: 'تعذر تحميل بعض التفاصيل. الأرقام المعروضة مأخوذة من مصادرها المتاحة.',
+    attendanceChart: 'توزيع حضور اليوم', assignmentChart: 'متابعة التسليمات والتصحيح', classChart: 'مقارنة الحضور والدرجات حسب الفصل', enrollmentChart: 'التسجيلات الطلابية عبر الوقت', chartEmpty: 'لا توجد سجلات كافية لعرض الرسم البياني.',
   },
   en: {
     principal: 'Principal dashboard', vice_principal: 'Vice principal dashboard',
@@ -62,6 +65,7 @@ const copy = {
     teachersTitle: 'Teacher performance', teacher: 'Teacher', teacherClasses: 'Classes', teacherSubjects: 'Subjects', teacherAssignments: 'Assignments', teacherGrading: 'Graded', teacherAverage: 'Average grade', noTeachers: 'There are no active teacher accounts.',
     schoolSnapshot: 'School snapshot', activeAccounts: 'Active accounts', weeklyAttendance: 'Attendance in the last 7 days', noWeekly: 'No attendance records in the last 7 days.', completion: 'Assignment completion rate', activity: 'Recent recorded activity', noActivity: 'No activity has been recorded yet.',
     partial: 'Some details could not be loaded. Displayed figures come from the available sources.',
+    attendanceChart: 'Today’s attendance', assignmentChart: 'Submission and grading status', classChart: 'Attendance and grades by class', enrollmentChart: 'Student enrollment over time', chartEmpty: 'There are not enough records to show this chart.',
   },
 } as const
 
@@ -152,6 +156,20 @@ export default function SchoolLeadershipDashboard({ role }: { role: DashboardRol
       <Tile label={t.assignments} value={assignmentCount} icon={ClipboardList} />
     </section>
 
+    <section className="grid gap-4 lg:grid-cols-2">
+      <DashboardDonutChart title={t.attendanceChart} emptyLabel={t.chartEmpty} data={overview?.attendance ? [
+        { label: t.present, value: overview.attendance.todayPresent, color: '#0f766e' },
+        { label: t.absent, value: overview.attendance.todayAbsent, color: '#dc2626' },
+        { label: t.late, value: overview.attendance.todayLate, color: '#d97706' },
+      ] : []} />
+      <DashboardDonutChart title={t.assignmentChart} emptyLabel={t.chartEmpty} data={overview?.assignments ? [
+        { label: t.waitingGrade, value: overview.assignments.pending, color: '#d97706' },
+        { label: t.teacherGrading, value: overview.assignments.graded, color: '#0f766e' },
+      ] : []} />
+      <DashboardComparisonChart title={t.classChart} emptyLabel={t.chartEmpty} leftLabel={t.classAttendance} rightLabel={t.classGrade} data={classes.map((item) => ({ label: item.className, first: item.avgAttendance, second: item.avgGrade }))} />
+      <DashboardBarChart title={t.enrollmentChart} emptyLabel={t.chartEmpty} color="#0f766e" data={(snapshot?.enrollmentSeries || []).map((item) => ({ label: item.label, value: item.value }))} />
+    </section>
+
     {needsSetup && <section className="rounded-xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-700/50 dark:bg-amber-900/20"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" /><div className="flex-1"><h2 className="font-bold text-amber-950 dark:text-amber-100">{t.setupTitle}</h2><p className="mt-1 text-sm text-amber-900/80 dark:text-amber-100/80">{t.setupBody(overview?.stats.unassignedStudents ?? 0, overview?.stats.totalClasses ?? 0, overview?.stats.totalSubjects ?? 0)}</p>{role === 'principal' && <div className="mt-4"><Link className="rounded-md border border-amber-800/30 px-3 py-2 text-sm font-semibold hover:bg-amber-100 dark:border-amber-200/30 dark:hover:bg-amber-900/30" href="/principal/analytics">{t.reports}</Link></div>}</div></div></section>}
 
     {role === 'vice_principal' ? <>
@@ -162,7 +180,7 @@ export default function SchoolLeadershipDashboard({ role }: { role: DashboardRol
       </section>
     </> : <section className="grid gap-4 lg:grid-cols-2">
       <article className="rounded-xl border border-border bg-card p-5"><h2 className="font-bold">{t.schoolSnapshot}</h2><div className="mt-4 grid gap-3 sm:grid-cols-2"><Stat label={t.activeAccounts} value={snapshot?.kpis.activeUsers ?? '—'} /><Stat label={t.weeklyAttendance} value={weekRecords ? percent(weeklyRate ?? null, language) : t.noWeekly} /><Stat label={t.waitingGrade} value={needsGrading} /><Stat label={t.overdue} value={overdueRate === null || overdueRate === undefined ? t.noData : `${overdueCount} · ${percent(overdueRate, language)}`} /></div></article>
-      <article className="rounded-xl border border-border bg-card p-5"><h2 className="font-bold">{t.activity}</h2>{snapshot?.recentActivity.length ? <ul className="mt-3 divide-y divide-border">{snapshot.recentActivity.slice(0, 5).map((item) => <li key={item.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><span>{item.actor} · {item.action}</span><time className="text-xs text-muted-foreground">{new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(new Date(item.createdAt))}</time></li>)}</ul> : <p className="mt-3 text-sm text-muted-foreground">{t.noActivity}</p>}</article>
+      <article className="rounded-xl border border-border bg-card p-5"><h2 className="font-bold">{t.activity}</h2>{snapshot?.recentActivity.length ? <ul className="mt-3 divide-y divide-border">{snapshot.recentActivity.slice(0, 5).map((item) => <li key={item.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><span>{item.actor} · {formatSchoolActivity(item.action, locale)}</span><time className="text-xs text-muted-foreground">{new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(new Date(item.createdAt))}</time></li>)}</ul> : <p className="mt-3 text-sm text-muted-foreground">{t.noActivity}</p>}</article>
     </section>}
 
     <section className="overflow-hidden rounded-xl border border-border bg-card">

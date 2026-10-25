@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useLocale } from 'next-intl'
-import { Award, BadgeCheck, BookOpenCheck, Check, Download, HeartHandshake, Medal, RefreshCw, ShieldCheck, Star, Trophy } from 'lucide-react'
+import { Award, BadgeCheck, BookOpenCheck, Check, Download, HeartHandshake, Medal, QrCode, RefreshCw, ShieldCheck, Star, Trophy } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 
 type ClassItem = { id: string; name: string }
@@ -25,6 +25,7 @@ export default function TeacherCertificatesPage() {
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [certificates, setCertificates] = useState<Certificate[]>([])
+  const [schoolPrincipalName, setSchoolPrincipalName] = useState('')
   const [classId, setClassId] = useState('')
   const [studentId, setStudentId] = useState('')
   const [templateId, setTemplateId] = useState<(typeof certificateTypes)[number]['id']>('academic')
@@ -40,12 +41,14 @@ export default function TeacherCertificatesPage() {
   const load = useCallback(async () => {
     setError('')
     try {
-      const [classResponse, certificateResponse] = await Promise.all([
+      const [classResponse, certificateResponse, signatureResponse] = await Promise.all([
         apiClient.get<ClassItem[]>('/workspace/teacher/classes'),
         apiClient.get<Certificate[]>('/workspace/teacher/certificates'),
+        apiClient.get<{ name?: string | null }>('/users/school-signature').catch(() => null),
       ])
       setClasses(classResponse.data || [])
       setCertificates(certificateResponse.data || [])
+      setSchoolPrincipalName(signatureResponse?.data?.name?.trim() || '')
     } catch {
       setError(getError())
     } finally {
@@ -144,25 +147,47 @@ export default function TeacherCertificatesPage() {
 
       <section aria-label={tr('معاينة الشهادة', 'Certificate preview')} className="space-y-3 xl:sticky xl:top-5">
         <div className="flex items-center justify-between"><div><h2 className="text-lg font-black">{tr('معاينة مباشرة', 'Live preview')}</h2><p className="text-sm text-muted-foreground">{tr('تتحدث المعاينة مع تعديلاتك', 'The preview updates as you edit')}</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{tr('نسخة المدرسة', 'School version')}</span></div>
-        <article className="relative isolate min-h-[360px] overflow-hidden rounded-[1.75rem] border border-[#d8e3e6] bg-[#fbfcfc] p-5 shadow-[0_22px_65px_-38px_rgba(17,48,72,0.5)] sm:p-7">
-          <div aria-hidden="true" className="absolute inset-[9px] -z-10 rounded-[1.35rem] border border-[#d2b36d]/70" />
-          <div aria-hidden="true" className="absolute -left-12 top-24 -z-10 size-44 rounded-full bg-[#e9b64c]/10 blur-2xl" />
-          <div aria-hidden="true" className="absolute -right-16 bottom-6 -z-10 size-56 rounded-full bg-[#159a91]/10 blur-2xl" />
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
-            <div className="flex items-center gap-2"><span className="grid size-11 place-items-center rounded-xl border border-slate-100 bg-white shadow-sm"><img src="/second_logo.webp" alt={tr('شعار مدارس الإخلاص الأهلية', 'Al-Ikhlas Private Schools logo')} className="size-9 object-contain" /></span><span className="grid size-11 place-items-center rounded-xl border border-slate-100 bg-white shadow-sm"><img src="/logo_new.webp" alt="Nexus EDU logo" className="size-9 object-contain" /></span></div>
-            <div className="text-start"><p className="text-xs font-black text-[#214d6a]">{tr('مدارس الإخلاص الأهلية', 'Al-Ikhlas Private Schools')}</p><p className="mt-1 text-[10px] font-semibold tracking-wide text-slate-500">NEXUS EDU · {tr('شهادة رقمية', 'Digital certificate')}</p></div>
+        <article className="relative isolate aspect-[3/2] w-full overflow-hidden border border-[#bd9145] bg-[#f8f5ed] p-[4.5%] text-[#152b49] shadow-[0_22px_65px_-38px_rgba(17,48,72,0.5)]">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-[1.4%] border border-[#d1b16d]" />
+          <div aria-hidden="true" className="pointer-events-none absolute -left-[3%] -top-[9%] h-[28%] w-[19%] -rotate-45 border-b-[5px] border-[#d1a44b] bg-[#152b49]" />
+          <div aria-hidden="true" className="pointer-events-none absolute -bottom-[9%] -right-[3%] h-[28%] w-[19%] -rotate-45 border-t-[5px] border-[#d1a44b] bg-[#152b49]" />
+          <div aria-hidden="true" className="pointer-events-none absolute bottom-[19%] left-[5%] size-[25%] rounded-full bg-[radial-gradient(circle,_rgba(190,150,73,0.16),_transparent_70%)]" />
+          <div aria-hidden="true" className="pointer-events-none absolute bottom-[18%] right-[5%] size-[28%] rounded-full bg-[radial-gradient(circle,_rgba(190,150,73,0.17),_transparent_70%)]" />
+
+          <div className="absolute left-[4.5%] top-[5%] grid size-[13%] place-items-center rounded-full border border-[#d6bd83] bg-white/80 p-[1%] shadow-sm">
+            <img src="/second_logo.webp" alt={tr('ختم مدارس الإخلاص الأهلية', 'Al-Ikhlas Private Schools seal')} className="size-full object-contain" />
           </div>
-          <div className="py-6 text-center">
-            <div className="mx-auto mb-3 grid size-12 place-items-center rounded-full border border-amber-200 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm"><Award className="size-6" /></div>
-            <p className="text-[10px] font-bold tracking-[0.18em] text-[#177c70]">{tr('شهادة تقدير وإنجاز', 'Certificate of Recognition and Achievement')}</p>
-            <h3 className="mx-auto mt-2 max-w-lg text-xl font-black leading-snug text-[#152b49] sm:text-2xl">{title.trim() || tr('عنوان الشهادة', 'Certificate title')}</h3>
-            <p className="mt-4 text-xs text-slate-500">{tr('تُمنح بكل فخر واعتزاز إلى', 'Proudly presented to')}</p>
-            <p className="mx-auto mt-2 inline-block max-w-full rounded-xl border border-[#b9e5dc] bg-[#e9f7f4] px-5 py-2 text-lg font-black text-[#137968] sm:text-xl">{selectedStudent?.name || tr('اسم الطالب', 'Student name')}</p>
-            <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-slate-600">{description.trim() || tr('تظهر هنا عبارة التقدير المختارة للشهادة.', 'The selected recognition message will appear here.')}</p>
+          <div className="absolute right-[4.5%] top-[5%] grid size-[14%] place-items-center rounded-xl bg-white/65 p-[1%]">
+            <img src="/logo_new.webp" alt="Nexus EDU" className="size-full object-contain" />
           </div>
-          <div className="flex flex-wrap items-end justify-between gap-3 border-t border-slate-200 pt-3">
-            <div><p className="text-[10px] font-semibold text-slate-500">{tr('جهة الإصدار', 'Issued by')}</p><p className="mt-1 text-xs font-bold text-slate-800">{tr('مدارس الإخلاص الأهلية · الإدارة المدرسية', 'Al-Ikhlas Private Schools · School Administration')}</p></div>
-            <div className="flex items-center gap-2 rounded-full bg-[#152b49] px-3 py-2 text-[10px] font-bold text-white"><ShieldCheck className="size-4 text-[#f3c96e]" />{tr('رمز تحقق إلكتروني داخل PDF', 'Electronic verification code in PDF')}</div>
+
+          <div className="absolute left-1/2 top-[6%] w-[54%] -translate-x-1/2 text-center">
+            <p className="font-serif text-[clamp(7px,1vw,13px)] font-bold tracking-[0.35em] text-[#9a7135]">N E X U S&nbsp; E D U</p>
+            <p className="mt-[1%] font-serif text-[clamp(5px,0.72vw,9px)] tracking-[0.24em] text-[#152b49]">EMPOWERING MINDS · SHAPING TOMORROW</p>
+            <div className="mx-auto mt-[2%] flex items-center justify-center gap-2 text-[#b58a43]"><span className="h-px w-[24%] bg-[#d1b16d]" /><span className="text-[clamp(8px,1.1vw,14px)]">✦</span><span className="h-px w-[24%] bg-[#d1b16d]" /></div>
+            <p className="mt-[1%] truncate text-[clamp(7px,0.9vw,12px)] font-bold text-[#152b49]">{tr('مدارس الإخلاص الأهلية', 'Al-Ikhlas Private Schools')}</p>
+          </div>
+
+          <div className="absolute left-[18%] right-[18%] top-[25%] text-center">
+            <h3 className="font-serif text-[clamp(18px,4.1vw,54px)] font-black leading-none tracking-wide text-[#152b49]">{tr('شهادة إنجاز', 'CERTIFICATE')}</h3>
+            <p className="mt-[1%] font-serif text-[clamp(8px,1.55vw,20px)] font-semibold tracking-[0.24em] text-[#9a7135]">{tr('CERTIFICATE OF ACHIEVEMENT', 'OF ACHIEVEMENT')}</p>
+            <div className="mx-auto mt-[1.5%] flex items-center justify-center gap-2 text-[#b58a43]"><span className="h-px w-[27%] bg-[#d1b16d]" /><span className="text-[clamp(8px,1vw,14px)]">✦</span><span className="h-px w-[27%] bg-[#d1b16d]" /></div>
+          </div>
+
+          <div className="absolute left-[18%] right-[18%] top-[45%] text-center">
+            <p className="font-serif text-[clamp(6px,0.9vw,12px)] font-bold tracking-[0.22em] text-[#152b49]">{tr('تُمنح بكل فخر واعتزاز إلى', 'PROUDLY PRESENTED TO')}</p>
+            <p className="mx-auto mt-[1%] truncate font-serif text-[clamp(16px,3.3vw,43px)] font-bold leading-tight text-[#9a7135]">{selectedStudent?.name || tr('اسم الطالب', 'Student Name')}</p>
+            <div className="mx-auto mt-[1%] flex items-center justify-center gap-2 text-[#b58a43]"><span className="h-px w-[42%] bg-[#bd9145]" /><span className="text-[clamp(8px,1vw,14px)]">✦</span><span className="h-px w-[42%] bg-[#bd9145]" /></div>
+            <p className="mx-auto mt-[1.5%] line-clamp-2 max-w-[82%] text-[clamp(6px,0.88vw,12px)] leading-relaxed text-[#36465a]">{description.trim() || tr('نحتفي بإنجاز يستحق الفخر والتقدير.', 'Recognizing dedication, progress, and achievement.')}</p>
+            <p className="mt-[1.5%] truncate font-serif text-[clamp(10px,1.8vw,24px)] font-bold tracking-[0.1em] text-[#152b49]">{title.trim() || tr('عنوان الشهادة', 'Certificate title')}</p>
+          </div>
+
+          <div className="absolute bottom-[6%] left-[5%] right-[5%] grid grid-cols-[1fr_1.25fr_0.62fr_1.25fr_0.75fr] items-end gap-[1.5%] border-t border-[#d1b16d] pt-[2%] text-center">
+            <div className="min-w-0"><p className="truncate font-serif text-[clamp(6px,0.75vw,10px)] text-[#152b49]">{new Intl.DateTimeFormat(isEnglish ? 'en-US' : 'ar-SA', { dateStyle: 'medium' }).format(new Date())}</p><div className="mx-auto my-[5%] h-px w-[92%] bg-[#bd9145]" /><p className="font-serif text-[clamp(5px,0.63vw,8px)] tracking-[0.18em] text-[#526078]">{tr('تاريخ الإصدار', 'DATE OF ISSUE')}</p></div>
+            <div className="min-w-0"><p className="truncate text-[clamp(6px,0.8vw,10px)] font-bold text-[#152b49]">{schoolPrincipalName || tr('مدير المدرسة', 'School Principal')}</p><div className="mx-auto my-[5%] h-px w-[92%] bg-[#bd9145]" /><p className="font-serif text-[clamp(5px,0.63vw,8px)] tracking-[0.16em] text-[#526078]">{tr('مدير المدرسة', 'SCHOOL PRINCIPAL')}</p></div>
+            <div className="mx-auto grid aspect-square w-full max-w-14 place-items-center rounded-full border-[2px] border-[#bd9145] bg-[radial-gradient(circle,_#fffdf7_55%,_#e8d5a9_57%,_#fffdf7_64%)] text-[#9a7135]"><Award className="size-[48%]" /></div>
+            <div className="min-w-0"><p className="truncate font-serif text-[clamp(6px,0.86vw,11px)] font-bold text-[#152b49]">NEXUS EDU</p><div className="mx-auto my-[5%] h-px w-[92%] bg-[#bd9145]" /><p className="font-serif text-[clamp(5px,0.63vw,8px)] tracking-[0.15em] text-[#526078]">{tr('المنصة التعليمية', 'PLATFORM')}</p></div>
+            <div className="flex min-w-0 flex-col items-center"><div className="grid aspect-square w-[68%] place-items-center bg-white p-[4%] text-[#152b49]"><QrCode className="size-full" /></div><p className="mt-[3%] font-serif text-[clamp(5px,0.62vw,8px)] tracking-[0.13em] text-[#526078]">{tr('تحقق بعد الإصدار', 'VERIFY')}</p></div>
           </div>
         </article>
       </section>

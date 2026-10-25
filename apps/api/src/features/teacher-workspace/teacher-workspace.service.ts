@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { UploadService } from '../../upload/upload.service';
 
@@ -529,7 +529,17 @@ export class TeacherWorkspaceService {
       || certificate.issuerId === actor.userId
       || (actor.role === 'PARENT' && await this.isParentOf(actor.userId, certificate.studentId));
     if (!allowed && !['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPERVISOR'].includes(actor.role)) throw new ForbiddenException();
-    return certificate;
+    const principal = await this.prisma.user.findFirst({
+      where: { schoolId: certificate.schoolId, role: Role.PRINCIPAL, isActive: true, emailVerified: true },
+      select: { name: true, firstName: true, lastName: true },
+      orderBy: { createdAt: 'asc' },
+    }) ?? await this.prisma.user.findFirst({
+      where: { schoolId: certificate.schoolId, role: Role.ADMIN, isActive: true, emailVerified: true },
+      select: { name: true, firstName: true, lastName: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const schoolPrincipalName = principal?.name || [principal?.firstName, principal?.lastName].filter(Boolean).join(' ') || null;
+    return { ...certificate, schoolPrincipalName };
   }
 
   async verifyCertificate(serial: string) {

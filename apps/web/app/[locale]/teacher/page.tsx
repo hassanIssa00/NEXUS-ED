@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { dashboardApi, type TeacherDashboardResponse } from '@/lib/api/dashboard'
 import { useRealtimeAssignments, useRealtimeNotifications } from '@/lib/providers/socket-provider'
 import NexusToolsTab from './_components/NexusToolsTab'
+import { DashboardBarChart, DashboardDonutChart } from '@/components/dashboard/analytics-charts'
 import {
   AlertCircle,
   BarChart3,
@@ -186,6 +187,15 @@ function TeacherDashboardContent() {
           <p className="mb-3 mt-1 text-xs text-gray-500 dark:text-gray-400">{t('مقارنة بين الفصول التي لها سجلات درجات', 'Comparison across classes with grade records')}</p>
           {gradedClasses.length ? <div className="h-64"><ResponsiveContainer width="100%" height="100%"><BarChart data={gradedClasses.map((classItem) => ({ name: classItem.name, average: classItem.averageGrade }))}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" /><XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} /><YAxis domain={[0, 100]} tickLine={false} axisLine={false} /><Tooltip /><Bar dataKey="average" name={t('المعدل', 'Average')} radius={[5, 5, 0, 0]}>{gradedClasses.map((classItem) => <Cell key={classItem.id} fill="#35556B" />)}</Bar></BarChart></ResponsiveContainer></div> : <p className="flex h-64 items-center justify-center text-sm text-gray-500">{t('لا توجد درجات مسجلة للمقارنة.', 'No grades are available for comparison.')}</p>}
         </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <DashboardDonutChart title={t('توزيع سجلات الحضور خلال 30 يومًا', 'Attendance records in the last 30 days')} emptyLabel={t('لا توجد سجلات حضور كافية لعرض الرسم.', 'There are no attendance records to chart.')} data={[
+          { label: t('حاضر', 'Present'), value: attendanceSummary.present, color: '#0f766e' },
+          { label: t('متأخر', 'Late'), value: attendanceSummary.late, color: '#d97706' },
+          { label: t('غائب', 'Absent'), value: attendanceSummary.absent, color: '#dc2626' },
+        ]} />
+        <DashboardBarChart title={t('التسليمات في أحدث الواجبات', 'Submissions on recent assignments')} emptyLabel={t('لا توجد واجبات حديثة لعرضها.', 'There are no recent assignments to chart.')} color="#0f766e" data={recentAssignments.map((assignment) => ({ label: assignment.title, value: assignment.submissions }))} />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">

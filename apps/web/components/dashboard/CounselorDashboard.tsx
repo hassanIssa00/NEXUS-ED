@@ -6,6 +6,7 @@ import { AlertTriangle, CircleAlert, ClipboardList, HeartHandshake, Loader2, Ref
 import type { LucideIcon } from 'lucide-react'
 import { Link } from '@/i18n/routing'
 import { apiClient } from '@/lib/api/client'
+import { DashboardBarChart, DashboardDonutChart } from '@/components/dashboard/analytics-charts'
 
 type RiskAlert = { type: 'GRADE_DROP' | 'LOW_ATTENDANCE' | 'MISSING_ASSIGNMENTS'; severity: 'LOW' | 'MEDIUM' | 'HIGH'; message: string; value: number; threshold: number }
 type StudentWarning = { studentId: string; studentName: string; alerts: RiskAlert[]; riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' }
@@ -20,6 +21,7 @@ const words = {
     studentsInClass: 'طالب', teacher: 'المعلم', noTeacher: 'لا يوجد معلم مسجل', risks: 'مؤشرات مسجلة', risk: { LOW: 'منخفض', MEDIUM: 'متوسط', HIGH: 'مرتفع', CRITICAL: 'حرج' },
     alert: { GRADE_DROP: (v: number) => `متوسط الدرجات ${v.toFixed(1)}% أقل من الحد المسجل`, LOW_ATTENDANCE: (v: number) => `نسبة الحضور ${v.toFixed(1)}% أقل من الحد المسجل`, MISSING_ASSIGNMENTS: (v: number) => `${v} واجبات غير مسلمة` },
     setup: 'مؤشرات المتابعة تظهر عند تسجيل الحضور أو الدرجات أو الواجبات في المدرسة.',
+    riskChart: 'توزيع حالات المتابعة حسب مستوى الخطورة', classChart: 'الحالات المسجلة حسب الفصل', chartEmpty: 'لا توجد حالات متابعة مسجلة لعرضها.',
   },
   en: {
     title: 'Student counseling dashboard', subtitle: 'Review students based on recorded attendance, grades, and assignments, alongside parent surveys.', refresh: 'Refresh', loading: 'Loading student follow-up...', error: 'Could not load classes and student indicators.',
@@ -28,6 +30,7 @@ const words = {
     studentsInClass: 'students', teacher: 'Teacher', noTeacher: 'No teacher assigned', risks: 'Recorded indicators', risk: { LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High', CRITICAL: 'Critical' },
     alert: { GRADE_DROP: (v: number) => `Average grade ${v.toFixed(1)}% is below the recorded threshold`, LOW_ATTENDANCE: (v: number) => `Attendance ${v.toFixed(1)}% is below the recorded threshold`, MISSING_ASSIGNMENTS: (v: number) => `${v} assignments not submitted` },
     setup: 'Follow-up indicators become available after attendance, grades, or assignments are recorded at the school.',
+    riskChart: 'Follow-up cases by risk level', classChart: 'Recorded cases by class', chartEmpty: 'There are no recorded follow-up cases to show.',
   },
 } as const
 
@@ -84,6 +87,10 @@ export default function CounselorDashboard() {
     {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {metrics.map(({ label, value, icon: Icon }) => <article key={label} className="rounded-xl border border-border bg-card p-5"><div className="flex items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{label}</p><Icon className="h-5 w-5 text-primary" /></div><p className="mt-3 text-3xl font-bold tabular-nums">{value}</p></article>)}
+    </section>
+    <section className="grid gap-4 lg:grid-cols-2">
+      <DashboardDonutChart title={t.riskChart} emptyLabel={t.chartEmpty} data={(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const).map((risk, index) => ({ label: t.risk[risk], value: rows.filter((row) => row.riskLevel === risk).length, color: ['#64748b', '#d97706', '#ea580c', '#dc2626'][index] }))} />
+      <DashboardBarChart title={t.classChart} emptyLabel={t.chartEmpty} color="#7c3aed" data={classes.map(({ classInfo, warnings }) => ({ label: classInfo.name, value: warnings.length }))} />
     </section>
     {!classes.length && !error && <p className="rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">{t.noClasses}</p>}
     {classes.map(({ classInfo, warnings }) => <section key={classInfo.id} className="overflow-hidden rounded-xl border border-border bg-card"><header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4"><div><h2 className="font-bold">{classInfo.name}</h2><p className="mt-1 text-xs text-muted-foreground">{classInfo._count?.students ?? 0} {t.studentsInClass} · {t.teacher}: {classInfo.teacher?.name || classInfo.teacher?.email || t.noTeacher}</p></div><span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold">{warnings.length} {t.risks}</span></header>{warnings.length ? <div className="divide-y divide-border">{warnings.map((warning) => <article key={warning.studentId} className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">{warning.studentName}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${badge[warning.riskLevel]}`}>{t.risk[warning.riskLevel]}</span></div><ul className="mt-3 space-y-2">{warning.alerts.map((alert, index) => <li key={`${warning.studentId}-${alert.type}-${index}`} className="text-sm text-muted-foreground">• {t.alert[alert.type](alert.value)}</li>)}</ul></article>)}</div> : <p className="p-5 text-sm text-muted-foreground">{t.noCases}</p>}</section>)}

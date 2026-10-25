@@ -5,6 +5,7 @@ import { useLocale } from 'next-intl'
 import { Link } from '@/i18n/routing'
 import { apiClient } from '@/lib/api/client'
 import { ArrowUpRight, CircleAlert, RefreshCw, Users } from 'lucide-react'
+import { DashboardBarChart, DashboardDonutChart } from '@/components/dashboard/analytics-charts'
 
 type UserStats = { total: number; students: number; teachers: number; parents: number; admins: number; principals: number; vicePrincipals: number; counselors: number; supervisors: number; accountants: number; hr: number }
 
@@ -15,8 +16,8 @@ export default function HRDashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const t = locale === 'en'
-    ? { title: 'Human resources dashboard', subtitle: 'Staff directory and active account totals by role at this school.', refresh: 'Refresh', loading: 'Loading school accounts…', error: 'Could not load school account statistics.', staff: 'Staff directory', reports: 'HR summary', total: 'Active accounts', teachers: 'Teachers', students: 'Students', parents: 'Parents', admins: 'Administrators', principals: 'Principals', vicePrincipals: 'Vice principals', counselors: 'Student counselors', supervisors: 'Educational supervisors', accountants: 'Accountants', hr: 'Human resources' }
-    : { title: 'لوحة الموارد البشرية', subtitle: 'دليل العاملين وأعداد الحسابات النشطة في المدرسة حسب الدور.', refresh: 'تحديث', loading: 'جار تحميل حسابات المدرسة...', error: 'تعذر تحميل إحصاءات الحسابات.', staff: 'دليل الموظفين', reports: 'ملخص الموارد البشرية', total: 'الحسابات النشطة', teachers: 'المعلمون', students: 'الطلاب', parents: 'أولياء الأمور', admins: 'مديرو النظام', principals: 'مديرو المدارس', vicePrincipals: 'وكلاء المدارس', counselors: 'المرشدون الطلابيون', supervisors: 'المشرفون التربويون', accountants: 'المحاسبون', hr: 'الموارد البشرية' }
+    ? { title: 'Human resources dashboard', subtitle: 'Staff directory and active account totals by role at this school.', refresh: 'Refresh', loading: 'Loading school accounts…', error: 'Could not load school account statistics.', staff: 'Staff directory', reports: 'HR summary', total: 'Active accounts', teachers: 'Teachers', students: 'Students', parents: 'Parents', admins: 'Administrators', principals: 'Principals', vicePrincipals: 'Vice principals', counselors: 'Student counselors', supervisors: 'Educational supervisors', accountants: 'Accountants', hr: 'Human resources', roleChart: 'Active accounts by role', staffChart: 'School staff by role', noChart: 'There are no account records to chart.' }
+    : { title: 'لوحة الموارد البشرية', subtitle: 'دليل العاملين وأعداد الحسابات النشطة في المدرسة حسب الدور.', refresh: 'تحديث', loading: 'جار تحميل حسابات المدرسة...', error: 'تعذر تحميل إحصاءات الحسابات.', staff: 'دليل الموظفين', reports: 'ملخص الموارد البشرية', total: 'الحسابات النشطة', teachers: 'المعلمون', students: 'الطلاب', parents: 'أولياء الأمور', admins: 'مديرو النظام', principals: 'مديرو المدارس', vicePrincipals: 'وكلاء المدارس', counselors: 'المرشدون الطلابيون', supervisors: 'المشرفون التربويون', accountants: 'المحاسبون', hr: 'الموارد البشرية', roleChart: 'الحسابات النشطة حسب الدور', staffChart: 'العاملون في المدرسة حسب الدور', noChart: 'لا توجد سجلات حسابات لعرضها في الرسم.' }
   const load = useCallback(async () => {
     setError('')
     try { const response = await apiClient.get<UserStats>('/users/stats'); setStats(response.data) }
@@ -34,6 +35,17 @@ export default function HRDashboard() {
         [t.counselors, stats.counselors], [t.supervisors, stats.supervisors], [t.accountants, stats.accountants], [t.hr, stats.hr],
         [t.teachers, stats.teachers], [t.students, stats.students], [t.parents, stats.parents],
       ].map(([label, value]) => <article key={label} className="rounded-xl border border-border bg-card p-5"><div className="flex items-center justify-between gap-2"><p className="text-sm text-muted-foreground">{label}</p><Users className="h-5 w-5 text-primary" /></div><p className="mt-3 text-3xl font-bold">{value}</p></article>)}</section>
+      <section className="grid gap-4 lg:grid-cols-2">
+        <DashboardDonutChart title={t.roleChart} emptyLabel={t.noChart} data={stats ? [
+          { label: t.teachers, value: stats.teachers }, { label: t.students, value: stats.students }, { label: t.parents, value: stats.parents },
+          { label: t.admins, value: stats.admins }, { label: t.principals, value: stats.principals }, { label: t.vicePrincipals, value: stats.vicePrincipals },
+          { label: t.counselors, value: stats.counselors }, { label: t.supervisors, value: stats.supervisors }, { label: t.accountants, value: stats.accountants }, { label: t.hr, value: stats.hr },
+        ] : []} />
+        <DashboardBarChart title={t.staffChart} emptyLabel={t.noChart} color="#d97706" data={stats ? [
+          { label: t.teachers, value: stats.teachers }, { label: t.admins, value: stats.admins + stats.principals + stats.vicePrincipals },
+          { label: t.counselors, value: stats.counselors }, { label: t.supervisors, value: stats.supervisors }, { label: t.accountants, value: stats.accountants }, { label: t.hr, value: stats.hr },
+        ] : []} />
+      </section>
       <section className="grid gap-4 md:grid-cols-2"><Link href="/hr/employees" className="group rounded-xl border border-border bg-card p-5 hover:border-primary/50"><div className="flex items-center justify-between"><h2 className="font-bold">{t.staff}</h2><ArrowUpRight className="h-5 w-5 text-primary transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" /></div><p className="mt-2 text-sm text-muted-foreground">{locale === 'en' ? 'Search the school staff directory and export the current results.' : 'البحث في دليل موظفي المدرسة وتصدير النتائج المعروضة.'}</p></Link><Link href="/hr/reports" className="group rounded-xl border border-border bg-card p-5 hover:border-primary/50"><div className="flex items-center justify-between"><h2 className="font-bold">{t.reports}</h2><ArrowUpRight className="h-5 w-5 text-primary transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" /></div><p className="mt-2 text-sm text-muted-foreground">{locale === 'en' ? 'Review active account counts by the categories provided by the school system.' : 'عرض أعداد الحسابات النشطة حسب الفئات المتاحة في النظام.'}</p></Link></section>
     </>}
   </main>
