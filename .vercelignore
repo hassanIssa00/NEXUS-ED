@@ -12,6 +12,7 @@ apps/flutter_app/ios/Pods/
 apps/mobile/.expo/
 apps/mobile/dist/
 apps/mobile/android/.gradle/
+apps/mobile/android/app/.cxx/
 apps/mobile/android/app/build/
 apps/mobile/ios/Pods/
 apps/api/dist/
@@ -20,3 +21,4 @@ apps/api/scratch/
 apps/api/src/generated/client/
 apps/web/coverage/
 logs/
+tmp/

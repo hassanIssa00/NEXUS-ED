@@ -8,11 +8,13 @@ import { AccountLockGuard } from './guards/account-lock.guard';
 import { getJwtSecret } from '../../config/jwt';
 import { NotificationModule } from '../../notifications/notification.module';
 import { FirebaseIdentityService } from './services/firebase-identity.service';
+import { UploadModule } from '../../upload/upload.module';
 
 @Module({
     imports: [
         PassportModule,
         NotificationModule,
+        UploadModule,
         JwtModule.registerAsync({
             useFactory: () => ({
                 secret: getJwtSecret(),

@@ -212,7 +212,7 @@ email link instead of the API's numeric code.
 Firebase-only password recovery uses Firebase's reset-email link rather than a
 numeric code. The custom `/reset-password` page still contains the old Supabase
 recovery flow; it is not the Firebase reset handler. The six-digit code path
-requires the NestJS API. The API needs `GOOGLE_CLIENT_ID`, SMTP credentials,
+requires the NestJS API. The API needs SMTP credentials,
 `PUBLIC_SCHOOL_ID` or `PUBLIC_SCHOOL_SLUG` for new accounts, an approved
 production database, and the new Prisma migration
 `20261003160000_google_auth_password_reset`. No API environment values, school

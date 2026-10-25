@@ -28,6 +28,18 @@ export class SubjectService {
     if (!teacher) throw new NotFoundException('Teacher not found in this school');
   }
 
+  private async resolveTeacherSchool(teacherId: string, schoolId?: string) {
+    if (schoolId) return schoolId;
+    const assignedClasses = await this.prisma.class.findMany({
+      where: { OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }] },
+      select: { schoolId: true },
+      take: 200,
+    });
+    const schoolIds = [...new Set(assignedClasses.map((item) => item.schoolId).filter((id): id is string => Boolean(id)))];
+    if (schoolIds.length !== 1) throw new ForbiddenException('The teacher is not linked to one school');
+    return schoolIds[0];
+  }
+
   async create(data: CreateSubjectDto, schoolId?: string) {
     const scopedSchoolId = this.requireSchool(schoolId);
     await this.assertClass(data.classId, scopedSchoolId);
@@ -78,7 +90,7 @@ export class SubjectService {
 
     const subjects = new Map<string, any>();
     for (const enrollment of enrollments) {
-      const classroom = enrollment.class as typeof enrollment.class & { classSubjects?: any[] };
+      const classroom = enrollment.class;
       const linkedSubjects = classroom.classSubjects?.length
         ? classroom.classSubjects.map((item) => item.subject)
         : classroom.subjects;
@@ -90,14 +102,16 @@ export class SubjectService {
   }
 
   async findByTeacher(teacherId: string, schoolId?: string) {
-    const scopedSchoolId = this.requireSchool(schoolId);
+    const scopedSchoolId = this.requireSchool(await this.resolveTeacherSchool(teacherId, schoolId));
     return this.prisma.subject.findMany({
       where: {
         schoolId: scopedSchoolId,
         OR: [
           { teacherId },
           { classSubjects: { some: { teacherId } } },
-          { class: { teacherAssignments: { some: { teacherId } } } },
+          // A homeroom teacher is responsible for the subjects in their class
+          // even when the admin has not separately assigned each subject.
+          { class: { teacherId } },
         ],
       },
       include: {
@@ -109,11 +123,11 @@ export class SubjectService {
   }
 
   async findOne(id: string, actorId: string, role: string, schoolId?: string) {
-    const scopedSchoolId = this.requireSchool(schoolId);
+    const scopedSchoolId = this.requireSchool(role === 'TEACHER' ? await this.resolveTeacherSchool(actorId, schoolId) : schoolId);
     const subject = await this.prisma.subject.findFirst({
       where: { id, schoolId: scopedSchoolId },
       include: {
-        class: { select: { id: true, name: true, teacherAssignments: { where: { teacherId: actorId }, select: { teacherId: true } } } },
+        class: { select: { id: true, name: true, teacherId: true } },
         teacher: { select: { id: true, name: true, email: true } },
         classSubjects: { select: { teacherId: true } },
         lessons: true,
@@ -123,9 +137,7 @@ export class SubjectService {
     if (!subject) throw new NotFoundException('Subject not found');
 
     if (role === 'TEACHER') {
-      const assigned = subject.teacherId === actorId
-        || subject.classSubjects.some((item) => item.teacherId === actorId)
-        || subject.class.teacherAssignments.length > 0;
+      const assigned = subject.teacherId === actorId || subject.class.teacherId === actorId || subject.classSubjects.some((item) => item.teacherId === actorId);
       if (!assigned) throw new ForbiddenException('You do not have access to this subject');
     } else if (role === 'STUDENT') {
       const enrollment = await this.prisma.enrollment.findFirst({

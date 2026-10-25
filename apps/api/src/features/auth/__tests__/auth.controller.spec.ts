@@ -125,12 +125,12 @@ describe('AuthController', () => {
         });
     });
 
-    describe('Password reset', () => {
+    describe('password reset', () => {
         it('routes password reset requests to the auth service', async () => {
             const dto = { email: 'student@example.com' };
             mockAuthService.requestPasswordReset.mockResolvedValue({ message: 'generic response' });
 
-            await expect(controller.requestPasswordReset(dto as any)).resolves.toEqual({ message: 'generic response' });
+            await expect(controller.requestPasswordReset(dto)).resolves.toEqual({ message: 'generic response' });
             expect(mockAuthService.requestPasswordReset).toHaveBeenCalledWith(dto);
         });
 
@@ -138,7 +138,7 @@ describe('AuthController', () => {
             const dto = { email: 'student@example.com', code: '123456', newPassword: 'new-password-123' };
             mockAuthService.confirmPasswordReset.mockResolvedValue({ message: 'updated' });
 
-            await expect(controller.confirmPasswordReset(dto as any)).resolves.toEqual({ message: 'updated' });
+            await expect(controller.confirmPasswordReset(dto)).resolves.toEqual({ message: 'updated' });
             expect(mockAuthService.confirmPasswordReset).toHaveBeenCalledWith(dto);
         });
     });

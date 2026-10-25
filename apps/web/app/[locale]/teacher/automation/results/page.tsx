@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { Link } from '@/i18n/routing';
+import { useLocale } from 'next-intl';
 import { ArrowRight, BarChart3, FileText, Users } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,8 @@ interface Assignment { id: string; title: string; maxScore: number; subject?: { 
 interface Submission { id: string; grade?: number | null; score?: number | null; student?: { id: string; name?: string | null; email: string } }
 
 export default function ResultsAnalysis() {
+  const isEnglish = useLocale() === 'en';
+  const tr = (ar: string, en: string) => isEnglish ? en : ar;
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [assignmentId, setAssignmentId] = useState('');
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -62,38 +65,38 @@ export default function ResultsAnalysis() {
   ].map((band) => ({ ...band, count: graded.filter((item) => item.value / maxScore >= band.low && item.value / maxScore < band.high).length })) : [];
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 pb-10">
+    <main dir={isEnglish ? 'ltr' : 'rtl'} className="mx-auto max-w-6xl space-y-6 pb-10">
       <header className="flex items-center gap-4">
-        <Link href="/teacher/automation"><Button variant="outline" size="icon" aria-label="العودة"><ArrowRight className="h-4 w-4" /></Button></Link>
-        <div><h1 className="text-2xl font-bold">تحليل النتائج</h1><p className="mt-1 text-sm text-muted-foreground">تحليل الدرجات المسجلة للتكليفات المسندة لك.</p></div>
+        <Link href="/teacher/automation"><Button variant="outline" size="icon" aria-label={tr('العودة', 'Back')}><ArrowRight className="h-4 w-4" /></Button></Link>
+        <div><h1 className="text-2xl font-bold">{tr('تحليل النتائج', 'Results analysis')}</h1><p className="mt-1 text-sm text-muted-foreground">{tr('تحليل الدرجات المسجلة للتكليفات المسندة لك.', 'Review scores recorded for your assigned work.')}</p></div>
       </header>
 
-      {loadFailed && <p role="alert" className="text-sm text-destructive">تعذر تحميل النتائج من النظام.</p>}
+      {loadFailed && <p role="alert" className="text-sm text-destructive">{tr('تعذر تحميل النتائج من النظام.', 'Could not load results.')}</p>}
 
       <Card>
         <CardContent className="max-w-xl space-y-2 p-5">
-          <label className="text-sm font-medium">الواجب أو التقييم</label>
+          <label className="text-sm font-medium">{tr('الواجب أو التقييم', 'Assignment or assessment')}</label>
           <Select value={assignmentId} onValueChange={setAssignmentId}>
-            <SelectTrigger><SelectValue placeholder={loading ? 'جاري التحميل...' : 'اختر واجبًا مسندًا لك'} /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={loading ? tr('جاري التحميل...', 'Loading…') : tr('اختر واجبًا مسندًا لك', 'Select an assigned assignment')} /></SelectTrigger>
             <SelectContent>{assignments.map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent>
           </Select>
-          {!loading && assignments.length === 0 && <p className="text-sm text-muted-foreground">لا توجد تكليفات مسجلة لهذا الحساب.</p>}
+          {!loading && assignments.length === 0 && <p className="text-sm text-muted-foreground">{tr('لا توجد تكليفات مسجلة لهذا الحساب.', 'No assignments are linked to this account.')}</p>}
         </CardContent>
       </Card>
 
       {assignmentId && !loadingResults && (
         <>
           <section className="grid gap-3 sm:grid-cols-3">
-            <Card><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Users className="h-4 w-4" /> التسليمات</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{submissions.length}</CardContent></Card>
-            <Card><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><FileText className="h-4 w-4" /> درجات مسجلة</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{graded.length}</CardContent></Card>
-            <Card><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><BarChart3 className="h-4 w-4" /> المتوسط</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{average === null ? '—' : `${Math.round((average / maxScore) * 100)}%`}</CardContent></Card>
+            <Card><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Users className="h-4 w-4" /> {tr('التسليمات', 'Submissions')}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{submissions.length}</CardContent></Card>
+            <Card><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><FileText className="h-4 w-4" /> {tr('درجات مسجلة', 'Recorded scores')}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{graded.length}</CardContent></Card>
+            <Card><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><BarChart3 className="h-4 w-4" /> {tr('المتوسط', 'Average')}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{average === null ? '—' : `${Math.round((average / maxScore) * 100)}%`}</CardContent></Card>
           </section>
 
           <section className="grid gap-6 lg:grid-cols-2">
             <Card>
-              <CardHeader><CardTitle className="text-base">توزيع الدرجات المسجلة</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base">{tr('توزيع الدرجات المسجلة', 'Recorded score distribution')}</CardTitle></CardHeader>
               <CardContent>
-                {graded.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">لم تُرصد درجات لهذا التكليف بعد.</p> : (
+                {graded.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">{tr('لم تُرصد درجات لهذا التكليف بعد.', 'No scores have been recorded for this assignment yet.')}</p> : (
                   <div className="space-y-3">{distribution.map((band) => (
                     <div key={band.label} className="grid grid-cols-[70px_1fr_32px] items-center gap-3 text-sm">
                       <span>{band.label}</span><div className="h-2 overflow-hidden rounded bg-muted"><div className="h-full bg-primary" style={{ width: `${(band.count / graded.length) * 100}%` }} /></div><span className="text-right tabular-nums">{band.count}</span>
@@ -103,11 +106,11 @@ export default function ResultsAnalysis() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base">أعلى الدرجات</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base">{tr('أعلى الدرجات', 'Top scores')}</CardTitle></CardHeader>
               <CardContent>
-                {topStudents.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">لا توجد درجات مسجلة.</p> : (
+                {topStudents.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">{tr('لا توجد درجات مسجلة.', 'No scores have been recorded.')}</p> : (
                   <div className="divide-y">{topStudents.map((item, index) => (
-                    <div key={item.id} className="flex items-center justify-between gap-4 py-3"><div className="flex items-center gap-3"><Badge variant="secondary">{index + 1}</Badge><span>{item.student?.name || item.student?.email || 'طالب مسجل'}</span></div><span className="font-semibold tabular-nums">{item.value} / {maxScore}</span></div>
+                    <div key={item.id} className="flex items-center justify-between gap-4 py-3"><div className="flex items-center gap-3"><Badge variant="secondary">{index + 1}</Badge><span>{item.student?.name || item.student?.email || tr('طالب مسجل', 'Enrolled student')}</span></div><span className="font-semibold tabular-nums">{item.value} / {maxScore}</span></div>
                   ))}</div>
                 )}
               </CardContent>
@@ -115,7 +118,7 @@ export default function ResultsAnalysis() {
           </section>
         </>
       )}
-      {loadingResults && <p className="text-sm text-muted-foreground">جاري تحميل التسليمات...</p>}
+      {loadingResults && <p className="text-sm text-muted-foreground">{tr('جاري تحميل التسليمات...', 'Loading submissions…')}</p>}
     </main>
   );
 }

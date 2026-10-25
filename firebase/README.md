@@ -48,7 +48,7 @@ has been established.
 Frontend (Next.js)
   ↓ Firebase SDK
 Firebase Services
-  ├── Authentication (Email, Google, Microsoft SSO)
+  ├── Authentication (Email/Password)
   ├── Firestore (NoSQL Database)
   ├── Cloud Functions (Serverless)
   └── Storage (File uploads)
@@ -280,8 +280,7 @@ cd ..
 In Firebase Console → Authentication → Sign-in method:
 
 1. **Email/Password** - Enable
-2. **Google** - Enable (add OAuth credentials)
-3. **Microsoft** - Enable (add Azure AD credentials)
+2. Keep **Google** and other social sign-in providers disabled. Nexus accounts use email and password.
 
 ### Step 6: Deploy Rules
 
@@ -386,9 +385,7 @@ export const functions = getFunctions(app);
 import { auth } from '@/lib/firebase';
 import { 
   createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider
+  signInWithEmailAndPassword
 } from 'firebase/auth';
 
 // Sign up
@@ -400,10 +397,6 @@ const { user } = await createUserWithEmailAndPassword(
 
 // Sign in
 await signInWithEmailAndPassword(auth, email, password);
-
-// Google Sign-in
-const provider = new GoogleAuthProvider();
-await signInWithPopup(auth, provider);
 
 // Get current user role
 const idTokenResult = await auth.currentUser?.getIdTokenResult();

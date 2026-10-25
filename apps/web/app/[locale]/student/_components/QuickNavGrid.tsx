@@ -1,25 +1,26 @@
 'use client'
 import { motion } from 'framer-motion'
 import { Link } from '@/i18n/routing'
+import { useLocale } from 'next-intl'
 import { BrainCircuit, Award, Calendar, Trophy, BarChart3, BookOpen, Gamepad2, MessageSquare } from 'lucide-react'
 
-const LINKS = [
-  { href: '/student/ai-tutor', icon: BrainCircuit, label: 'المعلم الذكي', desc: 'مساعدة فورية بالذكاء الاصطناعي', from: 'from-violet-600', to: 'to-indigo-600', shadow: 'shadow-violet-500/25' },
-  { href: '/student/grades', icon: Award, label: 'سجل الدرجات', desc: 'نتائج الاختبارات والواجبات', from: 'from-rose-500', to: 'to-pink-600', shadow: 'shadow-rose-500/25' },
-  { href: '/student/attendance', icon: Calendar, label: 'الحضور والغياب', desc: 'نسبة الحضور والمبررات', from: 'from-teal-500', to: 'to-emerald-600', shadow: 'shadow-teal-500/25' },
-  { href: '/student/million', icon: Trophy, label: 'تحدي المليون', desc: 'مسابقات نكسس والأوسمة', from: 'from-amber-500', to: 'to-orange-500', shadow: 'shadow-amber-500/25' },
-  { href: '/student/analytics', icon: BarChart3, label: 'التحليلات', desc: 'تقارير أدائك التفصيلية', from: 'from-blue-500', to: 'to-cyan-600', shadow: 'shadow-blue-500/25' },
-  { href: '/student/subjects', icon: BookOpen, label: 'موادي', desc: 'محتوى ومنهج جميع المواد', from: 'from-fuchsia-500', to: 'to-purple-600', shadow: 'shadow-fuchsia-500/25' },
-  { href: '/student/games', icon: Gamepad2, label: 'الألعاب التعليمية', desc: 'تعلّم وأنت تلعب', from: 'from-lime-500', to: 'to-green-600', shadow: 'shadow-lime-500/25' },
-  { href: '/student/messages', icon: MessageSquare, label: 'الرسائل', desc: 'تواصل مع معلميك', from: 'from-sky-500', to: 'to-blue-600', shadow: 'shadow-sky-500/25' },
-]
-
 export function QuickNavGrid() {
+  const isEnglish = useLocale() === 'en'
+  const links = [
+    { href: '/student/ai-tutor', icon: BrainCircuit, label: isEnglish ? 'AI Tutor' : 'المعلم الذكي', desc: isEnglish ? 'Instant AI learning support' : 'مساعدة فورية بالذكاء الاصطناعي', from: 'from-violet-600', to: 'to-indigo-600', shadow: 'shadow-violet-500/25' },
+    { href: '/student/grades', icon: Award, label: isEnglish ? 'Grades' : 'سجل الدرجات', desc: isEnglish ? 'Test and assignment results' : 'نتائج الاختبارات والواجبات', from: 'from-rose-500', to: 'to-pink-600', shadow: 'shadow-rose-500/25' },
+    { href: '/student/attendance', icon: Calendar, label: isEnglish ? 'Attendance' : 'الحضور والغياب', desc: isEnglish ? 'Attendance and excuses' : 'نسبة الحضور والمبررات', from: 'from-teal-500', to: 'to-emerald-600', shadow: 'shadow-teal-500/25' },
+    { href: '/student/million', icon: Trophy, label: isEnglish ? 'Million Challenge' : 'تحدي المليون', desc: isEnglish ? 'Nexus competitions and badges' : 'مسابقات نكسس والأوسمة', from: 'from-amber-500', to: 'to-orange-500', shadow: 'shadow-amber-500/25' },
+    { href: '/student/analytics', icon: BarChart3, label: isEnglish ? 'Analytics' : 'التحليلات', desc: isEnglish ? 'Detailed performance reports' : 'تقارير أدائك التفصيلية', from: 'from-blue-500', to: 'to-cyan-600', shadow: 'shadow-blue-500/25' },
+    { href: '/student/subjects', icon: BookOpen, label: isEnglish ? 'My Subjects' : 'موادي', desc: isEnglish ? 'Subjects and learning content' : 'محتوى ومنهج جميع المواد', from: 'from-fuchsia-500', to: 'to-purple-600', shadow: 'shadow-fuchsia-500/25' },
+    { href: '/student/games', icon: Gamepad2, label: isEnglish ? 'Learning Games' : 'الألعاب التعليمية', desc: isEnglish ? 'Learn while you play' : 'تعلّم وأنت تلعب', from: 'from-lime-500', to: 'to-green-600', shadow: 'shadow-lime-500/25' },
+    { href: '/student/messages', icon: MessageSquare, label: isEnglish ? 'Messages' : 'الرسائل', desc: isEnglish ? 'Contact your teachers' : 'تواصل مع معلميك', from: 'from-sky-500', to: 'to-blue-600', shadow: 'shadow-sky-500/25' },
+  ]
   return (
-    <div>
-      <h3 className="font-extrabold text-gray-900 dark:text-white text-lg mb-4 px-1">🚀 الوصول السريع</h3>
+    <div dir={isEnglish ? 'ltr' : 'rtl'}>
+      <h3 className="font-extrabold text-gray-900 dark:text-white text-lg mb-4 px-1">🚀 {isEnglish ? 'Quick access' : 'الوصول السريع'}</h3>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {LINKS.map((a, i) => (
+        {links.map((a, i) => (
           <Link key={i} href={a.href}>
             <motion.div
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}

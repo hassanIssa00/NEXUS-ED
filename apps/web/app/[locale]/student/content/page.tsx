@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Play, FileText, Link as LinkIcon, Video, Music, BookOpen, Heart, Bookmark, MessageCircle, TrendingUp, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
 
 export default function ContentPage() {
     const t = useTranslations();
+    const isEnglish = useLocale() === 'en';
+    const copy = (ar: string, en: string) => isEnglish ? en : ar;
     const [filter, setFilter] = useState('all');
     const [contentItems, setContentItems] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
@@ -59,19 +61,19 @@ export default function ContentPage() {
         <div className="p-6 space-y-8">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold">📚 المكتبة التعليمية</h1>
+                <h1 className="text-3xl font-bold">📚 {copy('المكتبة التعليمية', 'Learning Library')}</h1>
                 <p className="text-muted-foreground mt-2">
-                    فيديوهات، ملفات، روابط مفيدة وكل المحتوى التعليمي
+                    {copy('فيديوهات، ملفات، روابط مفيدة وكل المحتوى التعليمي', 'Videos, files, useful links, and learning resources')}
                 </p>
             </div>
 
             {/* Stats — computed from real API data */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {[
-                    { icon: Video, label: 'الفيديوهات', value: stats.videos, from: 'from-blue-500', to: 'to-blue-600' },
-                    { icon: FileText, label: 'الملفات', value: stats.docs, from: 'from-purple-500', to: 'to-purple-600' },
-                    { icon: LinkIcon, label: 'الروابط', value: stats.links, from: 'from-green-500', to: 'to-green-600' },
-                    { icon: TrendingUp, label: 'ساعات المشاهدة', value: stats.hours, from: 'from-orange-500', to: 'to-orange-600' },
+                    { icon: Video, label: copy('الفيديوهات', 'Videos'), value: stats.videos, from: 'from-blue-500', to: 'to-blue-600' },
+                    { icon: FileText, label: copy('الملفات', 'Files'), value: stats.docs, from: 'from-purple-500', to: 'to-purple-600' },
+                    { icon: LinkIcon, label: copy('الروابط', 'Links'), value: stats.links, from: 'from-green-500', to: 'to-green-600' },
+                    { icon: TrendingUp, label: copy('ساعات المشاهدة', 'Watch hours'), value: stats.hours, from: 'from-orange-500', to: 'to-orange-600' },
                 ].map((s, i) => (
                     <div key={i} className={`bg-gradient-to-br ${s.from} ${s.to} text-white p-6 rounded-xl`}>
                         <div className="flex items-center gap-3">
@@ -94,7 +96,7 @@ export default function ContentPage() {
                             : 'bg-gray-100 hover:bg-gray-200'
                         }`}
                 >
-                    الكل
+                    {copy('الكل', 'All')}
                 </button>
                 <button
                     onClick={() => setFilter('video')}
@@ -104,7 +106,7 @@ export default function ContentPage() {
                         }`}
                 >
                     <Video className="w-4 h-4" />
-                    فيديوهات
+                    {copy('فيديوهات', 'Videos')}
                 </button>
                 <button
                     onClick={() => setFilter('document')}
@@ -114,7 +116,7 @@ export default function ContentPage() {
                         }`}
                 >
                     <FileText className="w-4 h-4" />
-                    ملفات PDF
+                    {copy('ملفات PDF', 'PDF files')}
                 </button>
                 <button
                     onClick={() => setFilter('link')}
@@ -124,7 +126,7 @@ export default function ContentPage() {
                         }`}
                 >
                     <LinkIcon className="w-4 h-4" />
-                    روابط
+                    {copy('روابط', 'Links')}
                 </button>
                 <button
                     onClick={() => setFilter('audio')}
@@ -134,7 +136,7 @@ export default function ContentPage() {
                         }`}
                 >
                     <Music className="w-4 h-4" />
-                    صوتيات
+                    {copy('صوتيات', 'Audio')}
                 </button>
             </div>
 
@@ -184,7 +186,7 @@ export default function ContentPage() {
                                     {progress > 0 && (
                                         <div className="mb-3">
                                             <div className="flex items-center justify-between text-xs mb-1">
-                                                <span>التقدم</span>
+                                                <span>{copy('التقدم', 'Progress')}</span>
                                                 <span>{progress}%</span>
                                             </div>
                                             <div className="w-full bg-gray-200 rounded-full h-2">

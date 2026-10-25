@@ -23,11 +23,7 @@
     },
     "auth": {
         "providers": {
-            "emailPassword": true,
-            "googleSignIn": {
-                "oAuthBrandDisplayName": "Nexus EDU",
-                "supportEmail": "hassan.issa.eng@gmail.com"
-            }
+            "emailPassword": true
         }
     }
 }

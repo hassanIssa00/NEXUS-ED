@@ -39,6 +39,12 @@ export interface UserStats {
     teachers: number;
     parents: number;
     admins: number;
+    principals: number;
+    vicePrincipals: number;
+    counselors: number;
+    supervisors: number;
+    accountants: number;
+    hr: number;
 }
 
 class UserService {

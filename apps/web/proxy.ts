@@ -40,9 +40,11 @@ export default function proxy(request: NextRequest) {
     ]);
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+    const liveKitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://meetings.nexus.masarplatform.org';
 
     addOrigin(apiUrl, connectSources);
     addOrigin(socketUrl, connectSources);
+    addOrigin(liveKitUrl, connectSources);
 
     for (const endpoint of [apiUrl, socketUrl]) {
         if (!endpoint) continue;
@@ -106,7 +108,9 @@ export default function proxy(request: NextRequest) {
             ? { body: request.body, duplex: 'half' as const }
             : {}),
     });
-    const response = intlProxy(requestWithNonce);
+    // The monorepo currently resolves two Next.js type copies; the request is
+    // still the same runtime object, so use the middleware's own request type.
+    const response = intlProxy(requestWithNonce as unknown as Parameters<typeof intlProxy>[0]);
     response.headers.set('Content-Security-Policy', policy);
 
     return response;

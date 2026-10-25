@@ -33,6 +33,7 @@ import { ClassModule } from './class/class.module';
 import { PaymentModule } from './payment/payment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { EventsModule } from './gateway/events.module';
+import { PrismaThrottlerStorage } from './common/persistent-quota-storage';
 
 // New Modules
 import { TimetableModule } from './features/schedule/schedule.module';
@@ -43,17 +44,23 @@ import { MessagesModule } from './messages/messages.module';
 import { ProfileModule } from './profile/profile.module';
 import { PlacementAssessmentModule } from './placement-assessment/placement-assessment.module';
 import { TeacherWorkspaceModule } from './features/teacher-workspace/teacher-workspace.module';
+import { MillionModule } from './features/million/million.module';
+import { MeetingsModule } from './features/meetings/meetings.module';
+import { AiResponsePdfModule } from './report/ai-response-pdf.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ...(process.env.VERCEL === '1' ? [] : [ScheduleModule.forRoot()]),
     PrismaModule,
-    ThrottlerModule.forRoot([
-      { name: 'short',  ttl: 1000,  limit: 10  },
-      { name: 'medium', ttl: 10000, limit: 50  },
-      { name: 'long',   ttl: 60000, limit: 200 },
-    ]),
+    ThrottlerModule.forRoot({
+      storage: new PrismaThrottlerStorage(),
+      throttlers: [
+        { name: 'short', ttl: 1000, limit: 10 },
+        { name: 'medium', ttl: 10000, limit: 50 },
+        { name: 'long', ttl: 60000, limit: 200 },
+      ],
+    }),
     AuthModule,
     CommonModule,
     CacheModule.register({ isGlobal: true, ttl: 300000, max: 1000 }),
@@ -91,6 +98,9 @@ import { TeacherWorkspaceModule } from './features/teacher-workspace/teacher-wor
     ProfileModule,
     PlacementAssessmentModule,
     TeacherWorkspaceModule,
+    MillionModule,
+    MeetingsModule,
+    AiResponsePdfModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: CustomThrottlerGuard },

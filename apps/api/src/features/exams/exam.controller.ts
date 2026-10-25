@@ -2,6 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import { examService } from './exam.service';
 import { ExamError } from '../../types/exam.types';
 
+function routeParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+}
+
 /**
  * Exam Controller
  * HTTP request handlers for exam endpoints
@@ -59,7 +63,7 @@ export class ExamController {
       const userId = (req as any).user.id;
       const userRole = (req as any).user.role;
 
-      const exam = await examService.getExam(req.params.id, userId, userRole);
+      const exam = await examService.getExam(routeParam(req.params.id), userId, userRole);
 
       res.json({
         success: true,
@@ -78,7 +82,7 @@ export class ExamController {
     try {
       const userId = (req as any).user.id;
       const exam = await examService.updateExam(
-        req.params.id,
+        routeParam(req.params.id),
         userId,
         req.body,
       );
@@ -99,7 +103,7 @@ export class ExamController {
   async deleteExam(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = (req as any).user.id;
-      await examService.deleteExam(req.params.id, userId);
+      await examService.deleteExam(routeParam(req.params.id), userId);
 
       res.json({
         success: true,
@@ -116,7 +120,7 @@ export class ExamController {
    */
   async addQuestion(req: Request, res: Response, next: NextFunction) {
     try {
-      const question = await examService.addQuestion(req.params.id, req.body);
+      const question = await examService.addQuestion(routeParam(req.params.id), req.body);
 
       res.status(201).json({
         success: true,
@@ -135,7 +139,7 @@ export class ExamController {
     try {
       const userRole = (req as any).user.role;
       const questions = await examService.getExamQuestions(
-        req.params.id,
+        routeParam(req.params.id),
         userRole,
       );
 
@@ -159,7 +163,7 @@ export class ExamController {
       const userAgent = req.get('user-agent');
 
       const result = await examService.startExam(
-        req.params.id,
+        routeParam(req.params.id),
         userId,
         ipAddress,
         userAgent,
@@ -217,7 +221,7 @@ export class ExamController {
   async getResults(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = (req as any).user.id;
-      const results = await examService.getResults(req.params.id, userId);
+      const results = await examService.getResults(routeParam(req.params.id), userId);
 
       res.json({
         success: true,
@@ -234,7 +238,7 @@ export class ExamController {
    */
   async getStats(req: Request, res: Response, next: NextFunction) {
     try {
-      const stats = await examService.getExamStats(req.params.id);
+      const stats = await examService.getExamStats(routeParam(req.params.id));
 
       res.json({
         success: true,

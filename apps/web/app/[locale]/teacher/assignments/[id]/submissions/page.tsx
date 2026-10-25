@@ -2,19 +2,35 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { useLocale } from 'next-intl';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import { Link } from '@/i18n/routing';
 import { assignmentService, Submission } from '@/lib/services/assignment.service';
 import { VoiceRecorder } from '@/components/assignments/voice-recorder';
 
+function parseStructuredAnswers(content?: string) {
+  if (!content) return null;
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed?.kind !== 'nexus-assignment-answers' || !parsed.answers || typeof parsed.answers !== 'object') return null;
+    const questions = Array.isArray(parsed.questions) ? parsed.questions as Array<{ id: string; prompt: string }> : [];
+    return { answers: parsed.answers as Record<string, string>, questions, comments: typeof parsed.comments === 'string' ? parsed.comments : '' };
+  } catch {
+    return null;
+  }
+}
+
 export default function SubmissionsPage() {
+  const isEnglish = useLocale() === 'en';
   const t = useTranslations('teacher');
   const tAssign = useTranslations('assignment');
+  const tCommon = useTranslations('common');
   const params = useParams();
   const assignmentId = params.id as string;
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submissionsError, setSubmissionsError] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [gradeData, setGradeData] = useState({ score: 0, feedback: '' });
   const [aiData, setAiData] = useState<{ strengths?: string[], weaknesses?: string[], isAiGenerated?: boolean } | null>(null);
@@ -27,11 +43,13 @@ export default function SubmissionsPage() {
 
   const fetchSubmissions = async () => {
     setLoading(true);
+    setSubmissionsError(false);
     try {
       const data = await assignmentService.getSubmissions(assignmentId);
       setSubmissions(data);
     } catch (error) {
       console.error('Failed to fetch submissions', error);
+      setSubmissionsError(true);
     } finally {
       setLoading(false);
     }
@@ -79,9 +97,11 @@ export default function SubmissionsPage() {
       setSelectedSubmission(null);
       fetchSubmissions();
     } catch (error: any) {
-      alert(error.message || 'Failed to grade submission');
+      alert(error.message || tAssign('gradeError'));
     }
   };
+
+  const structuredSubmissionAnswers = parseStructuredAnswers(selectedSubmission?.content);
 
   return (
     <div>
@@ -90,7 +110,14 @@ export default function SubmissionsPage() {
       </h1>
 
       {loading ? (
-        <div>Loading...</div>
+        <p role="status" className="text-gray-500 dark:text-gray-400">{tAssign('loading')}</p>
+      ) : submissionsError ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-5 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+          <p>{tAssign('submissionsLoadError')}</p>
+          <button type="button" onClick={fetchSubmissions} className="mt-3 rounded-md bg-red-700 px-4 py-2 font-medium text-white hover:bg-red-800">
+            {tAssign('retry')}
+          </button>
+        </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -106,7 +133,7 @@ export default function SubmissionsPage() {
                   {tAssign('score')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  {t('actions')}
+                  {tCommon('actions')}
                 </th>
               </tr>
             </thead>
@@ -174,7 +201,15 @@ export default function SubmissionsPage() {
               </p>
               {selectedSubmission.content && (
                 <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded mb-2">
-                  <p className="text-sm text-gray-800 dark:text-gray-200">{selectedSubmission.content}</p>
+                  {structuredSubmissionAnswers ? (
+                    <div className="space-y-3">
+                      {Object.entries(structuredSubmissionAnswers.answers).map(([id, answer], index) => {
+                        const prompt = structuredSubmissionAnswers.questions.find((question) => question.id === id)?.prompt;
+                        return <div key={id} className="rounded border border-gray-200 p-2 dark:border-gray-600"><p className="text-xs font-semibold text-gray-500 dark:text-gray-300">{prompt || (isEnglish ? `Question ${index + 1}` : `السؤال ${index + 1}`)}</p><p className="mt-1 whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">{answer}</p></div>;
+                      })}
+                      {structuredSubmissionAnswers.comments && <p className="text-sm text-gray-700 dark:text-gray-200">{isEnglish ? 'Student note:' : 'ملاحظة الطالب:'} {structuredSubmissionAnswers.comments}</p>}
+                    </div>
+                  ) : <p className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">{selectedSubmission.content}</p>}
                 </div>
               )}
               {selectedSubmission.attachments && selectedSubmission.attachments.length > 0 && (
@@ -198,12 +233,12 @@ export default function SubmissionsPage() {
               <div className="mb-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xl">✨</span>
-                  <h3 className="font-bold text-blue-800 dark:text-blue-300">التصحيح الذكي (AI)</h3>
+                  <h3 className="font-bold text-blue-800 dark:text-blue-300">{isEnglish ? 'AI-assisted grading' : 'التصحيح الذكي (AI)'}</h3>
                 </div>
                 
                 {aiData.strengths && aiData.strengths.length > 0 && (
                   <div className="mb-2">
-                    <p className="text-sm font-semibold text-green-700 dark:text-green-400">نقاط القوة:</p>
+                    <p className="text-sm font-semibold text-green-700 dark:text-green-400">{isEnglish ? 'Strengths:' : 'نقاط القوة:'}</p>
                     <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300">
                       {aiData.strengths.map((s, i) => <li key={i}>{s}</li>)}
                     </ul>
@@ -212,7 +247,7 @@ export default function SubmissionsPage() {
                 
                 {aiData.weaknesses && aiData.weaknesses.length > 0 && (
                   <div>
-                    <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">نقاط للتحسين:</p>
+                    <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">{isEnglish ? 'Areas to improve:' : 'نقاط للتحسين:'}</p>
                     <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300">
                       {aiData.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
                     </ul>
@@ -254,7 +289,7 @@ export default function SubmissionsPage() {
                     onAudioUpload={(url: string) => {
                       setGradeData(prev => ({
                         ...prev,
-                        feedback: prev.feedback + `\n\n[🎤 ملاحظة صوتية](${url})`
+                        feedback: prev.feedback + `\n\n[🎤 ${isEnglish ? 'Voice note' : 'ملاحظة صوتية'}](${url})`
                       }));
                     }}
                   />
@@ -267,13 +302,13 @@ export default function SubmissionsPage() {
                   onClick={() => setSelectedSubmission(null)}
                   className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
                 >
-                  {t('cancel')}
+                  {tCommon('cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 >
-                  {t('save')}
+                  {tCommon('save')}
                 </button>
               </div>
             </form>

@@ -33,7 +33,7 @@ const sections = [
   ] },
 ];
 
-export default function ParentSurveyScreen() {
+export function ParentSurveyScreen() {
   const { user, refreshProfile } = useAuth();
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [consent, setConsent] = useState(false);
@@ -41,15 +41,17 @@ export default function ParentSurveyScreen() {
   const [submitting, setSubmitting] = useState(false);
   const totalQuestions = useMemo(() => sections.reduce((sum, section) => sum + section.questions.length, 0), []);
   const answered = Object.keys(answers).length;
+  const studentId = user?.role === 'STUDENT' ? user.id : user?.onboardingStudentId;
+  const isStudentRespondent = user?.role === 'STUDENT';
 
   const submit = async () => {
     if (answered !== totalQuestions) return setError('أجب عن جميع الأسئلة قبل الإرسال.');
     if (!consent) return setError('أكد موافقتك قبل إرسال الاستبيان.');
-    if (!user?.onboardingStudentId) return setError('لم يظهر الطالب المرتبط بهذا الحساب. ارجع لخطوة الربط وحاول مرة أخرى.');
+    if (!studentId) return setError('لم يظهر الطالب المرتبط بهذا الحساب. ارجع لخطوة الربط وحاول مرة أخرى.');
     setSubmitting(true);
     setError('');
     try {
-      await apiClient.post('/users/parent-survey', { studentId: user.onboardingStudentId, answers, consent: true });
+      await apiClient.post('/users/parent-survey', { studentId, answers, consent: true });
       await refreshProfile();
     } catch (submitError: any) {
       const message = submitError?.response?.data?.message;
@@ -63,7 +65,7 @@ export default function ParentSurveyScreen() {
     <AppPage>
       <BrandHeader />
       <Animated.View entering={FadeInDown.duration(350)} style={styles.body}>
-        <View style={styles.headingRow}><View style={styles.icon}><Ionicons name="heart-outline" size={23} color={BRAND.amber} /></View><View style={styles.heading}><ScreenTitle title="استبيان ولي الأمر" subtitle="إجاباتك تساعد المدرسة على فهم احتياجات الطالب. لا يمثل هذا الاستبيان تشخيصًا طبيًا أو نفسيًا." /></View></View>
+        <View style={styles.headingRow}><View style={styles.icon}><Ionicons name="heart-outline" size={23} color={BRAND.amber} /></View><View style={styles.heading}><ScreenTitle title={isStudentRespondent ? 'استبيان بيانات الطالب' : 'استبيان ولي الأمر'} subtitle="يملؤه الطالب أو ولي أمره. تساعد الإجابات المدرسة على فهم احتياجات الطالب، ولا تمثل تشخيصًا طبيًا أو نفسيًا." /></View></View>
         <View style={styles.progress}><Text style={styles.progressText}>{answered} من {totalQuestions} إجابة</Text><View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${(answered / totalQuestions) * 100}%` }]} /></View></View>
         {sections.map((section) => (
           <Surface key={section.title} style={styles.section}>
@@ -81,7 +83,7 @@ export default function ParentSurveyScreen() {
           <Switch value={consent} onValueChange={setConsent} trackColor={{ false: '#CAD3DC', true: '#83CFC0' }} thumbColor={consent ? BRAND.teal : '#FFFFFF'} accessibilityLabel="الموافقة على حفظ إجابات الاستبيان" />
         </Surface>
         {error ? <ErrorNotice>{error}</ErrorNotice> : null}
-        <PrimaryButton title="حفظ الاستبيان ومتابعة" icon="checkmark" onPress={() => void submit()} loading={submitting} tone="blue" />
+        <PrimaryButton title={isStudentRespondent ? 'حفظ إجاباتي في ملفي' : 'حفظ الاستبيان ومتابعة'} icon="checkmark" onPress={() => void submit()} loading={submitting} tone="blue" />
       </Animated.View>
     </AppPage>
   );
@@ -106,3 +108,5 @@ const styles = StyleSheet.create({
   consentTitle: { color: BRAND.ink, fontSize: 14, fontWeight: '800', textAlign: 'right', writingDirection: 'rtl' },
   consentText: { color: BRAND.muted, fontSize: 12, lineHeight: 19, textAlign: 'right', writingDirection: 'rtl' },
 });
+
+export default ParentSurveyScreen;

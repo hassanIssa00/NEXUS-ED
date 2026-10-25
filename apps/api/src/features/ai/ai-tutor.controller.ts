@@ -1,6 +1,22 @@
-import { BadRequestException, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Body, Request, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  ForbiddenException,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Body,
+  Request,
+  Query,
+  UploadedFiles,
+  UseInterceptors,
+  UseGuards,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '../../auth/role.enum';
 import { Roles } from '../../auth/roles.decorator';
 import { RolesGuard } from '../../auth/roles.guard';
@@ -13,8 +29,16 @@ import { AiPersonalTutorService } from './ai-personal-tutor.service';
 import { AiContentService } from './ai-content.service';
 import { AiGradingService } from './ai-grading.service';
 import { PrismaService } from '../../core/database/prisma.service';
+import { AiPortalContextService } from './ai-portal-context.service';
 
-const SCHOOL_STAFF = [Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR];
+const SCHOOL_STAFF = [
+  Role.TEACHER,
+  Role.ADMIN,
+  Role.PRINCIPAL,
+  Role.VICE_PRINCIPAL,
+  Role.COUNSELOR,
+  Role.SUPERVISOR,
+];
 const STUDENT_DATA_ROLES = [Role.STUDENT, Role.PARENT, ...SCHOOL_STAFF];
 const AI_CHAT_ROLES = Object.values(Role);
 
@@ -33,45 +57,129 @@ export class AiTutorController {
     private readonly aiGradingService: AiGradingService,
     private readonly studentAnalytics: StudentAnalyticsService,
     private readonly prisma: PrismaService,
+    private readonly portalContext: AiPortalContextService,
   ) {}
 
   @Post('ask')
   @Roles(...AI_CHAT_ROLES)
+  @Throttle({ long: { limit: 30, ttl: 60_000 } })
   async ask(@Body() body: any, @Request() req: any) {
-    if (typeof body?.question !== 'string' || !body.question.trim() || body.question.length > 2000) {
+    if (
+      typeof body?.question !== 'string' ||
+      !body.question.trim() ||
+      body.question.length > 2000
+    ) {
       throw new BadRequestException('يجب إدخال سؤال لا يتجاوز 2000 حرف');
     }
-    if (body.history !== undefined && (!Array.isArray(body.history) || body.history.length > 12 ||
-        body.history.some((item: any) => !item || !['user', 'assistant'].includes(item.role) || typeof item.content !== 'string' || item.content.length > 2000))) {
+    if (
+      body.history !== undefined &&
+      (!Array.isArray(body.history) ||
+        body.history.length > 12 ||
+        body.history.some(
+          (item: any) =>
+            !item ||
+            !['user', 'assistant'].includes(item.role) ||
+            typeof item.content !== 'string' ||
+            item.content.length > 2000,
+        ))
+    ) {
       throw new BadRequestException('سجل المحادثة غير صالح أو أطول من المسموح');
     }
-    if (body.subject !== undefined && (typeof body.subject !== 'string' || body.subject.length > 100)) {
+    if (
+      body.subject !== undefined &&
+      (typeof body.subject !== 'string' || body.subject.length > 100)
+    ) {
       throw new BadRequestException('اسم المادة غير صالح');
     }
-    const isStudent = req.user.role === Role.STUDENT;
-    const answer = await this.aiService.askTutor(body.question.trim(), {
+    if (
+      body.portalPath !== undefined &&
+      (typeof body.portalPath !== 'string' || body.portalPath.length > 180)
+    ) {
+      throw new BadRequestException('مسار الصفحة غير صالح');
+    }
+    let currentPage: { slug: string; title: string; page: number; totalPages: number } | undefined;
+    if (body.currentPage !== undefined) {
+      const candidate = body.currentPage;
+      if (
+        !candidate ||
+        typeof candidate !== 'object' ||
+        typeof candidate.slug !== 'string' ||
+        !/^[a-z0-9-]{1,80}$/.test(candidate.slug) ||
+        typeof candidate.title !== 'string' ||
+        candidate.title.length > 160 ||
+        !Number.isInteger(candidate.page) ||
+        candidate.page < 1 ||
+        candidate.page > 1000 ||
+        !Number.isInteger(candidate.totalPages) ||
+        candidate.totalPages < candidate.page ||
+        candidate.totalPages > 1000
+      ) {
+        throw new BadRequestException('بيانات صفحة الكتاب غير صالحة');
+      }
+      currentPage = {
+        slug: candidate.slug,
+        title: candidate.title.trim(),
+        page: candidate.page,
+        totalPages: candidate.totalPages,
+      };
+    }
+    const userId = this.userId(req);
+    const role = req.user.role as Role;
+    const portalContext = await this.portalContext.build(
+      userId,
+      role,
+      body.portalPath || '',
+      body.question.trim(),
+    );
+    const isStudent = role === Role.STUDENT;
+    const tutorContext = {
       subject: body.subject,
-      role: req.user.role,
+      role,
       grade: isStudent ? req.user?.grade : undefined,
-      studentId: isStudent ? this.userId(req) : undefined,
-    }, body.history || []);
+      studentId: isStudent ? userId : undefined,
+      portalPath: body.portalPath,
+      portalData: portalContext,
+      ...(currentPage ? { currentPage } : {}),
+    };
+    const answer = await this.aiService.askTutor(
+      body.question.trim(),
+      tutorContext,
+      body.history || [],
+    );
     return { success: true, data: { answer } };
   }
 
   @Post('generate-exam')
   @Roles(Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
+  @Throttle({ long: { limit: 5, ttl: 60_000 } })
   async generateExam(@Body() body: any) {
-    if (typeof body?.topic !== 'string' || !body.topic.trim() || body.topic.length > 200 ||
-        typeof body?.subject !== 'string' || !body.subject.trim() || body.subject.length > 120) {
-      throw new BadRequestException('المادة والموضوع مطلوبان وبحد أقصى 200 حرف للموضوع');
+    if (
+      typeof body?.topic !== 'string' ||
+      !body.topic.trim() ||
+      body.topic.length > 200 ||
+      typeof body?.subject !== 'string' ||
+      !body.subject.trim() ||
+      body.subject.length > 120
+    ) {
+      throw new BadRequestException(
+        'المادة والموضوع مطلوبان وبحد أقصى 200 حرف للموضوع',
+      );
     }
-    const questionCount = body.questionCount === undefined ? 5 : Number(body.questionCount);
+    const questionCount =
+      body.questionCount === undefined ? 5 : Number(body.questionCount);
     const questionType = body.questionType || 'mixed';
-    if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 30 ||
-        !['multiple_choice', 'true_false', 'mixed'].includes(questionType)) {
+    if (
+      !Number.isInteger(questionCount) ||
+      questionCount < 1 ||
+      questionCount > 30 ||
+      !['multiple_choice', 'true_false', 'mixed'].includes(questionType)
+    ) {
       throw new BadRequestException('عدد الأسئلة أو نوعها غير صالح');
     }
-    if (body.gradeLevel !== undefined && (typeof body.gradeLevel !== 'string' || body.gradeLevel.length > 80)) {
+    if (
+      body.gradeLevel !== undefined &&
+      (typeof body.gradeLevel !== 'string' || body.gradeLevel.length > 80)
+    ) {
       throw new BadRequestException('الصف الدراسي غير صالح');
     }
     const difficulty = body.difficulty ?? 'MEDIUM';
@@ -91,15 +199,28 @@ export class AiTutorController {
 
   @Post('suggest-questions')
   @Roles(Role.TEACHER)
-  async suggestQuestions(@Body() body: any, @Request() req: any) {
-    if (typeof body?.subjectId !== 'string' || !body.subjectId.trim() ||
-        typeof body?.topic !== 'string' || !body.topic.trim() || body.topic.length > 200) {
+  @Throttle({ long: { limit: 5, ttl: 60_000 } })
+  @UseInterceptors(FilesInterceptor('pages', 3, { limits: { fileSize: 2 * 1024 * 1024, files: 3 } }))
+  async suggestQuestions(@Body() body: any, @Request() req: any, @UploadedFiles() pages?: Express.Multer.File[]) {
+    if (
+      typeof body?.subjectId !== 'string' ||
+      !body.subjectId.trim() ||
+      typeof body?.topic !== 'string' ||
+      !body.topic.trim() ||
+      body.topic.length > 200
+    ) {
       throw new BadRequestException('المادة والموضوع مطلوبان');
     }
     const questionCount = body.count === undefined ? 3 : Number(body.count);
     const difficulty = body.difficulty ?? 'MEDIUM';
-    if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 30 ||
-        !['EASY', 'MEDIUM', 'HARD'].includes(difficulty)) {
+    const questionType = body.questionType || 'mixed';
+    if (
+      !Number.isInteger(questionCount) ||
+      questionCount < 1 ||
+      questionCount > 30 ||
+      !['EASY', 'MEDIUM', 'HARD'].includes(difficulty) ||
+      !['multiple_choice', 'true_false', 'short_answer', 'essay', 'mixed'].includes(questionType)
+    ) {
       throw new BadRequestException('عدد الأسئلة أو مستوى الصعوبة غير صالح');
     }
 
@@ -108,55 +229,154 @@ export class AiTutorController {
       where: { id: teacherId },
       select: { schoolId: true, isActive: true },
     });
-    if (!teacher?.isActive || !teacher.schoolId) {
-      throw new ForbiddenException('حساب المعلم غير نشط أو غير مرتبط بمدرسة');
+    if (!teacher?.isActive) throw new ForbiddenException('حساب المعلم غير نشط');
+    let schoolId = teacher.schoolId;
+    if (!schoolId) {
+      const linkedClasses = await this.prisma.class.findMany({
+        where: { OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }] },
+        select: { schoolId: true },
+        take: 200,
+      });
+      const linkedSchoolIds = [...new Set(linkedClasses.map((item) => item.schoolId).filter((id): id is string => Boolean(id)))];
+      if (linkedSchoolIds.length !== 1) throw new ForbiddenException('حساب المعلم غير مرتبط بمدرسة واحدة');
+      schoolId = linkedSchoolIds[0];
     }
     const subject = await this.prisma.subject.findFirst({
       where: {
         id: body.subjectId,
-        schoolId: teacher.schoolId,
-        OR: [
-          { teacherId },
-          { classSubjects: { some: { teacherId } } },
-          { class: { teacherAssignments: { some: { teacherId } } } },
-        ],
+        schoolId,
+        OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }, { class: { teacherId } }],
       },
       select: { name: true, class: { select: { name: true } } },
     });
     if (!subject) throw new NotFoundException('المادة غير مرتبطة بحسابك');
+
+    let sourceText: string | undefined;
+    if (body.sourceText !== undefined) {
+      if (typeof body.sourceText !== 'string' || !body.sourceText.trim() || body.sourceText.length > 32_000) {
+        throw new BadRequestException('نص صفحات الكتاب فارغ أو أطول من الحد المسموح');
+      }
+      sourceText = body.sourceText.trim();
+    }
+    if (body.lessonId) {
+      const lesson = await this.prisma.lesson.findFirst({
+        where: {
+          id: String(body.lessonId),
+          subjectId: body.subjectId,
+          authorId: teacherId,
+          OR: [
+            { schoolId },
+            { schoolId: null, subject: { schoolId } },
+          ],
+        },
+        select: { title: true, content: true },
+      });
+      if (!lesson) throw new NotFoundException('الدرس غير موجود ضمن دروسك');
+      if (!lesson.content?.trim()) throw new BadRequestException('أضف محتوى نصيًا للدرس قبل توليد أسئلة منه');
+      sourceText = `عنوان الدرس: ${lesson.title}\n${lesson.content}`;
+    }
+
+    let sourceImages: Array<{ mimeType: string; data: Buffer }> | undefined;
+    const uploadedPages = pages ?? [];
+    if (uploadedPages.length) {
+      if (uploadedPages.length > 3 || uploadedPages.some((page) => page.mimetype !== 'image/jpeg' || !page.buffer?.length || page.buffer[0] !== 0xff || page.buffer[1] !== 0xd8)) {
+        throw new BadRequestException('ارفع من صفحة إلى ثلاث صفحات كتاب بصيغة JPG');
+      }
+      sourceImages = uploadedPages.map((page) => ({ mimeType: 'image/jpeg', data: page.buffer }));
+      sourceText = [
+        body.curriculumTitle ? `الكتاب: ${String(body.curriculumTitle).slice(0, 160)}` : '',
+        body.unitTitle ? `الوحدة أو الدرس: ${String(body.unitTitle).slice(0, 200)}` : '',
+        body.pageFrom ? `الصفحات: ${String(body.pageFrom)}-${String(body.pageTo || body.pageFrom)}` : '',
+      ].filter(Boolean).join('\n');
+    }
 
     const questions = await this.aiExamService.generateExam({
       topic: body.topic.trim(),
       subject: subject.name,
       gradeLevel: subject.class.name,
       questionCount,
-      questionType: 'mixed',
+      questionType,
       difficulty,
+      sourceText,
+      sourceImages,
     });
     return { success: true, data: { questions } };
   }
 
   @Post('lesson-summary/:lessonId')
-  @Roles(Role.TEACHER)
-  async summarizeLesson(@Param('lessonId') lessonId: string, @Request() req: any) {
+  @Roles(Role.TEACHER, Role.STUDENT)
+  @Throttle({ long: { limit: 8, ttl: 60_000 } })
+  async summarizeLesson(
+    @Param('lessonId') lessonId: string,
+    @Query('locale') locale: string | undefined,
+    @Request() req: any,
+  ) {
+    const userId = this.userId(req);
+    const role = req.user.role as Role;
+    const actor = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, schoolId: true, isActive: true },
+    });
+    if (!actor?.isActive || !actor.schoolId || actor.role !== role) {
+      throw new ForbiddenException('حسابك غير نشط أو غير مرتبط بمدرسة');
+    }
+
+    const lessonAccess =
+      role === Role.TEACHER
+        ? { authorId: userId }
+        : {
+            subject: {
+              class: {
+                schoolId: actor.schoolId,
+                students: { some: { studentId: userId } },
+              },
+            },
+          };
     const lesson = await this.prisma.lesson.findFirst({
-      where: { id: lessonId, authorId: this.userId(req) },
+      where: {
+        id: lessonId,
+        AND: [
+          {
+            OR: [
+              { schoolId: actor.schoolId },
+              { schoolId: null, subject: { schoolId: actor.schoolId } },
+            ],
+          },
+          lessonAccess,
+        ],
+      },
       select: { id: true, title: true, content: true },
     });
-    if (!lesson) throw new NotFoundException('الدرس غير موجود ضمن دروسك');
-    if (!lesson.content?.trim()) throw new BadRequestException('الدرس لا يحتوي على نص قابل للتحليل');
-    if (lesson.content.length > 80000) throw new BadRequestException('محتوى الدرس أطول من الحد المدعوم');
+    if (!lesson) throw new NotFoundException('الدرس غير متاح لحسابك');
+    if (!lesson.content?.trim())
+      throw new BadRequestException('الدرس لا يحتوي على نص قابل للتحليل');
+    if (lesson.content.length > 80000)
+      throw new BadRequestException('محتوى الدرس أطول من الحد المدعوم');
 
-    const generated = await this.aiContentService.processContent(lesson.content);
+    const generated = await this.aiContentService.processContent(
+      lesson.content,
+      locale === 'en' ? 'en' : 'ar',
+    );
     const practiceQuestions = generated.quiz
-      .filter((question) => Number.isInteger(question.correctAnswer) &&
-        question.correctAnswer >= 0 && question.correctAnswer < question.options.length)
-      .map((question) => ({
-        question: question.question,
-        options: question.options,
-        correctAnswer: question.correctAnswer,
-        explanation: question.explanation,
-      }));
+      .filter(
+        (question) =>
+          Number.isInteger(question.correctAnswer) &&
+          question.correctAnswer >= 0 &&
+          question.correctAnswer < question.options.length,
+      )
+      .map((question) =>
+        role === Role.STUDENT
+          ? {
+              question: question.question,
+              options: question.options,
+            }
+          : {
+              question: question.question,
+              options: question.options,
+              correctAnswer: question.correctAnswer,
+              explanation: question.explanation,
+            },
+      );
     return {
       success: true,
       data: {
@@ -172,20 +392,34 @@ export class AiTutorController {
   @Roles(...STUDENT_DATA_ROLES)
   async getStudentInsights(@Param('id') id: string, @Request() req: any) {
     const studentId = id === 'me' ? this.userId(req) : id;
-    await this.studentAnalytics.assertCanAccessStudent(this.userId(req), req.user.role, studentId);
+    await this.studentAnalytics.assertCanAccessStudent(
+      this.userId(req),
+      req.user.role,
+      studentId,
+    );
     const student = await this.prisma.user.findUnique({
       where: { id: studentId },
       include: {
-        studentGrades: { include: { subject: true }, take: 30, orderBy: { createdAt: 'desc' } },
+        studentGrades: {
+          include: { subject: true },
+          take: 30,
+          orderBy: { createdAt: 'desc' },
+        },
         attendance: { take: 30, orderBy: { date: 'desc' } },
       },
     });
     if (!student) throw new BadRequestException('ملف الطالب غير متاح');
 
-    const ungradedSubmissions = await this.prisma.submission.count({ where: { studentId, grade: null } });
+    const ungradedSubmissions = await this.prisma.submission.count({
+      where: { studentId, grade: null },
+    });
     const totalAttendance = student.attendance.length;
-    const presentAttendance = student.attendance.filter((record) => record.status === 'PRESENT').length;
-    const attendanceRate = totalAttendance ? Math.round((presentAttendance / totalAttendance) * 100) : null;
+    const presentAttendance = student.attendance.filter(
+      (record) => record.status === 'PRESENT',
+    ).length;
+    const attendanceRate = totalAttendance
+      ? Math.round((presentAttendance / totalAttendance) * 100)
+      : null;
     const grades = student.studentGrades.map((grade) => ({
       subject: grade.subject?.name || 'مادة غير محددة',
       score: grade.score,
@@ -200,54 +434,122 @@ export class AiTutorController {
   }
 
   @Post('parent-advice')
-  @Roles(Role.PARENT, Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR)
+  @Roles(
+    Role.PARENT,
+    Role.TEACHER,
+    Role.ADMIN,
+    Role.PRINCIPAL,
+    Role.VICE_PRINCIPAL,
+    Role.COUNSELOR,
+    Role.SUPERVISOR,
+  )
+  @Throttle({ long: { limit: 8, ttl: 60_000 } })
   async getParentAdvice(@Body() body: any, @Request() req: any) {
-    if (typeof body?.studentId !== 'string' || !body.studentId) throw new BadRequestException('معرف الطالب مطلوب');
-    if (body.question !== undefined && (typeof body.question !== 'string' || body.question.length > 2000)) {
+    if (typeof body?.studentId !== 'string' || !body.studentId)
+      throw new BadRequestException('معرف الطالب مطلوب');
+    if (
+      body.question !== undefined &&
+      (typeof body.question !== 'string' || body.question.length > 2000)
+    ) {
       throw new BadRequestException('السؤال غير صالح أو أطول من المسموح');
     }
-    await this.studentAnalytics.assertCanAccessStudent(this.userId(req), req.user.role, body.studentId);
-    const advice = await this.aiParentService.generateParentAdvice(body.studentId, body.question?.trim());
+    await this.studentAnalytics.assertCanAccessStudent(
+      this.userId(req),
+      req.user.role,
+      body.studentId,
+    );
+    const advice = await this.aiParentService.generateParentAdvice(
+      body.studentId,
+      body.question?.trim(),
+    );
     return { success: true, data: advice };
   }
 
   @Get('learning-risk/:studentId')
   @Roles(...STUDENT_DATA_ROLES)
-  async getLearningRisk(@Param('studentId') studentId: string, @Request() req: any) {
-    await this.studentAnalytics.assertCanAccessStudent(this.userId(req), req.user.role, studentId);
-    return { success: true, data: await this.aiParentService.detectLearningRiskIndicators(studentId) };
+  @Throttle({ long: { limit: 20, ttl: 60_000 } })
+  async getLearningRisk(
+    @Param('studentId') studentId: string,
+    @Request() req: any,
+  ) {
+    await this.studentAnalytics.assertCanAccessStudent(
+      this.userId(req),
+      req.user.role,
+      studentId,
+    );
+    return {
+      success: true,
+      data: await this.aiParentService.detectLearningRiskIndicators(studentId),
+    };
   }
 
   @Get('weakness-map/:id')
   @Roles(...STUDENT_DATA_ROLES)
+  @Throttle({ long: { limit: 20, ttl: 60_000 } })
   async getWeaknessMap(@Param('id') id: string, @Request() req: any) {
     const studentId = id === 'me' ? this.userId(req) : id;
-    await this.studentAnalytics.assertCanAccessStudent(this.userId(req), req.user.role, studentId);
-    return { success: true, data: await this.aiPersonalTutorService.buildWeaknessMap(studentId) };
+    await this.studentAnalytics.assertCanAccessStudent(
+      this.userId(req),
+      req.user.role,
+      studentId,
+    );
+    return {
+      success: true,
+      data: await this.aiPersonalTutorService.buildWeaknessMap(studentId),
+    };
   }
 
   @Post('grade/:submissionId')
   @Roles(Role.TEACHER, Role.ADMIN)
-  async suggestGrade(@Param('submissionId') submissionId: string, @Request() req: any) {
-    return { success: true, data: await this.aiGradingService.suggestGrade(submissionId, this.userId(req), req.user.role) };
+  @Throttle({ long: { limit: 10, ttl: 60_000 } })
+  async suggestGrade(
+    @Param('submissionId') submissionId: string,
+    @Request() req: any,
+  ) {
+    return {
+      success: true,
+      data: await this.aiGradingService.suggestGrade(
+        submissionId,
+        this.userId(req),
+        req.user.role,
+      ),
+    };
   }
 
   @Post('process-document')
   @Roles(Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
+  @Throttle({ long: { limit: 4, ttl: 60_000 } })
   async processDocument(@Body() body: any) {
-    if (typeof body?.text !== 'string' || !body.text.trim() || body.text.length > 80000) {
+    if (
+      typeof body?.text !== 'string' ||
+      !body.text.trim() ||
+      body.text.length > 80000
+    ) {
       throw new BadRequestException('النص مطلوب ويجب ألا يتجاوز 80000 حرف');
     }
-    return { success: true, data: await this.aiContentService.processContent(body.text) };
+    return {
+      success: true,
+      data: await this.aiContentService.processContent(body.text),
+    };
   }
 
   @Post('generate-image')
   @Roles(Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
+  @Throttle({ long: { limit: 2, ttl: 60_000 } })
   async generateImage(@Body() body: any) {
-    if (typeof body?.prompt !== 'string' || !body.prompt.trim() || body.prompt.length > 500) {
+    if (
+      typeof body?.prompt !== 'string' ||
+      !body.prompt.trim() ||
+      body.prompt.length > 500
+    ) {
       throw new BadRequestException('وصف الصورة مطلوب وبحد أقصى 500 حرف');
     }
-    return { success: true, data: { url: await this.aiContentService.generateImage(body.prompt.trim()) } };
+    return {
+      success: true,
+      data: {
+        url: await this.aiContentService.generateImage(body.prompt.trim()),
+      },
+    };
   }
 
   private userId(request: any): string {

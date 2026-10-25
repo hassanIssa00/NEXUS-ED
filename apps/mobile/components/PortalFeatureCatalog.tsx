@@ -1,0 +1,86 @@
+import React, { useMemo, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import { BRAND, WEB_URL } from '@/constants/Config';
+import { SectionHeading, Surface } from '@/components/mobile-ui';
+
+type Feature = { id: string; title: string; subtitle: string; icon: React.ComponentProps<typeof Ionicons>['name']; group: string; tab?: string; route?: string; browserPath?: string };
+
+const definitions: Record<string, Feature[]> = {
+  STUDENT: [
+    ['schedule','جدول الحصص','حصص اليوم والأسبوع','calendar-outline','الدراسة'], ['courses','فصولي','الجداول والجلسات المرتبطة بفصولك','albums-outline','الدراسة'], ['curriculum','المناهج والكتب','المواد ومصادر التعلم','book-outline','الدراسة'], ['quran','المصحف الشريف','محتوى القرآن والقراءة','bookmarks-outline','الدراسة'], ['content','المكتبة التعليمية','المصادر والمواد المنشورة','library-outline','الدراسة'], ['lessons','الدروس','الدروس والملخصات التعليمية','reader-outline','الدراسة'], ['assignments','الواجبات','التكليفات والتسليمات','document-text-outline','الدراسة'], ['quizzes','الاختبارات','الاختبارات والمحاولات','checkbox-outline','الدراسة'], ['attendance','الحضور والغياب','سجل حضورك وتسجيله','time-outline','الدراسة'], ['grades','الدرجات والتقييم','نتائجك حسب المواد','ribbon-outline','الدراسة'], ['certificates','الإنجازات والشهادات','شهاداتك وسجل إنجازك','trophy-outline','التقدم'], ['live','الحصص المباشرة','الدخول إلى حصصك النشطة','radio-outline','التعلم'], ['games','الألعاب التعليمية','الأنشطة ولوحات النتائج','game-controller-outline','التعلم'], ['million','رحلة المليون','التقدم والشارات والترتيب','star-outline','التقدم'], ['leaderboard','لوحة الشرف','ترتيب الطلاب ونقاطهم','podium-outline','التقدم'], ['ai-tutor','المعلم الذكي','خريطة دعم دراستك ومساعد AI','sparkles-outline','التعلم'], ['analytics','تحليل أدائي','ملخص الأداء والتقارير','analytics-outline','التقدم'], ['subscription','الاشتراكات','الخطط والرسوم المعتمدة','card-outline','حسابي'], ['events','الفعاليات والصور','أخبار وأنشطة المدرسة','images-outline','المجتمع'], ['community','مجتمع المدرسة','منشورات فصولك وتعليقاتك','people-outline','المجتمع'], ['messages','الرسائل','التواصل داخل المدرسة','chatbubbles-outline','المجتمع'], ['profile','ملفي الذكي','بيانات الملف والتقدم','person-outline','حسابي'],
+  ].map(([id,title,subtitle,icon,group]) => ({id,title,subtitle,icon:icon as Feature['icon'],group})),
+  TEACHER: [
+    ['classes','فصولي والطلاب','قوائم الفصول وملفات الطلاب','people-outline','التدريس','classes'], ['curriculum','المناهج والخطط','المواد والمناهج المسندة','library-outline','التدريس'], ['assignments','الواجبات والتصحيح','إنشاء التكليفات ومراجعة التسليمات','document-text-outline','التدريس','assignments'], ['quizzes','بنك الاختبارات','إنشاء الاختبارات ونشرها ومتابعة محاولاتها','checkbox-outline','التدريس'], ['assessment','تقارير اختبارات القبول','نتائج محاولات القبول','bar-chart-outline','التدريس'], ['attendance','الحضور والانضباط','تسجيل الحضور للفصول','calendar-outline','التدريس','attendance'], ['lessons','تحضير الدروس','إدارة الدروس والمرفقات','book-outline','التدريس','lessons'], ['live','البث والحصة المباشرة','بدء الحصة وتسجيل حضورها','radio-outline','التدريس'], ['grading','قائمة التصحيح','تصحيح الواجبات والدرجات','checkmark-done-outline','التدريس','grading'], ['reports','التقارير الأسبوعية','متابعة أداء الفصول والطلاب','bar-chart-outline','المتابعة','reports'], ['certificates','الشهادات والأوسمة','إصدار الشهادات ومراجعتها','trophy-outline','المتابعة'], ['archive','أرشيف الحضور','سجل الفصل حسب اليوم والتاريخ','archive-outline','المتابعة'], ['automation','الأتمتة الذكية','قواعد التشغيل وسجل التنفيذ','flash-outline','المتابعة'], ['student-risk-report','مؤشرات الطلاب','طلاب يحتاجون متابعة','alert-circle-outline','المتابعة'], ['meetings','لقاءات أولياء الأمور','إدارة مواعيد اللقاءات','heart-outline','التواصل'], ['community','ملتقى أولياء الأمور','منشورات وتعليقات مجتمع المدرسة','people-outline','التواصل'], ['events','الأنشطة والفعاليات','إدارة فعاليات الفصل والصور','images-outline','التواصل'], ['messages','الرسائل المباشرة','التواصل مع الحسابات المصرح بها','chatbubbles-outline','التواصل'], ['notifications','التنبيهات','إرسال ومراجعة تنويهات الفصل','notifications-outline','التواصل','notifications'], ['games','الألعاب التعليمية','الألعاب ولوحات النتائج','game-controller-outline','الأدوات','games'], ['ai','مساعد الذكاء الاصطناعي','إنشاء محتوى وقراءة بيانات العمل','sparkles-outline','الأدوات','ai'], ['content-generator','مولّد المحتوى التعليمي','أنشئ مسودات وأنشطة بمساعدة AI','create-outline','الأدوات'], ['tools','أدوات نكسس','أدوات المعلم المرتبطة بالنظام','grid-outline','الأدوات','tools'],
+  ].map(([id,title,subtitle,icon,group,tab]) => ({id,title,subtitle,icon:icon as Feature['icon'],group,...(tab?{tab}:{})})),
+  PARENT: [
+    ['children','الأبناء','ملفات الأبناء المرتبطة','people-outline','متابعة الأبناء'], ['schedule','جدول الحصص','جدول كل ابن','calendar-outline','متابعة الأبناء'], ['attendance','الحضور والانضباط','سجل حضور الأبناء','time-outline','متابعة الأبناء'], ['reports','التقرير الأكاديمي','ملخص الأداء والمتابعة','bar-chart-outline','الأداء'], ['assessment','اختبارات القبول','نتائج اختبارات الأبناء','checkbox-outline','الأداء'], ['grades','الدرجات والشهادات','نتائج وشهادات الأبناء','ribbon-outline','الأداء'], ['meetings','لقاءات أولياء الأمور','حجز ومتابعة اللقاءات','heart-outline','التواصل'], ['messages','التواصل مع المعلمين','رسائل المدرسة','chatbubbles-outline','التواصل'], ['community','ملتقى أولياء الأمور','الأخبار والتعليقات','people-outline','التواصل'], ['events','الصور والفعاليات','معرض فعاليات الأبناء','images-outline','التواصل'], ['payments','المدفوعات والمستحقات','الفواتير وسجل الدفع','card-outline','الخدمات'], ['notifications','الإشعارات والتنبيهات','تنبيهات المدرسة','notifications-outline','الخدمات'],
+  ].map(([id,title,subtitle,icon,group])=>({id,title,subtitle,icon:icon as Feature['icon'],group})),
+  ADMIN: [
+    ['students','سجلات الطلاب','بحث وفتح ملفات الطلاب','school-outline','إدارة المدرسة'], ['users','حسابات المستخدمين','مراجعة حسابات وأدوار المستخدمين','people-outline','إدارة المدرسة'], ['archive','أرشيف التسجيلات','متابعة طلبات التسجيل','archive-outline','إدارة المدرسة'], ['classes','الفصول الدراسية','إدارة فصول المدرسة','albums-outline','إدارة المدرسة'], ['subjects','المواد الدراسية','المواد وربطها بالفصول','book-outline','إدارة المدرسة'], ['enrollments','تسجيلات الطلاب','ربط الطلاب بالفصول','person-add-outline','إدارة المدرسة'], ['assessment','تقارير اختبارات القبول','نتائج محاولات القبول','bar-chart-outline','التقارير'], ['library','المكتبة التعليمية','مصادر ومحتوى المدرسة','library-outline','المحتوى'], ['games','الألعاب التعليمية','قائمة ألعاب المدرسة','game-controller-outline','المحتوى'], ['permissions','الحسابات حسب الدور','مؤشرات الأدوار والصلاحيات','shield-checkmark-outline','الإدارة'], ['settings','إعدادات المدرسة','إعدادات الفصول والحضور والتقارير','settings-outline','الإدارة'], ['reports','التقارير','ملخصات المدرسة','bar-chart-outline','التقارير'],
+  ].map(([id,title,subtitle,icon,group])=>({id,title,subtitle,icon:icon as Feature['icon'],group})),
+  PRINCIPAL: [
+    ['students','سجلات الطلاب','متابعة بيانات الطلاب','school-outline','القيادة'], ['classes','الفصول','أعداد الفصول ومؤشراتها','albums-outline','القيادة'], ['teachers','المعلمون','المعلمون والفصول المسندة','people-outline','القيادة'], ['analytics','التقارير والإحصاءات','مؤشرات الأداء والتنبيهات','bar-chart-outline','القيادة'], ['reports','التقارير','تقارير المدرسة','document-text-outline','القيادة'],
+  ].map(([id,title,subtitle,icon,group])=>({id,title,subtitle,icon:icon as Feature['icon'],group})),
+  VICE_PRINCIPAL: [
+    ['schedules','الجداول الدراسية','جداول الفصول','calendar-outline','التشغيل'], ['attendance','الحضور العام','متابعة سجلات الحضور','time-outline','التشغيل'], ['students','سجلات الطلاب','ملفات الطلاب','school-outline','المدرسة'], ['classes','الفصول','الفصول والطلاب','albums-outline','المدرسة'], ['reports','التقارير','مؤشرات المدرسة','bar-chart-outline','المدرسة'],
+  ].map(([id,title,subtitle,icon,group])=>({id,title,subtitle,icon:icon as Feature['icon'],group})),
+  COUNSELOR: [
+    ['students','الطلاب','ملفات الطلاب ومؤشرات المتابعة','people-outline','التوجيه'], ['classes','الفصول الدراسية','قوائم الفصول','albums-outline','التوجيه'], ['cases','حالات المتابعة','الطلاب الذين يحتاجون متابعة','heart-outline','التوجيه'], ['attendance','الغيابات','سجلات الغياب والانضباط','time-outline','التوجيه'], ['surveys','استبيانات أولياء الأمور','الإجابات المسجلة','clipboard-outline','التواصل'], ['reports','التقارير','تقارير التوجيه الطلابي','bar-chart-outline','التقارير'],
+  ].map(([id,title,subtitle,icon,group])=>({id,title,subtitle,icon:icon as Feature['icon'],group})),
+  SUPERVISOR: [
+    ['students','سجلات الطلاب','متابعة سجلات الطلاب','school-outline','الإشراف'], ['teachers','المعلمون','البيانات الأكاديمية للمعلمين','people-outline','الإشراف'], ['classes','الفصول','أداء الفصول والحضور','albums-outline','الإشراف'], ['reports','التقارير','تقارير الإشراف','bar-chart-outline','الإشراف'], ['analytics','مؤشرات الأداء','مؤشرات المدرسة والإنذارات','trending-up-outline','الإشراف'],
+  ].map(([id,title,subtitle,icon,group])=>({id,title,subtitle,icon:icon as Feature['icon'],group})),
+  ACCOUNTANT: [
+    ['students','سجلات الطلاب','الطلاب والفصول المسجلون','school-outline','المالية'], ['classes','الفصول الدراسية','قوائم الفصول','albums-outline','المالية'], ['invoices','الفواتير والتحصيل','الفواتير المستحقة والمدفوعة','card-outline','المالية'], ['reports','التقارير المالية','الإيرادات والملخصات','bar-chart-outline','المالية'],
+  ].map(([id,title,subtitle,icon,group])=>({id,title,subtitle,icon:icon as Feature['icon'],group})),
+  HR: [
+    ['students','سجلات الطلاب','قوائم الطلاب والفصول','school-outline','الموارد البشرية'], ['classes','الفصول الدراسية','الفصول المسجلة','albums-outline','الموارد البشرية'], ['employees','دليل الموظفين','حسابات الموظفين','people-outline','الموارد البشرية'], ['reports','ملخص الموارد البشرية','المؤشرات والإحصاءات','bar-chart-outline','الموارد البشرية'],
+  ].map(([id,title,subtitle,icon,group])=>({id,title,subtitle,icon:icon as Feature['icon'],group})),
+};
+
+export function featuresForRole(role?: string) {
+  const key = role === 'MANAGER' ? 'ADMIN' : role ?? '';
+  const features = definitions[key];
+  if (!features) return [];
+  const rolePath: Record<string, string> = { STUDENT: 'student', TEACHER: 'teacher', PARENT: 'parent', ADMIN: 'admin', MANAGER: 'admin', PRINCIPAL: 'principal', VICE_PRINCIPAL: 'vice_principal', COUNSELOR: 'counselor', SUPERVISOR: 'supervisor', ACCOUNTANT: 'accountant', HR: 'hr' };
+  return [
+    ...features,
+    { id: 'meeting-rooms', title: 'قاعات الاجتماعات', subtitle: 'ادخل غرف الاجتماعات الداخلية حسب دور حسابك', icon: 'videocam-outline' as Feature['icon'], group: 'التواصل', browserPath: '/ar/meetings' },
+    { id: 'full-platform', title: 'باقي خدمات المنصة', subtitle: 'افتح بوابة الويب للوصول إلى جميع صفحات وصلاحيات حسابك', icon: 'open-outline' as Feature['icon'], group: 'المنصة كاملة', browserPath: `/ar/${rolePath[role ?? ''] ?? 'login'}` },
+    { id: 'account-settings', title: 'إعدادات الحساب', subtitle: 'تعديل بياناتك وتغيير كلمة المرور', icon: 'settings-outline' as Feature['icon'], group: 'حسابي' },
+  ];
+}
+
+export function PortalFeatureCatalog({ role, onOpen }: { role?: string; onOpen?: (feature: Feature) => void }) {
+  const router = useRouter();
+  const [search, setSearch] = useState('');
+  const features = useMemo(() => featuresForRole(role).filter((feature) => !search.trim() || `${feature.title} ${feature.subtitle} ${feature.group}`.toLocaleLowerCase('ar').includes(search.trim().toLocaleLowerCase('ar'))), [role, search]);
+  const groups = useMemo(() => Array.from(new Set(features.map((feature) => feature.group))), [features]);
+  const roleLabel = ({STUDENT:'الطالب',TEACHER:'المعلم',PARENT:'ولي الأمر',ADMIN:'الإدارة',MANAGER:'الإدارة',PRINCIPAL:'مدير المدرسة',VICE_PRINCIPAL:'وكيل المدرسة',COUNSELOR:'المرشد الطلابي',SUPERVISOR:'المشرف التربوي',ACCOUNTANT:'المحاسب',HR:'الموارد البشرية'} as Record<string,string>)[role ?? ''] ?? 'بوابة المدرسة';
+  const open = (feature: Feature) => {
+    if (feature.browserPath) {
+      const url = new URL(feature.browserPath, `${WEB_URL}/`).toString();
+      void WebBrowser.openBrowserAsync(url).catch(() => Alert.alert('تعذر فتح المنصة', 'تحقق من اتصال الإنترنت ثم أعد المحاولة.'));
+      return;
+    }
+    if (onOpen) return onOpen(feature);
+    if (feature.id === 'messages') return router.push('/(tabs)/chat' as never);
+    if (feature.id === 'reports') return router.push('/(tabs)/reports' as never);
+    if (feature.id === 'ai') return router.push('/(tabs)/assistant' as never);
+    router.push({ pathname: '/portal-feature' as never, params: { feature: feature.id } } as never);
+  };
+  return <View style={styles.root}>
+    <View style={styles.titleRow}><View style={styles.badge}><Ionicons name="layers-outline" size={14} color={BRAND.teal} /><Text style={styles.badgeText}>{features.length} قسم</Text></View><View style={styles.heading}><Text style={styles.eyebrow}>بوابة {roleLabel}</Text><Text style={styles.title}>كل خدماتك في مكان واحد</Text><Text style={styles.subtitle}>اختر القسم المطلوب، وتابع بياناته وإجراءاته من التطبيق.</Text></View></View>
+    <View style={styles.search}><Ionicons name="search-outline" size={17} color={BRAND.muted} /><TextInput value={search} onChangeText={setSearch} placeholder="ابحث عن خدمة..." placeholderTextColor="#97A4B2" style={styles.searchInput} textAlign="right" /></View>
+    {groups.map((group) => <View key={group} style={styles.group}><SectionHeading title={group} /><View style={styles.grid}>{features.filter((feature) => feature.group === group).map((feature) => <TouchableOpacity key={feature.id} accessibilityRole="button" activeOpacity={0.82} onPress={() => open(feature)} style={styles.card}><View style={styles.icon}><Ionicons name={feature.icon} size={20} color={BRAND.teal} /></View><Text style={styles.cardTitle}>{feature.title}</Text><Text numberOfLines={2} style={styles.cardSubtitle}>{feature.subtitle}</Text><Ionicons name="arrow-back" size={15} color={BRAND.blue} style={styles.arrow} /></TouchableOpacity>)}</View></View>)}
+    {!features.length ? <Surface><Text style={styles.noResult}>مفيش خدمات مطابقة للبحث.</Text></Surface> : null}
+  </View>;
+}
+
+const styles = StyleSheet.create({
+  root:{gap:15}, titleRow:{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between',gap:8}, heading:{flex:1,alignItems:'flex-end',gap:4}, eyebrow:{fontSize:11,fontWeight:'800',color:BRAND.teal,textAlign:'right',writingDirection:'rtl'}, title:{fontSize:19,fontWeight:'900',color:BRAND.ink,textAlign:'right',writingDirection:'rtl'}, subtitle:{fontSize:12,lineHeight:18,color:BRAND.muted,textAlign:'right',writingDirection:'rtl'}, badge:{flexDirection:'row-reverse',alignItems:'center',gap:4,paddingHorizontal:9,paddingVertical:7,borderRadius:20,backgroundColor:BRAND.tealSoft},badgeText:{fontSize:10,fontWeight:'800',color:BRAND.teal,writingDirection:'rtl'},
+  search:{minHeight:48,flexDirection:'row-reverse',alignItems:'center',gap:8,paddingHorizontal:13,borderWidth:1,borderColor:BRAND.line,borderRadius:14,backgroundColor:'#FFFFFF'},searchInput:{flex:1,color:BRAND.ink,fontSize:13,writingDirection:'rtl'},group:{gap:10},grid:{flexDirection:'row-reverse',flexWrap:'wrap',gap:9},card:{flexGrow:1,flexShrink:1,flexBasis:'45%',minWidth:122,minHeight:132,position:'relative',alignItems:'flex-end',gap:7,padding:13,borderWidth:1,borderColor:BRAND.line,borderRadius:17,backgroundColor:'#FFFFFF',elevation:1,shadowColor:'#173149',shadowOpacity:0.035,shadowRadius:8,shadowOffset:{width:0,height:3}},icon:{width:36,height:36,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:BRAND.tealSoft},cardTitle:{color:BRAND.ink,fontSize:12,fontWeight:'900',textAlign:'right',writingDirection:'rtl'},cardSubtitle:{color:BRAND.muted,fontSize:10,lineHeight:15,textAlign:'right',writingDirection:'rtl'},arrow:{position:'absolute',left:11,bottom:11},noResult:{color:BRAND.muted,textAlign:'center',padding:10,writingDirection:'rtl'}
+});

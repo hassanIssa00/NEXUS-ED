@@ -16,8 +16,8 @@ const loginPortals = [
         id: 'student',
         label: 'بوابة الطالب',
         icon: GraduationCap,
-        color: 'from-[#00D1B2] to-[#059669]',
-        highlight: '#00D1B2',
+        color: 'from-[#98793E] to-[#059669]',
+        highlight: '#98793E',
         description: 'اعرض الدروس والواجبات والدرجات المسجلة لحسابك',
         emoji: '🎓',
     },
@@ -25,8 +25,8 @@ const loginPortals = [
         id: 'teacher',
         label: 'بوابة المعلم',
         icon: BookOpen,
-        color: 'from-[#3B82F6] to-[#2563EB]',
-        highlight: '#3B82F6',
+        color: 'from-[#4A687C] to-[#35556B]',
+        highlight: '#4A687C',
         description: 'اعرض الفصول المسندة إليك وتابع الواجبات وأعمال الطلاب',
         emoji: '📚',
     },
@@ -43,8 +43,8 @@ const loginPortals = [
         id: 'principal',
         label: 'مدير المدرسة',
         icon: Briefcase,
-        color: 'from-[#8B5CF6] to-[#6D28D9]',
-        highlight: '#8B5CF6',
+        color: 'from-[#234A65] to-[#203D52]',
+        highlight: '#234A65',
         description: 'تابع سجلات المدرسة والتقارير المتاحة بحسب صلاحيات حسابك',
         emoji: '🏫',
     },
@@ -52,8 +52,8 @@ const loginPortals = [
         id: 'vice_principal',
         label: 'وكيل المدرسة',
         icon: UserPlus,
-        color: 'from-[#EC4899] to-[#BE185D]',
-        highlight: '#EC4899',
+        color: 'from-[#98793E] to-[#BE185D]',
+        highlight: '#98793E',
         description: 'متابعة شؤون المدرسة والجداول الدراسية وسجلات الطلاب',
         emoji: '📋',
     },
@@ -61,8 +61,8 @@ const loginPortals = [
         id: 'counselor',
         label: 'التوجيه الطلابي',
         icon: HeartHandshake,
-        color: 'from-[#14B8A6] to-[#0F766E]',
-        highlight: '#14B8A6',
+        color: 'from-[#98793E] to-[#35556B]',
+        highlight: '#98793E',
         description: 'دعم الطلاب ومتابعة حالاتهم ومعالجة الغيابات',
         emoji: '🤝',
     },
@@ -70,8 +70,8 @@ const loginPortals = [
         id: 'supervisor',
         label: 'الإشراف التربوي',
         icon: Eye,
-        color: 'from-[#6366F1] to-[#4338CA]',
-        highlight: '#6366F1',
+        color: 'from-[#35556B] to-[#234A65]',
+        highlight: '#35556B',
         description: 'مراقبة الأداء العام وضمان جودة التعليم في المدارس',
         emoji: '👁️',
     },
@@ -97,8 +97,8 @@ const loginPortals = [
         id: 'hr',
         label: 'الموارد البشرية',
         icon: Users,
-        color: 'from-[#0F766E] to-[#0E7490]',
-        highlight: '#0F766E',
+        color: 'from-[#35556B] to-[#35556B]',
+        highlight: '#35556B',
         description: 'اعرض سجلات الموظفين المتاحة لحسابك',
         emoji: '👥',
     },
@@ -111,14 +111,29 @@ const platformFeatures = [
     { icon: Shield, text: 'بوابات إدارية بحسب الدور', color: 'text-rose-600', bg: 'bg-rose-50' },
 ];
 
+const englishPortals: Record<string, { label: string; description: string }> = {
+  student: { label: 'Student Portal', description: 'View your lessons, assignments, and recorded grades.' },
+  teacher: { label: 'Teacher Portal', description: 'Open your assigned classes and manage student work.' },
+  parent: { label: 'Parent Portal', description: 'Track attendance and grades for linked students.' },
+  principal: { label: 'School Principal', description: 'Review school records and reports available to your account.' },
+  vice_principal: { label: 'Vice Principal', description: 'Review school affairs, schedules, and student records.' },
+  counselor: { label: 'Student Guidance', description: 'Support students and follow up on attendance and cases.' },
+  supervisor: { label: 'Educational Supervisor', description: 'Review school performance and teaching quality.' },
+  admin: { label: 'Administration', description: 'Manage authorized administrative and financial records.' },
+  accountant: { label: 'Accounting', description: 'Review permitted invoices and financial records.' },
+  hr: { label: 'Human Resources', description: 'Review staff records available to your account.' },
+};
+const englishFeatures = ['Student accounts', 'Teacher accounts', 'Link parents with students', 'Role-based administration portals'];
+
 export default function GlobalLoginSelectorPage() {
     const locale = useLocale();
+    const isArabic = locale !== 'en';
     const [hoveredPortal, setHoveredPortal] = useState<string | null>(null);
 
     const activePortal = loginPortals.find(p => p.id === hoveredPortal);
 
     return (
-        <div className="min-h-screen w-full flex hero-section overflow-hidden force-light dots-pattern relative" dir="rtl">
+        <div className="min-h-screen w-full flex hero-section overflow-hidden force-light dots-pattern relative" dir={isArabic ? 'rtl' : 'ltr'}>
             {/* ═══ Animated Particles Background ═══ */}
             <div className="particles-container">
                 {[...Array(8)].map((_, i) => (
@@ -166,7 +181,7 @@ export default function GlobalLoginSelectorPage() {
                                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
                             </div>
                             <div>
-                                <h1 className="text-xl font-black text-slate-900">نكسس</h1>
+                                <h1 className="text-xl font-black text-slate-900">{isArabic ? 'نكسس' : 'NEXUS'}</h1>
                                 <p className="text-[10px] text-primary-500 font-bold tracking-widest uppercase">NEXUS EDU</p>
                             </div>
                         </motion.div>
@@ -183,8 +198,8 @@ export default function GlobalLoginSelectorPage() {
                                     className="mb-8"
                                 >
                                     <div className="text-5xl mb-4 animate-elastic">{activePortal.emoji}</div>
-                                    <h3 className="text-2xl font-black text-slate-900 mb-2">{activePortal.label}</h3>
-                                    <p className="text-slate-600 leading-relaxed mb-4">{activePortal.description}</p>
+                                    <h3 className="text-2xl font-black text-slate-900 mb-2">{isArabic ? activePortal.label : englishPortals[activePortal.id].label}</h3>
+                                    <p className="text-slate-600 leading-relaxed mb-4">{isArabic ? activePortal.description : englishPortals[activePortal.id].description}</p>
                                 </motion.div>
                             ) : (
                                 <motion.div
@@ -195,9 +210,9 @@ export default function GlobalLoginSelectorPage() {
                                     className="mb-8"
                                 >
                                     <div className="text-5xl mb-4 animate-float">👋</div>
-                                    <h3 className="text-2xl font-black text-slate-900 mb-2">أهلاً بك في نِكْسُس</h3>
+                                    <h3 className="text-2xl font-black text-slate-900 mb-2">{isArabic ? 'أهلاً بك في نِكْسُس' : 'Welcome to Nexus EDU'}</h3>
                                     <p className="text-slate-600 leading-relaxed">
-                                        اختر بوابتك المناسبة للدخول إلى لوحة التحكم الخاصة بك. مرّر الماوس فوق أي بوابة لمعرفة المزيد.
+                                        {isArabic ? 'اختر بوابتك المناسبة للدخول إلى لوحة التحكم الخاصة بك. مرّر الماوس فوق أي بوابة لمعرفة المزيد.' : 'Choose your portal to open your dashboard. Hover over a portal to learn more.'}
                                     </p>
                                 </motion.div>
                             )}
@@ -205,7 +220,7 @@ export default function GlobalLoginSelectorPage() {
 
                         {/* Platform features */}
                         <div className="space-y-3">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">لماذا نِكْسُس؟</p>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">{isArabic ? 'لماذا نِكْسُس؟' : 'Why Nexus EDU?'}</p>
                             {platformFeatures.map((f, i) => (
                                 <motion.div
                                     key={i}
@@ -218,7 +233,7 @@ export default function GlobalLoginSelectorPage() {
                                     <div className={`w-8 h-8 rounded-[10px] ${f.bg} flex items-center justify-center flex-shrink-0`}>
                                         <f.icon className={`w-4 h-4 ${f.color}`} />
                                     </div>
-                                    <span className="text-sm font-semibold text-slate-700">{f.text}</span>
+                                    <span className="text-sm font-semibold text-slate-700">{isArabic ? f.text : englishFeatures[i]}</span>
                                 </motion.div>
                             ))}
                         </div>
@@ -227,7 +242,7 @@ export default function GlobalLoginSelectorPage() {
                     {/* Footer */}
                     <div className="relative z-10 flex items-center gap-2 text-xs text-slate-400 border-t border-slate-200 pt-6 mt-6">
                         <Lock className="w-3.5 h-3.5 text-green-500" />
-                        <span>بوابات دخول مخصصة بحسب أدوار المدرسة</span>
+                        <span>{isArabic ? 'بوابات دخول مخصصة بحسب أدوار المدرسة' : 'Dedicated sign-in portals for school roles'}</span>
                     </div>
                 </div>
 
@@ -237,7 +252,7 @@ export default function GlobalLoginSelectorPage() {
                     <div className="w-full max-w-3xl flex justify-between items-center mb-8 lg:mb-10">
                         <div className="flex items-center gap-3 lg:hidden">
                             <img src="/logo_new.webp" alt="Nexus EDU" className="w-10 h-10 rounded-[12px] object-cover bg-white border border-border" />
-                            <span className="text-lg font-black text-slate-900">نكسس</span>
+                            <span className="text-lg font-black text-slate-900">{isArabic ? 'نكسس' : 'Nexus EDU'}</span>
                         </div>
                         <div className="lg:mr-auto">
                             <LanguageSwitcher />
@@ -258,14 +273,14 @@ export default function GlobalLoginSelectorPage() {
                             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full glass-ultra text-primary-500 text-sm font-bold mb-5 border border-primary-200/40"
                         >
                             <Sparkles className="w-4 h-4 animate-pulse" />
-                            نظام الدخول الموحد
+                            {isArabic ? 'نظام الدخول الموحد' : 'Unified sign-in'}
                             <Rocket className="w-4 h-4" />
                         </motion.div>
                         <h2 className="text-3xl lg:text-4xl font-black text-slate-900 mb-3">
-                            اختر البوابة <span className="text-shimmer">المناسبة</span> للدخول
+                            {isArabic ? <>اختر البوابة <span className="text-shimmer">المناسبة</span> للدخول</> : <>Choose the <span className="text-shimmer">right portal</span> to sign in</>}
                         </h2>
                         <p className="text-slate-500 text-base max-w-lg mx-auto">
-                            يوفر نِكْسُس بوابات دخول مخصصة لكل دور في المنظومة التعليمية
+                            {isArabic ? 'يوفر نِكْسُس بوابات دخول مخصصة لكل دور في المنظومة التعليمية' : 'Nexus EDU provides a dedicated portal for each role in the school community.'}
                         </p>
                     </motion.div>
 
@@ -307,7 +322,7 @@ export default function GlobalLoginSelectorPage() {
 
                                             {/* Label */}
                                             <span className="text-[13px] font-bold text-slate-800 text-center leading-tight">
-                                                {portal.label}
+                                                {isArabic ? portal.label : englishPortals[portal.id].label}
                                             </span>
 
                                             {/* Description (shown on hover) */}
@@ -316,7 +331,7 @@ export default function GlobalLoginSelectorPage() {
                                                 animate={isHovered ? { opacity: 1, height: 'auto' } : { opacity: 0, height: 0 }}
                                                 className="text-[11px] text-slate-500 text-center leading-relaxed overflow-hidden"
                                             >
-                                                {portal.description}
+                                                {isArabic ? portal.description : englishPortals[portal.id].description}
                                             </motion.p>
 
                                             {/* Animated bottom bar */}
@@ -346,15 +361,15 @@ export default function GlobalLoginSelectorPage() {
                         className="mt-10 text-center"
                     >
                         <p className="text-xs text-slate-400 mb-3">
-                            هل تواجه صعوبة في الدخول؟
+                            {isArabic ? 'هل تواجه صعوبة في الدخول؟' : 'Having trouble signing in?'}
                             <a href="https://wa.me/201098810794" target="_blank" rel="noopener noreferrer" className="text-primary-500 font-semibold mr-1 hover:underline underline-expand">
-                                تواصل مع الدعم الفني
+                                {isArabic ? 'تواصل مع الدعم الفني' : 'Contact support'}
                             </a>
                         </p>
-                        <p className="mb-4 text-center text-[10px] text-slate-400">بوابة مدرسة الإخلاص الأهلية · جدة</p>
+                        <p className="mb-4 text-center text-[10px] text-slate-400">{isArabic ? 'بوابة مدرسة الإخلاص الأهلية · جدة' : 'Al-Ikhlas Private School · Jeddah'}</p>
                         <div className="flex flex-col items-center justify-center gap-1 border-t border-white/5 pt-4">
                             <p className="text-center text-[11px] text-slate-400 font-medium">
-                                © 2026 Nexus EDU — جميع الحقوق محفوظة لمدارس الإخلاص الأهلية
+                                {isArabic ? '© 2026 Nexus EDU — جميع الحقوق محفوظة لمدارس الإخلاص الأهلية' : '© 2026 Nexus EDU — Al-Ikhlas Private Schools. All rights reserved.'}
                             </p>
                             <p className="text-center text-[10px] text-slate-500 font-medium tracking-wide">
                                 Developed by <span className="font-bold text-slate-400">Hassan Issa</span>

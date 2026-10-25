@@ -1,162 +1,88 @@
-'use client';
+'use client'
 
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Gamepad2, Trophy, Users, Clock, Loader2, RefreshCw } from 'lucide-react';
-import { apiClient } from '@/lib/api/client';
-import { motion } from 'framer-motion';
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocale } from 'next-intl'
+import { AlertCircle, BookOpen, ExternalLink, Gamepad2, RefreshCw, Trophy, Users } from 'lucide-react'
+import { apiClient } from '@/lib/api/client'
 
-interface GameRoom {
-    id: string;
-    title: string;
-    playerCount: number;
-    maxPlayers: number;
-    status: string;
-    type?: string;
-    createdAt: string;
+type GameRecord = {
+  id: string
+  title: string
+  description: string | null
+  url: string | null
+  createdAt: string
+  subject: { id: string; name: string; code?: string | null }
+  _count: { sessions: number; scores: number }
 }
 
-interface GameStats {
-    totalRooms: number;
-    activePlayers: number;
-    completedGames: number;
-    todaySessions: number;
+export default function EducationalGamesPage() {
+  const locale = useLocale() === 'en' ? 'en' : 'ar'
+  const [games, setGames] = useState<GameRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const t = locale === 'en'
+    ? { eyebrow: 'School learning resources', title: 'Educational games', subtitle: 'Games and activity counts recorded for your school.', refresh: 'Refresh', games: 'Games', subjects: 'Subjects', sessions: 'Sessions started', scores: 'Scores recorded', loading: 'Loading educational games…', error: 'Could not load games for this school.', empty: 'No educational games have been added to the school library.', open: 'Open game', added: 'Added', noDescription: 'No description provided.' }
+    : { eyebrow: 'موارد المدرسة التعليمية', title: 'الألعاب التعليمية', subtitle: 'الألعاب التعليمية وإحصاءات النشاط المسجلة لمدرستك.', refresh: 'تحديث', games: 'الألعاب', subjects: 'المواد المرتبطة', sessions: 'جلسات بدأت', scores: 'نتائج مسجلة', loading: 'جارٍ تحميل الألعاب التعليمية...', error: 'تعذر تحميل ألعاب هذه المدرسة.', empty: 'لم تُضف ألعاب تعليمية إلى مكتبة المدرسة بعد.', open: 'فتح اللعبة', added: 'تاريخ الإضافة', noDescription: 'لا يوجد وصف لهذه اللعبة.' }
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await apiClient.get('/games')
+      setGames(Array.isArray(response.data?.data) ? response.data.data : [])
+    } catch {
+      setGames([])
+      setError(t.error)
+    } finally {
+      setLoading(false)
+    }
+  }, [t.error])
+
+  useEffect(() => { void load() }, [load])
+
+  const stats = useMemo(() => ({
+    subjects: new Set(games.map((game) => game.subject?.id).filter(Boolean)).size,
+    sessions: games.reduce((sum, game) => sum + (game._count?.sessions || 0), 0),
+    scores: games.reduce((sum, game) => sum + (game._count?.scores || 0), 0),
+  }), [games])
+
+  return <main className="mx-auto max-w-7xl space-y-6 pb-12" dir={locale === 'en' ? 'ltr' : 'rtl'}>
+    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
+      <div><p className="text-sm font-semibold text-violet-700 dark:text-violet-300">{t.eyebrow}</p><h1 className="mt-1 text-3xl font-black">{t.title}</h1><p className="mt-2 text-sm text-muted-foreground">{t.subtitle}</p></div>
+      <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />{t.refresh}</button>
+    </header>
+
+    {error && <div role="alert" className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"><AlertCircle className="h-4 w-4" />{error}</div>}
+
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {[
+        { label: t.games, value: games.length, icon: Gamepad2 },
+        { label: t.subjects, value: stats.subjects, icon: BookOpen },
+        { label: t.sessions, value: stats.sessions, icon: Users },
+        { label: t.scores, value: stats.scores, icon: Trophy },
+      ].map(({ label, value, icon: Icon }) => <article key={label} className="rounded-xl border border-border bg-card p-4"><div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">{label}</p><Icon className="h-5 w-5 text-primary" /></div><p className="mt-2 text-2xl font-bold">{loading ? '—' : value.toLocaleString(locale === 'en' ? 'en-US' : 'ar-SA')}</p></article>)}
+    </section>
+
+    {loading ? <p className="py-16 text-center text-sm text-muted-foreground">{t.loading}</p> : games.length === 0 ? <div className="rounded-xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground"><Gamepad2 className="mx-auto mb-3 h-8 w-8 opacity-50" />{t.empty}</div> : <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {games.map((game) => {
+        const url = safeHttpUrl(game.url)
+        return <article key={game.id} className="space-y-4 rounded-xl border border-border bg-card p-5">
+          <div className="flex items-start gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Gamepad2 className="h-5 w-5" /></span><div className="min-w-0"><h2 className="truncate font-bold">{game.title}</h2><p className="mt-1 text-xs text-muted-foreground">{game.subject?.name || '—'}{game.subject?.code ? ` · ${game.subject.code}` : ''}</p></div></div>
+          <p className="min-h-10 text-sm text-muted-foreground">{game.description || t.noDescription}</p>
+          <div className="grid grid-cols-2 gap-2 border-y border-border py-3 text-xs"><p className="text-muted-foreground">{t.sessions}<strong className="mt-1 block text-base text-foreground">{game._count?.sessions ?? 0}</strong></p><p className="text-muted-foreground">{t.scores}<strong className="mt-1 block text-base text-foreground">{game._count?.scores ?? 0}</strong></p></div>
+          <div className="flex items-center justify-between gap-3"><time className="text-xs text-muted-foreground">{t.added} · {new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'ar-SA', { dateStyle: 'medium' }).format(new Date(game.createdAt))}</time>{url && <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"><ExternalLink className="h-4 w-4" />{t.open}</a>}</div>
+        </article>
+      })}
+    </section>}
+  </main>
 }
 
-export default function GamesManagementPage() {
-    const [rooms, setRooms] = useState<GameRoom[]>([]);
-    const [stats, setStats] = useState<GameStats>({ totalRooms: 0, activePlayers: 0, completedGames: 0, todaySessions: 0 });
-    const [loading, setLoading] = useState(true);
-
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const res = await apiClient.get('/million/rooms');
-            const data: GameRoom[] = res.data?.data || res.data || [];
-            setRooms(data);
-
-            // Compute stats from rooms
-            setStats({
-                totalRooms: data.length,
-                activePlayers: data.filter(r => r.status === 'playing' || r.status === 'waiting')
-                    .reduce((s, r) => s + (r.playerCount || 0), 0),
-                completedGames: data.filter(r => r.status === 'finished').length,
-                todaySessions: data.filter(r => {
-                    const created = new Date(r.createdAt);
-                    const today = new Date();
-                    return created.toDateString() === today.toDateString();
-                }).length,
-            });
-        } catch {
-            setRooms([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => { fetchData(); }, []);
-
-    const statCards = [
-        { icon: Gamepad2, title: 'إجمالي الغرف', value: stats.totalRooms, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
-        { icon: Users, title: 'اللاعبون النشطون', value: stats.activePlayers, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-        { icon: Trophy, title: 'ألعاب مكتملة', value: stats.completedGames, color: 'text-yellow-600', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
-        { icon: Clock, title: 'جلسات اليوم', value: stats.todaySessions, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
-    ];
-
-    return (
-        <div className="space-y-6" dir="rtl">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold">🎮 إدارة الألعاب</h1>
-                    <p className="text-muted-foreground mt-1">إدارة الألعاب التعليمية والمسابقات</p>
-                </div>
-                <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="gap-1">
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    تحديث
-                </Button>
-            </div>
-
-            {/* Stats */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {statCards.map((stat, index) => (
-                    <motion.div key={index} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.07 }}>
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                                <div className={`w-8 h-8 rounded-lg ${stat.bg} flex items-center justify-center`}>
-                                    <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                {loading ? (
-                                    <div className="h-8 bg-muted animate-pulse rounded w-16" />
-                                ) : (
-                                    <div className="text-2xl font-bold">{stat.value}</div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-                ))}
-            </div>
-
-            {/* Rooms Table */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>غرف المليون النشطة</CardTitle>
-                    <CardDescription>قائمة بجميع الغرف الحالية في منصة المليون</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="space-y-3">
-                            {[1, 2, 3].map(i => <div key={i} className="h-14 bg-muted animate-pulse rounded-xl" />)}
-                        </div>
-                    ) : rooms.length === 0 ? (
-                        <div className="text-center py-12">
-                            <Gamepad2 className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-                            <p className="text-muted-foreground">لا توجد غرف نشطة حالياً</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {rooms.map((room, i) => (
-                                <motion.div
-                                    key={room.id}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: i * 0.05 }}
-                                    className="flex items-center justify-between p-4 border rounded-xl hover:bg-muted/40 transition-colors"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
-                                            <Gamepad2 className="h-5 w-5 text-white" />
-                                        </div>
-                                        <div>
-                                            <h3 className="font-semibold">{room.title}</h3>
-                                            <p className="text-xs text-muted-foreground">
-                                                {room.type || 'عام'} · {new Date(room.createdAt).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="text-sm text-muted-foreground flex items-center gap-1">
-                                            <Users className="w-4 h-4" />
-                                            {room.playerCount}/{room.maxPlayers || 10}
-                                        </div>
-                                        <Badge variant={
-                                            room.status === 'playing' ? 'default' :
-                                            room.status === 'waiting' ? 'secondary' : 'outline'
-                                        }>
-                                            {room.status === 'playing' ? '🔥 جارٍ' :
-                                             room.status === 'waiting' ? '⏳ انتظار' : '✅ منتهي'}
-                                        </Badge>
-                                    </div>
-                                </motion.div>
-                            ))}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-        </div>
-    );
+function safeHttpUrl(raw: string | null | undefined) {
+  if (!raw) return null
+  try {
+    const url = new URL(raw)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null
+  } catch {
+    return null
+  }
 }

@@ -8,9 +8,10 @@ import { ExcelExportService } from './excel-export.service';
 import { ExcelExportController } from './excel-export.controller';
 import { EarlyInterventionService } from './early-intervention.service';
 import { EventsModule } from '../gateway/events.module';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
-  imports: [EventsModule],
+  imports: [EventsModule, UploadModule],
   controllers: [
     AnalyticsController,
     StudentAnalyticsController,

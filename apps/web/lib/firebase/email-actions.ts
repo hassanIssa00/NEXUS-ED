@@ -8,8 +8,11 @@ export function getEmailActionSettings(continuePath: string = EMAIL_ACTION_CONTI
         throw new Error('Email action links can only be created in a browser.');
     }
 
+    const selectedLocale = window.location.pathname.split('/').filter(Boolean)[0] === 'en' ? 'en' : 'ar';
+    const localizedPath = continuePath.replace(/^\/(?:en|ar)(?=\/)/, `/${selectedLocale}`);
+
     return {
-        url: new URL(continuePath, window.location.origin).toString(),
+        url: new URL(localizedPath, window.location.origin).toString(),
         handleCodeInApp: false,
     };
 }

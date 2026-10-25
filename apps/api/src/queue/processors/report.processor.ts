@@ -1,10 +1,10 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import PDFDocument from 'pdfkit';
 import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
 import * as path from 'path';
+import { renderQueuedReportPdf } from './report-pdf-renderer';
 
 export interface ReportJobData {
   type: 'student-certificate' | 'attendance-report' | 'grades-report';
@@ -53,43 +53,8 @@ export class ReportProcessor extends WorkerHost {
     data: Record<string, any>,
     filepath: string,
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: 50 });
-      const stream = fs.createWriteStream(filepath);
-
-      doc.pipe(stream);
-
-      // Header
-      doc.fontSize(24).text('Million Platform', { align: 'center' });
-      doc.moveDown();
-
-      // Report title
-      const titles: Record<string, string> = {
-        'student-certificate': 'شهادة الطالب',
-        'attendance-report': 'تقرير الحضور',
-        'grades-report': 'تقرير الدرجات',
-      };
-      doc.fontSize(18).text(titles[type] || 'Report', { align: 'center' });
-      doc.moveDown(2);
-
-      // Report content
-      doc.fontSize(12);
-      Object.entries(data).forEach(([key, value]) => {
-        doc.text(`${key}: ${value}`);
-        doc.moveDown(0.5);
-      });
-
-      // Footer
-      doc.moveDown(2);
-      doc
-        .fontSize(10)
-        .text(`Generated: ${new Date().toISOString()}`, { align: 'right' });
-
-      doc.end();
-
-      stream.on('finish', resolve);
-      stream.on('error', reject);
-    });
+    const pdf = await renderQueuedReportPdf(type, data);
+    await fs.promises.writeFile(filepath, pdf);
   }
 
   private async generateExcel(
@@ -98,7 +63,7 @@ export class ReportProcessor extends WorkerHost {
     filepath: string,
   ): Promise<void> {
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'Million Platform';
+    workbook.creator = 'Nexus EDU';
     workbook.created = new Date();
 
     const sheet = workbook.addWorksheet('Report');

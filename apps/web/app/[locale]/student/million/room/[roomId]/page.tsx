@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useLocale } from 'next-intl';
+import { useRouter } from '@/i18n/routing';
 import { useMillionSocket } from '@/hooks/useMillionSocket';
 import { QuestionCard } from '../../components/QuestionCard';
 import { Leaderboard } from '../../components/Leaderboard';
@@ -10,6 +12,8 @@ import { ArrowRight, Users, Play, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function MillionRoomPage() {
+    const isEnglish = useLocale() === 'en';
+    const tr = (ar: string, en: string) => isEnglish ? en : ar;
     const params = useParams();
     const router = useRouter();
     const roomId = params.roomId as string;
@@ -88,7 +92,7 @@ export default function MillionRoomPage() {
             await startRound(roomId);
         } catch (error: any) {
             console.error('Failed to start round:', error);
-            alert(error.message);
+            alert(isEnglish ? 'Could not start the round.' : 'تعذر بدء الجولة.');
         }
     };
 
@@ -108,23 +112,23 @@ export default function MillionRoomPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6">
+        <div dir={isEnglish ? 'ltr' : 'rtl'} className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6">
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-8" dir="rtl">
+                <div className="flex items-center justify-between mb-8">
                     <Button
                         variant="ghost"
                         onClick={() => router.push('/student/million')}
                         className="gap-2"
                     >
                         <ArrowRight className="w-5 h-5" />
-                        العودة للقائمة
+                        {tr('العودة للقائمة', 'Back to games')}
                     </Button>
 
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-full shadow">
                             <Users className="w-5 h-5 text-blue-600" />
-                            <span className="font-medium">{participants.length} لاعب</span>
+                            <span className="font-medium">{participants.length} {tr('لاعب', 'players')}</span>
                         </div>
                     </div>
                 </div>
@@ -141,14 +145,14 @@ export default function MillionRoomPage() {
                                     animate={{ opacity: 1 }}
                                     exit={{ opacity: 0 }}
                                     className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-12 text-center"
-                                    dir="rtl"
+                                    dir={isEnglish ? 'ltr' : 'rtl'}
                                 >
                                     <Play className="w-24 h-24 text-blue-600 mx-auto mb-6" />
                                     <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-                                        في انتظار بدء الجولة...
+                                        {tr('في انتظار بدء الجولة...', 'Waiting for the round to start…')}
                                     </h2>
                                     <p className="text-gray-600 dark:text-gray-400 mb-8">
-                                        سيبدأ المضيف الجولة قريباً
+                                        {tr('سيبدأ المضيف الجولة قريباً', 'The host will start the round soon.')}
                                     </p>
                                     {/* Host can start round */}
                                     <Button
@@ -156,8 +160,8 @@ export default function MillionRoomPage() {
                                         size="lg"
                                         className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-xl px-8 py-6"
                                     >
-                                        <Play className="w-6 h-6 ml-2" />
-                                        بدء الجولة
+                                        <Play className="w-6 h-6 me-2" />
+                                        {tr('بدء الجولة', 'Start round')}
                                     </Button>
                                 </motion.div>
                             )}
@@ -177,24 +181,24 @@ export default function MillionRoomPage() {
                                     initial={{ opacity: 0, scale: 0.9 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-12 text-center"
-                                    dir="rtl"
+                                    dir={isEnglish ? 'ltr' : 'rtl'}
                                 >
                                     <Trophy className="w-32 h-32 text-yellow-500 mx-auto mb-6" />
                                     <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-                                        انتهت الجولة! 🎉
+                                        {tr('انتهت الجولة! 🎉', 'Round complete! 🎉')}
                                     </h2>
                                     <p className="text-2xl text-gray-700 dark:text-gray-300 mb-2">
-                                        الفائز: <span className="font-bold text-blue-600">{winner.name}</span>
+                                        {tr('الفائز:', 'Winner:')} <span className="font-bold text-blue-600">{winner.name}</span>
                                     </p>
                                     <p className="text-xl text-gray-600 dark:text-gray-400 mb-8">
-                                        {winner.totalPoints} نقطة
+                                        {winner.totalPoints} {tr('نقطة', 'points')}
                                     </p>
                                     <Button
                                         onClick={handleStartRound}
                                         size="lg"
                                         className="bg-gradient-to-r from-purple-500 to-blue-600"
                                     >
-                                        جولة جديدة
+                                        {tr('جولة جديدة', 'New round')}
                                     </Button>
                                 </motion.div>
                             )}

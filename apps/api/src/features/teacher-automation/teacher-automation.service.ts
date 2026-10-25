@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 
 const OPERATORS = new Set(['gte', 'gt', 'lte', 'lt']);
@@ -35,9 +34,9 @@ export class TeacherAutomationService {
         teacherId,
         name,
         triggerType,
-        condition: { operator, threshold, periodDays: triggerType === 'ABSENCE' ? Math.max(1, Math.min(90, Number(data.condition?.periodDays) || 7)) : 0 } as Prisma.InputJsonValue,
+        condition: { operator, threshold, periodDays: triggerType === 'ABSENCE' ? Math.max(1, Math.min(90, Number(data.condition?.periodDays) || 7)) : 0 },
         actionType: 'NOTIFY',
-        actionData: { recipient, message } as Prisma.InputJsonValue,
+        actionData: { recipient, message },
         isActive: data.isActive !== false,
       },
     });
@@ -91,14 +90,7 @@ export class TeacherAutomationService {
     });
     if (!teacher?.schoolId) return 0;
     const classes = await this.prisma.class.findMany({
-      where: {
-        schoolId: teacher.schoolId,
-        OR: [
-          { teacherId: teacher.id },
-          { classSubjects: { some: { teacherId: teacher.id } } },
-          { teacherAssignments: { some: { teacherId: teacher.id } } },
-        ],
-      },
+      where: { schoolId: teacher.schoolId, OR: [{ teacherId: teacher.id }, { classSubjects: { some: { teacherId: teacher.id } } }] },
       select: { id: true, students: { select: { studentId: true } }, subjects: { select: { id: true } } },
     });
     const studentIds = [...new Set(classes.flatMap((item) => item.students.map((enrollment) => enrollment.studentId)))];

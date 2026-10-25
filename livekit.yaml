@@ -1,0 +1,19 @@
+port: 7880
+
+redis:
+  address: redis:6379
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 51000
+  use_external_ip: true
+
+room:
+  auto_create: false
+  empty_timeout: 120
+  departure_timeout: 30
+  max_participants: 32
+
+logging:
+  level: info

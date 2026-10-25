@@ -19,9 +19,9 @@ export default function LevelProgress({
     const getLevelColor = (level: number) => {
         const colors = [
             '#94A3B8', // Beginner
-            '#3B82F6', // Active Learner
-            '#8B5CF6', // Consistent Performer
-            '#EC4899', // Achiever
+            '#4A687C', // Active Learner
+            '#234A65', // Consistent Performer
+            '#98793E', // Achiever
             '#F59E0B', // Elite Student
             '#10B981', // Top 1%
             '#EF4444', // Million Finalist

@@ -32,8 +32,8 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
             <AreaChart data={data}>
                 <defs>
                     <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#4A687C" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#4A687C" stopOpacity={0} />
                     </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -50,7 +50,7 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
                 <Area
                     type="monotone"
                     dataKey="score"
-                    stroke="#3b82f6"
+                    stroke="#4A687C"
                     fillOpacity={1}
                     fill="url(#colorScore)"
                     name="Your Score"
@@ -120,7 +120,7 @@ export function AttendanceChart({ data }: AttendanceChartProps) {
                     labelLine={false}
                     label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                     outerRadius={80}
-                    fill="#8884d8"
+                    fill="#4A687C"
                     dataKey="value"
                 >
                     {data.map((entry, index) => (
@@ -154,7 +154,7 @@ export function WeeklyActivityChart({ data }: WeeklyActivityProps) {
                         borderRadius: '8px'
                     }}
                 />
-                <Bar dataKey="hours" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="hours" fill="#234A65" radius={[8, 8, 0, 0]} />
             </BarChart>
         </ResponsiveContainer>
     );

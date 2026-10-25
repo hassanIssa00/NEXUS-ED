@@ -76,6 +76,55 @@ export class UploadService {
     return this.saveLocally(buffer, uniqueFilename);
   }
 
+  async uploadTeacherRegistrationAvatar(
+    buffer: Buffer,
+    firebaseUid: string,
+    mimeType: string,
+  ): Promise<string> {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(firebaseUid)) {
+      throw new ServiceUnavailableException('The teacher storage identity is invalid');
+    }
+    const extensionByMimeType: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+    };
+    const extension = extensionByMimeType[mimeType];
+    if (!extension) throw new ServiceUnavailableException('The teacher profile image type is unsupported');
+
+    const supabaseUrl = this.getSupabaseUrl();
+    const supabaseKey = this.getServiceKey();
+    if (!supabaseUrl || !supabaseKey) {
+      throw new ServiceUnavailableException('Private teacher image storage is not configured');
+    }
+
+    const bucket = 'assignments';
+    await this.assertPrivateBucket(supabaseUrl, supabaseKey, bucket);
+    const objectPath = `registration-avatars/${firebaseUid}/${randomUUID()}.${extension}`;
+    const encodedObjectPath = objectPath.split('/').map(encodeURIComponent).join('/');
+    let response: Response;
+    try {
+      response = await fetch(`${supabaseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedObjectPath}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${supabaseKey}`,
+          apikey: supabaseKey,
+          'Content-Type': mimeType,
+          'x-upsert': 'false',
+        },
+        body: Buffer.from(buffer),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      throw new ServiceUnavailableException('Private teacher image storage is unavailable');
+    }
+    if (!response.ok) {
+      throw new ServiceUnavailableException('Could not store the teacher profile image');
+    }
+
+    return `storage://${bucket}/${objectPath}`;
+  }
+
   private getSupabaseUrl() {
     return (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
   }

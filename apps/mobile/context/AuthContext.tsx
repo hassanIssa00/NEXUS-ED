@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -28,19 +29,31 @@ export interface AuthUser {
   phone?: string | null;
   avatar?: string | null;
   avatarUrl?: string | null;
+  avatar_url?: string | null;
   schoolId?: string | null;
   emailVerified?: boolean;
   onboardingComplete?: boolean;
   onboardingStep?: OnboardingStep;
   onboardingStudentId?: string;
   gradeLevel?: number;
+  teacherAvatarUploadPending?: boolean;
 }
 
 type AuthContextType = {
   user: AuthUser | null;
   loading: boolean;
   signIn: (email: string, password: string, expectedRole?: string) => Promise<void>;
-  register: (data: { email: string; password: string; name: string; phone: string; role: 'student' | 'parent' }) => Promise<void>;
+  register: (data: {
+    email: string;
+    password: string;
+    name: string;
+    phone: string;
+    role: 'student' | 'parent' | 'teacher';
+    teacherCode?: string;
+    teacherProfile?: { nationalId: string; specialization: string; yearsExperience?: number };
+    teacherPhoto?: { uri: string; mimeType?: string | null; fileName?: string | null };
+  }) => Promise<void>;
+  uploadTeacherRegistrationAvatar: (photo: { uri: string; mimeType?: string | null; fileName?: string | null }) => Promise<void>;
   refreshProfile: () => Promise<AuthUser | null>;
   sendVerificationEmail: () => Promise<void>;
   refreshVerifiedSession: () => Promise<AuthUser | null>;
@@ -75,10 +88,27 @@ function normalizeRole(value?: string) {
 }
 
 function normalizeProfile(profile: AuthUser): AuthUser {
+  const avatarUrl = profile.avatarUrl ?? profile.avatar_url ?? profile.avatar ?? undefined;
   return {
     ...profile,
     id: profile.userId || profile.id,
     role: normalizeRole(profile.role),
+    avatarUrl,
+  };
+}
+
+function pendingFirebaseProfile(firebaseUser: FirebaseUser, data: Record<string, unknown>): AuthUser | null {
+  if (firebaseUser.emailVerified) return null;
+  const role = normalizeRole(typeof data.role === 'string' ? data.role : undefined);
+    if (role !== 'STUDENT' && role !== 'TEACHER') return null;
+  return {
+    id: firebaseUser.uid,
+    userId: firebaseUser.uid,
+    email: firebaseUser.email ?? '',
+    role,
+    name: typeof data.full_name === 'string' ? data.full_name : firebaseUser.displayName ?? undefined,
+    phone: typeof data.phone === 'string' ? data.phone : null,
+    emailVerified: false,
   };
 }
 
@@ -104,8 +134,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadProfile = useCallback(async () => {
     const response = await apiClient.get<AuthUser>('/auth/profile');
     const profile = normalizeProfile(response.data);
-    setUser(profile);
-    return profile;
+    let avatarUrl = profile.avatarUrl ?? undefined;
+    if (avatarUrl?.startsWith('file:') || avatarUrl?.startsWith('storage://')) {
+      try {
+        const avatarResponse = await apiClient.get<{ url?: string | null }>('/upload/me/avatar');
+        avatarUrl = typeof avatarResponse.data.url === 'string' ? avatarResponse.data.url : undefined;
+      } catch {
+        avatarUrl = undefined;
+      }
+    }
+    const hydratedProfile = { ...profile, avatar: avatarUrl, avatarUrl, avatar_url: avatarUrl };
+    setUser(hydratedProfile);
+    return hydratedProfile;
+  }, []);
+
+  const readPendingFirebaseProfile = useCallback(async (firebaseUser: FirebaseUser) => {
+    if (!firebaseDb || firebaseUser.emailVerified) return null;
+    const snapshot = await getDoc(doc(firebaseDb, 'users', firebaseUser.uid));
+    if (!snapshot.exists()) return null;
+    return pendingFirebaseProfile(firebaseUser, snapshot.data());
   }, []);
 
   const exchangeFirebaseUser = useCallback(async (firebaseUser: FirebaseUser, forceRefresh = false) => {
@@ -152,8 +199,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       try {
-        if (firebaseUser) await exchangeFirebaseUser(firebaseUser, true);
-        else await restoreApiSession();
+        if (firebaseUser) {
+          const pendingProfile = await readPendingFirebaseProfile(firebaseUser);
+          if (pendingProfile) {
+            await clearStoredSession();
+            if (active) setUser(pendingProfile);
+            return;
+          }
+          await exchangeFirebaseUser(firebaseUser, true);
+        } else await restoreApiSession();
       } catch {
         if (active && firebaseUser?.emailVerified) setUser(null);
       } finally {
@@ -172,13 +226,80 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionExpiredHandler(null);
       setSessionRefreshHandler(null);
     };
-  }, [exchangeFirebaseUser, loadProfile]);
+  }, [exchangeFirebaseUser, loadProfile, readPendingFirebaseProfile]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = AppState.currentState === 'active';
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const recordPresence = () => {
+      if (active) void apiClient.post('/users/me/presence').catch(() => undefined);
+    };
+    const startHeartbeat = () => {
+      if (timer) clearInterval(timer);
+      timer = setInterval(recordPresence, 5 * 60 * 1000);
+    };
+    recordPresence();
+    startHeartbeat();
+    const subscription = AppState.addEventListener('change', (state) => {
+      active = state === 'active';
+      if (active) { recordPresence(); startHeartbeat(); }
+      else if (timer) { clearInterval(timer); timer = undefined; }
+    });
+    return () => {
+      subscription.remove();
+      if (timer) clearInterval(timer);
+    };
+  }, [user?.id]);
 
   const signIn = async (email: string, password: string, expectedRole?: string) => {
     authActionRef.current += 1;
     try {
       let signedInProfile: AuthUser;
-      if (expectedRole === 'STAFF' || !firebaseAuth) {
+      if (expectedRole === 'STAFF' && firebaseAuth && firebaseDb && isFirebaseConfigured) {
+        let firebaseCredentialsAccepted = false;
+        try {
+          const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
+          firebaseCredentialsAccepted = true;
+          await reload(credential.user);
+          const pendingProfile = await readPendingFirebaseProfile(credential.user);
+          if (pendingProfile) {
+            if (pendingProfile.role !== 'TEACHER') {
+              await signOutFirebase(firebaseAuth);
+              throw new Error('هذا الحساب لا يتبع بوابة الموظفين. اختر نوع الحساب الصحيح.');
+            }
+            await clearStoredSession();
+            setUser(pendingProfile);
+            return;
+          }
+          signedInProfile = await exchangeFirebaseUser(credential.user, true);
+        } catch (firebaseError: any) {
+          if (firebaseCredentialsAccepted) {
+            await signOutFirebase(firebaseAuth).catch(() => undefined);
+            throw firebaseError;
+          }
+          const firebaseCode = String(firebaseError?.code ?? '');
+          const canTryLegacyStaffLogin = [
+            'auth/invalid-credential',
+            'auth/wrong-password',
+            'auth/user-not-found',
+            'auth/invalid-email',
+          ].some((code) => firebaseCode.includes(code));
+          if (!canTryLegacyStaffLogin) throw firebaseError;
+
+          const response = await apiClient.post<ApiSession>('/auth/mobile/login', { email: email.trim(), password });
+          if (!response.data.access_token || !response.data.refresh_token || !response.data.user?.id) {
+            throw new Error('لم يُرجع الخادم جلسة صالحة. تحقق من إعداد حساب الموظف وحاول مرة أخرى.');
+          }
+          await persistTokens(response.data.access_token, response.data.refresh_token);
+          try {
+            signedInProfile = await loadProfile();
+          } catch (profileError) {
+            await clearStoredSession();
+            throw profileError;
+          }
+        }
+      } else if (expectedRole === 'STAFF' || !firebaseAuth) {
         const response = await apiClient.post<ApiSession>('/auth/mobile/login', { email: email.trim(), password });
         if (!response.data.access_token || !response.data.refresh_token || !response.data.user?.id) {
           throw new Error('لم يُرجع الخادم جلسة صالحة. تحقق من إعداد حساب الموظف وحاول مرة أخرى.');
@@ -193,6 +314,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
         await reload(credential.user);
+        const pendingProfile = await readPendingFirebaseProfile(credential.user);
+        if (pendingProfile) {
+          const expectedRoleMatches = !expectedRole
+            || (expectedRole === 'STAFF' ? pendingProfile.role === 'TEACHER' : pendingProfile.role === expectedRole);
+          if (!expectedRoleMatches) {
+            await signOutFirebase(firebaseAuth);
+            throw new Error('هذا الحساب لا يتبع البوابة المختارة. اختر نوع الحساب الصحيح.');
+          }
+          await clearStoredSession();
+          setUser(pendingProfile);
+          return;
+        }
         const profile = await exchangeFirebaseUser(credential.user, true);
         signedInProfile = profile;
         if (profile.role !== 'STUDENT' && profile.role !== 'PARENT' && !profile.schoolId) {
@@ -214,8 +347,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async ({ email, password, name, phone, role }: {
-    email: string; password: string; name: string; phone: string; role: 'student' | 'parent';
+  const register = async ({ email, password, name, phone, role, teacherCode, teacherProfile, teacherPhoto }: {
+    email: string; password: string; name: string; phone: string; role: 'student' | 'parent' | 'teacher';
+    teacherCode?: string;
+    teacherProfile?: { nationalId: string; specialization: string; yearsExperience?: number };
+    teacherPhoto?: { uri: string; mimeType?: string | null; fileName?: string | null };
   }) => {
     if (!firebaseAuth || !firebaseDb || !isFirebaseConfigured) throw new Error(firebaseConfigMissingMessage());
     authActionRef.current += 1;
@@ -228,11 +364,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: credential.user.email,
           full_name: name.trim(),
           role,
-          status: 'active',
+          status: 'pending',
           phone: phone.trim(),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+        if (role === 'student' || role === 'teacher') {
+          const token = await credential.user.getIdToken(true);
+          await apiClient.post('/auth/registration-attempt', {
+            idToken: token,
+            ...(role === 'teacher' ? { teacherCode, teacherProfile } : {}),
+          });
+          let teacherAvatarUploadPending = false;
+          if (role === 'teacher' && teacherPhoto) {
+            try {
+              await uploadTeacherRegistrationAvatar(teacherPhoto);
+            } catch {
+              teacherAvatarUploadPending = true;
+            }
+          }
+          firebaseAuth.languageCode = 'ar';
+          await sendEmailVerification(credential.user, {
+            url: 'https://nexus.masarplatform.org/ar/auth/action?result=verified',
+            handleCodeInApp: false,
+          });
+          const pendingProfile = pendingFirebaseProfile(credential.user, {
+            uid: credential.user.uid,
+            email: credential.user.email ?? '',
+            full_name: name.trim(),
+            role,
+            status: 'pending',
+            phone: phone.trim(),
+          });
+          setUser(pendingProfile ? { ...pendingProfile, ...(teacherAvatarUploadPending ? { teacherAvatarUploadPending: true } : {}) } : null);
+          return;
+        }
         await exchangeFirebaseUser(credential.user, true);
       } catch (error) {
         await signOutFirebase(firebaseAuth);
@@ -243,6 +409,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       authActionRef.current -= 1;
     }
+  };
+
+  const uploadTeacherRegistrationAvatar = async (photo: { uri: string; mimeType?: string | null; fileName?: string | null }) => {
+    const currentUser = firebaseAuth?.currentUser;
+    if (!currentUser || !firebaseDb) throw new Error('انتهت جلسة التسجيل. أعد تسجيل الدخول ثم أكمل بيانات الصورة.');
+    const form = new FormData();
+    const extension = photo.fileName?.split('.').pop()?.toLowerCase() || photo.uri.split('.').pop()?.toLowerCase() || 'jpg';
+    form.append('file', {
+      uri: photo.uri,
+      name: `teacher-avatar.${extension}`,
+      type: photo.mimeType || 'image/jpeg',
+    } as any);
+    const idToken = await currentUser.getIdToken(true);
+    await apiClient.post('/auth/teacher-registration/avatar', form, {
+      headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'multipart/form-data' },
+    });
+    setUser((current) => current ? { ...current, teacherAvatarUploadPending: false } : current);
   };
 
   const refreshProfile = async () => {
@@ -260,7 +443,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!currentUser) throw new Error('انتهت جلسة الحساب. سجّل الدخول من جديد.');
     if (currentUser.emailVerified) return;
     await sendEmailVerification(currentUser, {
-      url: 'https://nexus.masarplatform.org/en/auth/action?result=verified',
+      url: 'https://nexus.masarplatform.org/ar/auth/action?result=verified',
       handleCodeInApp: false,
     });
   };
@@ -277,7 +460,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const requestPasswordReset = async (email: string) => {
     if (firebaseAuth) {
       await sendPasswordResetEmail(firebaseAuth, email.trim(), {
-        url: 'https://nexus.masarplatform.org/en/auth/action?result=password-reset',
+        url: 'https://nexus.masarplatform.org/ar/auth/action?result=password-reset',
         handleCodeInApp: false,
       });
       return;
@@ -304,7 +487,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, register, refreshProfile, sendVerificationEmail, refreshVerifiedSession, requestPasswordReset, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, register, uploadTeacherRegistrationAvatar, refreshProfile, sendVerificationEmail, refreshVerifiedSession, requestPasswordReset, signOut }}>
       {children}
     </AuthContext.Provider>
   );

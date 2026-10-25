@@ -7,6 +7,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '../auth/role.enum';
 import { RolesGuard } from '../auth/roles.guard';
@@ -17,14 +18,18 @@ import {
   EarlyWarning,
   ParentReport,
 } from './student-analytics.service';
+import { UploadService } from '../upload/upload.service';
+import { avatarDataUrlToBuffer } from '../upload/avatar-validation';
 
 @ApiTags('Student Analytics')
 @Controller('analytics/student')
 @ApiBearerAuth()
+@Throttle({ long: { limit: 60, ttl: 60_000 } })
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class StudentAnalyticsController {
   constructor(
     private readonly studentAnalyticsService: StudentAnalyticsService,
+    private readonly uploads: UploadService,
   ) {}
 
   @Get(':studentId/progress')
@@ -68,6 +73,7 @@ export class StudentAnalyticsController {
 
   @Get(':studentId/parent-report')
   @Roles(Role.STUDENT, Role.PARENT, Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.HR)
+  @Throttle({ long: { limit: 12, ttl: 60_000 } })
   @ApiOperation({ summary: 'Generate parent report for student' })
   @ApiQuery({
     name: 'period',
@@ -87,14 +93,21 @@ export class StudentAnalyticsController {
   ): Promise<ParentReport> {
     const actor = request.user;
     await this.studentAnalyticsService.assertCanAccessStudent(actor.userId || actor.sub || actor.id, actor.role, studentId);
-    return this.studentAnalyticsService.getParentReport(
+    const report = await this.studentAnalyticsService.getParentReport(
       studentId,
       period || 'month',
     );
+    if (report.studentInfo.avatar) {
+      report.studentInfo.avatar = report.studentInfo.avatar.startsWith('data:')
+        ? (avatarDataUrlToBuffer(report.studentInfo.avatar) ? report.studentInfo.avatar : null)
+        : await this.uploads.getSignedUrlForReference(report.studentInfo.avatar).catch(() => null);
+    }
+    return report;
   }
 
   @Get('early-warnings')
   @Roles(Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.HR)
+  @Throttle({ long: { limit: 12, ttl: 60_000 } })
   @ApiOperation({ summary: 'Get early warning alerts for at-risk students' })
   @ApiQuery({
     name: 'classId',

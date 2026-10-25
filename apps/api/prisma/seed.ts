@@ -6,6 +6,9 @@ const prisma = new PrismaClient();
 async function main() {
   const schoolSlug = process.env.PUBLIC_SCHOOL_SLUG?.trim() || 'al-ikhlas-jeddah';
   const schoolName = process.env.NEXUS_SCHOOL_NAME?.trim() || 'مدارس الإخلاص الأهلية بجدة';
+  const campusLocation = schoolSlug === 'al-ikhlas-jeddah'
+    ? { latitude: 21.54974, longitude: 39.1813937, attendanceRadiusMeters: 50 }
+    : {};
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(schoolSlug)) {
     throw new Error('PUBLIC_SCHOOL_SLUG must be a lowercase URL-safe slug');
   }
@@ -13,7 +16,7 @@ async function main() {
   const school = await prisma.school.upsert({
     where: { slug: schoolSlug },
     update: {},
-    create: { slug: schoolSlug, name: schoolName },
+    create: { slug: schoolSlug, name: schoolName, ...campusLocation },
   });
   if (!school.isActive) {
     throw new Error('The configured school exists but is inactive; refusing to change its status during seeding');

@@ -2,6 +2,7 @@
 
 import { motion, useInView } from 'framer-motion'
 import { useRef } from 'react'
+import { useLocale } from 'next-intl'
 import { Zap, Star } from 'lucide-react'
 
 interface XPBarProps {
@@ -11,16 +12,18 @@ interface XPBarProps {
     className?: string
 }
 
-const LEVEL_TITLES = [
-    'مبتدئ', 'متعلم', 'متقدم', 'ماهر', 'خبير',
-    'محترف', 'متميز', 'نخبة', 'أسطورة', 'المليوني'
-]
+const LEVEL_TITLES = {
+    ar: ['مبتدئ', 'متعلم', 'متقدم', 'ماهر', 'خبير', 'محترف', 'متميز', 'نخبة', 'أسطورة', 'المليوني'],
+    en: ['Beginner', 'Learner', 'Advanced', 'Skilled', 'Expert', 'Pro', 'Excellent', 'Elite', 'Legend', 'Millionaire'],
+}
 
 export function XPBar({ currentXP, maxXP, level, className = '' }: XPBarProps) {
+    const isEnglish = useLocale() === 'en'
+    const titles = isEnglish ? LEVEL_TITLES.en : LEVEL_TITLES.ar
     const ref = useRef<HTMLDivElement>(null)
     const isInView = useInView(ref, { once: true })
     const percentage = Math.min((currentXP / maxXP) * 100, 100)
-    const title = LEVEL_TITLES[Math.min(level - 1, LEVEL_TITLES.length - 1)] || 'متعلم'
+    const title = titles[Math.min(level - 1, titles.length - 1)] || titles[1]
 
     return (
         <div ref={ref} className={`w-full ${className}`}>
@@ -36,15 +39,15 @@ export function XPBar({ currentXP, maxXP, level, className = '' }: XPBarProps) {
                     </div>
                     <div>
                         <p className="font-bold text-slate-900 text-sm leading-none">{title}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">المستوى {level}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{isEnglish ? `Level ${level}` : `المستوى ${level}`}</p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-1 text-sm">
                     <Zap className="w-4 h-4 text-yellow-500 fill-yellow-400" />
-                    <span className="font-bold text-slate-700">{currentXP.toLocaleString('ar-SA')}</span>
+                    <span className="font-bold text-slate-700">{currentXP.toLocaleString(isEnglish ? 'en-US' : 'ar-SA')}</span>
                     <span className="text-slate-400">/</span>
-                    <span className="text-slate-500">{maxXP.toLocaleString('ar-SA')}</span>
+                    <span className="text-slate-500">{maxXP.toLocaleString(isEnglish ? 'en-US' : 'ar-SA')}</span>
                     <span className="text-xs text-slate-400">XP</span>
                 </div>
             </div>
@@ -71,12 +74,12 @@ export function XPBar({ currentXP, maxXP, level, className = '' }: XPBarProps) {
             {/* Next level info */}
             <div className="flex items-center justify-between mt-1.5">
                 <span className="text-xs text-slate-500">
-                    {(maxXP - currentXP).toLocaleString('ar-SA')} XP للمستوى التالي
+                    {isEnglish ? `${(maxXP - currentXP).toLocaleString('en-US')} XP to next level` : `${(maxXP - currentXP).toLocaleString('ar-SA')} XP للمستوى التالي`}
                 </span>
                 {level < 10 && (
                     <div className="flex items-center gap-1 text-xs text-primary-500 font-medium">
                         <Star className="w-3 h-3" />
-                        {LEVEL_TITLES[Math.min(level, LEVEL_TITLES.length - 1)]}
+                        {titles[Math.min(level, titles.length - 1)]}
                     </div>
                 )}
             </div>

@@ -1,12 +1,14 @@
 'use client';
 
 import { useOffline } from '@/hooks/use-offline';
+import { useLocale } from 'next-intl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wifi, WifiOff, CloudOff, RefreshCw, Cloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 export function OfflineIndicator() {
+    const isEnglish = useLocale() === 'en';
     const { isOnline, isServiceWorkerReady, pendingActions, syncPendingActions } = useOffline();
 
     return (
@@ -20,8 +22,8 @@ export function OfflineIndicator() {
                     className="fixed top-0 left-0 right-0 z-50 bg-orange-500 text-white py-2 px-4 flex items-center justify-center gap-2"
                 >
                     <WifiOff className="w-5 h-5" />
-                    <span className="font-medium">أنت غير متصل بالإنترنت</span>
-                    <span className="text-sm opacity-80">- التغييرات ستُزامَن عند عودة الاتصال</span>
+                    <span className="font-medium">{isEnglish ? 'You are offline' : 'أنت غير متصل بالإنترنت'}</span>
+                    <span className="text-sm opacity-80">{isEnglish ? '— Changes will sync when you reconnect' : '- التغييرات ستُزامَن عند عودة الاتصال'}</span>
                 </motion.div>
             )}
 
@@ -36,7 +38,7 @@ export function OfflineIndicator() {
                     <div className="bg-blue-600 text-white rounded-full px-4 py-2 flex items-center gap-2 shadow-lg">
                         <CloudOff className="w-5 h-5" />
                         <span className="text-sm font-medium">
-                            {pendingActions} إجراء في الانتظار
+                            {isEnglish ? `${pendingActions} pending ${pendingActions === 1 ? 'action' : 'actions'}` : `${pendingActions} إجراء في الانتظار`}
                         </span>
                         {isOnline && (
                             <Button
@@ -56,6 +58,7 @@ export function OfflineIndicator() {
 }
 
 export function ConnectionStatus() {
+    const isEnglish = useLocale() === 'en';
     const { isOnline, isServiceWorkerReady } = useOffline();
 
     return (
@@ -63,18 +66,18 @@ export function ConnectionStatus() {
             {isOnline ? (
                 <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                     <Wifi className="w-3 h-3 mr-1" />
-                    متصل
+                    {isEnglish ? 'Online' : 'متصل'}
                 </Badge>
             ) : (
                 <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
                     <WifiOff className="w-3 h-3 mr-1" />
-                    غير متصل
+                    {isEnglish ? 'Offline' : 'غير متصل'}
                 </Badge>
             )}
             {isServiceWorkerReady && (
                 <Badge variant="outline" className="text-xs">
                     <Cloud className="w-3 h-3 mr-1" />
-                    جاهز للعمل بدون إنترنت
+                    {isEnglish ? 'Ready to work offline' : 'جاهز للعمل بدون إنترنت'}
                 </Badge>
             )}
         </div>

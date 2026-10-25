@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
+import { useLocale } from 'next-intl'
 
 interface StreakCounterProps {
     streak: number
@@ -10,6 +11,7 @@ interface StreakCounterProps {
 }
 
 export function StreakCounter({ streak, className = '', compact = false }: StreakCounterProps) {
+    const isEnglish = useLocale() === 'en'
     const [isAnimating, setIsAnimating] = useState(false)
 
     useEffect(() => {
@@ -75,7 +77,7 @@ export function StreakCounter({ streak, className = '', compact = false }: Strea
             >
                 {streak}
             </motion.div>
-            <div className="text-xs text-slate-500 font-medium mt-0.5">يوم متتالي</div>
+            <div className="text-xs text-slate-500 font-medium mt-0.5">{isEnglish ? 'day streak' : 'يوم متتالي'}</div>
 
             {/* Milestone badges */}
             {streak >= 7 && (
@@ -84,7 +86,7 @@ export function StreakCounter({ streak, className = '', compact = false }: Strea
                     animate={{ opacity: 1, y: 0 }}
                     className="mt-2 px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 text-xs font-bold"
                 >
-                    {streak >= 30 ? '🏆 أسطوري' : streak >= 14 ? '⚡ محترف' : '⭐ متميز'}
+                    {streak >= 30 ? (isEnglish ? '🏆 Legendary' : '🏆 أسطوري') : streak >= 14 ? (isEnglish ? '⚡ Pro' : '⚡ محترف') : (isEnglish ? '⭐ Excellent' : '⭐ متميز')}
                 </motion.div>
             )}
         </div>

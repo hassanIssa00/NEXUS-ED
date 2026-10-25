@@ -61,7 +61,8 @@ export class LessonService {
       where: { id: data.subjectId },
       include: {
         teacher: true,
-        class: { select: { teacherAssignments: { where: { teacherId }, select: { teacherId: true } } } },
+        class: { select: { id: true, teacherId: true, schoolId: true } },
+        classSubjects: { where: { teacherId }, select: { id: true } },
       },
     });
 
@@ -69,8 +70,10 @@ export class LessonService {
       throw new NotFoundException('Subject not found');
     }
 
-    if (subject.schoolId !== actor.schoolId || (actor.role === Role.TEACHER
-      && subject.teacherId !== teacherId && subject.class.teacherAssignments.length === 0)) {
+    const teacherOwnsSubject = subject.teacherId === teacherId
+      || subject.class.teacherId === teacherId
+      || subject.classSubjects.length > 0;
+    if (subject.schoolId !== actor.schoolId || (actor.role === Role.TEACHER && !teacherOwnsSubject)) {
       throw new ForbiddenException('You do not teach this subject');
     }
 

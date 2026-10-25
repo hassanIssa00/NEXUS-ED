@@ -1,7 +1,7 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
-import Link from 'next/link';
+import { useLocale } from 'next-intl';
+import { Link, usePathname } from '@/i18n/routing';
 import { useSidebar } from '@/contexts/SidebarContext';
 import {
     Home,
@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 interface SidebarItem {
     id: string;
     label: string;
+    labelEn: string;
     icon: LucideIcon;
     route?: string;
     drawer?: boolean;
@@ -27,19 +28,20 @@ interface SidebarItem {
 }
 
 const sidebarItems: SidebarItem[] = [
-    { id: 'home', label: 'الرئيسية', icon: Home, route: '/student' },
-    { id: 'nexus', label: 'NEXUS Dialogue', icon: Zap, route: '/student/million' },
-    { id: 'courses', label: 'المواد الدراسية', icon: BookOpen, route: '/student/courses' },
-    { id: 'assignments', label: 'الواجبات', icon: FileText, drawer: true, badge: 3 },
-    { id: 'grades', label: 'الدرجات', icon: Award, drawer: true },
-    { id: 'attendance', label: 'الحضور', icon: Calendar, drawer: true },
-    { id: 'classes', label: 'الفصول', icon: Users, route: '/student/classes' },
-    { id: 'notifications', label: 'الإشعارات', icon: Bell, drawer: true, badge: 5 },
-    { id: 'settings', label: 'الإعدادات', icon: Settings, drawer: true },
+    { id: 'home', label: 'الرئيسية', labelEn: 'Home', icon: Home, route: '/student' },
+    { id: 'nexus', label: 'NEXUS Dialogue', labelEn: 'NEXUS Dialogue', icon: Zap, route: '/student/million' },
+    { id: 'courses', label: 'المواد الدراسية', labelEn: 'Subjects', icon: BookOpen, route: '/student/courses' },
+    { id: 'assignments', label: 'الواجبات', labelEn: 'Assignments', icon: FileText, drawer: true, badge: 3 },
+    { id: 'grades', label: 'الدرجات', labelEn: 'Grades', icon: Award, drawer: true },
+    { id: 'attendance', label: 'الحضور', labelEn: 'Attendance', icon: Calendar, drawer: true },
+    { id: 'classes', label: 'الفصول', labelEn: 'Classes', icon: Users, route: '/student/classes' },
+    { id: 'notifications', label: 'الإشعارات', labelEn: 'Notifications', icon: Bell, drawer: true, badge: 5 },
+    { id: 'settings', label: 'الإعدادات', labelEn: 'Settings', icon: Settings, drawer: true },
 ];
 
 export function Sidebar() {
     const pathname = usePathname();
+    const isEnglish = useLocale() === 'en';
     const { activeDrawer, toggleDrawer } = useSidebar();
 
     const handleItemClick = (item: SidebarItem) => {
@@ -58,10 +60,11 @@ export function Sidebar() {
     return (
         <div className="hidden md:flex md:w-20 lg:w-64 flex-shrink-0">
             <div className="fixed top-16 right-0 h-[calc(100vh-4rem)] w-20 lg:w-64 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 overflow-y-auto">
-                <nav className="p-3 space-y-2" dir="rtl">
+                <nav className="p-3 space-y-2" dir={isEnglish ? 'ltr' : 'rtl'}>
                     {sidebarItems.map((item) => {
                         const Icon = item.icon;
                         const active = isActive(item);
+                        const label = isEnglish ? item.labelEn : item.label;
 
                         const content = (
                             <div
@@ -80,7 +83,7 @@ export function Sidebar() {
                                 )} />
 
                                 <span className="hidden lg:block font-medium">
-                                    {item.label}
+                                    {label}
                                 </span>
 
                                 {item.badge && item.badge > 0 && (
@@ -91,7 +94,7 @@ export function Sidebar() {
 
                                 {/* Tooltip for small sidebar */}
                                 <div className="lg:hidden absolute right-full mr-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                                    {item.label}
+                                    {label}
                                 </div>
                             </div>
                         );

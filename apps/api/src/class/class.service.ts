@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { CreateClassDto, UpdateClassDto } from './dto/create-class.dto';
+import { UploadService } from '../upload/upload.service';
 
 function createClassCode(): string {
   const value = randomBytes(6).toString('hex').toUpperCase();
@@ -10,7 +11,7 @@ function createClassCode(): string {
 
 @Injectable()
 export class ClassService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService, private uploads: UploadService) { }
 
   async create(createClassDto: CreateClassDto, schoolId: string) {
     if (!schoolId) throw new ForbiddenException('The account is not assigned to a school');
@@ -67,7 +68,7 @@ export class ClassService {
         teacherAssignments: { select: { teacherId: true } },
         students: {
           include: {
-            student: { select: { id: true, name: true, firstName: true, lastName: true } },
+            student: { select: { id: true, name: true, firstName: true, lastName: true, avatar: true } },
           },
         },
         subjects: { select: { id: true, name: true, code: true, teacherId: true } },
@@ -85,7 +86,24 @@ export class ClassService {
     const isSchoolStaff = role !== 'TEACHER';
     if (!isTeacher && !isSchoolStaff) throw new ForbiddenException('You do not have access to this class');
 
-    return classEntity;
+    const avatarReferences = [...new Set(classEntity.students
+      .map(({ student }) => student.avatar)
+      .filter((value): value is string => typeof value === 'string' && (value.startsWith('storage://') || value.startsWith('https://'))))];
+    const signedAvatars = avatarReferences.length
+      ? await this.uploads.getSignedUrlsForReferences(avatarReferences).catch(() => avatarReferences.map(() => null))
+      : [];
+    const avatarByReference = new Map(avatarReferences.map((reference, index) => [reference, signedAvatars[index] || null]));
+
+    return {
+      ...classEntity,
+      students: classEntity.students.map((enrollment) => ({
+        ...enrollment,
+        student: {
+          ...enrollment.student,
+          avatar: enrollment.student.avatar ? avatarByReference.get(enrollment.student.avatar) || null : null,
+        },
+      })),
+    };
   }
 
   async update(id: string, updateClassDto: UpdateClassDto, schoolId: string) {
@@ -125,7 +143,7 @@ export class ClassService {
               where: { isActive: true },
               orderBy: { startTime: 'desc' },
               take: 1,
-              select: { startTime: true, meetingUrl: true, title: true },
+              select: { id: true, startTime: true, title: true },
             },
           }
         }
@@ -144,7 +162,7 @@ export class ClassService {
         subject: event.subject.name,
       })),
       nextClass: e.class.sessions[0]?.startTime || null,
-      meetingUrl: e.class.sessions[0]?.meetingUrl || null,
+      activeSessionId: e.class.sessions[0]?.id || null,
       nextSessionTitle: e.class.sessions[0]?.title || null,
     }));
   }

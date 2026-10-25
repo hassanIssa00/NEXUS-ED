@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
 
 interface LeaderboardEntry {
@@ -26,7 +27,9 @@ const BADGE_ICONS: Record<string, string> = {
   quiz_master: '🏆',
 };
 
-export function Leaderboard({ title = 'لوحة الشرف', limit = 10 }: LeaderboardProps) {
+export function Leaderboard({ title, limit = 10 }: LeaderboardProps) {
+  const isEnglish = useLocale() === 'en';
+  const heading = title ?? (isEnglish ? 'Leaderboard' : 'لوحة الشرف');
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -89,10 +92,10 @@ export function Leaderboard({ title = 'لوحة الشرف', limit = 10 }: Leade
       <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
         <h3 className="text-lg font-bold text-white flex items-center gap-2">
           <span className="text-2xl">🏆</span>
-          {title}
+          {heading}
         </h3>
         <span className="text-sm text-slate-400">
-          أفضل {limit} طلاب
+          {isEnglish ? `Top ${limit} students` : `أفضل ${limit} طلاب`}
         </span>
       </div>
 
@@ -120,7 +123,7 @@ export function Leaderboard({ title = 'لوحة الشرف', limit = 10 }: Leade
                   {entry.name}
                 </span>
                 <span className="text-xs text-blue-300 font-semibold">
-                  مستوى {entry.level}: {entry.levelName}
+                  {isEnglish ? `Level ${entry.level}: ${entry.levelName}` : `مستوى ${entry.level}: ${entry.levelName}`}
                 </span>
               </div>
             </div>
@@ -128,10 +131,10 @@ export function Leaderboard({ title = 'لوحة الشرف', limit = 10 }: Leade
             {/* Points */}
             <div className="text-left flex flex-col items-end">
               <span className="text-lg font-bold text-blue-400">
-                {entry.points.toLocaleString('ar-EG')}
+                {entry.points.toLocaleString(isEnglish ? 'en-US' : 'ar-EG')}
               </span>
               <span className="text-xs text-slate-500 block mt-1">
-                نقطة
+                {isEnglish ? 'points' : 'نقطة'}
               </span>
             </div>
           </motion.li>
@@ -141,7 +144,7 @@ export function Leaderboard({ title = 'لوحة الشرف', limit = 10 }: Leade
       {/* Footer */}
       <div className="px-6 py-3 bg-slate-900/50 border-t border-slate-700/50">
         <button className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
-          عرض المزيد ←
+          {isEnglish ? 'View more →' : 'عرض المزيد ←'}
         </button>
       </div>
     </div>

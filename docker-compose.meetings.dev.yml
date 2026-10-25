@@ -1,0 +1,9 @@
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.10
+    command: ["--dev", "--bind", "0.0.0.0"]
+    ports:
+      - "7880:7880/tcp"
+      - "7881:7881/tcp"
+      - "50000-51000:50000-51000/udp"
+    restart: unless-stopped

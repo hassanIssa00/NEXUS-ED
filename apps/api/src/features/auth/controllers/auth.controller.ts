@@ -7,9 +7,12 @@ import {
     Request,
     Res,
     Req,
+    BadRequestException,
     UnauthorizedException,
     Inject,
-    Put,
+    Headers,
+    UploadedFile,
+    UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
@@ -28,7 +31,9 @@ import { AccountLockGuard } from '../guards/account-lock.guard';
 import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
 import { ConfirmPasswordResetDto } from '../dto/confirm-password-reset.dto';
 import { FirebaseLoginDto } from '../dto/firebase-login.dto';
-import { SaveTeacherProfileDto } from '../dto/teacher-profile.dto';
+import { RegistrationAttemptDto, VerifyTeacherRegistrationCodeDto } from '../dto/registration-attempt.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 
 const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
@@ -43,6 +48,44 @@ export class AuthController {
     @Throttle({ short: { limit: 5, ttl: 60000 } })
     async register(@Body() registerDto: RegisterDto) {
         return this.authService.register(registerDto);
+    }
+
+    @Post('registration-attempt')
+    @Throttle({ short: { limit: 5, ttl: 15 * 60 * 1000 } })
+    registrationAttempt(@Body() dto: RegistrationAttemptDto) {
+        return this.authService.recordRegistrationAttempt(dto);
+    }
+
+    @Post('teacher-registration/verify-code')
+    @Throttle({ short: { limit: 5, ttl: 15 * 60 * 1000 } })
+    verifyTeacherRegistrationCode(@Body() dto: VerifyTeacherRegistrationCodeDto) {
+        return this.authService.verifyTeacherRegistrationCode(dto.code);
+    }
+
+    @Post('teacher-registration/avatar')
+    @Throttle({ short: { limit: 3, ttl: 60 * 60 * 1000 } })
+    @UseInterceptors(FileInterceptor('file', {
+        storage: memoryStorage(),
+        limits: { fileSize: 512 * 1024, files: 1, fields: 0, parts: 1 },
+    }))
+    uploadTeacherRegistrationAvatar(
+        @Headers('authorization') authorization: string | undefined,
+        @UploadedFile() file: Express.Multer.File | undefined,
+    ) {
+        const token = authorization?.match(/^Bearer\s+(\S+)$/i)?.[1];
+        if (!token || token.length > 8192) {
+            throw new UnauthorizedException('A valid Firebase authorization token is required');
+        }
+        if (!file) throw new BadRequestException('No teacher profile image was uploaded');
+        return this.authService.uploadTeacherRegistrationAvatar(token, file);
+    }
+
+    @Get('registration-archive')
+    @UseGuards(AuthGuard('jwt'), RolesGuard)
+    @Roles(Role.ADMIN)
+    registrationArchive(@Request() req: any) {
+        const actor = req.user;
+        return this.authService.getRegistrationArchive(actor.schoolId, actor.userId || actor.sub || actor.id);
     }
 
     @Post('firebase')

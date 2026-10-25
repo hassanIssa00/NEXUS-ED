@@ -28,6 +28,15 @@ export class ScheduleService {
     return grouped;
   }
 
+  async getSchoolClassSchedule(classId: string, schoolId: string) {
+    const classroom = await this.prisma.class.findFirst({
+      where: { id: classId, schoolId },
+      select: { id: true },
+    });
+    if (!classroom) throw new NotFoundException('Class not found');
+    return this.getClassSchedule(classId);
+  }
+
   async getStudentSchedule(studentId: string) {
     // Find the student's primary class
     const enrollments = await this.prisma.enrollment.findMany({

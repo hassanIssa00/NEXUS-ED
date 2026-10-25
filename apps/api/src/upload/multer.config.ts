@@ -47,7 +47,7 @@ export const multerConfig = {
       return cb(new Error(`نوع الملف غير مسموح به: ${file.mimetype}`), false);
     }
 
-    if (allowedMimesForExt && !allowedMimesForExt.includes(file.mimetype)) {
+    if (!allowedMimesForExt || !allowedMimesForExt.includes(file.mimetype)) {
       return cb(new Error(`امتداد الملف لا يتطابق مع نوعه الفعلي`), false);
     }
 

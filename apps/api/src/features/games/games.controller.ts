@@ -9,7 +9,8 @@ export class GamesController {
 
   @Get()
   async getAllGames(@Req() req: any) {
-    const data = await this.gamesService.findAll(this.schoolId(req));
+    if (!req.user.schoolId) throw new ForbiddenException('The account is not assigned to a school');
+    const data = await this.gamesService.findAll(req.user.schoolId);
     return { success: true, data };
   }
 

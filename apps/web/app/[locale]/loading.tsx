@@ -2,8 +2,10 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { useLocale } from 'next-intl';
 
 export default function Loading() {
+    const isEnglish = useLocale() === 'en';
     const [activeLogo, setActiveLogo] = useState<'nexus' | 'school'>('nexus');
 
     useEffect(() => {
@@ -14,7 +16,7 @@ export default function Loading() {
     }, []);
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50/30 dark:bg-slate-900/30 backdrop-blur-sm" dir="rtl">
+        <div className="min-h-screen flex items-center justify-center bg-slate-50/30 dark:bg-slate-900/30 backdrop-blur-sm" dir={isEnglish ? 'ltr' : 'rtl'}>
             <div className="flex flex-col items-center gap-8 w-full max-w-md px-6">
                 {/* Cinematic Logo Switcher */}
                 <div className="relative w-28 h-28 flex items-center justify-center">
@@ -38,7 +40,7 @@ export default function Loading() {
                             <motion.img
                                 key="school"
                                 src="/second_logo.webp"
-                                alt="School Logo"
+                                alt={isEnglish ? 'School logo' : 'شعار المدرسة'}
                                 initial={{ opacity: 0, scale: 0.5, filter: 'blur(10px)' }}
                                 animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
                                 exit={{ opacity: 0, scale: 1.5, filter: 'blur(10px)' }}
@@ -56,7 +58,7 @@ export default function Loading() {
                 {/* Loading Text */}
                 <div className="text-center space-y-3 z-10">
                     <h3 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-secondary-600">
-                        جاري تجهيز المنصة...
+                        {isEnglish ? 'Preparing the platform…' : 'جارٍ تجهيز المنصة...'}
                     </h3>
                     <div className="flex justify-center items-center gap-2">
                         <span className="w-2 h-2 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />

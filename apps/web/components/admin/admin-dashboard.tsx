@@ -25,13 +25,17 @@ interface AdminOverview {
         todayPresent: number;
         todayAbsent: number;
         todayLate: number;
-        weeklyRate: number;
+        todayRecordCount?: number;
+        weeklyRecordCount?: number;
+        weeklyRate: number | null;
     };
     assignments: {
         pending: number;
         submitted: number;
         graded: number;
-        overdueRate: number;
+        overdueRate: number | null;
+        overdueCount?: number;
+        overdueTotal?: number;
     };
 }
 
@@ -233,9 +237,9 @@ export function AdminDashboard({ data: propData }: AdminDashboardProps) {
                         <div className="space-y-2">
                             <div className="flex justify-between text-sm">
                                 <span>نسبة الحضور الأسبوعي</span>
-                                <span className="font-bold">{data.attendance.weeklyRate}%</span>
+                                <span className="font-bold">{data.attendance.weeklyRecordCount === 0 ? 'لا توجد سجلات' : `${data.attendance.weeklyRate ?? 0}%`}</span>
                             </div>
-                            <Progress value={data.attendance.weeklyRate} className="h-2" />
+                            <Progress value={data.attendance.weeklyRecordCount === 0 ? 0 : data.attendance.weeklyRate ?? 0} className="h-2" />
                         </div>
                     </CardContent>
                 </Card>
@@ -267,7 +271,7 @@ export function AdminDashboard({ data: propData }: AdminDashboardProps) {
                                 </Badge>
                             </div>
 
-                            {data.assignments.overdueRate > 20 && (
+                            {(data.assignments.overdueRate ?? 0) > 20 && (
                                 <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-center gap-2">
                                     <AlertTriangle className="w-5 h-5 text-red-500" />
                                     <span className="text-sm text-red-700">

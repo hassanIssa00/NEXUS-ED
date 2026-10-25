@@ -330,6 +330,35 @@ export class MillionService {
     return result.rows[0];
   }
 
+  async listPublicRooms(limit = 50): Promise<any[]> {
+    const result = await query(
+      `
+      SELECT
+        r.id,
+        r.title,
+        r.status,
+        r.type,
+        r.settings,
+        r.created_at as "createdAt",
+        COUNT(p.user_id) FILTER (WHERE p.is_active = true)::int as "playerCount"
+      FROM million_rooms r
+      LEFT JOIN million_room_participants p ON p.room_id = r.id
+      WHERE r.type = 'public' AND r.status = 'waiting'
+      GROUP BY r.id
+      ORDER BY r.created_at DESC
+      LIMIT $1
+      `,
+      [Math.min(100, Math.max(1, Math.floor(limit)))],
+    );
+
+    return result.rows.map((room) => ({
+      ...room,
+      playerCount: Number(room.playerCount ?? 0),
+      maxPlayers: Number(room.settings?.maxPlayers ?? 10),
+      status: room.status === 'in_progress' ? 'playing' : room.status,
+    }));
+  }
+
   /**
    * Get leaderboard for a room
    */

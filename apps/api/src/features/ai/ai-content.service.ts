@@ -35,12 +35,16 @@ export class AiContentService {
   /**
    * Generates interactive content from raw text
    */
-  async processContent(text: string): Promise<GeneratedContent> {
+  async processContent(text: string, locale: 'ar' | 'en' = 'ar'): Promise<GeneratedContent> {
     if (!this.ai) {
       throw new ServiceUnavailableException('توليد المحتوى غير متاح؛ لم يتم إعداد مزود الذكاء الاصطناعي.');
     }
 
+    const responseLanguage = locale === 'en'
+      ? 'Write every generated field in clear English. Preserve names, original terms, and any Arabic examples that are the subject of the lesson.'
+      : 'اكتب جميع الحقول باللغة العربية الواضحة، وحافظ على الأسماء والمصطلحات والأمثلة الأصلية.';
     const systemPrompt = withNexusContext(`أنت مساعد ذكي للمعلمين. مهمتك تحويل النص التعليمي المدخل إلى محتوى تفاعلي متكامل.
+${responseLanguage}
 أخرج النتيجة بصيغة JSON حصراً بهذا الهيكل:
 {
   "summary": "ملخص شامل ومبسط للنص في 3-4 أسطر",

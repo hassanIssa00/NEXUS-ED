@@ -23,7 +23,7 @@ describe('AiTutorService', () => {
     expect(gamification.awardXp).toHaveBeenCalledWith('student-1', 5, 'استخدام المعلم الذكي');
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
       model: 'qwen/qwen3.8-27b',
-      max_completion_tokens: 1200,
+      max_completion_tokens: 800,
       reasoning_effort: 'none',
     }));
   });

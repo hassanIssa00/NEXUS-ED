@@ -16,6 +16,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { EmailService } from '../../../notifications/email.service';
 import { RegisterDto } from '../dto/register.dto';
+import { RegistrationAttemptDto, SAUDI_ELEMENTARY_SUBJECTS } from '../dto/registration-attempt.dto';
 import { LoginDto } from '../dto/login.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
 import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
@@ -25,6 +26,8 @@ import { FirebaseIdentityService } from './firebase-identity.service';
 import { SaveTeacherProfileDto } from '../dto/teacher-profile.dto';
 import { SAUDI_PRIMARY_SUBJECTS } from '../saudi-primary-subjects';
 import { getJwtRefreshSecret } from '../../../config/jwt';
+import { UploadService } from '../../../upload/upload.service';
+import { isValidAvatarImage } from '../../../upload/avatar-validation';
 
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '7d';
@@ -33,15 +36,15 @@ const PASSWORD_RESET_TTL_MS = 10 * 60 * 1000;
 const PASSWORD_RESET_REQUEST_WINDOW_MS = 15 * 60 * 1000;
 const PASSWORD_RESET_MAX_REQUESTS = 3;
 const PASSWORD_RESET_MAX_ATTEMPTS = 5;
-const PASSWORD_RESET_RESPONSE = 'لو البريد مرتبط بحساب طالب أو ولي أمر، هيوصلك رمز إعادة التعيين.';
+const PASSWORD_RESET_RESPONSE = 'إذا كان البريد مرتبطًا بحساب طالب أو ولي أمر أو معلم، فسيصلك رمز إعادة التعيين.';
 const INVALID_RESET_CODE = 'رمز التحقق غير صالح أو انتهت صلاحيته.';
 
 function isPublicAccountRole(role: string): boolean {
     return role === 'STUDENT' || role === 'PARENT';
 }
 
-function normalizeClassCode(value: string): string {
-    return value.trim().toUpperCase().replace(/\s+/g, '');
+function requiresVerifiedEmail(role: unknown): boolean {
+    return typeof role === 'string' && (isPublicAccountRole(role) || role === 'TEACHER');
 }
 
 @Injectable()
@@ -54,6 +57,7 @@ export class AuthService {
         private configService: ConfigService,
         private emailService: EmailService,
         private firebaseIdentityService: FirebaseIdentityService,
+        private uploadService: UploadService,
     ) { }
 
     private async createAuditLog(data: {
@@ -119,6 +123,7 @@ export class AuthService {
         role: string;
         name: string;
         schoolId: string;
+        onboardingOnly?: boolean;
     }) {
         return {
             sub: user.id,
@@ -127,6 +132,7 @@ export class AuthService {
             role: user.role,
             name: user.name ?? user.email,
             schoolId: user.schoolId,
+            ...(user.onboardingOnly ? { onboardingOnly: true } : {}),
         };
     }
 
@@ -149,69 +155,240 @@ export class AuthService {
         };
     }
 
-    async register(registerDto: RegisterDto) {
-        if (registerDto.role === Role.TEACHER) {
-            const expectedCode = this.configService.get<string>('TEACHER_REGISTRATION_CODE')?.trim().toUpperCase();
-            const providedCode = registerDto.teacherCode?.trim().toUpperCase();
-            if (!expectedCode) {
-                throw new ServiceUnavailableException('تسجيل حسابات المدرسين غير مفعّل حاليًا. تواصل مع إدارة المدرسة.');
-            }
-            if (!providedCode) {
-                throw new ForbiddenException('كود المدرس غير صحيح.');
-            }
-            const expectedBytes = Buffer.from(expectedCode, 'utf8');
-            const providedBytes = Buffer.from(providedCode, 'utf8');
-            if (expectedBytes.length !== providedBytes.length || !timingSafeEqual(expectedBytes, providedBytes)) {
-                throw new ForbiddenException('كود المدرس غير صحيح.');
-            }
-        } else if (registerDto.role !== Role.STUDENT && registerDto.role !== Role.PARENT) {
-            throw new ForbiddenException('إنشاء حسابات الموظفين متاح لإدارة المدرسة فقط.');
+    register(registerDto: RegisterDto): Promise<never> {
+        void registerDto;
+        return Promise.reject(new ForbiddenException('Public registration must use verified Firebase email confirmation'));
+    }
+
+    private isValidTeacherRegistrationCode(candidate: string): boolean {
+        const configuredCode = this.configService.get<string>('TEACHER_REGISTRATION_CODE')?.trim();
+        if (!configuredCode) {
+            throw new ServiceUnavailableException('Teacher self-registration is not configured');
         }
 
-        const email = registerDto.email.trim().toLowerCase();
-        const existingUser = await this.prisma.user.findUnique({
-            where: { email },
-        });
+        // Compare fixed-size digests so a caller cannot learn the secret through
+        // timingSafeEqual's length check. The code itself is never stored or logged.
+        const expectedDigest = createHash('sha256').update(configuredCode, 'utf8').digest();
+        const candidateDigest = createHash('sha256').update(candidate, 'utf8').digest();
+        return timingSafeEqual(candidateDigest, expectedDigest);
+    }
 
-        if (existingUser) {
-            throw new ConflictException('User already exists');
+    verifyTeacherRegistrationCode(code: string) {
+        return { valid: this.isValidTeacherRegistrationCode(code) };
+    }
+
+    async recordRegistrationAttempt(dto: RegistrationAttemptDto) {
+        const identity = await this.firebaseIdentityService.verifyAndReadProfile(dto.idToken, { allowUnverified: true });
+        if (identity.role !== Role.STUDENT && identity.role !== Role.TEACHER) {
+            throw new ForbiddenException('Email confirmation is enabled for student and teacher accounts');
+        }
+        if (identity.status !== 'pending') {
+            throw new ForbiddenException('A pending registration profile is required');
         }
 
-        const hashedPassword = await bcrypt.hash(registerDto.password, 10);
-        const schoolId = await this.resolvePublicSchoolId();
+        let resolvedSchoolId: string | undefined;
+        let teacherArchiveFields: {
+            nationalId?: string;
+            specialization?: string;
+            yearsExperience?: number;
+            homeroomClassId?: string;
+        } = {};
+        if (identity.role === Role.TEACHER) {
+            if (!dto.teacherCode || !this.isValidTeacherRegistrationCode(dto.teacherCode)) {
+                throw new ForbiddenException('A valid teacher registration code is required');
+            }
 
-        const user = await this.prisma.user.create({
-            data: {
-                email,
-                password: hashedPassword,
-                role: registerDto.role,
-                name: registerDto.name?.trim() || email.split('@')[0],
-                phone: registerDto.phone,
+            const profile = dto.teacherProfile;
+            if (!profile) {
+                throw new BadRequestException('Teacher profile details are required');
+            }
+            if (!/^[12]\d{9}$/.test(profile.nationalId)) {
+                throw new BadRequestException('A valid 10-digit Saudi national or residency ID is required');
+            }
+            if (!SAUDI_ELEMENTARY_SUBJECTS.includes(profile.specialization)) {
+                throw new BadRequestException('Teacher specialization is required');
+            }
+            resolvedSchoolId = await this.resolvePublicSchoolId();
+            const homeroomClassId = profile.homeroomClass?.trim();
+            if (homeroomClassId) {
+                const homeroomClass = await this.prisma.class.findFirst({
+                    where: { id: homeroomClassId, schoolId: resolvedSchoolId },
+                    select: { id: true },
+                });
+                if (!homeroomClass) {
+                    throw new BadRequestException('The selected homeroom class is not available at this school');
+                }
+            }
+            teacherArchiveFields = {
+                nationalId: profile.nationalId,
+                specialization: profile.specialization,
+                ...(profile.yearsExperience !== undefined ? { yearsExperience: profile.yearsExperience } : {}),
+                ...(homeroomClassId ? { homeroomClassId } : {}),
+            };
+        }
+
+        const schoolId = resolvedSchoolId ?? await this.resolvePublicSchoolId();
+
+        return this.prisma.registrationArchive.upsert({
+            where: { firebaseUid: identity.uid },
+            create: {
+                firebaseUid: identity.uid,
+                email: identity.email,
+                fullName: identity.fullName,
+                phone: identity.phone,
+                role: identity.role,
                 schoolId,
+                ...teacherArchiveFields,
+                status: identity.emailVerified ? 'VERIFIED' : 'PENDING',
+                verifiedAt: identity.emailVerified ? new Date() : null,
             },
-        });
-
-        await this.createAuditLog({
-            schoolId,
-            userId: user.id,
-            action: 'auth.register',
-            entityType: 'user',
-            entityId: user.id,
-            metadata: {
-                email: user.email,
-                role: user.role,
+            update: {
+                email: identity.email,
+                fullName: identity.fullName,
+                phone: identity.phone,
+                schoolId,
+                ...teacherArchiveFields,
+                ...(identity.emailVerified ? { status: 'VERIFIED', verifiedAt: new Date() } : {}),
             },
+            select: { id: true, email: true, fullName: true, role: true, status: true, createdAt: true, verifiedAt: true },
         });
+    }
 
-        const { password, ...result } = user;
-        return result;
+    async uploadTeacherRegistrationAvatar(
+        idToken: string,
+        file: Pick<Express.Multer.File, 'buffer' | 'mimetype' | 'size'>,
+    ) {
+        const identity = await this.firebaseIdentityService.verifyAndReadProfile(idToken, { allowUnverified: true });
+        if (identity.role !== Role.TEACHER || identity.status !== 'pending') {
+            throw new ForbiddenException('A pending teacher registration is required');
+        }
+
+        const archive = await this.prisma.registrationArchive.findUnique({
+            where: { firebaseUid: identity.uid },
+            select: { email: true, role: true, status: true, avatarUrl: true },
+        });
+        if (
+            !archive
+            || String(archive.role) !== 'TEACHER'
+            || archive.status !== 'PENDING'
+            || archive.email !== identity.email
+        ) {
+            throw new ForbiddenException('A pending teacher registration is required');
+        }
+        if (!isValidAvatarImage(file.buffer, file.mimetype, file.size, 512 * 1024)) {
+            throw new BadRequestException('اختر صورة JPEG أو PNG أو WebP صالحة لا يتجاوز حجمها 512 كيلوبايت');
+        }
+
+        const storagePath = await this.uploadService.uploadTeacherRegistrationAvatar(
+            file.buffer,
+            identity.uid,
+            file.mimetype,
+        );
+        let updated = false;
+        try {
+            const result = await this.prisma.registrationArchive.updateMany({
+                where: {
+                    firebaseUid: identity.uid,
+                    role: Role.TEACHER,
+                    status: 'PENDING',
+                    email: identity.email,
+                },
+                data: { avatarUrl: storagePath },
+            });
+            if (result.count !== 1) {
+                throw new ForbiddenException('A pending teacher registration is required');
+            }
+            updated = true;
+        } finally {
+            if (!updated) {
+                await this.uploadService.deleteFromSupabase(storagePath, 'assignments').catch(() => {
+                    this.logger.warn('Could not remove an unlinked teacher registration avatar');
+                });
+            }
+        }
+
+        if (archive.avatarUrl?.startsWith('storage://assignments/')) {
+            await this.uploadService.deleteFromSupabase(archive.avatarUrl, 'assignments').catch(() => {
+                this.logger.warn('Could not remove a replaced teacher registration avatar');
+            });
+        }
+
+        return { success: true };
+    }
+
+    async getRegistrationArchive(schoolId: string | undefined, actorId: string) {
+        if (!schoolId) throw new ForbiddenException('The account is not assigned to a school');
+        const data = await this.prisma.registrationArchive.findMany({
+            where: { schoolId },
+            select: {
+                id: true,
+                email: true,
+                fullName: true,
+                phone: true,
+                role: true,
+                status: true,
+                nationalId: true,
+                specialization: true,
+                yearsExperience: true,
+                homeroomClassId: true,
+                avatarUrl: true,
+                createdAt: true,
+                verifiedAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 200,
+        });
+        const avatarReferences = data.flatMap((entry, index) =>
+            entry.avatarUrl?.startsWith('storage://assignments/')
+                ? [{ index, reference: entry.avatarUrl }]
+                : [],
+        );
+        const signedAvatars = avatarReferences.length
+            ? await this.uploadService.getSignedUrlsForReferences(
+                avatarReferences.map(({ reference }) => reference),
+                15 * 60,
+            )
+            : [];
+        const avatarUrlByIndex = new Map(avatarReferences.map(({ index }, signedIndex) => [index, signedAvatars[signedIndex]]));
+        const safeData = data.map((entry, index) => ({
+            ...entry,
+            avatarUrl: avatarUrlByIndex.get(index) ?? null,
+        }));
+
+        await this.createAuditLog({ schoolId, userId: actorId, action: 'auth.registration_archive_viewed', entityType: 'registration_archive', metadata: { returned: data.length } });
+        return { data: safeData };
     }
 
     async loginWithFirebase(idToken: string, allowUnverified = false) {
         const identity = await this.firebaseIdentityService.verifyAndReadProfile(idToken, { allowUnverified });
-        if (!identity.emailVerified && (!allowUnverified || !isPublicAccountRole(String(identity.role)))) {
+        const requiresConfirmation = identity.role === Role.STUDENT || identity.role === Role.TEACHER;
+        if (!identity.emailVerified && (requiresConfirmation || !allowUnverified || !isPublicAccountRole(String(identity.role)))) {
             throw new UnauthorizedException('A verified Firebase account is required');
         }
+        if (identity.emailVerified) {
+            await this.prisma.registrationArchive.updateMany({
+                where: { firebaseUid: identity.uid, email: identity.email, role: identity.role, status: 'PENDING' },
+                data: { status: 'VERIFIED', verifiedAt: new Date() },
+            });
+        }
+        const teacherRegistration = identity.role === Role.TEACHER
+            ? await this.prisma.registrationArchive.findUnique({
+                where: { firebaseUid: identity.uid },
+                select: { email: true, role: true, schoolId: true, status: true, avatarUrl: true },
+            })
+            : null;
+        const hasVerifiedTeacherRegistration = Boolean(
+            identity.emailVerified
+            && teacherRegistration
+            && teacherRegistration.email === identity.email
+            && teacherRegistration.role === Role.TEACHER
+            && teacherRegistration.schoolId
+            && ['VERIFIED', 'COMPLETED'].includes(teacherRegistration.status),
+        );
+        const teacherRegistrationAvatar = hasVerifiedTeacherRegistration
+            ? teacherRegistration?.avatarUrl ?? undefined
+            : undefined;
+        const canActivateTeacher = identity.role === Role.TEACHER && identity.emailVerified;
         const provider = 'firebase';
         const linkedIdentity = await this.prisma.authIdentity.findUnique({
             where: { provider_providerSubject: { provider, providerSubject: identity.uid } },
@@ -220,12 +397,25 @@ export class AuthService {
 
         let user = linkedIdentity?.user ?? null;
         if (user && (
-            !user.isActive
+            (!user.isActive && !canActivateTeacher)
             || String(user.role) !== String(identity.role)
             || user.email !== identity.email
-            || (!isPublicAccountRole(String(user.role)) && !user.schoolId)
+            || (!isPublicAccountRole(String(user.role)) && !user.schoolId && !canActivateTeacher)
+            || (hasVerifiedTeacherRegistration && user.schoolId && user.schoolId !== teacherRegistration!.schoolId)
         )) {
             throw new UnauthorizedException('Firebase account does not match its Nexus account');
+        }
+
+        if (user && canActivateTeacher && !user.isActive) {
+            user = await this.prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    isActive: true,
+                    emailVerified: true,
+                    schoolId: user.schoolId ?? teacherRegistration?.schoolId ?? await this.resolvePublicSchoolId(),
+                    avatar: user.avatar || teacherRegistrationAvatar || identity.avatarUrl,
+                },
+            });
         }
 
         if (!user) {
@@ -235,14 +425,15 @@ export class AuthService {
                     throw new UnauthorizedException('Verify your email before linking this account');
                 }
                 if (
-                    !existingUser.isActive
+                    (!existingUser.isActive && !canActivateTeacher)
                     || String(existingUser.role) !== String(identity.role)
-                    || (!isPublicAccountRole(String(existingUser.role)) && !existingUser.schoolId)
+                    || (!isPublicAccountRole(String(existingUser.role)) && !existingUser.schoolId && !canActivateTeacher)
+                    || (hasVerifiedTeacherRegistration && existingUser.schoolId && existingUser.schoolId !== teacherRegistration!.schoolId)
                 ) {
                     throw new UnauthorizedException('Firebase account does not match its Nexus account');
                 }
 
-                const schoolId = existingUser.schoolId ?? await this.resolvePublicSchoolId();
+                const schoolId = existingUser.schoolId ?? teacherRegistration?.schoolId ?? await this.resolvePublicSchoolId();
                 user = await this.prisma.$transaction(async (transaction) => {
                     await transaction.authIdentity.create({
                         data: { provider, providerSubject: identity.uid, userId: existingUser.id },
@@ -250,19 +441,25 @@ export class AuthService {
                     return transaction.user.update({
                         where: { id: existingUser.id },
                         data: {
+                            isActive: existingUser.isActive || canActivateTeacher,
                             emailVerified: identity.emailVerified,
                             schoolId,
                             name: existingUser.name || identity.fullName,
                             phone: existingUser.phone || identity.phone,
-                            avatar: existingUser.avatar || identity.avatarUrl,
+                            avatar: existingUser.avatar || teacherRegistrationAvatar || identity.avatarUrl,
                         },
                     });
                 });
             } else {
-                if (!isPublicAccountRole(String(identity.role))) {
+                if (identity.role === Role.TEACHER && !hasVerifiedTeacherRegistration) {
+                    throw new UnauthorizedException('A verified teacher registration code and email are required');
+                }
+                if (!isPublicAccountRole(String(identity.role)) && identity.role !== Role.TEACHER) {
                     throw new UnauthorizedException('Staff accounts must be provisioned by school administration');
                 }
-                const schoolId = await this.resolvePublicSchoolId();
+                const schoolId = hasVerifiedTeacherRegistration
+                    ? teacherRegistration!.schoolId!
+                    : await this.resolvePublicSchoolId();
                 const password = await bcrypt.hash(randomBytes(48).toString('hex'), 12);
                 user = await this.prisma.$transaction(async (transaction) => {
                     const createdUser = await transaction.user.create({
@@ -272,9 +469,10 @@ export class AuthService {
                             role: identity.role,
                             name: identity.fullName,
                             phone: identity.phone,
-                            avatar: identity.avatarUrl,
+                            avatar: teacherRegistrationAvatar || identity.avatarUrl,
                             emailVerified: identity.emailVerified,
                             schoolId,
+                            isActive: true,
                         },
                     });
                     await transaction.authIdentity.create({
@@ -288,6 +486,13 @@ export class AuthService {
             user = await this.prisma.user.update({
                 where: { id: user.id },
                 data: { schoolId },
+            });
+        }
+
+        if (user && !user.avatar && teacherRegistrationAvatar) {
+            user = await this.prisma.user.update({
+                where: { id: user.id },
+                data: { avatar: teacherRegistrationAvatar },
             });
         }
 
@@ -306,17 +511,26 @@ export class AuthService {
             });
         }
 
+        if (identity.emailVerified) {
+            await this.prisma.registrationArchive.updateMany({
+                where: { firebaseUid: identity.uid, status: 'VERIFIED' },
+                data: { status: 'COMPLETED' },
+            });
+        }
+
         const payload = this.buildAuthPayload({
             id: user.id,
             email: user.email,
             role: user.role,
             name: user.name || identity.fullName,
             schoolId: user.schoolId,
+            onboardingOnly: allowUnverified && !identity.emailVerified && isPublicAccountRole(String(user.role)),
         });
         // Public student and parent accounts complete their identity checks in the
         // school flow (student profile or parent link code), not by email status.
         const accessToken = await this.jwtService.signAsync(payload);
-        const refreshToken = await this.issueRefreshToken(user.id);
+        const onboardingOnly = payload.onboardingOnly === true;
+        const refreshToken = await this.issueRefreshToken(user.id, onboardingOnly);
 
         await this.createAuditLog({
             schoolId: user.schoolId,
@@ -351,7 +565,7 @@ export class AuthService {
 
         const email = dto.email.trim().toLowerCase();
         const user = await this.prisma.user.findUnique({ where: { email } });
-        if (!user || !user.isActive || !isPublicAccountRole(String(user.role))) {
+        if (!user || !user.isActive || !requiresVerifiedEmail(user.role)) {
             return { message: PASSWORD_RESET_RESPONSE };
         }
 
@@ -406,7 +620,7 @@ export class AuthService {
     async confirmPasswordReset(dto: ConfirmPasswordResetDto) {
         const email = dto.email.trim().toLowerCase();
         const user = await this.prisma.user.findUnique({ where: { email } });
-        if (!user || !user.isActive || !isPublicAccountRole(String(user.role))) {
+        if (!user || !user.isActive || !requiresVerifiedEmail(user.role)) {
             throw new BadRequestException(INVALID_RESET_CODE);
         }
 
@@ -484,7 +698,7 @@ export class AuthService {
             throw new UnauthorizedException('Invalid credentials');
         }
 
-        if (isPublicAccountRole(String(user.role)) && !user.emailVerified) {
+        if (requiresVerifiedEmail(user.role) && !user.emailVerified) {
             throw new UnauthorizedException('Verify your email before signing in');
         }
 
@@ -577,11 +791,12 @@ export class AuthService {
         return createHash('sha256').update(token).digest('hex');
     }
 
-    private async issueRefreshToken(userId: string): Promise<string> {
+    private async issueRefreshToken(userId: string, onboardingOnly = false): Promise<string> {
         const payload = {
             sub: userId,
             type: 'refresh',
             jti: randomBytes(16).toString('hex'),
+            ...(onboardingOnly ? { onboardingOnly: true } : {}),
         };
         const refreshToken = await this.jwtService.signAsync(payload, {
             secret: this.getRefreshSecret(),
@@ -640,11 +855,20 @@ export class AuthService {
             stage = 'find active user';
             const user = await this.prisma.user.findUnique({
                 where: { id: payload.sub },
-                select: { id: true, email: true, role: true, name: true, schoolId: true, isActive: true },
+                select: { id: true, email: true, role: true, name: true, schoolId: true, isActive: true, emailVerified: true },
             });
 
             if (!user?.isActive) {
                 throw new UnauthorizedException('User not found');
+            }
+
+            const onboardingOnly = payload.onboardingOnly === true
+                && !user.emailVerified
+                && isPublicAccountRole(String(user.role));
+            if (requiresVerifiedEmail(user.role) && !user.emailVerified && !onboardingOnly) {
+                stage = 'revoke unverified account session';
+                await this.prisma.refreshToken.update({ where: { tokenHash }, data: { revokedAt: new Date() } });
+                throw new UnauthorizedException('Verify your email before refreshing this session');
             }
 
             stage = 'rotate stored session';
@@ -659,9 +883,10 @@ export class AuthService {
                 role: user.role,
                 name: user.name,
                 schoolId: user.schoolId,
+                onboardingOnly,
             });
             const accessToken = await this.jwtService.signAsync(newPayload);
-            const nextRefreshToken = await this.issueRefreshToken(user.id);
+            const nextRefreshToken = await this.issueRefreshToken(user.id, onboardingOnly);
 
             stage = 'write audit event';
             await this.createAuditLog({
@@ -687,7 +912,7 @@ export class AuthService {
         }
     }
 
-    async validateUser(userId: string) {
+    async validateUser(userId: string, allowUnverifiedOnboarding = false) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
             select: {
@@ -699,6 +924,7 @@ export class AuthService {
                 phone: true,
                 avatar: true,
                 isActive: true,
+                emailVerified: true,
                 authIdentities: {
                     where: { provider: 'firebase' },
                     select: { providerSubject: true },
@@ -707,7 +933,10 @@ export class AuthService {
             },
         });
 
-        if (!user?.isActive) {
+        const unverifiedOnboardingAllowed = allowUnverifiedOnboarding
+            && isPublicAccountRole(String(user?.role))
+            && user?.emailVerified === false;
+        if (!user?.isActive || (requiresVerifiedEmail(user.role) && !user.emailVerified && !unverifiedOnboardingAllowed)) {
             return null;
         }
 
@@ -745,7 +974,6 @@ export class AuthService {
                             select: {
                                 id: true,
                                 childSurveys: {
-                                    where: { parentId: userId },
                                     select: { id: true },
                                     take: 1,
                                 },

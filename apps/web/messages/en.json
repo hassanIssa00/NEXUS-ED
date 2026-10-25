@@ -22,44 +22,97 @@
     "landing": {
         "hero": {
             "badge": "Al-Ikhlas Private Schools · Jeddah",
-            "title": "NEXUS",
-            "titleHighlight": "The School's Digital Portal",
-            "description": "A digital portal for students, teachers, and parents at Al-Ikhlas Private Schools in Jeddah, showing lessons, assignments, and records according to each account's role and permissions.",
-            "ctaPrimary": "Create a Student or Parent Account"
-        },
-        "features": {
-            "title": "Everything You Need to Succeed",
-            "subtitle": "Digital services connected to school accounts and their recorded data",
-            "contentManagement": {
-                "title": "Content Management",
-                "description": "View lessons and assignments published for school accounts."
-            },
-            "communication": {
-                "title": "Effective Communication",
-                "description": "In-platform messages between authorized accounts."
-            },
-            "evaluation": {
-                "title": "Assessment & Tracking",
-                "description": "Reports based on recorded grades and attendance."
-            },
-            "virtualClasses": {
-                "title": "Virtual Classrooms",
-                "description": "Access virtual sessions published for the account."
-            }
-        },
-        "cta": {
-            "title": "Your Portal to School Services",
-            "description": "Create a student or parent account and complete the required setup steps to view the data linked to it.",
-            "button": "Join the Platform"
+            "title": "Al-Ikhlas Schools",
+            "titleHighlight": "Building a generation that makes a difference",
+            "description": "Exceptional education brings together heritage and modernity to shape a generation that leads with pride.",
+            "ctaPrimary": "Create a platform account",
+            "ctaAdmission": "School enrollment request"
         },
         "nav": {
-            "features": "Services"
+            "story": "Our story",
+            "stages": "School stages",
+            "values": "Vision & values"
+        },
+        "story": {
+            "eyebrow": "An educational journey since 1413 AH",
+            "foundedLabel": "The journey began",
+            "founderLabel": "Founded by",
+            "founder": "The distinguished educator, Mr. Thabet bin Ali Khalifa Al-Harbi",
+            "title": "An educational journey centered on building people",
+            "description": "Al-Ikhlas Private Schools was founded in 1413 AH by the distinguished educator, Mr. Thabet bin Ali Khalifa Al-Harbi. Its enlightened educational and academic vision contributes to the public education system of the Kingdom of Saudi Arabia, alongside a vision and mission focused on developing people who help build their country, belong to it, take pride in their faith, and embrace good citizenship.",
+            "readMore": "Discover the school's story"
+        },
+        "journey": {
+            "eyebrow": "Learning stages",
+            "title": "A learning journey from primary through secondary",
+            "description": "The stages published by Al-Ikhlas Private Schools are elementary, middle, and secondary.",
+            "stages": {
+                "elementary": {
+                    "title": "Elementary",
+                    "description": "The first stage of a student's learning journey.",
+                    "grades": "Grades 1 through 6"
+                },
+                "middle": {
+                    "title": "Middle school",
+                    "description": "A stage that continues building knowledge and skills.",
+                    "grades": "Grades 1 through 3"
+                },
+                "secondary": {
+                    "title": "Secondary",
+                    "description": "An advanced stage of study before graduation.",
+                    "grades": "Grades 1 through 3"
+                }
+            }
+        },
+        "values": {
+            "visionLabel": "What we aspire to",
+            "visionTitle": "Our vision",
+            "vision": "A learner proud of their faith, belonging to their country, producing knowledge, and competing globally.",
+            "missionLabel": "Our educational role",
+            "missionTitle": "Our mission",
+            "mission": "To provide distinctive teaching and learning for all, aligned with global directions and the Kingdom's education policies, with community participation in an engaging and safe educational environment that develops skills and abilities, enriches scientific research, and encourages innovation.",
+            "eyebrow": "What we believe in",
+            "title": "Values that shape our journey",
+            "description": "Al-Ikhlas Schools lists these values among its institutional principles.",
+            "items": {
+                "creativity": "Creativity",
+                "quality": "Quality",
+                "achievement": "Achievement",
+                "initiative": "Initiative",
+                "institutionalWork": "Institutional work",
+                "transparency": "Transparency",
+                "integration": "Integration"
+            }
+        },
+        "admission": {
+            "eyebrow": "Admissions",
+            "title": "A clear enrollment process",
+            "description": "According to the published process at Al-Ikhlas Private Schools, families submit a request online and the administration follows up on the next steps.",
+            "steps": {
+                "request": {
+                    "title": "Complete the request form",
+                    "description": "Provide the student's and guardian's details and preferred grade."
+                },
+                "number": {
+                    "title": "Receive a request number",
+                    "description": "Keep the number to check the request status."
+                },
+                "review": {
+                    "title": "Review and interview",
+                    "description": "The administration reviews the request and arranges an interview or test if needed."
+                },
+                "enrollment": {
+                    "title": "Acceptance and enrollment",
+                    "description": "After acceptance, the student's file and guardian portal account are opened."
+                }
+            },
+            "schoolForm": "Submit an enrollment request",
+            "portalLogin": "Sign in to Nexus"
         },
         "footer": {
-            "description": "A digital platform for Al-Ikhlas Private Schools, organizing access to school services and records by role and permission.",
+            "description": "Nexus EDU, the learning platform for Al-Ikhlas Private Schools in Jeddah.",
             "quickLinks": "Quick Links",
             "about": "About",
-            "features": "Features",
             "pricing": "Pricing",
             "blog": "Blog",
             "support": "Support & Help",
@@ -151,18 +204,99 @@
         "dashboard": "Dashboard",
         "teacherPanel": "Teacher Panel",
         "lessons": "Lessons",
+        "noLessons": "No lessons have been added yet.",
+        "loading": "Loading lessons...",
+        "loadError": "Could not load lessons. Check your connection and try again.",
+        "retry": "Retry",
         "mySubjects": "My Subjects",
         "myClasses": "My Classes",
         "addLesson": "Add Lesson",
         "editLesson": "Edit Lesson",
+        "lessonTitle": "Lesson title",
+        "subject": "Subject",
+        "selectSubject": "Select a subject",
+        "lessonContent": "Lesson content",
+        "videoUrl": "Video URL",
+        "optional": "Optional",
+        "attachments": "Attachments",
+        "uploadedFiles": "Attached files",
+        "files": "File",
+        "edit": "Edit",
+        "delete": "Delete",
+        "confirmDelete": "Delete this lesson?",
+        "actions": "Actions",
+        "cancel": "Cancel",
+        "save": "Save",
+        "noSubjects": "No subjects are linked to your account.",
+        "subjectsError": "Could not load subjects. Retry before saving the lesson.",
+        "saveError": "Could not save the lesson. Please try again.",
+        "deleteError": "Could not delete the lesson. Please try again.",
         "assignments": "Assignments",
         "addAssignment": "Add Assignment",
         "viewSubmissions": "View Submissions",
         "grading": "Grading"
     },
+    "assignment": {
+        "assignments": "Assignments",
+        "addAssignment": "Add assignment",
+        "editAssignment": "Edit assignment",
+        "assignmentTitle": "Assignment title",
+        "description": "Description and instructions",
+        "subject": "Subject",
+        "selectSubject": "Select a subject",
+        "dueDate": "Due date",
+        "submissions": "Submissions",
+        "maxScore": "Maximum score",
+        "attachFiles": "Attach files",
+        "files": "File",
+        "viewSubmissions": "View submissions",
+        "edit": "Edit",
+        "delete": "Delete",
+        "confirmDelete": "Delete this assignment?",
+        "cancel": "Cancel",
+        "save": "Save",
+        "uploadedFiles": "Attached files",
+        "loading": "Loading assignments...",
+        "loadError": "Could not load assignments. Check your connection and try again.",
+        "retry": "Retry",
+        "empty": "No assignments have been added yet.",
+        "noSubjects": "No subjects are linked to your account.",
+        "subjectsError": "Could not load your subjects. Retry before editing an assignment.",
+        "saveError": "Could not save the assignment. Please try again.",
+        "deleteError": "Could not delete the assignment. Please try again.",
+        "studentName": "Student",
+        "submittedAt": "Submitted at",
+        "score": "Score",
+        "noSubmissions": "No submissions have been received for this assignment yet.",
+        "pending": "Awaiting grading",
+        "gradeSubmission": "Grade submission",
+        "feedback": "Teacher feedback",
+        "gradeError": "Could not save the grade. Please try again.",
+        "submissionsLoadError": "Could not load submissions. Check your connection and try again."
+    },
     "student": {
         "dashboard": "Dashboard",
         "studentPanel": "Student Panel",
+        "lessons": "My lessons",
+        "noLessons": "No lessons are available for your classes yet.",
+        "lessonsLoadError": "Could not load lessons. Check your connection and try again.",
+        "loading": "Loading lessons...",
+        "retry": "Retry",
+        "watchLesson": "Watch lesson",
+        "video": "Video",
+        "files": "Files",
+        "openVideo": "Open video",
+        "lessonVideo": "Lesson video",
+        "lessonContent": "Lesson content",
+        "aiSummary": "AI summary",
+        "aiSummaryHelp": "Generate a summary and key points from this lesson.",
+        "generateSummary": "Generate summary",
+        "summaryLoading": "Analyzing lesson...",
+        "summaryError": "Could not create the summary right now. Please try again.",
+        "summaryUnavailable": "This lesson does not contain text that can be summarized.",
+        "keyConcepts": "Key concepts",
+        "teacher": "Teacher",
+        "attachments": "Attachments",
         "myGrades": "My Grades",
         "myCourses": "My Courses",
         "myAssignments": "My Assignments",

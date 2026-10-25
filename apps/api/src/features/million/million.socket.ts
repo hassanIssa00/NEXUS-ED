@@ -270,8 +270,9 @@ export function setupMillionSocket(io: Server) {
           // Get updated leaderboard
           const leaderboard = await millionService.getLeaderboard(roomId);
 
-          // Broadcast question result to room
-          millionNamespace.to(roomId).emit('question.result', {
+          // Send the answer key only to the player who submitted this answer.
+          // Broadcasting it to the room would reveal it during the active round.
+          socket.emit('question.result', {
             questionId,
             correctIndex: result.correctIndex,
             scores: [

@@ -1,22 +1,25 @@
 'use client'
 
 import { useState } from 'react'
+import { useLocale } from 'next-intl'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Star, Volume2, Palette, Trophy, Award, Smile, Play, Heart, RefreshCw, Check } from 'lucide-react'
 
 export function KindergartenTrack() {
+  const isEnglish = useLocale() === 'en'
+  const tr = (ar: string, en: string) => isEnglish ? en : ar
   const [selectedLetter, setSelectedLetter] = useState('أ')
   const [starsCount, setStarsCount] = useState(12)
   const [appleCount, setAppleCount] = useState(3)
-  const [selectedColor, setSelectedColor] = useState('#ec4899')
+  const [selectedColor, setSelectedColor] = useState('#98793E')
 
   const LETTERS = [
     { char: 'أ', word: 'أرنب', emoji: '🐰', color: '#f43f5e' },
     { char: 'ب', word: 'بطة', emoji: '🦆', color: '#f59e0b' },
     { char: 'ت', word: 'تفاحة', emoji: '🍎', color: '#10b981' },
-    { char: 'ث', word: 'ثعلب', emoji: '🦊', color: '#3b82f6' },
-    { char: 'ج', word: 'جمل', emoji: '🐪', color: '#8b5cf6' },
-    { char: 'ح', word: 'حصان', emoji: '🐴', color: '#ec4899' },
+    { char: 'ث', word: 'ثعلب', emoji: '🦊', color: '#4A687C' },
+    { char: 'ج', word: 'جمل', emoji: '🐪', color: '#234A65' },
+    { char: 'ح', word: 'حصان', emoji: '🐴', color: '#98793E' },
   ]
 
   const playLetterSound = (char: string, word: string) => {
@@ -35,26 +38,26 @@ export function KindergartenTrack() {
   }
 
   return (
-    <div className="space-y-8" dir="rtl">
+    <div className="space-y-8" dir={isEnglish ? 'ltr' : 'rtl'}>
       {/* ─── Playful Top Banner ─── */}
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         className="relative overflow-hidden rounded-[2.5rem] p-8 text-white shadow-xl"
-        style={{ background: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 40%, #fbbf24 100%)' }}
+        style={{ background: 'linear-gradient(135deg, #98793E 0%, #f43f5e 40%, #fbbf24 100%)' }}
       >
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full blur-2xl -translate-y-12 translate-x-12 pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-right">
           <div>
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-md mb-3">
               <Sparkles className="w-4 h-4 text-yellow-200 animate-bounce" />
-              <span className="text-xs font-black text-white">واحة الروضة والطفولة المبكرة 🎈</span>
+              <span className="text-xs font-black text-white">{tr('واحة الروضة والطفولة المبكرة 🎈', 'Kindergarten learning garden 🎈')}</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-black mb-2 tracking-tight">
-              أهلاً بك يا بطلنا الصغير! 🌟
+              {tr('أهلاً بك يا بطلنا الصغير! 🌟', 'Welcome, little champion! 🌟')}
             </h2>
             <p className="text-white/90 text-sm font-bold max-w-lg leading-relaxed">
-              هيا نلعب ونتعلم الحروف والأرقام والألوان وقصص القرآن الممتعة بابتسامة ونشاط!
+              {tr('هيا نلعب ونتعلم الحروف والأرقام والألوان وقصص القرآن الممتعة بابتسامة ونشاط!', 'Let’s learn letters, numbers, colors, and Quran stories through fun activities!')}
             </p>
           </div>
 
@@ -66,8 +69,8 @@ export function KindergartenTrack() {
           >
             <Star className="w-12 h-12 text-yellow-300 fill-yellow-300 animate-pulse" />
             <span className="text-3xl font-black mt-1">{starsCount}</span>
-            <span className="text-[11px] font-black text-white/90">نجمة ذهبية ⭐</span>
-            <span className="text-[9px] text-yellow-200 mt-1 font-bold">اضغط لجمع نجمة!</span>
+            <span className="text-[11px] font-black text-white/90">{tr('نجمة ذهبية ⭐', 'Golden stars ⭐')}</span>
+            <span className="text-[9px] text-yellow-200 mt-1 font-bold">{tr('اضغط لجمع نجمة!', 'Tap to collect a star!')}</span>
           </motion.div>
         </div>
       </motion.div>
@@ -80,12 +83,12 @@ export function KindergartenTrack() {
               🔤
             </div>
             <div>
-              <h3 className="text-base font-black text-gray-900 dark:text-white">حديقة الحروف والأصوات التفاعلية</h3>
-              <p className="text-xs text-gray-400">انقر على أي حرف لتسمع صوته وتتعرف على كلمته!</p>
+              <h3 className="text-base font-black text-gray-900 dark:text-white">{tr('حديقة الحروف والأصوات التفاعلية', 'Interactive letters and sounds')}</h3>
+              <p className="text-xs text-gray-400">{tr('انقر على أي حرف لتسمع صوته وتتعرف على كلمته!', 'Tap a letter to hear its sound and see a word that begins with it!')}</p>
             </div>
           </div>
           <span className="text-xs font-black text-rose-500 bg-rose-50 dark:bg-rose-950/30 px-3 py-1 rounded-full">
-            استمع وتعلّم 🎧
+            {tr('استمع وتعلّم 🎧', 'Listen and learn 🎧')}
           </span>
         </div>
 
@@ -120,8 +123,8 @@ export function KindergartenTrack() {
               🍎
             </div>
             <div>
-              <h3 className="text-base font-black text-gray-900 dark:text-white">لعبة عَدّ التفاحات المرحة</h3>
-              <p className="text-xs text-gray-400">كم تفاحة نضع في سلتنا الجميلة؟</p>
+              <h3 className="text-base font-black text-gray-900 dark:text-white">{tr('لعبة عَدّ التفاحات المرحة', 'Fun apple counting game')}</h3>
+              <p className="text-xs text-gray-400">{tr('كم تفاحة نضع في سلتنا الجميلة؟', 'How many apples should go in our basket?')}</p>
             </div>
           </div>
 
@@ -139,20 +142,20 @@ export function KindergartenTrack() {
               ))}
             </div>
             <p className="text-xl font-black text-amber-800 dark:text-amber-300 mb-4">
-              العدد: {appleCount} تفاحات!
+              {tr('العدد:', 'Count:')} {appleCount} {tr('تفاحات!', 'apples!')}
             </p>
             <div className="flex justify-center gap-2">
               <button
                 onClick={() => setAppleCount(prev => Math.min(10, prev + 1))}
                 className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs flex items-center gap-1 shadow-md"
               >
-                + تفاحة جديدة
+                + {tr('تفاحة جديدة', 'Add an apple')}
               </button>
               <button
                 onClick={() => setAppleCount(prev => Math.max(1, prev - 1))}
                 className="px-5 py-2.5 rounded-xl bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-gray-300 font-bold text-xs"
               >
-                - أقل
+                − {tr('أقل', 'Remove one')}
               </button>
             </div>
           </div>
@@ -165,17 +168,17 @@ export function KindergartenTrack() {
               📖
             </div>
             <div>
-              <h3 className="text-base font-black text-gray-900 dark:text-white">قصار السور والقصص المصورة</h3>
-              <p className="text-xs text-gray-400">استمع لآيات القرآن الكريم بأصوات طفولية عذبة</p>
+              <h3 className="text-base font-black text-gray-900 dark:text-white">{tr('قصار السور والقصص المصورة', 'Short surahs and illustrated stories')}</h3>
+              <p className="text-xs text-gray-400">{tr('استمع لآيات القرآن الكريم بأصوات طفولية عذبة', 'Listen to Quran recitations in gentle child-friendly voices.')}</p>
             </div>
           </div>
 
           <div className="space-y-2.5">
             {[
-              { surah: 'سورة الفاتحة', verses: '7 آيات', color: '#10b981' },
-              { surah: 'سورة الإخلاص', verses: '4 آيات', color: '#06b6d4' },
-              { surah: 'سورة الفلق', verses: '5 آيات', color: '#6366f1' },
-              { surah: 'سورة الناس', verses: '6 آيات', color: '#ec4899' },
+              { surah: 'سورة الفاتحة', surahEn: 'Al-Fatihah', verses: 7, color: '#10b981' },
+              { surah: 'سورة الإخلاص', surahEn: 'Al-Ikhlas', verses: 4, color: '#35556B' },
+              { surah: 'سورة الفلق', surahEn: 'Al-Falaq', verses: 5, color: '#35556B' },
+              { surah: 'سورة الناس', surahEn: 'An-Nas', verses: 6, color: '#98793E' },
             ].map((s, i) => (
               <div
                 key={i}
@@ -186,12 +189,12 @@ export function KindergartenTrack() {
                     {i + 1}
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-gray-900 dark:text-white">{s.surah}</p>
-                    <p className="text-[10px] text-gray-400">{s.verses}</p>
+                    <p className="text-xs font-bold text-gray-900 dark:text-white">{isEnglish ? s.surahEn : s.surah}</p>
+                    <p className="text-[10px] text-gray-400">{s.verses} {tr('آيات', 'verses')}</p>
                   </div>
                 </div>
                 <button
-                  onClick={() => alert(`تشغيل تلاوة تفاعلية لـ ${s.surah}`)}
+                  onClick={() => alert(tr(`تشغيل تلاوة تفاعلية لـ ${s.surah}`, `Playing a recitation of ${s.surahEn}`))}
                   className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 shadow-sm"
                 >
                   <Play className="w-3.5 h-3.5 fill-white ml-0.5" />

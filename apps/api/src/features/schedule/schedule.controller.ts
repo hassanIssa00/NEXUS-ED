@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, Req, ForbiddenException } from '@nestjs/common';
 import { ScheduleService } from './schedule.service';
 import { JwtAuthGuard } from '../../infrastructure/guards/auth.guard';
 import { Roles } from '../../auth/roles.decorator';
@@ -31,6 +31,14 @@ export class ScheduleController {
   async getChildSchedule(@Param('studentId') studentId: string, @Req() req: any) {
     const parentId = req.user.userId || req.user.sub || req.user.id;
     const data = await this.scheduleService.getParentChildSchedule(parentId, studentId);
+    return { success: true, data };
+  }
+
+  @Get('classes/:classId')
+  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
+  async getSchoolClassSchedule(@Param('classId') classId: string, @Req() req: any) {
+    if (!req.user.schoolId) throw new ForbiddenException('The account is not assigned to a school');
+    const data = await this.scheduleService.getSchoolClassSchedule(classId, req.user.schoolId);
     return { success: true, data };
   }
 }

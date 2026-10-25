@@ -1,6 +1,20 @@
 import { fontFamily } from 'tailwindcss/defaultTheme';
 import tailwindcssAnimate from 'tailwindcss-animate';
 
+const institutionalNavy = {
+    50: '#F4F6F7',
+    100: '#E8EDF0',
+    200: '#D3DDE3',
+    300: '#B8C7D0',
+    400: '#91A5B2',
+    500: '#6A8494',
+    600: '#4A687C',
+    700: '#35556B',
+    800: '#2A485E',
+    900: '#203D52',
+    950: '#132A3A',
+};
+
 /** @type {import('tailwindcss').Config} */
 export default {
     darkMode: ['class'],
@@ -34,16 +48,27 @@ export default {
                     DEFAULT: 'hsl(var(--primary))',
                     foreground: 'hsl(var(--primary-foreground))',
                     // Maintain backward compatibility with some legacy colors if needed
-                    50: '#EEF2FF',
-                    100: '#E0E7FF',
-                    500: '#4F46E5',
-                    600: '#4338CA',
+                    50: institutionalNavy[50],
+                    100: institutionalNavy[100],
+                    500: institutionalNavy[600],
+                    600: institutionalNavy[800],
                 },
                 secondary: {
                     DEFAULT: 'hsl(var(--secondary))',
                     foreground: 'hsl(var(--secondary-foreground))',
-                    500: '#6366F1',
+                    500: '#98793E',
                 },
+                // Retire the saturated blue / cyan / purple UI palette in favor
+                // of one institutional navy scale. Status colors stay semantic.
+                blue: institutionalNavy,
+                sky: institutionalNavy,
+                cyan: institutionalNavy,
+                teal: institutionalNavy,
+                indigo: institutionalNavy,
+                violet: institutionalNavy,
+                purple: institutionalNavy,
+                fuchsia: institutionalNavy,
+                pink: institutionalNavy,
                 destructive: {
                     DEFAULT: 'hsl(var(--destructive))',
                     foreground: 'hsl(var(--destructive-foreground))',
@@ -74,7 +99,7 @@ export default {
                 success: { DEFAULT: '#10B981', foreground: '#ffffff' },
                 warning: { DEFAULT: '#F59E0B', foreground: '#ffffff' },
                 error: { DEFAULT: '#EF4444', foreground: '#ffffff' },
-                info: { DEFAULT: '#0EA5E9', foreground: '#ffffff' },
+                info: { DEFAULT: '#35556B', foreground: '#ffffff' },
             },
             borderRadius: {
                 lg: 'var(--radius)',
@@ -90,8 +115,8 @@ export default {
             boxShadow: {
                 'nexus': '0 4px 24px rgba(0, 0, 0, 0.05)',
                 'nexus-dark': '0 4px 24px rgba(0, 0, 0, 0.25)',
-                'glow-primary': '0 0 20px rgba(0, 209, 178, 0.3)',
-                'glow-secondary': '0 0 20px rgba(99, 102, 241, 0.3)',
+                'glow-primary': '0 0 20px rgba(152, 121, 62, 0.2)',
+                'glow-secondary': '0 0 20px rgba(35, 74, 101, 0.2)',
             },
             keyframes: {
                 'accordion-down': {

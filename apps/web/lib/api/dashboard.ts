@@ -134,11 +134,12 @@ export interface AdminDashboardResponse {
     totalClasses: number
     totalSubjects: number
     activeUsers: number
-    totalRevenue: number
+    totalRevenue: number | null
     attendanceRate: number | null
+    revenueByCurrency: Array<{ currency: string; total: number }>
   }
   enrollmentSeries: Array<{ label: string; value: number }>
-  revenueSeries: Array<{ label: string; value: number }>
+  revenueSeries: Array<{ label: string; value: number; currency: string }>
   invoiceSummary: {
     total: number
     paid: number
@@ -154,12 +155,6 @@ export interface AdminDashboardResponse {
     entityId?: string | null
     actor: string
     createdAt: string
-  }>
-  systemHealth: Array<{
-    name: string
-    status: 'healthy' | 'warning'
-    value: number
-    detail: string
   }>
 }
 

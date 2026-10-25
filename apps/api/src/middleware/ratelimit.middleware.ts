@@ -1,32 +1,41 @@
 import rateLimit from 'express-rate-limit';
 import { Request, Response } from 'express';
+import { PrismaRateLimitStore } from '../common/persistent-quota-storage';
 
 /**
  * Rate limiting configuration for different endpoints
  */
 
-// General API rate limiter - 100 requests per 15 minutes
+// Broad safety ceiling for every API route. The higher ceiling accounts for
+// school networks where many students and staff share a single public IP;
+// authenticated users also receive the tighter account-based Nest limits.
 export const generalLimiter = rateLimit({
+  store: new PrismaRateLimitStore('http-general'),
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 12_000,
   message: {
     success: false,
-    error: 'Too many requests, please try again later.',
+    error: 'تجاوزت الشبكة الحد العام للطلبات. حاول مرة أخرى بعد قليل.',
     retryAfter: '15 minutes',
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  skip: (req: Request) => {
+    if (req.method === 'OPTIONS') return true;
+    const path = (req.originalUrl || req.url).split('?')[0];
+    return /^\/api\/(?:health|metrics)(?:\/|$)/.test(path);
+  },
   handler: (req: Request, res: Response) => {
     res.status(429).json({
       success: false,
-      error:
-        'Too many requests from this IP, please try again after 15 minutes',
+      error: 'تجاوزت الشبكة الحد العام للطلبات. حاول مرة أخرى بعد 15 دقيقة.',
     });
   },
 });
 
 // Strict limiter for authentication endpoints - 5 requests per 15 minutes
 export const authLimiter = rateLimit({
+  store: new PrismaRateLimitStore('http-auth'),
   windowMs: 15 * 60 * 1000,
   max: 5,
   message: {
@@ -45,6 +54,7 @@ export const authLimiter = rateLimit({
 
 // Million Dialogue answer submission limiter - prevent spam
 export const answerLimiter = rateLimit({
+  store: new PrismaRateLimitStore('http-answer'),
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 20, // Max 20 answers per minute (reasonable for multiple questions)
   message: {
@@ -67,6 +77,7 @@ export const answerLimiter = rateLimit({
 
 // Room creation limiter - prevent spam room creation
 export const roomCreationLimiter = rateLimit({
+  store: new PrismaRateLimitStore('http-room-creation'),
   windowMs: 10 * 60 * 1000, // 10 minutes
   max: 5, // Max 5 rooms per 10 minutes
   message: {
@@ -88,6 +99,7 @@ export const roomCreationLimiter = rateLimit({
 
 // Question generation limiter (for AI/LLM endpoints)
 export const questionGenerationLimiter = rateLimit({
+  store: new PrismaRateLimitStore('http-question-generation'),
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // Max 10 generation requests per hour
   message: {
@@ -109,6 +121,7 @@ export const questionGenerationLimiter = rateLimit({
 
 // File upload limiter
 export const uploadLimiter = rateLimit({
+  store: new PrismaRateLimitStore('http-upload'),
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 50, // Max 50 uploads per hour
   message: {
@@ -123,6 +136,7 @@ export const uploadLimiter = rateLimit({
 
 // WebSocket connection rate limiter (use with socket.io handshake)
 export const socketConnectionLimiter = rateLimit({
+  store: new PrismaRateLimitStore('http-socket-connection'),
   windowMs: 5 * 60 * 1000, // 5 minutes
   max: 10, // Max 10 connections per 5 minutes
   message: {
