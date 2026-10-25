@@ -3,11 +3,13 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { MarkClassAttendanceDto } from './dto/mark-class-attendance.dto';
 import { GeofenceCheckInDto } from './dto/geofence-check-in.dto';
+import { UploadService } from '../upload/upload.service';
 
 const DEFAULT_ATTENDANCE_TIME_ZONE = 'Asia/Riyadh';
 const EARTH_RADIUS_METERS = 6_371_008.8;
@@ -20,7 +22,17 @@ type SchoolClock = {
 
 @Injectable()
 export class AttendanceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, @Optional() private uploads?: UploadService) {}
+
+  private async signStudentAvatars<T extends { avatar?: string | null }>(students: T[]): Promise<T[]> {
+    const references = [...new Set(students
+      .map((student) => student.avatar)
+      .filter((value): value is string => Boolean(value) && /^(?:storage:\/\/|file:|https?:\/\/)/i.test(value!)))];
+    if (!references.length || !this.uploads) return students;
+    const signed = await this.uploads.getSignedUrlsForReferences(references).catch(() => references);
+    const byReference = new Map(references.map((reference, index) => [reference, signed[index] || reference]));
+    return students.map((student) => ({ ...student, avatar: student.avatar ? byReference.get(student.avatar) || student.avatar : student.avatar }));
+  }
 
   private getSchoolClock(now = new Date()): SchoolClock {
     const timeZone = process.env.SCHOOL_TIME_ZONE?.trim() || DEFAULT_ATTENDANCE_TIME_ZONE;
@@ -333,7 +345,8 @@ export class AttendanceService {
         select: { studentId: true, status: true, notes: true, updatedAt: true },
       }),
     ]);
-    return { class: { id: classroom.id, name: classroom.name }, date, students: enrollments.map((item) => item.student), records };
+    const students = await this.signStudentAvatars(enrollments.map((item) => item.student));
+    return { class: { id: classroom.id, name: classroom.name }, date, students, records };
   }
 
   async markClassAttendance(

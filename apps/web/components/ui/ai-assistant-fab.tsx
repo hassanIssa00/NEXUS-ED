@@ -2,8 +2,9 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useRef, useEffect } from 'react'
-import { Bot, X, Send, Sparkles } from 'lucide-react'
+import { Bot, X, Send, Sparkles, Download, Loader2 } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
+import { downloadBrandedPdf } from '@/lib/report-pdf'
 
 interface Message {
     id: string
@@ -23,6 +24,7 @@ export function AIAssistantFab() {
     const [input, setInput] = useState('')
     const [isTyping, setIsTyping] = useState(false)
     const [error, setError] = useState('')
+    const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -46,6 +48,18 @@ export function AIAssistantFab() {
             setError('تعذر الحصول على رد من خدمة المساعد الآن.')
         } finally {
             setIsTyping(false)
+        }
+    }
+
+    const downloadAnswer = async (message: Message) => {
+        setDownloadingPdfId(message.id)
+        setError('')
+        try {
+            await downloadBrandedPdf('رد المساعد الذكي NEXUS', message.content, `nexus-ai-response-${message.id.slice(0, 8)}.pdf`)
+        } catch {
+            setError('تعذر تنزيل الرد PDF الآن. حاول مرة أخرى.')
+        } finally {
+            setDownloadingPdfId(null)
         }
     }
 
@@ -105,11 +119,14 @@ export function AIAssistantFab() {
                             )}
                             {messages.map(msg => (
                                 <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-                                    <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
+                                    <div className="flex max-w-[85%] flex-col items-end gap-1.5">
+                                    <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
                                         ? 'bg-white border border-slate-200 text-slate-700 rounded-br-sm shadow-sm'
                                         : 'nexus-gradient text-white rounded-bl-sm shadow-md'
                                         }`}>
                                         {msg.content}
+                                    </div>
+                                    {msg.role === 'assistant' && <button type="button" onClick={() => void downloadAnswer(msg)} disabled={downloadingPdfId === msg.id} className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-white px-2 py-1 text-[11px] font-bold text-teal-800 disabled:opacity-60">{downloadingPdfId === msg.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}{downloadingPdfId === msg.id ? 'جارٍ تجهيز PDF' : 'تنزيل الرد PDF'}</button>}
                                     </div>
                                 </div>
                             ))}

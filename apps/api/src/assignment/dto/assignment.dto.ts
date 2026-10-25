@@ -1,4 +1,4 @@
-import { ArrayMaxSize, IsString, IsOptional, IsArray, IsNumber, IsDateString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsString, IsOptional, IsArray, IsNumber, IsDateString, Max, MaxLength, Min, MinLength, IsInt, Matches, IsIn } from 'class-validator';
 
 export class CreateAssignmentDto {
   @IsString()
@@ -29,6 +29,31 @@ export class CreateAssignmentDto {
   @ArrayMaxSize(5)
   @IsString({ each: true })
   attachments?: string[];
+
+  @IsArray()
+  @IsOptional()
+  @ArrayMaxSize(30)
+  questions?: unknown[];
+
+  @IsIn(['AI_QUESTIONS', 'BOOK_PAGES'])
+  @IsOptional()
+  deliveryMode?: 'AI_QUESTIONS' | 'BOOK_PAGES';
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(80)
+  @Matches(/^[a-z0-9-]+$/)
+  curriculumSlug?: string;
+
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  curriculumPageFrom?: number;
+
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  curriculumPageTo?: number;
 }
 
 export class UpdateAssignmentDto {
@@ -58,17 +83,37 @@ export class UpdateAssignmentDto {
   @ArrayMaxSize(5)
   @IsString({ each: true })
   attachments?: string[];
+
+  @IsIn(['AI_QUESTIONS', 'BOOK_PAGES'])
+  @IsOptional()
+  deliveryMode?: 'AI_QUESTIONS' | 'BOOK_PAGES';
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(80)
+  @Matches(/^[a-z0-9-]+$/)
+  curriculumSlug?: string;
+
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  curriculumPageFrom?: number;
+
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  curriculumPageTo?: number;
 }
 
 export class SubmitAssignmentDto {
   @IsString()
   @IsOptional()
-  @MaxLength(20000)
+  @MaxLength(100000)
   content?: string;
 
   @IsArray()
   @IsOptional()
-  @ArrayMaxSize(5)
+  @ArrayMaxSize(30)
   @IsString({ each: true })
   attachments?: string[];
 }

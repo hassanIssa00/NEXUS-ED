@@ -155,7 +155,9 @@ export class MillionGateway implements OnGatewayConnection, OnGatewayDisconnect 
       const result = await millionService.submitAnswer(user.id, roomId, questionId!, chosenIndex!, timeTaken!);
       client.emit('answer.received', { acknowledged: true });
       const leaderboard = await millionService.getLeaderboard(roomId);
-      this.server.to(roomId).emit('question.result', { questionId, correctIndex: result.correctIndex, scores: [{ userId: user.id, points: result.pointsAwarded, isCorrect: result.isCorrect }] });
+      // Keep the answer key private to the student who submitted it. Broadcasting
+      // it to the room would reveal the correct answer to everyone else mid-round.
+      client.emit('question.result', { questionId, correctIndex: result.correctIndex, scores: [{ userId: user.id, points: result.pointsAwarded, isCorrect: result.isCorrect }] });
       this.server.to(roomId).emit('leaderboard.updated', { roomId, leaderboard });
       return { success: true };
     } catch (error) {

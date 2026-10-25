@@ -45,6 +45,8 @@ import { ProfileModule } from './profile/profile.module';
 import { PlacementAssessmentModule } from './placement-assessment/placement-assessment.module';
 import { TeacherWorkspaceModule } from './features/teacher-workspace/teacher-workspace.module';
 import { MillionModule } from './features/million/million.module';
+import { MeetingsModule } from './features/meetings/meetings.module';
+import { AiResponsePdfModule } from './report/ai-response-pdf.module';
 
 @Module({
   imports: [
@@ -97,6 +99,8 @@ import { MillionModule } from './features/million/million.module';
     PlacementAssessmentModule,
     TeacherWorkspaceModule,
     MillionModule,
+    MeetingsModule,
+    AiResponsePdfModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: CustomThrottlerGuard },

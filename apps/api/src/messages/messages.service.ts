@@ -1,14 +1,26 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { EventsGateway } from '../gateway/events.gateway';
 import { PrismaService } from '../prisma.service';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class MessagesService {
   constructor(
     private prisma: PrismaService,
     private eventsGateway: EventsGateway,
+    @Optional() private uploads?: UploadService,
   ) {}
+
+  private async signAvatars<T extends { avatar?: string | null }>(items: T[]): Promise<T[]> {
+    const references = [...new Set(items
+      .map((item) => item.avatar)
+      .filter((value): value is string => Boolean(value) && /^(?:storage:\/\/|file:|https?:\/\/)/i.test(value!)))];
+    if (!references.length || !this.uploads) return items;
+    const signed = await this.uploads.getSignedUrlsForReferences(references).catch(() => references);
+    const byReference = new Map(references.map((reference, index) => [reference, signed[index] || reference]));
+    return items.map((item) => ({ ...item, avatar: item.avatar ? byReference.get(item.avatar) || item.avatar : item.avatar }));
+  }
 
   async getConversations(userId: string) {
     const conversations = await this.prisma.conversation.findMany({
@@ -35,7 +47,12 @@ export class MessagesService {
       }
     }));
 
-    return accessible.filter((conversation) => conversation !== null);
+    const visible = accessible.filter((conversation) => conversation !== null);
+    return Promise.all(visible.map(async (conversation) => {
+      const users = await this.signAvatars(conversation.participants.map((participant) => participant.user));
+      const byId = new Map(users.map((user) => [user.id, user]));
+      return { ...conversation, participants: conversation.participants.map((participant) => ({ ...participant, user: byId.get(participant.userId) || participant.user })) };
+    }));
   }
 
   async getContacts(userId: string) {
@@ -44,29 +61,83 @@ export class MessagesService {
       select: { role: true, schoolId: true, isActive: true },
     });
 
-    if (!user?.isActive || !user.schoolId || !new Set<string>([Role.STUDENT, Role.PARENT]).has(user.role)) {
+    if (!user?.isActive) throw new ForbiddenException('Messaging contacts are not available for this account');
+
+    if (user.role === Role.TEACHER) {
+      const classes = await this.prisma.class.findMany({
+        where: {
+          schoolId: user.schoolId || undefined,
+          OR: [{ teacherId: userId }, { classSubjects: { some: { teacherId: userId } } }],
+        },
+        select: { schoolId: true, students: {
+          where: { student: { isActive: true, ...(user.schoolId ? { schoolId: user.schoolId } : {}) } },
+          select: { student: {
+            select: {
+              id: true, name: true, firstName: true, lastName: true, role: true, avatar: true,
+              parents: {
+                where: { parent: { isActive: true, ...(user.schoolId ? { schoolId: user.schoolId } : {}) } },
+                select: { parent: { select: { id: true, name: true, firstName: true, lastName: true, role: true, avatar: true } } },
+              },
+            },
+          } },
+        } },
+      });
+      const linkedSchoolIds = [...new Set(classes.map((classroom) => classroom.schoolId).filter(Boolean))];
+      if (!user.schoolId && linkedSchoolIds.length !== 1) {
+        if (!linkedSchoolIds.length) return [];
+        throw new ForbiddenException('Messaging contacts are not available for accounts linked to multiple schools');
+      }
+      const contacts = new Map<string, { id: string; name: string | null; firstName: string | null; lastName: string | null; role: Role; avatar: string | null }>();
+      for (const classroom of classes) {
+        for (const enrollment of classroom.students) {
+          contacts.set(enrollment.student.id, enrollment.student);
+          for (const relationship of enrollment.student.parents) {
+            contacts.set(relationship.parent.id, relationship.parent);
+          }
+        }
+      }
+      return this.signAvatars([...contacts.values()].sort((left, right) =>
+        `${left.firstName || ''} ${left.lastName || ''} ${left.name || ''}`.localeCompare(`${right.firstName || ''} ${right.lastName || ''} ${right.name || ''}`, 'ar'),
+      ));
+    }
+
+    if (user.role !== Role.STUDENT && user.role !== Role.PARENT) {
       throw new ForbiddenException('Messaging contacts are not available for this account');
     }
 
-    const relatedStudentFilter = user.role === Role.STUDENT
-      ? { id: userId }
-      : { parents: { some: { parentId: userId } } };
-
-    return this.prisma.user.findMany({
+    const enrollments = await this.prisma.enrollment.findMany({
       where: {
-        schoolId: user.schoolId,
+          class: { schoolId: user.schoolId || undefined },
+        student: user.role === Role.STUDENT
+            ? { id: userId, ...(user.schoolId ? { schoolId: user.schoolId } : {}), isActive: true }
+          : { ...(user.schoolId ? { schoolId: user.schoolId } : {}), isActive: true, parents: { some: { parentId: userId } } },
+      },
+      select: { classId: true, class: { select: { schoolId: true } } },
+    });
+    if (!enrollments.length) return [];
+    const linkedSchoolIds = [...new Set(enrollments.map((item) => item.class.schoolId).filter(Boolean))];
+    if (!user.schoolId && linkedSchoolIds.length !== 1) {
+      if (!linkedSchoolIds.length) return [];
+      throw new ForbiddenException('Messaging contacts are not available for accounts linked to multiple schools');
+    }
+    const schoolId = user.schoolId || linkedSchoolIds[0];
+    const classes = await this.prisma.class.findMany({
+      where: { id: { in: [...new Set(enrollments.map((item) => item.classId))] }, schoolId },
+      select: { teacherId: true, classSubjects: { select: { teacherId: true } } },
+    });
+    const teacherIds = [...new Set(classes.flatMap((classroom) => [classroom.teacherId, ...classroom.classSubjects.map((assignment) => assignment.teacherId)]).filter((id): id is string => Boolean(id)))];
+    if (!teacherIds.length) return [];
+    const teachers = await this.prisma.user.findMany({
+      where: {
+        id: { in: teacherIds },
+        schoolId,
         role: Role.TEACHER,
         isActive: true,
-        taughtClasses: {
-          some: {
-            schoolId: user.schoolId,
-            students: { some: { student: relatedStudentFilter } },
-          },
-        },
       },
       select: { id: true, name: true, firstName: true, lastName: true, role: true, avatar: true },
       orderBy: [{ name: 'asc' }, { firstName: 'asc' }],
     });
+    return this.signAvatars(teachers);
   }
 
   async getMessages(conversationId: string, userId: string) {
@@ -76,13 +147,16 @@ export class MessagesService {
       data: { lastReadAt: new Date() },
     });
 
-    return this.prisma.message.findMany({
+    const messages = await this.prisma.message.findMany({
       where: { conversationId },
       include: {
         sender: { select: { id: true, name: true, role: true, avatar: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
+    const senders = await this.signAvatars(messages.map((message) => message.sender));
+    const byId = new Map(senders.map((sender) => [sender.id, sender]));
+    return messages.map((message) => ({ ...message, sender: byId.get(message.senderId) || message.sender }));
   }
 
   async sendMessage(senderId: string, conversationId: string, content: string, attachments?: string) {
@@ -101,12 +175,14 @@ export class MessagesService {
       data: { updatedAt: new Date() },
     });
 
+    const [sender] = await this.signAvatars([message.sender]);
+    const signedMessage = { ...message, sender };
     const participants = await this.prisma.conversationParticipant.findMany({ where: { conversationId } });
     for (const participant of participants) {
-      if (participant.userId !== senderId) this.eventsGateway.emitMessage(participant.userId, message);
+      if (participant.userId !== senderId) this.eventsGateway.emitMessage(participant.userId, signedMessage);
     }
 
-    return message;
+    return signedMessage;
   }
 
   async startDirectConversation(initiatorId: string, targetUserId: string) {
@@ -116,9 +192,11 @@ export class MessagesService {
 
     const initiator = await this.prisma.user.findUnique({ where: { id: initiatorId }, select: { role: true } });
     const target = await this.prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
-    if (!initiator || !target || !new Set<string>([Role.STUDENT, Role.PARENT]).has(initiator.role) || target.role !== Role.TEACHER) {
-      throw new ForbiddenException('Only a student or parent can start a conversation with an assigned teacher');
-    }
+    const isLearnerOrParent = (role: Role) => role === Role.STUDENT || role === Role.PARENT;
+    if (!initiator || !target || !(
+      (initiator.role === Role.TEACHER && isLearnerOrParent(target.role))
+      || (isLearnerOrParent(initiator.role) && target.role === Role.TEACHER)
+    )) throw new ForbiddenException('Direct conversations are limited to linked teachers, students, and parents');
     await this.assertDirectPairAccess(initiatorId, targetUserId);
 
     const existing = await this.prisma.conversation.findFirst({
@@ -130,12 +208,18 @@ export class MessagesService {
         ],
         participants: { every: { userId: { in: [initiatorId, targetUserId] } } },
       },
-      include: { participants: true },
+      include: {
+        participants: {
+          include: {
+            user: { select: { id: true, name: true, firstName: true, lastName: true, role: true, avatar: true } },
+          },
+        },
+      },
     });
 
-    if (existing?.participants.length === 2) return existing;
+    if (existing?.participants.length === 2) return this.withSignedParticipants(existing);
 
-    return this.prisma.conversation.create({
+    const created = await this.prisma.conversation.create({
       data: {
         type: 'direct',
         participants: {
@@ -153,6 +237,19 @@ export class MessagesService {
         },
       },
     });
+    return this.withSignedParticipants(created);
+  }
+
+  private async withSignedParticipants<T extends { participants: Array<{ userId: string; user: { id: string; avatar?: string | null } }> }>(conversation: T): Promise<T> {
+    const users = await this.signAvatars(conversation.participants.map((participant) => participant.user));
+    const byId = new Map(users.map((user) => [user.id, user]));
+    return {
+      ...conversation,
+      participants: conversation.participants.map((participant) => ({
+        ...participant,
+        user: byId.get(participant.userId) || participant.user,
+      })),
+    };
   }
 
   private async verifyParticipant(conversationId: string, userId: string) {
@@ -176,25 +273,36 @@ export class MessagesService {
       where: { id: { in: [firstUserId, secondUserId] } },
       select: { id: true, role: true, schoolId: true, isActive: true },
     });
-    if (users.length !== 2 || users.some((user) => !user.isActive || !user.schoolId) || users[0].schoolId !== users[1].schoolId) {
-      throw new ForbiddenException('Conversation participants must be active users in the same school');
-    }
+    if (users.length !== 2 || users.some((user) => !user.isActive)) throw new ForbiddenException('Conversation participants must be active users in the same school');
 
-    const studentOrParent = users.find((user) => user.role === Role.STUDENT || user.role === Role.PARENT);
     const teacher = users.find((user) => user.role === Role.TEACHER);
-    if (!studentOrParent || !teacher) {
-      throw new ForbiddenException('Direct conversations are limited to a student or parent and an assigned teacher');
-    }
+    const peer = users.find((user) => user.role === Role.STUDENT || user.role === Role.PARENT);
+    if (!peer || !teacher) throw new ForbiddenException('Direct conversations are limited to a student or parent and an assigned teacher');
 
-    const schoolId = studentOrParent.schoolId;
-    const enrollmentFilter = studentOrParent.role === Role.STUDENT
-      ? { studentId: studentOrParent.id, student: { schoolId } }
-      : { student: { schoolId, parents: { some: { parentId: studentOrParent.id } } } };
+    let schoolId = peer.schoolId;
+    if (!schoolId) {
+      const enrollments = await this.prisma.enrollment.findMany({
+        where: {
+          student: peer.role === Role.STUDENT
+            ? { id: peer.id, isActive: true }
+            : { isActive: true, parents: { some: { parentId: peer.id } } },
+        },
+        select: { class: { select: { schoolId: true } } },
+        take: 200,
+      });
+      const linkedSchoolIds = [...new Set(enrollments.map((item) => item.class.schoolId).filter((id): id is string => Boolean(id)))];
+      if (linkedSchoolIds.length !== 1) throw new ForbiddenException('Conversation participants must be linked to one school');
+      schoolId = linkedSchoolIds[0];
+    }
+    if (!schoolId || (teacher.schoolId && teacher.schoolId !== schoolId)) throw new ForbiddenException('Conversation participants must be active users in the same school');
+    const studentFilter = peer.role === Role.STUDENT
+      ? { id: peer.id, ...(peer.schoolId ? { schoolId: peer.schoolId } : {}), isActive: true }
+      : { ...(peer.schoolId ? { schoolId: peer.schoolId } : {}), isActive: true, parents: { some: { parentId: peer.id } } };
     const assignment = await this.prisma.class.findFirst({
       where: {
         schoolId,
-        teacherId: teacher.id,
-        students: { some: enrollmentFilter },
+        OR: [{ teacherId: teacher.id }, { classSubjects: { some: { teacherId: teacher.id } } }],
+        students: { some: { student: studentFilter } },
       },
       select: { id: true },
     });

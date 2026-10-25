@@ -59,14 +59,21 @@ export class LessonService {
     // Verify teacher teaches this subject
     const subject = await this.prisma.subject.findUnique({
       where: { id: data.subjectId },
-      include: { teacher: true },
+      include: {
+        teacher: true,
+        class: { select: { id: true, teacherId: true, schoolId: true } },
+        classSubjects: { where: { teacherId }, select: { id: true } },
+      },
     });
 
     if (!subject) {
       throw new NotFoundException('Subject not found');
     }
 
-    if (subject.schoolId !== actor.schoolId || (actor.role === Role.TEACHER && subject.teacherId !== teacherId)) {
+    const teacherOwnsSubject = subject.teacherId === teacherId
+      || subject.class.teacherId === teacherId
+      || subject.classSubjects.length > 0;
+    if (subject.schoolId !== actor.schoolId || (actor.role === Role.TEACHER && !teacherOwnsSubject)) {
       throw new ForbiddenException('You do not teach this subject');
     }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useLocale } from 'next-intl';
 import { format } from 'date-fns';
 import { arSA, enUS } from 'date-fns/locale';
 import { CalendarDays } from 'lucide-react';
@@ -30,11 +31,14 @@ type DatePickerProps = {
 };
 
 export function DatePicker({
-  value, onChange, placeholder = 'اختر التاريخ', ariaLabel, minDate, locale = 'ar', disabled, className,
+  value, onChange, placeholder, ariaLabel, minDate, locale, disabled, className,
 }: DatePickerProps) {
+  const appLocale = useLocale();
+  const selectedLocale = locale ?? (appLocale === 'en' ? 'en' : 'ar');
+  const resolvedPlaceholder = placeholder ?? (selectedLocale === 'en' ? 'Choose a date' : 'اختر التاريخ');
   const [open, setOpen] = useState(false);
   const selected = useMemo(() => parseDate(value), [value]);
-  const localeObject = locale === 'en' ? enUS : arSA;
+  const localeObject = selectedLocale === 'en' ? enUS : arSA;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -42,7 +46,7 @@ export function DatePicker({
         <button
           type="button"
           disabled={disabled}
-          aria-label={ariaLabel || placeholder}
+          aria-label={ariaLabel || resolvedPlaceholder}
           aria-expanded={open}
           className={cn(
             'flex h-11 w-full items-center justify-between gap-3 rounded-xl border border-input bg-background px-3.5 text-start text-sm shadow-sm transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-50',
@@ -50,12 +54,12 @@ export function DatePicker({
           )}
         >
           <span className={cn('truncate', !selected && 'text-muted-foreground')}>
-            {selected ? format(selected, 'PPP', { locale: localeObject }) : placeholder}
+            {selected ? format(selected, 'PPP', { locale: localeObject }) : resolvedPlaceholder}
           </span>
           <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" dir={locale === 'en' ? 'ltr' : 'rtl'} className="w-auto rounded-2xl border bg-popover p-2 shadow-xl">
+      <PopoverContent align="start" dir={selectedLocale === 'en' ? 'ltr' : 'rtl'} className="w-auto rounded-2xl border bg-popover p-2 shadow-xl">
         <Calendar
           mode="single"
           selected={selected}
@@ -66,7 +70,7 @@ export function DatePicker({
           }}
           disabled={minDate ? { before: new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate()) } : undefined}
           locale={localeObject}
-          dir={locale === 'en' ? 'ltr' : 'rtl'}
+          dir={selectedLocale === 'en' ? 'ltr' : 'rtl'}
           initialFocus
         />
       </PopoverContent>

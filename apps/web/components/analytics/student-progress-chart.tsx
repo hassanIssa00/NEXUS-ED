@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLocale } from 'next-intl';
 import {
     LineChart,
     Line,
@@ -32,6 +33,8 @@ interface StudentProgressChartProps {
 }
 
 export function StudentProgressChart({ studentId, days = 30, data: propData }: StudentProgressChartProps) {
+    const isEnglish = useLocale() === 'en';
+    const t = (ar: string, en: string) => isEnglish ? en : ar;
     const [data, setData] = useState<StudentProgressPoint[]>(propData ?? []);
     const [loading, setLoading] = useState(propData === undefined);
     const [loadError, setLoadError] = useState(false);
@@ -107,11 +110,11 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                 <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
                     <BookOpen className="h-10 w-10 text-muted-foreground/50" />
                     <p className="text-sm text-muted-foreground">
-                        {loadError ? 'تعذر تحميل سجلات التقدم من المدرسة.' : 'لا توجد سجلات درجات أو حضور أو واجبات لهذه الفترة.'}
+        {loadError ? t('تعذر تحميل سجلات التقدم من المدرسة.', 'Could not load progress records from the school.') : t('لا توجد سجلات درجات أو حضور أو واجبات لهذه الفترة.', 'There are no grade, attendance, or assignment records for this period.')}
                     </p>
                     {loadError && (
                         <button onClick={() => setReloadKey(key => key + 1)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                            <RefreshCw className="h-4 w-4" /> إعادة المحاولة
+                            <RefreshCw className="h-4 w-4" /> {t('إعادة المحاولة', 'Try again')}
                         </button>
                     )}
                 </CardContent>
@@ -129,7 +132,7 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">متوسط الدرجات</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">{t('متوسط الدرجات', 'Average grade')}</p>
                                 <p className="text-2xl font-bold text-blue-600">{displayValue(latestData.averageGrade, '%')}</p>
                             </div>
                             <div className="flex items-center gap-1"><TrendIcon trend={gradeTrend} /><Award className="w-8 h-8 text-blue-500/50" /></div>
@@ -141,7 +144,7 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">نسبة الحضور</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">{t('نسبة الحضور', 'Attendance rate')}</p>
                                 <p className="text-2xl font-bold text-green-600">{displayValue(latestData.attendanceRate, '%')}</p>
                             </div>
                             <div className="flex items-center gap-1"><TrendIcon trend={attendanceTrend} /><Clock className="w-8 h-8 text-green-500/50" /></div>
@@ -153,7 +156,7 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">واجبات مسلمة</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">{t('واجبات مسلمة', 'Assignments submitted')}</p>
                                 <p className="text-2xl font-bold text-purple-600">{latestData.assignmentsCompleted}</p>
                             </div>
                             <BookOpen className="w-8 h-8 text-purple-500/50" />
@@ -164,15 +167,15 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><TrendingUp className="w-5 h-5" /> تطور المستوى</CardTitle>
-                    <CardDescription>السجلات الفعلية المتاحة خلال الفترة الماضية</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><TrendingUp className="w-5 h-5" /> {t('تطور المستوى', 'Progress over time')}</CardTitle>
+                    <CardDescription>{t('السجلات الفعلية المتاحة خلال الفترة الماضية', 'Available recorded activity from the selected period')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Tabs defaultValue="combined" className="w-full">
                         <TabsList className="grid w-full max-w-md grid-cols-3">
-                            <TabsTrigger value="combined">الكل</TabsTrigger>
-                            <TabsTrigger value="grades">الدرجات</TabsTrigger>
-                            <TabsTrigger value="attendance">الحضور</TabsTrigger>
+                            <TabsTrigger value="combined">{t('الكل', 'All')}</TabsTrigger>
+                            <TabsTrigger value="grades">{t('الدرجات', 'Grades')}</TabsTrigger>
+                            <TabsTrigger value="attendance">{t('الحضور', 'Attendance')}</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="combined" className="mt-4">
@@ -181,10 +184,10 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                                     <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
                                     <YAxis stroke="#6b7280" fontSize={12} domain={[0, 100]} />
-                                    <Tooltip contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', direction: 'rtl' }} />
+                                    <Tooltip contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', direction: isEnglish ? 'ltr' : 'rtl' }} />
                                     <Legend />
-                                    <Line type="monotone" dataKey="averageGrade" stroke="#4A687C" strokeWidth={3} dot={{ fill: '#4A687C', strokeWidth: 2 }} name="الدرجات" />
-                                    <Line type="monotone" dataKey="attendanceRate" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', strokeWidth: 2 }} name="الحضور" />
+                                    <Line type="monotone" dataKey="averageGrade" stroke="#4A687C" strokeWidth={3} dot={{ fill: '#4A687C', strokeWidth: 2 }} name={t('الدرجات', 'Grades')} />
+                                    <Line type="monotone" dataKey="attendanceRate" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', strokeWidth: 2 }} name={t('الحضور', 'Attendance')} />
                                 </LineChart>
                             </ResponsiveContainer>
                         </TabsContent>
@@ -196,7 +199,7 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                                     <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
                                     <YAxis stroke="#6b7280" fontSize={12} domain={[0, 100]} />
                                     <Tooltip contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px' }} />
-                                    <Area type="monotone" dataKey="averageGrade" stroke="#4A687C" strokeWidth={3} fill="#4A687C" fillOpacity={0.12} name="متوسط الدرجات" />
+                                    <Area type="monotone" dataKey="averageGrade" stroke="#4A687C" strokeWidth={3} fill="#4A687C" fillOpacity={0.12} name={t('متوسط الدرجات', 'Average grade')} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </TabsContent>
@@ -208,7 +211,7 @@ export function StudentProgressChart({ studentId, days = 30, data: propData }: S
                                     <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
                                     <YAxis stroke="#6b7280" fontSize={12} domain={[0, 100]} />
                                     <Tooltip contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px' }} />
-                                    <Area type="monotone" dataKey="attendanceRate" stroke="#10b981" strokeWidth={3} fill="#10b981" fillOpacity={0.12} name="نسبة الحضور" />
+                                    <Area type="monotone" dataKey="attendanceRate" stroke="#10b981" strokeWidth={3} fill="#10b981" fillOpacity={0.12} name={t('نسبة الحضور', 'Attendance rate')} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </TabsContent>

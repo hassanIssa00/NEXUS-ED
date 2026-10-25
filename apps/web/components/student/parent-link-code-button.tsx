@@ -8,9 +8,13 @@ import { apiClient } from '@/lib/api/client';
 
 type LinkCodeResponse = { code: string; expiresAt: string };
 
-function getErrorMessage(error: any) {
+function getErrorMessage(error: any, isEnglish: boolean) {
   const message = error?.response?.data?.message ?? error?.message;
-  return Array.isArray(message) ? message.join('، ') : message || 'تعذر إصدار رمز الربط. حاول مرة أخرى.';
+  if (isEnglish) {
+    if (Array.isArray(message) && message.some((part) => /[\u0600-\u06ff]/.test(String(part)))) return 'Could not create the link code. Please try again.';
+    if (typeof message === 'string' && /[\u0600-\u06ff]/.test(message)) return 'Could not create the link code. Please try again.';
+  }
+  return Array.isArray(message) ? message.join(isEnglish ? ', ' : '، ') : message || (isEnglish ? 'Could not create the link code. Please try again.' : 'تعذر إصدار رمز الربط. حاول مرة أخرى.');
 }
 
 export default function ParentLinkCodeButton() {
@@ -36,7 +40,7 @@ export default function ParentLinkCodeButton() {
       setCode(data.code);
       setExpiresAt(data.expiresAt || '');
     } catch (requestError) {
-      setError(getErrorMessage(requestError));
+      setError(getErrorMessage(requestError, isEnglish));
     } finally {
       setLoading(false);
     }

@@ -1,25 +1,38 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useState, useEffect, useMemo } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { BookMarked, Sparkles } from 'lucide-react';
 import { lessonService, Lesson, CreateLessonDto } from '@/lib/services/lesson.service';
 import { subjectService } from '@/lib/services/subject.service';
 import { UploadResponse } from '@/lib/services/upload.service';
 import FileUpload from '@/components/FileUpload';
+import { curriculaList } from '@/lib/curriculaData';
+import { parseClassName } from '@/lib/school-class-hierarchy';
+import { useRouter } from '@/i18n/routing';
 
 interface Subject {
     id: string;
     name: string;
     code?: string;
+    class?: { id: string; name: string };
 }
 
 export default function LessonsPage() {
     const t = useTranslations('teacher');
+    const isEnglish = useLocale() === 'en';
+    const copy = (ar: string, en: string) => isEnglish ? en : ar;
+    const router = useRouter();
     const [lessons, setLessons] = useState<Lesson[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [loading, setLoading] = useState(true);
     const [lessonsError, setLessonsError] = useState(false);
     const [subjectsError, setSubjectsError] = useState(false);
+    const [curriculumSubjectId, setCurriculumSubjectId] = useState('');
+    const [curriculumBookSlug, setCurriculumBookSlug] = useState('');
+    const [curriculumUnitIndex, setCurriculumUnitIndex] = useState(0);
+    const [curriculumPageFrom, setCurriculumPageFrom] = useState(1);
+    const [curriculumPageTo, setCurriculumPageTo] = useState(1);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
     const [formData, setFormData] = useState({
@@ -29,6 +42,45 @@ export default function LessonsPage() {
         subjectId: '',
         attachments: [] as string[],
     });
+
+    const curriculumSubject = subjects.find((subject) => subject.id === curriculumSubjectId);
+    const availableCurricula = useMemo(() => {
+        const title = curriculumSubject?.name || '';
+        const key = /قرآن|قران|مصحف/.test(title) ? 'quran'
+            : /لغتي|عربي|لغة عربية/.test(title) ? 'lughati'
+            : /رياض/.test(title) ? 'math'
+            : /إسلام|اسلام/.test(title) ? 'islamic'
+            : /علوم/.test(title) ? 'science'
+            : /إنجليزي|انجليزي|إنجليزية|انجليزية|english/i.test(title) ? 'english'
+            : /مهارات حياتية|حياتية وأسرية/.test(title) ? 'life-skills'
+            : /فنية|فن/.test(title) ? 'art'
+            : '';
+        const classGrade = curriculumSubject?.class?.name ? parseClassName(curriculumSubject.class.name).grade : null;
+        return curriculaList.filter((book) => book.slug === key && (!classGrade || parseClassName(book.grade).grade === classGrade));
+    }, [curriculumSubject]);
+    const curriculumBook = availableCurricula.find((book) => book.slug === curriculumBookSlug) || availableCurricula[0];
+    const curriculumUnit = curriculumBook?.units[curriculumUnitIndex] || curriculumBook?.units[0];
+
+    useEffect(() => {
+        if (!curriculumSubjectId && subjects.length) setCurriculumSubjectId(subjects[0].id);
+    }, [curriculumSubjectId, subjects]);
+
+    useEffect(() => {
+        if (!availableCurricula.length) {
+            setCurriculumBookSlug('');
+            return;
+        }
+        if (!availableCurricula.some((book) => book.slug === curriculumBookSlug)) {
+            setCurriculumBookSlug(availableCurricula[0].slug);
+            setCurriculumUnitIndex(0);
+        }
+    }, [availableCurricula, curriculumBookSlug]);
+
+    useEffect(() => {
+        if (!curriculumUnit) return;
+        setCurriculumPageFrom(curriculumUnit.fromPage);
+        setCurriculumPageTo(Math.min(curriculumUnit.fromPage + 2, curriculumUnit.toPage));
+    }, [curriculumUnit?.fromPage, curriculumUnit?.toPage]);
 
     useEffect(() => {
         fetchLessons();
@@ -54,10 +106,22 @@ export default function LessonsPage() {
         try {
             const data = await subjectService.getAll();
             setSubjects(data);
+            setCurriculumSubjectId((current) => current || data[0]?.id || '');
         } catch (error) {
             console.error('Failed to fetch subjects', error);
             setSubjectsError(true);
         }
+    };
+
+    const createAiAssignmentFromPages = () => {
+        if (!curriculumSubjectId || !curriculumBook || !curriculumUnit) return;
+        const query = new URLSearchParams({
+            subjectId: curriculumSubjectId,
+            curriculumSlug: curriculumBook.slug,
+            pageFrom: String(curriculumPageFrom),
+            pageTo: String(curriculumPageTo),
+        });
+        router.push(`/teacher/assignments/create?${query.toString()}` as never);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -137,6 +201,28 @@ export default function LessonsPage() {
                     {t('addLesson')}
                 </button>
             </div>
+
+            <section className="mb-7 rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50 to-white p-5 shadow-sm dark:border-teal-900 dark:from-teal-950/40 dark:to-background" aria-label={copy('إنشاء واجب من صفحات المنهج', 'Create an assignment from curriculum pages')}>
+                <div className="mb-4 flex items-start gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-teal-700 text-white"><Sparkles className="size-5" /></span>
+                    <div>
+                        <h2 className="font-bold text-foreground">{copy('أنشئ واجبًا من كتاب المنهج', 'Create an assignment from a curriculum book')}</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">{copy('اختر المادة والكتاب والدرس، وحدد صفحات الكتاب. سيقرأها الذكاء الاصطناعي ويجهز أسئلة الواجب للطلاب.', 'Choose the subject, book, and lesson, then select the pages. AI will read them and prepare assignment questions for students.')}</p>
+                    </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <label className="grid gap-1.5 text-sm font-semibold"><span>{copy('المادة والفصل', 'Subject and class')}</span><select value={curriculumSubjectId} onChange={(event) => { setCurriculumSubjectId(event.target.value); setCurriculumBookSlug(''); }} disabled={!subjects.length} className="min-h-11 rounded-lg border border-border bg-background px-3"><option value="">{subjects.length ? copy('اختر المادة', 'Select a subject') : copy('لا توجد مواد مرتبطة بالفصول', 'No subjects are linked to classes')}</option>{subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}{subject.class?.name ? ` · ${subject.class.name}` : ''}</option>)}</select></label>
+                    <label className="grid gap-1.5 text-sm font-semibold"><span>{copy('كتاب المنهج', 'Curriculum book')}</span><select value={curriculumBook?.slug || ''} onChange={(event) => { setCurriculumBookSlug(event.target.value); setCurriculumUnitIndex(0); }} disabled={!availableCurricula.length} className="min-h-11 rounded-lg border border-border bg-background px-3"><option value="">{copy('لا يوجد كتاب مطابق للمادة والصف', 'No book matches this subject and grade')}</option>{availableCurricula.map((book) => <option key={book.slug} value={book.slug}>{book.title} · {book.grade}</option>)}</select></label>
+                    <label className="grid gap-1.5 text-sm font-semibold"><span>{copy('الوحدة أو الدرس', 'Unit or lesson')}</span><select value={curriculumUnitIndex} onChange={(event) => setCurriculumUnitIndex(Number(event.target.value))} disabled={!curriculumBook} className="min-h-11 rounded-lg border border-border bg-background px-3">{curriculumBook?.units.map((unit, index) => <option key={`${unit.title}-${index}`} value={index}>{unit.title} · {copy('ص', 'p.')} {unit.fromPage}–{unit.toPage}</option>)}</select></label>
+                    <div className="grid grid-cols-2 gap-2">
+                        <label className="grid gap-1.5 text-sm font-semibold"><span>{copy('من صفحة', 'From page')}</span><input type="number" min={curriculumUnit?.fromPage || 1} max={curriculumUnit?.toPage || 1} value={curriculumPageFrom} onChange={(event) => { const next = Math.max(curriculumUnit?.fromPage || 1, Math.min(Number(event.target.value) || 1, curriculumUnit?.toPage || 1)); setCurriculumPageFrom(next); setCurriculumPageTo((current) => Math.max(next, current)); }} disabled={!curriculumUnit} className="min-h-11 w-full rounded-lg border border-border bg-background px-3" /></label>
+                        <label className="grid gap-1.5 text-sm font-semibold"><span>{copy('إلى صفحة', 'To page')}</span><input type="number" min={curriculumPageFrom} max={curriculumUnit?.toPage || curriculumPageFrom} value={curriculumPageTo} onChange={(event) => setCurriculumPageTo(Math.max(curriculumPageFrom, Math.min(Number(event.target.value) || curriculumPageFrom, curriculumUnit?.toPage || curriculumPageFrom)))} disabled={!curriculumUnit} className="min-h-11 w-full rounded-lg border border-border bg-background px-3" /></label>
+                    </div>
+                </div>
+                {!subjects.length && !subjectsError && <p className="mt-3 text-sm text-amber-800">{copy('اربط المواد بالفصول من إدارة المواد الدراسية أولًا لتظهر هنا.', 'Link subjects to classes in Subject Management to show them here.')}</p>}
+                {curriculumSubject && !availableCurricula.length && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{copy('لا يوجد كتاب رقمي لهذه المادة والصف في مكتبة المناهج الحالية. المكتبة الرقمية الموجودة الآن تحتوي كتب الصف الأول فقط؛ لن أختار كتاب صف مختلف تلقائيًا.', 'There is no digital book for this subject and grade in the current curriculum library. The available digital library currently contains Grade 1 books only; a book from a different grade will not be selected automatically.')}</p>}
+                {availableCurricula.length > 0 && <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="flex items-center gap-2 text-xs text-muted-foreground"><BookMarked className="size-4" />{copy('سيُنشأ الواجب من الصفحات', 'The assignment will use pages')} {curriculumPageFrom}–{curriculumPageTo} {copy('من', 'from')} {curriculumBook?.title}.</p><button type="button" onClick={createAiAssignmentFromPages} className="rounded-lg bg-teal-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-900">{copy('توليد أسئلة الواجب بالذكاء الاصطناعي', 'Generate assignment questions with AI')}</button></div>}
+            </section>
 
             {loading ? (
                 <p role="status" className="text-gray-500 dark:text-gray-400">{t('loading')}</p>

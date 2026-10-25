@@ -49,6 +49,7 @@ export class UploadController {
 
   @Post('file')
   @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
+  @Throttle({ long: { limit: 30, ttl: 60 * 60 * 1000 } })
   @UseInterceptors(FileInterceptor('file', multerConfig))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
@@ -93,6 +94,7 @@ export class UploadController {
 
   @Post('files')
   @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT)
+  @Throttle({ long: { limit: 8, ttl: 60 * 60 * 1000 } })
   @UseInterceptors(FilesInterceptor('files', 10, multerConfig))
   async uploadFiles(
     @UploadedFiles() files: Express.Multer.File[],
@@ -206,6 +208,7 @@ export class UploadController {
   }
   @Post('pdf-to-text')
   @Roles(Role.ADMIN, Role.TEACHER)
+  @Throttle({ long: { limit: 10, ttl: 60 * 60 * 1000 } })
   @UseInterceptors(FileInterceptor('file', multerConfig))
   async extractPdfText(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
@@ -219,8 +222,17 @@ export class UploadController {
     const parser = new pdfParse.PDFParse({ data: file.buffer });
     try {
       const data = await parser.getText();
-      return { success: true, text: data.text };
-    } catch {
+      if (data.pages.length > 200) {
+        throw new BadRequestException('ملف المنهج يتجاوز 200 صفحة. قسّمه إلى وحدات أصغر ثم أعد المحاولة.');
+      }
+      return {
+        success: true,
+        text: data.text,
+        pageCount: data.pages.length,
+        pages: data.pages.map((page) => ({ pageNumber: page.num, text: page.text })),
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       throw new BadRequestException('Failed to parse PDF text');
     } finally {
       await parser.destroy().catch(() => undefined);

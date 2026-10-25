@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { lessonService, Lesson } from "@/lib/services/lesson.service";
 import { apiClient } from "@/lib/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ type LessonSummary = {
 
 export default function StudentLessonsPage() {
   const t = useTranslations("student");
+  const isEnglish = useLocale() === "en";
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [lessonsError, setLessonsError] = useState(false);
@@ -246,7 +248,7 @@ export default function StudentLessonsPage() {
               <div className="mb-6">
                 <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
                   <Play className="w-4 h-4 text-primary-500" />
-                  الفيديو التعليمي
+                  {isEnglish ? "Lesson video" : "الفيديو التعليمي"}
                 </h3>
                 <div className="relative rounded-[12px] overflow-hidden bg-nexus-bg border border-nexus-border aspect-video flex items-center justify-center">
                   <div className="text-center">

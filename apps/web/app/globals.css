@@ -89,6 +89,218 @@
   }
 }
 
+/* Open-book reader shared by curriculum books and the read-only Quran viewer. */
+.book-reader-stage {
+  border-color: #e6ddca !important;
+  background: #f7f3e9;
+  box-shadow: 0 18px 50px rgba(67, 53, 35, 0.11) !important;
+}
+
+.book-reader-ribbon {
+  border-color: #e9e1d1;
+  background: linear-gradient(90deg, #f7f0e2 0%, #fffdf7 48%, #f3f4e8 100%);
+  color: #344a45;
+}
+
+.book-spread {
+  min-height: min(72vh, 760px);
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 48%, rgba(255, 255, 255, 0.92), transparent 70%),
+    linear-gradient(135deg, #f0ede4 0%, #ebe5d8 48%, #f4efe5 100%);
+  perspective: 1800px;
+  isolation: isolate;
+}
+
+.book-spread-pages {
+  max-width: 1260px;
+  min-height: inherit;
+  direction: inherit;
+}
+
+.book-leaf {
+  position: relative;
+  display: flex;
+  flex: 0 1 50%;
+  align-items: center;
+  justify-content: center;
+  width: 50%;
+  height: min(68vh, 720px);
+  min-height: 260px;
+  max-width: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(143, 125, 91, 0.28);
+  background: #fffefa;
+  box-shadow: 0 14px 32px rgba(70, 56, 38, 0.18), inset 0 0 0 5px rgba(255, 255, 255, 0.7);
+  transform-style: preserve-3d;
+  transition: box-shadow 220ms ease, filter 220ms ease;
+}
+
+.book-leaf:first-child {
+  border-radius: 9px 3px 3px 9px;
+  box-shadow: 0 14px 32px rgba(70, 56, 38, 0.17), inset -12px 0 18px -18px rgba(40, 33, 22, 0.72), inset 0 0 0 5px rgba(255, 255, 255, 0.72);
+}
+
+.book-leaf:last-child {
+  border-radius: 3px 9px 9px 3px;
+  box-shadow: 0 14px 32px rgba(70, 56, 38, 0.17), inset 12px 0 18px -18px rgba(40, 33, 22, 0.72), inset 0 0 0 5px rgba(255, 255, 255, 0.72);
+}
+
+.book-spread-rtl .book-leaf:first-child {
+  border-radius: 3px 9px 9px 3px;
+  box-shadow: 0 14px 32px rgba(70, 56, 38, 0.17), inset 12px 0 18px -18px rgba(40, 33, 22, 0.72), inset 0 0 0 5px rgba(255, 255, 255, 0.72);
+}
+
+.book-spread-rtl .book-leaf:last-child {
+  border-radius: 9px 3px 3px 9px;
+  box-shadow: 0 14px 32px rgba(70, 56, 38, 0.17), inset -12px 0 18px -18px rgba(40, 33, 22, 0.72), inset 0 0 0 5px rgba(255, 255, 255, 0.72);
+}
+
+.book-leaf-preview {
+  cursor: pointer;
+  filter: saturate(0.88);
+}
+
+.book-leaf-preview:hover,
+.book-leaf-preview:focus-visible {
+  z-index: 2;
+  filter: none;
+  box-shadow: 0 18px 38px rgba(70, 56, 38, 0.24), inset 0 0 0 5px rgba(255, 255, 255, 0.78);
+  outline: 3px solid rgba(106, 137, 114, 0.45);
+  outline-offset: -5px;
+}
+
+.book-page-image {
+  display: block;
+  max-height: 100%;
+  user-select: none;
+}
+
+.book-page-canvas {
+  z-index: 2;
+  max-height: 100%;
+  border-radius: 0;
+}
+
+.book-page-number {
+  position: absolute;
+  z-index: 3;
+  right: 12px;
+  bottom: 10px;
+  border: 1px solid rgba(220, 211, 193, 0.85);
+  border-radius: 999px;
+  background: rgba(255, 253, 247, 0.9);
+  padding: 3px 9px;
+  color: #726b5e;
+  font-size: 10px;
+  font-weight: 800;
+  opacity: 0.76;
+  pointer-events: none;
+}
+
+.book-page-number-active {
+  background: rgba(239, 247, 239, 0.94);
+  color: #42644c;
+}
+
+.book-page-preview-hint {
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  left: 50%;
+  border: 1px solid rgba(220, 211, 193, 0.85);
+  border-radius: 999px;
+  background: rgba(255, 253, 247, 0.94);
+  padding: 5px 10px;
+  color: #52685a;
+  font-size: 10px;
+  font-weight: 800;
+  opacity: 0;
+  transform: translateX(-50%) translateY(-3px);
+  transition: opacity 180ms ease, transform 180ms ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.book-leaf-preview:hover .book-page-preview-hint,
+.book-leaf-preview:focus-visible .book-page-preview-hint {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.book-loading-overlay {
+  background: rgba(248, 246, 239, 0.78);
+  backdrop-filter: blur(2px);
+}
+
+.book-spread-single .book-leaf {
+  flex-basis: min(100%, 620px);
+  width: min(100%, 620px);
+  max-width: min(100%, 620px);
+  border-radius: 9px;
+}
+
+.book-spread-mobile-label { display: none; }
+
+.book-page-turn-forward {
+  animation: book-page-flip-forward 420ms cubic-bezier(0.2, 0.75, 0.25, 1);
+  backface-visibility: hidden;
+}
+
+.book-page-turn-backward {
+  animation: book-page-flip-backward 420ms cubic-bezier(0.2, 0.75, 0.25, 1);
+  backface-visibility: hidden;
+}
+
+@keyframes book-page-flip-forward {
+  0% { transform: rotateY(-5deg); filter: brightness(0.96); }
+  55% { transform: rotateY(3deg); filter: brightness(1.02); }
+  100% { transform: rotateY(0); filter: brightness(1); }
+}
+
+@keyframes book-page-flip-backward {
+  0% { transform: rotateY(5deg); filter: brightness(0.96); }
+  55% { transform: rotateY(-3deg); filter: brightness(1.02); }
+  100% { transform: rotateY(0); filter: brightness(1); }
+}
+
+@media (max-width: 767px) {
+  .book-spread {
+    min-height: 0;
+    padding: 0.75rem !important;
+  }
+
+  .book-spread-pages {
+    min-height: 0;
+  }
+
+  .book-leaf-preview { display: none; }
+
+  .book-leaf,
+  .book-spread-single .book-leaf {
+    flex: 0 1 100%;
+    width: 100%;
+    height: min(74vh, 820px);
+    min-height: 240px;
+    max-width: min(100%, 640px);
+    border-radius: 9px !important;
+    box-shadow: 0 12px 26px rgba(70, 56, 38, 0.16), inset 0 0 0 5px rgba(255, 255, 255, 0.72) !important;
+  }
+
+  .book-spread-desktop-label { display: none; }
+  .book-spread-mobile-label { display: inline; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-page-turn-forward,
+  .book-page-turn-backward,
+  .book-leaf,
+  .book-page-preview-hint {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
 /* One consistent school identity across every portal: navy, with gold accents.
    Strong blue/cyan/purple gradients become a solid brand surface; semantic
    success, warning, and error colors are intentionally left alone. */
@@ -124,6 +336,7 @@
 
   html {
     scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
   }
 
   body {
@@ -198,6 +411,13 @@
   /* ═══════════ Hero / Landing Utilities ═══════════ */
   .hero-section { background: #F5F7F8; }
 
+  .landing-hero {
+    background:
+      radial-gradient(ellipse at 16% 18%, rgba(35, 74, 101, 0.075), transparent 36%),
+      radial-gradient(ellipse at 88% 78%, rgba(152, 121, 62, 0.055), transparent 34%),
+      #F5F7F8;
+  }
+
   .hero-gradient { background: #F5F7F8; }
 
   .hero-overlay {
@@ -205,12 +425,10 @@
     inset: 0;
     z-index: 0;
     background: rgba(255,255,255,0.6);
-    backdrop-filter: blur(4px);
   }
 
   .hero-card {
-    background: rgba(255, 255, 255, 0.88);
-    backdrop-filter: blur(14px);
+    background: #fff;
     border-radius: 20px;
     padding: 2rem;
   }
@@ -241,9 +459,8 @@
     padding: 0.3rem 0.45rem;
     border: 1px solid rgba(255, 255, 255, 0.48);
     border-radius: 9999px;
-    background: rgba(24, 52, 79, 0.72);
+    background: rgba(24, 52, 79, 0.94);
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
-    backdrop-filter: blur(10px);
   }
 
   .hero-carousel-arrow {
@@ -301,9 +518,34 @@
     color: var(--nexus-brand-primary);
   }
 
-  .hero-img-bg {
-    opacity: 0.85;
-    filter: saturate(0.8) blur(0.5px);
+  .hero-carousel-frame {
+    background: #E8EEF1;
+    box-shadow: 0 20px 55px rgba(35, 74, 101, 0.10);
+    isolation: isolate;
+  }
+
+  .hero-carousel-image {
+    background: #E8EEF1;
+    object-fit: contain;
+  }
+
+  .landing-page .glass-card {
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: none;
+    transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+  }
+
+  .landing-page .glass-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(35, 74, 101, 0.08);
+  }
+
+  .landing-page .parallax-img img {
+    transition: transform 260ms ease;
+  }
+
+  .landing-page .parallax-img:hover img {
+    transform: scale(1.025);
   }
 
   /* ═══════════ Buttons ═══════════ */
@@ -1161,6 +1403,20 @@
 .particles-container .p:nth-child(7) { width: 4px; height: 4px; left: 15%; animation-duration: 21s; animation-delay: 6s; background: #98793E; }
 .particles-container .p:nth-child(8) { width: 6px; height: 6px; left: 60%; animation-duration: 17s; animation-delay: 7s; background: #98793E; }
 
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .landing-page .parallax-img img {
+    transition: none;
+  }
+
+  .landing-page .parallax-img:hover img {
+    transform: none;
+  }
+}
+
 /* ── Enhanced Glassmorphism Cards ── */
 .glass-ultra {
   background: rgba(255, 255, 255, 0.7);
@@ -1219,6 +1475,11 @@
 .report-print-footer {
   display: none;
 }
+
+.workbook-print-report {
+  display: none;
+}
+
 
 @media print {
   @page {
@@ -1291,10 +1552,57 @@
     direction: rtl;
   }
 
-  .report-print-header,
-  .report-print-footer {
-    display: flex !important;
+  .workbook-print-report {
+    display: block !important;
   }
+
+  .workbook-interactive-root {
+    display: none !important;
+  }
+
+  .workbook-print-sheet {
+    display: flex !important;
+    height: 205mm;
+    align-items: center;
+    justify-content: center;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    break-inside: avoid;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .workbook-print-sheet-last {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .workbook-print-page {
+    position: relative;
+    height: 205mm;
+    max-width: 100%;
+    break-inside: avoid;
+  }
+
+  .workbook-print-page > img:first-child {
+    display: block;
+    width: auto;
+    height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+  }
+
+  .workbook-print-page > img.workbook-print-annotations {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+  }
+
+  .report-print-header,
+  .report-print-footer { display: block !important; }
 
   .report-print-header {
     display: grid !important;
@@ -1399,12 +1707,157 @@
   }
 
   .report-print-footer {
-    justify-content: space-between;
+    width: 100%;
     border-top: 1px solid #cbd5e1;
-    margin-top: 18px;
-    padding-top: 8px;
+    margin-top: 12mm;
+    padding-top: 5mm;
     color: #475569;
     font-size: 8pt;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .report-print-signatures {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12mm;
+    width: 100%;
+    min-height: 43mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .report-director-stamp,
+  .report-platform-seal {
+    display: flex;
+    flex: 0 0 40mm;
+    width: 40mm;
+    height: 40mm;
+    align-items: center;
+    justify-content: center;
+    border: 0.65mm solid #0f172a;
+    border-radius: 50%;
+    outline: 0.35mm dotted #0f172a;
+    outline-offset: -2.2mm;
+    background: #fff !important;
+    color: #0f172a !important;
+    text-align: center;
+    box-sizing: border-box;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .report-director-stamp {
+    position: relative;
+    flex-direction: column;
+    gap: 0.8mm;
+    padding: 4mm;
+  }
+
+  .report-director-stamp::before,
+  .report-platform-seal::before {
+    content: '';
+    position: absolute;
+    width: 34mm;
+    height: 34mm;
+    border: 0.35mm solid #0f172a;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .report-director-stamp small {
+    z-index: 1;
+    font-size: 6.2pt;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .report-director-stamp strong {
+    z-index: 1;
+    max-width: 31mm;
+    font-size: 8.3pt;
+    line-height: 1.35;
+  }
+
+  .report-stamp-stars {
+    z-index: 1;
+    font-size: 8pt;
+    line-height: 1;
+  }
+
+  .report-stamp-signature {
+    z-index: 1;
+    color: #26334d !important;
+    font-family: 'Segoe Script', 'Brush Script MT', cursive;
+    font-size: 8pt;
+    font-style: italic;
+    transform: rotate(-5deg);
+  }
+
+  .report-stamp-line {
+    z-index: 1;
+    width: 26mm;
+    border-top: 0.3mm solid #0f172a;
+  }
+
+  .report-stamp-date,
+  .report-director-stamp em {
+    z-index: 1;
+    font-size: 5.2pt;
+    font-style: normal;
+    line-height: 1.3;
+  }
+
+  .report-director-stamp em {
+    max-width: 30mm;
+    color: #26334d !important;
+  }
+
+  .report-platform-seal {
+    position: relative;
+    flex-direction: column;
+    gap: 0.5mm;
+    border-color: #b28b49;
+    outline-color: #b28b49;
+    color: #087f6c !important;
+  }
+
+  .report-platform-seal::before {
+    border-color: #087f6c;
+  }
+
+  .report-platform-seal img {
+    z-index: 1;
+    width: 11mm;
+    height: 11mm;
+    object-fit: contain;
+  }
+
+  .report-platform-seal strong,
+  .report-platform-seal small {
+    z-index: 1;
+    line-height: 1.2;
+  }
+
+  .report-platform-seal strong {
+    font-size: 6.5pt;
+    font-weight: 900;
+  }
+
+  .report-platform-seal small {
+    font-size: 5pt;
+    font-weight: 700;
+  }
+
+  .report-print-footer-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 4mm;
+    margin-top: 5mm;
+    padding-top: 2mm;
+    border-top: 0.3mm solid #cbd5e1;
+    font-size: 7pt;
   }
 
   .report-print-root > * {
@@ -1437,6 +1890,7 @@
   .report-print-root .report-print-card {
     break-inside: avoid;
   }
+
 
   .report-print-root th,
   .report-print-root td {

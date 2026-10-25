@@ -21,3 +21,4 @@ apps/api/scratch/
 apps/api/src/generated/client/
 apps/web/coverage/
 logs/
+tmp/

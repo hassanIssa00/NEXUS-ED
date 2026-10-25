@@ -1,5 +1,6 @@
 import { createCanvas, GlobalFonts, loadImage } from '@napi-rs/canvas';
 import PDFDocument from 'pdfkit';
+import QRCode from 'qrcode';
 import { once } from 'node:events';
 import { join } from 'node:path';
 
@@ -157,6 +158,14 @@ function drawMedal(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']
 
 async function renderCertificatePage(certificate: CertificateData) {
   const { schoolSeal, nexusLogo } = await loadCertificateAssets();
+  const publicOrigin = (process.env.NEXUS_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://nexus.masarplatform.org').replace(/\/+$/, '');
+  const verificationUrl = `${publicOrigin}/ar/certificates/verify/${encodeURIComponent(certificate.serial)}`;
+  const verificationCode = await loadImage(await QRCode.toBuffer(verificationUrl, {
+    type: 'png',
+    width: 320,
+    margin: 1,
+    color: { dark: '#152b49', light: '#ffffff' },
+  }));
   const canvas = createCanvas(3508, 2480);
   const ctx = canvas.getContext('2d');
   ctx.scale(SCALE, SCALE);
@@ -224,7 +233,7 @@ async function renderCertificatePage(certificate: CertificateData) {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#152b49';
   ctx.font = font(700, 31);
-  ctx.fillText('شهادة إنجاز', PAGE_WIDTH / 2, 215);
+  ctx.fillText('شهادة إنجاز وتقدير', PAGE_WIDTH / 2, 215);
   ctx.fillStyle = '#607286';
   ctx.font = font(400, 13);
   ctx.fillText('تُمنح بكل فخر واعتزاز إلى', PAGE_WIDTH / 2, 242);
@@ -313,19 +322,31 @@ async function renderCertificatePage(certificate: CertificateData) {
 
   ctx.fillStyle = '#718194';
   ctx.font = font(400, 9);
-  ctx.fillText('اعتماد وإصدار', 708, 470);
+  ctx.fillText('جهة الإصدار', 680, 470);
   ctx.fillStyle = '#152b49';
-  ctx.font = font(700, 11);
-  ctx.fillText(certificate.issuer.name || 'إدارة المدرسة', 708, 491, 160);
+  ctx.font = font(700, fitSize(ctx, certificate.school.name || 'مدارس الإخلاص الأهلية', 10, 104));
+  ctx.fillText(certificate.school.name || 'مدارس الإخلاص الأهلية', 680, 491, 104);
   ctx.strokeStyle = '#8595a5';
   ctx.lineWidth = 0.8;
   ctx.beginPath();
-  ctx.moveTo(634, 514);
-  ctx.lineTo(782, 514);
+  ctx.moveTo(640, 514);
+  ctx.lineTo(720, 514);
   ctx.stroke();
   ctx.fillStyle = '#8595a5';
   ctx.font = font(400, 8);
-  ctx.fillText('التوقيع', 708, 529);
+  ctx.fillText('الإدارة المدرسية', 680, 529);
+
+  roundedRect(ctx, 741, 470, 52, 52, 7);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = '#dce5e9';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.drawImage(verificationCode, 746, 475, 42, 42);
+  ctx.fillStyle = '#718194';
+  ctx.font = font(400, 7);
+  ctx.textAlign = 'center';
+  ctx.fillText('تحقق رقمي', 767, 534);
 
   return canvas.toBuffer('image/png');
 }

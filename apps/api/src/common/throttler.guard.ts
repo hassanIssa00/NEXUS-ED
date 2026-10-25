@@ -1,25 +1,40 @@
 import { Injectable, ExecutionContext, Logger } from '@nestjs/common';
 import { ThrottlerGuard, ThrottlerException } from '@nestjs/throttler';
-
-// Role-based rate limit multipliers
-const ROLE_MULTIPLIERS: Record<string, number> = {
-  ADMIN: 5, // 5x the limit
-  TEACHER: 3, // 3x the limit
-  PARENT: 2, // 2x the limit
-  STUDENT: 1, // Base limit
-};
+import { createHash } from 'node:crypto';
+import { verify } from 'jsonwebtoken';
+import { getJwtSecret } from '../config/jwt';
 
 @Injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
   private readonly customLogger = new Logger(CustomThrottlerGuard.name);
 
   protected async getTracker(req: Record<string, unknown>): Promise<string> {
-    // Use user ID if authenticated, otherwise use IP
-    const user = req['user'] as { id?: string };
-    if (user?.id) {
-      return `user:${user.id}`;
+    // APP_GUARD runs before route-level Passport guards, so req.user is usually
+    // empty here. Verify the bearer token ourselves instead of trusting decoded
+    // or client-supplied claims so authenticated requests share an account quota.
+    const user = req['user'] as { id?: string; userId?: string; sub?: string } | undefined;
+    const authenticatedId = user?.id || user?.userId || user?.sub;
+    if (authenticatedId) return `user:${authenticatedId}`;
+
+    const headers = req['headers'] as Record<string, string | string[] | undefined> | undefined;
+    const authorization = headers?.authorization;
+    const token = typeof authorization === 'string'
+      ? authorization.match(/^Bearer\s+([^\s]+)$/i)?.[1]
+      : undefined;
+    if (token) {
+      try {
+        const payload = verify(token, getJwtSecret(), { algorithms: ['HS256'] });
+        if (typeof payload !== 'string' && typeof payload.sub === 'string' && payload.sub) {
+          return `user:${payload.sub}`;
+        }
+      } catch {
+        // Invalid/expired tokens receive the unauthenticated IP quota.
+      }
     }
-    return Promise.resolve(`ip:${(req['ip'] as string) || 'unknown'}`);
+
+    const socket = req['socket'] as { remoteAddress?: string } | undefined;
+    const ip = (req['ip'] as string | undefined) || socket?.remoteAddress || 'unknown';
+    return `ip:${ip}`;
   }
 
   protected shouldSkip(context: ExecutionContext): Promise<boolean> {
@@ -39,20 +54,12 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
   ): Promise<void> {
     const request = context.switchToHttp().getRequest();
     const tracker = await this.getTracker(request);
+    const fingerprint = createHash('sha256').update(tracker).digest('hex').slice(0, 12);
 
-    this.customLogger.warn(`Rate limit exceeded for ${tracker}`);
+    this.customLogger.warn(`Rate limit exceeded (tracker ${fingerprint})`);
 
     throw new ThrottlerException(
       'لقد تجاوزت الحد المسموح من الطلبات. الرجاء الانتظار قليلاً ثم المحاولة مرة أخرى.',
     );
-  }
-
-  /**
-   * Get adjusted limit based on user role
-   */
-  protected getAdjustedLimit(baseLimit: number, userRole?: string): number {
-    if (!userRole) return baseLimit;
-    const multiplier = ROLE_MULTIPLIERS[userRole] || 1;
-    return Math.floor(baseLimit * multiplier);
   }
 }

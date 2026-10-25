@@ -23,7 +23,6 @@ import {
     Trophy,
     QrCode,
     Shield,
-    Zap,
     X,
     MessageSquare,
     ClipboardList,
@@ -75,6 +74,7 @@ export function Sidebar({ role }: SidebarProps) {
 
     const isEnglish = useLocale() === 'en'
     const navigation = getNavigationByRole(role, isEnglish)
+    const navigationSections = getNavigationSections(role, navigation, isEnglish)
     const colors = ROLE_COLORS[role] ?? ROLE_COLORS.student
 
     // Close mobile sidebar on route change
@@ -99,14 +99,14 @@ export function Sidebar({ role }: SidebarProps) {
                         >
                             <div className="flex items-center gap-1">
                                 <div className="w-8 h-8 rounded-[8px] overflow-hidden shadow-sm flex items-center justify-center bg-white border border-border">
-                                    <img src="/logo_new.webp" alt="Logo" className="w-full h-full object-cover" />
+                                    <img src="/logo_new.webp" alt={isEnglish ? 'Nexus EDU logo' : 'شعار نكسس التعليمية'} className="w-full h-full object-cover" />
                                 </div>
                                 <div className="w-8 h-8 rounded-[8px] overflow-hidden shadow-sm flex items-center justify-center bg-white border border-border">
-                                    <img src="/second_logo.webp" alt="Partner Logo" className="w-full h-full object-cover" />
+                                    <img src="/second_logo.webp" alt={isEnglish ? 'School logo' : 'شعار المدرسة'} className="w-full h-full object-cover" />
                                 </div>
                             </div>
                             <div>
-                                <h1 className="font-bold text-sm text-foreground leading-tight">نكسس</h1>
+                                <h1 className="font-bold text-sm text-foreground leading-tight">{isEnglish ? 'NEXUS' : 'نكسس'}</h1>
                                 <p className="text-[9px] text-muted-foreground font-semibold tracking-wider uppercase">NEXUS EDU</p>
                             </div>
                         </motion.div>
@@ -140,7 +140,9 @@ export function Sidebar({ role }: SidebarProps) {
 
             {/* Navigation */}
             <nav className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
-                {navigation.map((item) => {
+                {navigationSections.map((section) => <div key={section.key} className="space-y-0.5">
+                  {section.label && (!collapsed || mobile) && <p className="px-3 pb-1 pt-3 text-[10px] font-bold uppercase tracking-wide text-muted-foreground/75">{section.label}</p>}
+                  {section.items.map((item) => {
                     const [itemPath, itemQuery] = item.href.split('?')
                     const isRoleHome = /^\/(student|teacher|parent|admin|manager|principal|vice_principal|counselor|supervisor|accountant|hr)$/.test(itemPath)
                     const queryMatches = itemQuery ? new URLSearchParams(itemQuery).toString() === searchParams.toString() : !isRoleHome || searchParams.toString() === ''
@@ -177,7 +179,8 @@ export function Sidebar({ role }: SidebarProps) {
                             )}
                         </Link>
                     )
-                })}
+                  })}
+                </div>)}
             </nav>
 
             {/* User Profile */}
@@ -186,7 +189,7 @@ export function Sidebar({ role }: SidebarProps) {
                     <div className="relative flex-shrink-0">
                         <div className={cn('relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br text-sm font-bold text-white shadow-sm', colors.gradient)}>
                             {profile?.avatar_url
-                                ? <Image src={profile.avatar_url} alt={`صورة ${profile.full_name || 'المستخدم'}`} width={36} height={36} unoptimized className="h-full w-full object-cover" />
+                                ? <Image src={profile.avatar_url} alt={isEnglish ? `${profile.full_name || 'User'} avatar` : `صورة ${profile.full_name || 'المستخدم'}`} width={36} height={36} unoptimized className="h-full w-full bg-white object-contain" />
                                 : (profile?.full_name || user?.email || 'N')[0].toUpperCase()}
                         </div>
                         <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-card rounded-full" />
@@ -201,7 +204,7 @@ export function Sidebar({ role }: SidebarProps) {
                                     className="flex-1 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
                                 >
                                     <p className="text-sm font-semibold text-foreground truncate">
-                                        {profile?.full_name || user?.email?.split('@')[0] || 'المستخدم'}
+                                        {profile?.full_name || user?.email?.split('@')[0] || (isEnglish ? 'User' : 'المستخدم')}
                                     </p>
                                     <p className="text-xs text-muted-foreground truncate">{getRoleLabel(role, isEnglish)}</p>
                                 </motion.div>
@@ -296,70 +299,73 @@ function getRoleLabel(role: string, english = false): string {
 }
 
 function getNavigationByRole(role: string, english = false) {
+    const label = (arabic: string, translated: string) => english ? translated : arabic
     const settings = [
-        { href: `/${role}/settings` as any, label: english ? 'Settings' : 'الإعدادات', icon: Settings },
+        { href: `/${role}/settings` as any, label: label('الإعدادات', 'Settings'), icon: Settings },
     ]
 
     switch (role) {
         case 'student':
             return [
-                { href: '/student' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/student/schedule' as any, label: 'جدول الحصص', icon: Calendar },
-                { href: '/student/subjects' as any, label: 'المناهج والكتب الدراسية', icon: BookOpen },
-                { href: '/student/quran' as any, label: 'المصحف الشريف', icon: BookMarked },
-                { href: '/student/assignments' as any, label: 'الواجبات المدرسية', icon: FileText },
-                { href: '/student/quizzes' as any, label: 'الاختبارات', icon: Target },
-                { href: '/student/attendance' as any, label: 'سجل الحضور والغياب', icon: QrCode },
-                { href: '/student/grades' as any, label: 'الدرجات والتقييم', icon: Award },
-                { href: '/student/certificates' as any, label: 'الإنجازات والشهادات', icon: Trophy },
-                { href: '/student/live' as any, label: 'البث المباشر للحصص', icon: Radio },
-                { href: '/student/games' as any, label: 'الألعاب التعليمية', icon: Gamepad2 },
-                { href: '/student/million' as any, label: 'مسابقة نكسس الكبرى', icon: Star },
-                { href: '/student/photos' as any, label: 'معرض الفعاليات والأنشطة', icon: Camera },
-                { href: '/student/community' as any, label: 'مجتمع المدرسة', icon: Users },
-                { href: '/student/messages' as any, label: 'التواصل والرسائل', icon: MessageSquare },
-                { href: '/student/profile' as any, label: 'الملف الذكي للطالب', icon: Brain },
+                { href: '/student' as any, label: label('لوحة التحكم', 'Dashboard'), icon: LayoutDashboard },
+                { href: '/student/schedule' as any, label: label('جدول الحصص', 'Class timetable'), icon: Calendar },
+                { href: '/student/subjects' as any, label: label('المناهج والكتب الدراسية', 'Curriculum and textbooks'), icon: BookOpen },
+                { href: '/student/quran' as any, label: label('المصحف الشريف', 'Holy Quran'), icon: BookMarked },
+                { href: '/student/assignments' as any, label: label('الواجبات المدرسية', 'Assignments'), icon: FileText },
+                { href: '/student/quizzes' as any, label: label('الاختبارات', 'Quizzes'), icon: Target },
+                { href: '/student/attendance' as any, label: label('سجل الحضور والغياب', 'Attendance record'), icon: QrCode },
+                { href: '/student/grades' as any, label: label('الدرجات والتقييم', 'Grades and assessment'), icon: Award },
+                { href: '/student/certificates' as any, label: label('الإنجازات والشهادات', 'Achievements and certificates'), icon: Trophy },
+                { href: '/student/live' as any, label: label('البث المباشر للحصص', 'Live lessons'), icon: Radio },
+                { href: '/meetings' as any, label: label('قاعات الاجتماعات', 'Meeting rooms'), icon: Video },
+                { href: '/student/games' as any, label: label('الألعاب التعليمية', 'Educational games'), icon: Gamepad2 },
+                { href: '/student/million' as any, label: label('مسابقة نكسس الكبرى', 'Nexus Million Challenge'), icon: Star },
+                { href: '/student/photos' as any, label: label('معرض الفعاليات والأنشطة', 'Activities and events'), icon: Camera },
+                { href: '/student/community' as any, label: label('مجتمع المدرسة', 'School community'), icon: Users },
+                { href: '/student/messages' as any, label: label('التواصل والرسائل', 'Messages and communication'), icon: MessageSquare },
+                { href: '/student/profile' as any, label: label('الملف الذكي للطالب', 'Student learning profile'), icon: Brain },
                 ...settings,
             ]
 
         case 'teacher':
             return [
-                { href: '/teacher' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/teacher?tab=tools' as any, label: 'أدوات نكسس (Nexus Tools)', icon: Sparkles },
-                { href: '/teacher/classes' as any, label: 'فصولي والطلاب', icon: Users },
-                { href: '/teacher/curriculum' as any, label: 'المناهج والخطط الدراسية', icon: BookMarked },
-                { href: '/teacher/assignments' as any, label: 'الواجبات والتصحيح', icon: FileText },
-                { href: '/teacher/quizzes' as any, label: 'بنك الاختبارات والتقييم', icon: Target },
-                { href: '/assessment/reports' as any, label: 'تقارير اختبارات القبول', icon: BarChart3 },
-                { href: '/teacher/attendance' as any, label: 'رصد الحضور والانضباط', icon: Calendar },
-                { href: '/teacher/reports' as any, label: 'التقارير الأسبوعية الشاملة', icon: BarChart3 },
-                { href: '/teacher/automation/certificates' as any, label: 'الشهادات والأوسمة', icon: Award },
-                { href: '/teacher/meetings' as any, label: 'لقاءات أولياء الأمور', icon: HeartHandshake },
-                { href: '/teacher/live' as any, label: 'البث المباشر للحصص', icon: Radio },
-                { href: '/teacher/community' as any, label: 'ملتقى أولياء الأمور', icon: Users },
-                { href: '/teacher/photos' as any, label: 'معرض الأنشطة والفعاليات', icon: Camera },
-                { href: '/teacher/archive' as any, label: 'الأرشيف المدرسي اليومي', icon: Archive },
-                { href: '/teacher/lessons' as any, label: 'تحضير الدروس', icon: BookOpen },
-                { href: '/teacher/messages' as any, label: 'الرسائل المباشرة', icon: MessageSquare },
-                { href: '/teacher/automation' as any, label: 'أدوات الأتمتة الذكية', icon: Zap },
-                { href: '/teacher/notifications' as any, label: 'التنبيهات', icon: Star },
+                { href: '/teacher' as any, label: label('لوحة التحكم', 'Dashboard'), icon: LayoutDashboard },
+                { href: '/teacher?tab=tools' as any, label: label('أدوات نكسس', 'Nexus Tools'), icon: Sparkles },
+                { href: '/teacher/classes' as any, label: label('فصولي والطلاب', 'My classes and students'), icon: Users },
+                { href: '/teacher/curriculum' as any, label: label('المناهج والخطط الدراسية', 'Curriculum and study plans'), icon: BookMarked },
+                { href: '/teacher/assignments' as any, label: label('الواجبات والتصحيح', 'Assignments and grading'), icon: FileText },
+                { href: '/assessment/reports' as any, label: label('تقارير اختبارات القبول', 'Admission assessment reports'), icon: BarChart3 },
+                { href: '/teacher/attendance' as any, label: label('رصد الحضور والانضباط', 'Attendance and conduct'), icon: Calendar },
+                { href: '/teacher/reports' as any, label: label('التقارير الأسبوعية الشاملة', 'Comprehensive weekly reports'), icon: BarChart3 },
+                { href: '/teacher/automation/certificates' as any, label: label('الشهادات والأوسمة', 'Certificates and badges'), icon: Award },
+                { href: '/teacher/meetings' as any, label: label('لقاءات أولياء الأمور', 'Parent meetings'), icon: HeartHandshake },
+                { href: '/meetings' as any, label: label('قاعات الاجتماعات', 'Nexus meeting rooms'), icon: Video },
+                { href: '/teacher/live' as any, label: label('البث المباشر للحصص', 'Live lessons'), icon: Radio },
+                { href: '/teacher/community' as any, label: label('ملتقى أولياء الأمور', 'Parent forum'), icon: Users },
+                { href: '/teacher/photos' as any, label: label('معرض الأنشطة والفعاليات', 'Activities and events'), icon: Camera },
+                { href: '/teacher/archive' as any, label: label('الأرشيف المدرسي اليومي', 'Daily school archive'), icon: Archive },
+                { href: '/teacher/lessons' as any, label: label('تحضير الدروس', 'Lesson planning'), icon: BookOpen },
+                { href: '/teacher/messages' as any, label: label('الرسائل المباشرة', 'Direct messages'), icon: MessageSquare },
+                { href: '/teacher/notifications' as any, label: label('التنبيهات', 'Notifications'), icon: Star },
                 ...settings,
             ]
 
         case 'parent':
             return [
-                { href: '/parent' as any, label: 'لوحة التحكم', icon: LayoutDashboard },
-                { href: '/parent/schedule' as any, label: 'جدول الحصص الأسبوعي', icon: Calendar },
-                { href: '/parent/attendance' as any, label: 'سجل الحضور والانضباط', icon: QrCode },
-                { href: '/parent/reports' as any, label: 'التقرير الأكاديمي الشامل', icon: BarChart3 },
-                { href: '/assessment/reports' as any, label: 'تقارير اختبارات الأبناء', icon: GraduationCap },
-                { href: '/parent/grades' as any, label: 'درجات الأبناء والشهادات', icon: Award },
-                { href: '/parent/meetings' as any, label: 'لقاءات أولياء الأمور', icon: HeartHandshake },
-                { href: '/parent/messages' as any, label: 'التواصل مع المعلمين', icon: MessageSquare },
-                { href: '/parent/community' as any, label: 'ملتقى أولياء الأمور', icon: Users },
-                { href: '/parent/photos' as any, label: 'معرض فعاليات الفصل', icon: Camera },
-                { href: '/parent/payments' as any, label: 'المدفوعات والمستحقات', icon: CreditCard },
-                { href: '/parent/notifications' as any, label: 'الإشعارات والتنبيهات', icon: Star },
+                { href: '/parent' as any, label: label('لوحة التحكم', 'Dashboard'), icon: LayoutDashboard },
+                { href: '/parent/schedule' as any, label: label('جدول الحصص الأسبوعي', 'Weekly timetable'), icon: Calendar },
+                { href: '/parent/attendance' as any, label: label('سجل الحضور والانضباط', 'Attendance and conduct'), icon: QrCode },
+                { href: '/parent/reports' as any, label: label('التقرير الأكاديمي الشامل', 'Comprehensive academic report'), icon: BarChart3 },
+                { href: '/assessment/reports' as any, label: label('تقارير اختبارات الأبناء', 'Children’s assessment reports'), icon: GraduationCap },
+                { href: '/parent/grades' as any, label: label('درجات الأبناء', 'Children’s grades'), icon: Award },
+                { href: '/parent/certificates' as any, label: label('شهادات الأبناء', 'Children’s certificates'), icon: Trophy },
+                { href: '/meetings' as any, label: label('قاعات الاجتماعات', 'Meeting rooms'), icon: Video },
+                { href: '/parent/meetings' as any, label: label('لقاءات أولياء الأمور', 'Parent meetings'), icon: HeartHandshake },
+                { href: '/parent/messages' as any, label: label('التواصل مع المعلمين', 'Contact teachers'), icon: MessageSquare },
+                { href: '/parent/community' as any, label: label('ملتقى أولياء الأمور', 'Parent forum'), icon: Users },
+                { href: '/parent/photos' as any, label: label('معرض فعاليات الفصل', 'Class activities'), icon: Camera },
+                { href: '/parent/payments' as any, label: label('المدفوعات والمستحقات', 'Payments and fees'), icon: CreditCard },
+                { href: '/parent/notifications' as any, label: label('الإشعارات والتنبيهات', 'Alerts and notifications'), icon: Star },
                 ...settings,
             ]
 
@@ -377,6 +383,7 @@ function getNavigationByRole(role: string, english = false) {
                 { href: '/admin/content' as any, label: english ? 'Educational library' : 'المكتبة التعليمية', icon: Video },
                 { href: '/admin/games' as any, label: english ? 'Educational games' : 'الألعاب التعليمية', icon: Gamepad2 },
                 { href: '/admin/permissions' as any, label: english ? 'Accounts by role' : 'الحسابات حسب الدور', icon: Shield },
+                { href: '/meetings' as any, label: english ? 'Nexus Meeting Rooms' : 'قاعات الاجتماعات', icon: Video },
                 ...settings,
             ]
 
@@ -387,6 +394,7 @@ function getNavigationByRole(role: string, english = false) {
                 { href: '/principal/classes' as any, label: english ? 'Classes' : 'الفصول', icon: Users },
                 { href: '/principal/teachers' as any, label: english ? 'Teachers' : 'المعلمون', icon: BookOpen },
                 { href: '/principal/analytics' as any, label: english ? 'Reports and analytics' : 'التقارير والإحصاءات', icon: BarChart3 },
+                { href: '/meetings' as any, label: english ? 'Nexus Meeting Rooms' : 'قاعات الاجتماعات', icon: Video },
             ]
 
         case 'vice_principal':
@@ -396,6 +404,7 @@ function getNavigationByRole(role: string, english = false) {
                 { href: '/vice_principal/attendance' as any, label: english ? 'School attendance' : 'الحضور العام', icon: QrCode },
                 { href: '/vice_principal/students' as any, label: english ? 'Student records' : 'سجلات الطلاب', icon: GraduationCap },
                 { href: '/vice_principal/classes' as any, label: english ? 'Classes' : 'الفصول', icon: BookOpen },
+                { href: '/meetings' as any, label: english ? 'Nexus Meeting Rooms' : 'قاعات الاجتماعات', icon: Video },
             ]
 
         case 'counselor':
@@ -406,6 +415,7 @@ function getNavigationByRole(role: string, english = false) {
                 { href: '/counselor/cases' as any, label: english ? 'Follow-up cases' : 'الحالات', icon: HeartHandshake },
                 { href: '/counselor/attendance' as any, label: english ? 'Absences' : 'الغيابات', icon: Calendar },
                 { href: '/counselor/parent-surveys' as any, label: english ? 'Parent surveys' : 'استبيانات أولياء الأمور', icon: ClipboardList },
+                { href: '/meetings' as any, label: english ? 'Nexus Meeting Rooms' : 'قاعات الاجتماعات', icon: Video },
             ]
 
         case 'supervisor':
@@ -415,6 +425,7 @@ function getNavigationByRole(role: string, english = false) {
                 { href: '/supervisor/teachers' as any, label: english ? 'Teachers' : 'المعلمون', icon: Eye },
                 { href: '/supervisor/classes' as any, label: english ? 'Classes' : 'الفصول', icon: BookOpen },
                 { href: '/supervisor/reports' as any, label: english ? 'Reports' : 'التقارير', icon: BarChart3 },
+                { href: '/meetings' as any, label: english ? 'Nexus Meeting Rooms' : 'قاعات الاجتماعات', icon: Video },
             ]
 
         case 'accountant':
@@ -424,6 +435,7 @@ function getNavigationByRole(role: string, english = false) {
                 { href: '/accountant/classes' as any, label: english ? 'Classes' : 'الفصول الدراسية', icon: BookOpen },
                 { href: '/accountant/reports' as any, label: english ? 'Financial reports' : 'التقارير المالية', icon: BarChart3 },
                 { href: '/accountant/invoices' as any, label: english ? 'Invoices and collections' : 'الفواتير والتحصيل', icon: CreditCard },
+                { href: '/meetings' as any, label: english ? 'Nexus Meeting Rooms' : 'قاعات الاجتماعات', icon: Video },
             ]
 
         case 'hr':
@@ -433,6 +445,7 @@ function getNavigationByRole(role: string, english = false) {
                 { href: '/hr/classes' as any, label: english ? 'Classes' : 'الفصول الدراسية', icon: BookOpen },
                 { href: '/hr/employees' as any, label: english ? 'Staff directory' : 'دليل الموظفين', icon: Users },
                 { href: '/hr/reports' as any, label: english ? 'HR summary' : 'ملخص الموارد البشرية', icon: BarChart3 },
+                { href: '/meetings' as any, label: english ? 'Nexus Meeting Rooms' : 'قاعات الاجتماعات', icon: Video },
             ]
 
         default:
@@ -441,4 +454,43 @@ function getNavigationByRole(role: string, english = false) {
                 ...settings,
             ]
     }
+}
+
+function getNavigationSections(role: string, items: ReturnType<typeof getNavigationByRole>, english: boolean) {
+    if (['student', 'teacher', 'parent'].includes(role)) return [{ key: 'all', label: '', items }]
+
+    const dashboard = items.filter((item) => item.href === `/${role}`)
+    const remaining = items.filter((item) => item.href !== `/${role}`)
+    const groups = new Map<string, typeof items>()
+    const labels: Record<string, [string, string]> = {
+        school: ['إدارة المدرسة', 'School management'],
+        learning: ['التعليم والمحتوى', 'Learning and content'],
+        followup: ['المتابعة والتقارير', 'Monitoring and reports'],
+        communication: ['التواصل والاجتماعات', 'Communication and meetings'],
+        operations: ['الأعمال والإعدادات', 'Operations and settings'],
+    }
+    const classify = (href: string) => {
+        if (role === 'admin' || role === 'manager') {
+            if (/\/admin\/(students|users|registration-archive|classes|subjects|enrollments)/.test(href)) return 'school'
+            if (/\/assessment\/|\/admin\/(content|games)/.test(href)) return 'learning'
+            if (/\/meetings/.test(href)) return 'communication'
+            return 'operations'
+        }
+        if (/\/(classes|students|teachers)(\?|$)/.test(href)) return 'school'
+        if (/\/(analytics|reports|attendance|schedules|cases|parent-surveys)/.test(href)) return 'followup'
+        if (/\/meetings/.test(href)) return 'communication'
+        return 'operations'
+    }
+    for (const item of remaining) {
+        const key = classify(item.href)
+        groups.set(key, [...(groups.get(key) || []), item])
+    }
+
+    const result = [] as Array<{ key: string; label: string; items: typeof items }>
+    if (dashboard.length) result.push({ key: 'home', label: english ? 'Home' : 'الرئيسية', items: dashboard })
+    for (const key of ['school', 'learning', 'followup', 'communication', 'operations']) {
+        const groupedItems = groups.get(key)
+        if (groupedItems?.length) result.push({ key, label: labels[key][english ? 1 : 0], items: groupedItems })
+    }
+    return result
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface ErrorBoundaryProps {
   error: Error & { digest?: string };
@@ -8,13 +8,40 @@ interface ErrorBoundaryProps {
 }
 
 export default function GlobalError({ error, reset }: ErrorBoundaryProps) {
+  const [isEnglish, setIsEnglish] = useState(false);
+
   useEffect(() => {
     // Log error to monitoring service
     console.error('Application Error:', error);
   }, [error]);
 
+  useEffect(() => {
+    const english = window.location.pathname === '/en' || window.location.pathname.startsWith('/en/');
+    setIsEnglish(english);
+    document.documentElement.lang = english ? 'en' : 'ar';
+    document.documentElement.dir = english ? 'ltr' : 'rtl';
+  }, []);
+
+  const copy = isEnglish
+    ? {
+        title: 'An unexpected error occurred',
+        description: 'We are sorry about this error. Please try again or contact technical support.',
+        retry: 'Try again',
+        home: 'Home page',
+        help: 'Need help?',
+        contact: 'Contact us',
+      }
+    : {
+        title: 'حدث خطأ غير متوقع',
+        description: 'نعتذر عن هذا الخطأ. يرجى المحاولة مرة أخرى أو التواصل مع الدعم الفني.',
+        retry: 'حاول مرة أخرى',
+        home: 'الصفحة الرئيسية',
+        help: 'هل تحتاج مساعدة؟',
+        contact: 'تواصل معنا',
+      };
+
   return (
-    <html lang="ar" dir="rtl">
+    <html lang={isEnglish ? 'en' : 'ar'} dir={isEnglish ? 'ltr' : 'rtl'}>
       <body>
         <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
           <div className="max-w-md w-full bg-slate-800 rounded-xl shadow-2xl p-8 text-center">
@@ -37,12 +64,12 @@ export default function GlobalError({ error, reset }: ErrorBoundaryProps) {
 
             {/* Title */}
             <h1 className="text-2xl font-bold text-white mb-2">
-              حدث خطأ غير متوقع
+              {copy.title}
             </h1>
 
             {/* Description */}
             <p className="text-slate-400 mb-6">
-              نعتذر عن هذا الخطأ. يرجى المحاولة مرة أخرى أو التواصل مع الدعم الفني.
+              {copy.description}
             </p>
 
             {/* Error Details (Development only) */}
@@ -60,21 +87,21 @@ export default function GlobalError({ error, reset }: ErrorBoundaryProps) {
                 onClick={reset}
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
               >
-                حاول مرة أخرى
+                {copy.retry}
               </button>
               <button
-                onClick={() => window.location.href = '/'}
+                onClick={() => window.location.href = isEnglish ? '/en' : '/'}
                 className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors"
               >
-                الصفحة الرئيسية
+                {copy.home}
               </button>
             </div>
 
             {/* Contact Support */}
             <p className="mt-6 text-sm text-slate-500">
-              هل تحتاج مساعدة؟{' '}
+              {copy.help}{' '}
               <a href="mailto:support@million-platform.com" className="text-blue-400 hover:underline">
-                تواصل معنا
+                {copy.contact}
               </a>
             </p>
           </div>

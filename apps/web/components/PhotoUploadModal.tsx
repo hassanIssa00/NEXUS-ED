@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useLocale } from 'next-intl'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Camera, Upload, X, Check, Trash2, Sparkles, User } from 'lucide-react'
 
@@ -28,6 +29,7 @@ export function PhotoUploadModal({
   onSave,
   role = 'student'
 }: PhotoUploadModalProps) {
+  const isEnglish = useLocale() === 'en'
   const [preview, setPreview] = useState<string | null>(currentPhoto || null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -38,7 +40,7 @@ export function PhotoUploadModal({
     if (!file) return
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت.')
+      alert(isEnglish ? 'The image is too large. Choose an image smaller than 5 MB.' : 'حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت.')
       return
     }
 
@@ -78,8 +80,8 @@ export function PhotoUploadModal({
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-white dark:bg-[#1a1a2e] border border-gray-100 dark:border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl p-6 text-right"
-          dir="rtl"
+          className={`bg-white dark:bg-[#1a1a2e] border border-gray-100 dark:border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl p-6 ${isEnglish ? 'text-left' : 'text-right'}`}
+          dir={isEnglish ? 'ltr' : 'rtl'}
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-white/10 mb-6">
@@ -89,9 +91,9 @@ export function PhotoUploadModal({
               </div>
               <div>
                 <h3 className="text-base font-black text-gray-900 dark:text-white">
-                  {role === 'teacher' ? 'الصورة الشخصية للمعلم' : 'الصورة الشخصية للطالب'}
+                  {role === 'teacher' ? (isEnglish ? 'Teacher profile photo' : 'الصورة الشخصية للمعلم') : (isEnglish ? 'Student profile photo' : 'الصورة الشخصية للطالب')}
                 </h3>
-                <p className="text-xs text-gray-400">ارفع صورتك الخاصة أو اختر صورة رمزية معتمدة</p>
+                <p className="text-xs text-gray-400">{isEnglish ? 'Upload your photo or choose an available avatar.' : 'ارفع صورتك الخاصة أو اختر صورة رمزية معتمدة'}</p>
               </div>
             </div>
             <button
@@ -120,7 +122,7 @@ export function PhotoUploadModal({
               </button>
             </div>
             <p className="text-xs font-bold text-gray-500 mt-3">
-              {preview ? 'الصورة المحددة حالياً' : 'لم يتم اختيار صورة بعد (فارغة)'}
+              {preview ? (isEnglish ? 'Current photo' : 'الصورة المحددة حالياً') : (isEnglish ? 'No photo selected yet' : 'لم يتم اختيار صورة بعد (فارغة)')}
             </p>
           </div>
 
@@ -139,14 +141,14 @@ export function PhotoUploadModal({
             className="w-full py-3 px-4 rounded-2xl border-2 border-dashed border-teal-500/40 hover:border-teal-500 bg-teal-50/50 dark:bg-teal-950/20 text-teal-700 dark:text-teal-300 font-bold text-xs flex items-center justify-center gap-2 transition-all mb-4"
           >
             <Upload className="w-4 h-4" />
-            <span>انقر لاختيار صورة من جهازك</span>
+            <span>{isEnglish ? 'Choose a photo from your device' : 'انقر لاختيار صورة من جهازك'}</span>
           </button>
 
           {/* Preset Avatars */}
           <div className="mb-6">
             <div className="flex items-center gap-1.5 text-xs font-bold text-gray-500 mb-2">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>أو اختر صورة جاهزة:</span>
+              <span>{isEnglish ? 'Or choose an avatar:' : 'أو اختر صورة جاهزة:'}</span>
             </div>
             <div className="flex items-center justify-center gap-2.5 overflow-x-auto py-1">
               {PRESET_AVATARS.map((url, i) => (
@@ -171,7 +173,7 @@ export function PhotoUploadModal({
               className="flex-1 py-3.5 rounded-2xl font-black text-xs bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 transition-all"
             >
               <Check className="w-4 h-4" />
-              <span>حفظ الصورة وتأكيدها</span>
+              <span>{isEnglish ? 'Save photo' : 'حفظ الصورة وتأكيدها'}</span>
             </button>
             {preview && (
               <button
@@ -179,7 +181,7 @@ export function PhotoUploadModal({
                 className="py-3.5 px-4 rounded-2xl font-bold text-xs bg-red-50 dark:bg-red-950/30 text-red-600 border border-red-200 dark:border-red-900/30 hover:bg-red-100 flex items-center justify-center gap-1.5 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
-                <span>حذف</span>
+                <span>{isEnglish ? 'Remove' : 'حذف'}</span>
               </button>
             )}
           </div>

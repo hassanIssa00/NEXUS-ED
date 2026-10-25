@@ -57,9 +57,30 @@ export class TeacherWorkspaceService {
     const enrollments = await this.prisma.enrollment.findMany({
       where: { classId, class: { schoolId: actor.schoolId } },
       orderBy: { student: { name: 'asc' } },
-      include: { student: { select: { id: true, name: true, email: true, avatar: true } } },
+      include: {
+        student: {
+          select: {
+            id: true, name: true, email: true, avatar: true,
+            parents: { select: { parent: { select: { id: true, name: true, phone: true, role: true, schoolId: true } } } },
+          },
+        },
+      },
     });
-    return enrollments.map((enrollment) => enrollment.student);
+    const avatarReferences = [...new Set(enrollments.map(({ student }) => student.avatar).filter((value): value is string => Boolean(value) && (value!.startsWith('storage://') || value!.startsWith('https://'))))];
+    const signedAvatars = avatarReferences.length
+      ? await this.uploads.getSignedUrlsForReferences(avatarReferences).catch(() => avatarReferences)
+      : [];
+    const avatarByReference = new Map(avatarReferences.map((reference, index) => [reference, signedAvatars[index]]));
+    return enrollments.map(({ student }) => ({
+      id: student.id,
+      name: student.name,
+      email: student.email,
+      avatar: student.avatar ? avatarByReference.get(student.avatar) || null : null,
+      parents: student.parents
+        .map((link) => link.parent)
+        .filter((parent) => parent.role === 'PARENT' && parent.schoolId === actor.schoolId)
+        .map(({ id, name, phone }) => ({ id, name, phone })),
+    }));
   }
 
   async listTeacherQuizzes(actor: WorkspaceActor) {
@@ -255,10 +276,16 @@ export class TeacherWorkspaceService {
   async createEvent(actor: WorkspaceActor, input: any) {
     const classId = this.requiredText(input.classId, 'الفصل', 1, 100);
     await this.assertTeacherClass(actor, classId);
-    const references = Array.isArray(input.photoReferences) ? input.photoReferences.slice(0, 10).map(String) : [];
-    const ownedReferences = await Promise.all(references.map((reference) =>
-      this.uploads.getOwnedFileReference(reference, actor.userId, actor.schoolId, true),
-    ));
+    let externalUrl: string | null = null;
+    if (typeof input.externalUrl === 'string' && input.externalUrl.trim()) {
+      try {
+        const parsed = new URL(input.externalUrl.trim());
+        if (parsed.protocol !== 'https:' || parsed.username || parsed.password) throw new Error('invalid URL');
+        externalUrl = parsed.toString();
+      } catch {
+        throw new BadRequestException('أدخل رابطًا آمنًا يبدأ بـ HTTPS');
+      }
+    }
     const startsAt = input.startsAt ? new Date(input.startsAt) : null;
     if (startsAt && Number.isNaN(startsAt.getTime())) throw new BadRequestException('تاريخ الفعالية غير صالح');
     return this.prisma.classEvent.create({
@@ -270,7 +297,7 @@ export class TeacherWorkspaceService {
         description: this.optionalText(input.description, 3000),
         eventType: ['CLASS_EVENT', 'PHOTO_ALBUM', 'ANNOUNCEMENT'].includes(input.eventType) ? input.eventType : 'CLASS_EVENT',
         startsAt,
-        photoReferences: ownedReferences,
+        externalUrl,
         published: true,
       },
     });
@@ -296,11 +323,23 @@ export class TeacherWorkspaceService {
   async createMeeting(actor: WorkspaceActor, input: any) {
     const classId = this.requiredText(input.classId, 'الفصل', 1, 100);
     await this.assertTeacherClass(actor, classId);
+    const parentId = this.requiredText(input.parentId, 'ولي الأمر', 1, 100);
+    const studentId = this.requiredText(input.studentId, 'الطالب', 1, 100);
+    const parentStudent = await this.prisma.parentStudent.findFirst({
+      where: {
+        parentId,
+        studentId,
+        parent: { role: 'PARENT', schoolId: actor.schoolId },
+        student: { schoolId: actor.schoolId, enrollments: { some: { classId } } },
+      },
+      select: { id: true },
+    });
+    if (!parentStudent) throw new BadRequestException('ولي الأمر المحدد غير مرتبط بطالب مسجل في هذا الفصل');
     const startsAt = new Date(input.startsAt);
-    const endsAt = new Date(input.endsAt);
-    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
-      throw new BadRequestException('تحقق من موعد بداية اللقاء ونهايته');
-    }
+    const durationMinutes = Number(input.durationMinutes);
+    if (Number.isNaN(startsAt.getTime()) || startsAt <= new Date()) throw new BadRequestException('اختر موعدًا قادمًا صالحًا');
+    if (![15, 30, 45, 60].includes(durationMinutes)) throw new BadRequestException('اختر مدة لقاء من القائمة المتاحة');
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
     const mode = input.mode === 'ONLINE' ? 'ONLINE' : 'IN_PERSON';
     const meetingUrl = this.optionalText(input.meetingUrl, 500);
     if (mode === 'ONLINE' && (!meetingUrl || !/^https:\/\//i.test(meetingUrl))) throw new BadRequestException('أدخل رابط لقاء آمن يبدأ بـ HTTPS');
@@ -316,7 +355,8 @@ export class TeacherWorkspaceService {
         mode,
         location: this.optionalText(input.location, 300),
         meetingUrl: mode === 'ONLINE' ? meetingUrl : null,
-        maxBookings: Math.max(1, Math.min(30, Number(input.maxBookings) || 1)),
+        maxBookings: 1,
+        bookings: { create: { parentId, studentId, status: 'BOOKED' } },
       },
     });
   }
@@ -334,7 +374,17 @@ export class TeacherWorkspaceService {
     await this.assertParentOf(actor, studentId);
     const classIds = await this.studentClassIds(studentId, actor.schoolId);
     return this.prisma.parentMeeting.findMany({
-      where: { schoolId: actor.schoolId, classId: { in: classIds }, isOpen: true, endsAt: { gte: new Date() } },
+      where: {
+        schoolId: actor.schoolId,
+        classId: { in: classIds },
+        isOpen: true,
+        endsAt: { gte: new Date() },
+        OR: [
+          { maxBookings: { gt: 1 } },
+          { bookings: { none: {} } },
+          { bookings: { some: { parentId: actor.userId, studentId } } },
+        ],
+      },
       orderBy: { startsAt: 'asc' },
       include: {
         class: { select: { name: true } },
@@ -351,8 +401,11 @@ export class TeacherWorkspaceService {
     return this.prisma.$transaction(async (tx) => {
       const meeting = await tx.parentMeeting.findFirst({
         where: { id: meetingId, schoolId: actor.schoolId, isOpen: true, startsAt: { gt: new Date() } },
+        include: { bookings: { where: { parentId: actor.userId, studentId }, select: { id: true, status: true } } },
       });
       if (!meeting) throw new NotFoundException('موعد اللقاء غير متاح');
+      const existingBooking = meeting.bookings[0];
+      if (existingBooking?.status === 'BOOKED') return existingBooking;
       const enrolled = await tx.enrollment.findFirst({ where: { studentId, classId: meeting.classId }, select: { id: true } });
       if (!enrolled) throw new ForbiddenException('اللقاء غير مرتبط بملف الطالب');
       const activeBookings = await tx.parentMeetingBooking.count({ where: { meetingId, status: 'BOOKED' } });
@@ -445,7 +498,7 @@ export class TeacherWorkspaceService {
         schoolId: actor.schoolId,
         studentId,
         issuerId: actor.userId,
-        serial: `NEX-${new Date().getFullYear()}-${randomBytes(6).toString('hex').toUpperCase()}`,
+        serial: `NEX-${new Date().getFullYear()}-${randomBytes(10).toString('hex').toUpperCase()}`,
         title: this.requiredText(input.title, 'عنوان الشهادة', 2, 160),
         description: this.optionalText(input.description, 1000),
       },
@@ -477,6 +530,38 @@ export class TeacherWorkspaceService {
       || (actor.role === 'PARENT' && await this.isParentOf(actor.userId, certificate.studentId));
     if (!allowed && !['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'SUPERVISOR'].includes(actor.role)) throw new ForbiddenException();
     return certificate;
+  }
+
+  async verifyCertificate(serial: string) {
+    const normalizedSerial = serial.trim().toUpperCase();
+    if (!/^NEX-\d{4}-[A-F0-9]{12,20}$/.test(normalizedSerial)) {
+      throw new NotFoundException('الشهادة غير موجودة أو رقمها غير صالح');
+    }
+
+    const certificate = await this.prisma.certificate.findUnique({
+      where: { serial: normalizedSerial },
+      select: {
+        serial: true,
+        title: true,
+        description: true,
+        createdAt: true,
+        school: { select: { name: true } },
+        student: { select: { name: true, firstName: true, lastName: true } },
+        issuer: { select: { name: true } },
+      },
+    });
+    if (!certificate) throw new NotFoundException('الشهادة غير موجودة أو لم تصدر من نكسس');
+
+    return {
+      verified: true,
+      serial: certificate.serial,
+      title: certificate.title,
+      description: certificate.description,
+      issuedAt: certificate.createdAt,
+      schoolName: certificate.school.name,
+      studentName: certificate.student.name || [certificate.student.firstName, certificate.student.lastName].filter(Boolean).join(' ') || 'الطالب',
+      issuerName: certificate.school.name || 'مدارس الإخلاص الأهلية',
+    };
   }
 
   private async assertTeacherClass(actor: WorkspaceActor, classId: string) {

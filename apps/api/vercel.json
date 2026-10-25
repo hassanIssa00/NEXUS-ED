@@ -5,6 +5,10 @@
     {
       "path": "/api/internal/automation/run",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/internal/class-sessions/reconcile-expired",
+      "schedule": "55 20 * * *"
     }
   ]
 }

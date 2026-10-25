@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { assignmentService, Assignment, CreateAssignmentDto } from '@/lib/services/assignment.service';
 import { apiClient } from '@/lib/api/client';
 import { UploadResponse } from '@/lib/services/upload.service';
 import FileUpload from '@/components/FileUpload';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface Subject {
     id: string;
@@ -15,6 +16,8 @@ interface Subject {
 }
 
 export default function AssignmentsPage() {
+    const locale = useLocale();
+    const isEnglish = locale === 'en';
     const tAssign = useTranslations('assignment');
     const tCommon = useTranslations('common');
     const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -76,7 +79,7 @@ export default function AssignmentsPage() {
                     attachments: formData.attachments,
                 });
             } else {
-                if (!formData.subjectId) throw new Error('اختر المادة قبل حفظ الواجب');
+                if (!formData.subjectId) throw new Error(isEnglish ? 'Select a subject before saving the assignment.' : 'اختر المادة قبل حفظ الواجب');
                 await assignmentService.create({ ...formData, dueDate: formData.dueDate || undefined });
             }
             setIsModalOpen(false);
@@ -278,11 +281,12 @@ export default function AssignmentsPage() {
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                             {tAssign('dueDate')}
                                         </label>
-                                        <input
-                                            type="date"
+                                        <DatePicker
                                             value={formData.dueDate}
-                                            onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                                            onChange={(dueDate) => setFormData({ ...formData, dueDate })}
+                                            placeholder={tAssign('dueDate')}
+                                            locale={isEnglish ? 'en' : 'ar'}
+                                            className="w-full rounded-md"
                                         />
                                     </div>
                                     <div>

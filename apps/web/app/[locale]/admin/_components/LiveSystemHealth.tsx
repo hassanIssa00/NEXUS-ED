@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Activity, CheckCircle2, AlertCircle, XCircle, RefreshCw, Server, Database, Zap, Globe } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
+import { useLocale } from 'next-intl'
 
 type HealthStatus = 'healthy' | 'warning' | 'error' | 'checking'
 
@@ -13,13 +14,14 @@ function StatusDot({ status }: { status: HealthStatus }) {
 }
 
 const SERVICES = [
-  { label: 'الخادم الرئيسي', key: 'server', icon: Server },
-  { label: 'قاعدة البيانات', key: 'database', icon: Database },
-  { label: 'وحدة الذكاء الاصطناعي', key: 'ai', icon: Zap },
-  { label: 'شبكة التوصيل CDN', key: 'cdn', icon: Globe },
+  { label: 'الخادم الرئيسي', labelEn: 'Application server', key: 'server', icon: Server },
+  { label: 'قاعدة البيانات', labelEn: 'Database', key: 'database', icon: Database },
+  { label: 'وحدة الذكاء الاصطناعي', labelEn: 'AI service', key: 'ai', icon: Zap },
+  { label: 'شبكة التوصيل CDN', labelEn: 'Content delivery network (CDN)', key: 'cdn', icon: Globe },
 ]
 
 export function LiveSystemHealth() {
+  const isEnglish = useLocale() === 'en'
   const [statuses, setStatuses] = useState<Record<string, HealthStatus>>({ server: 'checking', database: 'checking', ai: 'checking', cdn: 'checking' })
   const [lastChecked, setLastChecked] = useState<Date | null>(null)
   const [checking, setChecking] = useState(false)
@@ -46,11 +48,11 @@ export function LiveSystemHealth() {
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${allHealthy ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-rose-50 dark:bg-rose-500/10'}`}>
             <Activity className={`w-4 h-4 ${allHealthy ? 'text-emerald-500' : 'text-rose-500'}`} />
           </div>
-          صحة النظام المباشرة
+          {isEnglish ? 'Live system health' : 'صحة النظام المباشرة'}
         </h3>
         <button onClick={check} disabled={checking} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-medium transition-colors">
           <RefreshCw className={`w-3.5 h-3.5 ${checking ? 'animate-spin' : ''}`} />
-          تحديث
+          {isEnglish ? 'Refresh' : 'تحديث'}
         </button>
       </div>
 
@@ -58,9 +60,9 @@ export function LiveSystemHealth() {
         {allHealthy ? <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" /> : hasError ? <XCircle className="w-5 h-5 text-rose-500 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0" />}
         <div>
           <p className={`text-xs font-black ${allHealthy ? 'text-emerald-700 dark:text-emerald-400' : hasError ? 'text-rose-700 dark:text-rose-400' : 'text-amber-700 dark:text-amber-400'}`}>
-            {allHealthy ? '🟢 جميع الأنظمة تعمل بكفاءة تامة' : hasError ? '🔴 يوجد خلل في بعض الأنظمة' : '🟡 تحذير: بعض الأنظمة تحتاج للمراجعة'}
+            {allHealthy ? (isEnglish ? '🟢 All systems are operating normally' : '🟢 جميع الأنظمة تعمل بكفاءة تامة') : hasError ? (isEnglish ? '🔴 Some systems have an issue' : '🔴 يوجد خلل في بعض الأنظمة') : (isEnglish ? '🟡 Some systems need attention' : '🟡 تحذير: بعض الأنظمة تحتاج للمراجعة')}
           </p>
-          {lastChecked && <p className="text-[10px] text-gray-400 mt-0.5">آخر فحص: {lastChecked.toLocaleTimeString('ar-SA')}</p>}
+          {lastChecked && <p className="text-[10px] text-gray-400 mt-0.5">{isEnglish ? 'Last checked:' : 'آخر فحص:'} {lastChecked.toLocaleTimeString(isEnglish ? 'en-US' : 'ar-SA')}</p>}
         </div>
       </div>
 
@@ -75,11 +77,11 @@ export function LiveSystemHealth() {
                 <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center">
                   <Icon className="w-4 h-4 text-gray-500" />
                 </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{svc.label}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{isEnglish ? svc.labelEn : svc.label}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold text-gray-400">
-                  {status === 'healthy' ? 'يعمل' : status === 'warning' ? 'تحذير' : status === 'error' ? 'خطأ' : 'جاري الفحص'}
+                  {status === 'healthy' ? (isEnglish ? 'Operational' : 'يعمل') : status === 'warning' ? (isEnglish ? 'Warning' : 'تحذير') : status === 'error' ? (isEnglish ? 'Error' : 'خطأ') : (isEnglish ? 'Checking' : 'جاري الفحص')}
                 </span>
                 <StatusDot status={status} />
               </div>

@@ -14,6 +14,7 @@ import { SanitizeInterceptor } from './infrastructure/interceptors/sanitize.inte
 import { PerformanceInterceptor } from './infrastructure/interceptors/performance.interceptor';
 import { validateProductionConfiguration } from './config/jwt';
 import { PrismaRateLimitStore, configureQuotaStorage } from './common/persistent-quota-storage';
+import { generalLimiter } from './middleware/ratelimit.middleware';
 import { PrismaService } from './prisma.service';
 
 const envPath = path.resolve(process.cwd(), '.env');
@@ -28,7 +29,9 @@ async function bootstrap() {
   });
   configureQuotaStorage(app.get(PrismaService));
 
-  if (process.env.VERCEL === '1') {
+  // Production traffic reaches this service through one trusted reverse proxy
+  // (Vercel or Caddy). Correct client IPs are required for the global IP quota.
+  if (process.env.NODE_ENV === 'production') {
     app.getHttpAdapter().getInstance().set('trust proxy', 1);
   }
 
@@ -71,6 +74,10 @@ async function bootstrap() {
     noSniff: true,
     xssFilter: true,
   }));
+
+  // Apply the shared IP safety ceiling to all API routes. Login and other
+  // sensitive endpoints keep their additional stricter limits below.
+  app.use('/api', generalLimiter);
 
   // Strict Auth rate limiting: 10 attempts per 15 min
   app.use('/api/auth/login', rateLimit({

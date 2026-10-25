@@ -10,6 +10,7 @@ import {
 import { EventsGateway } from '../gateway/events.gateway';
 import { GamificationService } from '../gamification/gamification.service';
 import { UploadService } from '../upload/upload.service';
+import { AutoGradingService } from './auto-grading.service';
 
 @Injectable()
 export class AssignmentService {
@@ -18,7 +19,21 @@ export class AssignmentService {
     @Optional() private eventsGateway: EventsGateway,
     @Optional() private gamification: GamificationService,
     @Optional() private uploadService?: UploadService,
+    @Optional() private autoGrading?: AutoGradingService,
   ) {}
+
+  private validateCurriculumPages(data: { curriculumSlug?: string; curriculumPageFrom?: number; curriculumPageTo?: number; deliveryMode?: string }) {
+    const hasPages = data.curriculumPageFrom !== undefined || data.curriculumPageTo !== undefined;
+    if (hasPages && (!data.curriculumSlug || !data.curriculumPageFrom || !data.curriculumPageTo || data.curriculumPageTo < data.curriculumPageFrom)) {
+      throw new BadRequestException('حدد الكتاب ورقم الصفحة الأولى والأخيرة بطريقة صحيحة.');
+    }
+    if (data.deliveryMode === 'BOOK_PAGES' && !hasPages) {
+      throw new BadRequestException('واجب صفحات الكتاب يحتاج إلى تحديد الكتاب والصفحات المطلوبة.');
+    }
+    if (data.deliveryMode === 'BOOK_PAGES' && data.curriculumPageFrom && data.curriculumPageTo && data.curriculumPageTo - data.curriculumPageFrom + 1 > 30) {
+      throw new BadRequestException('واجب صفحات الكتاب يدعم حتى 30 صفحة في المرة الواحدة.');
+    }
+  }
 
   private async ownedFileReferences(
     values: string[],
@@ -112,6 +127,72 @@ export class AssignmentService {
     }
   }
 
+  private validateQuestions(value: unknown): Prisma.InputJsonValue | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (!Array.isArray(value) || value.length > 30) throw new BadRequestException('عدد أسئلة الواجب يجب ألا يتجاوز 30');
+    if (value.length === 0) return undefined;
+
+    return value.map((raw, index) => {
+      if (!raw || typeof raw !== 'object') throw new BadRequestException(`السؤال ${index + 1} غير صالح`);
+      const question = raw as Record<string, unknown>;
+      const prompt = typeof question.prompt === 'string' ? question.prompt.trim() : '';
+      const type = question.type;
+      const points = Number(question.points);
+      if (prompt.length < 2 || prompt.length > 2000 || !['multiple_choice', 'true_false', 'short_answer', 'essay'].includes(String(type)) || !Number.isFinite(points) || points <= 0 || points > 100) {
+        throw new BadRequestException(`تحقق من نص ونوع ودرجة السؤال ${index + 1}`);
+      }
+
+      const normalized: Record<string, Prisma.InputJsonValue> = {
+        id: typeof question.id === 'string' && /^[a-z0-9_-]{1,50}$/i.test(question.id) ? question.id : `q${index + 1}`,
+        prompt,
+        type: String(type),
+        points,
+      };
+      if (type === 'multiple_choice') {
+        if (!Array.isArray(question.options) || question.options.length < 2 || question.options.length > 8) throw new BadRequestException(`أضف خيارين على الأقل للسؤال ${index + 1}`);
+        const options = question.options.map((rawOption) => {
+          const option = rawOption as Record<string, unknown>;
+          const text = typeof option?.text === 'string' ? option.text.trim() : '';
+          if (!text || text.length > 300) throw new BadRequestException(`أحد خيارات السؤال ${index + 1} غير صالح`);
+          return { text, correct: option.correct === true };
+        });
+        if (options.filter((option) => option.correct).length !== 1) throw new BadRequestException(`حدد إجابة صحيحة واحدة للسؤال ${index + 1}`);
+        normalized.options = options;
+      }
+      if (type === 'true_false') {
+        if (!['true', 'false'].includes(String(question.correctAnswer))) throw new BadRequestException(`حدد إجابة السؤال ${index + 1}`);
+        normalized.correctAnswer = String(question.correctAnswer);
+      }
+      if (type === 'short_answer') {
+        const answer = typeof question.correctAnswer === 'string' ? question.correctAnswer.trim() : '';
+        if (!answer || answer.length > 1000) throw new BadRequestException(`حدد الإجابة النموذجية للسؤال ${index + 1}`);
+        normalized.correctAnswer = answer;
+      }
+      if (type === 'essay' && typeof question.correctAnswer === 'string' && question.correctAnswer.trim()) {
+        normalized.correctAnswer = question.correctAnswer.trim().slice(0, 1000);
+      }
+      return normalized;
+    }) as Prisma.InputJsonValue;
+  }
+
+  private questionsForStudent(value: Prisma.JsonValue | null) {
+    if (!Array.isArray(value)) return [];
+    return value.map((raw) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+      const question = raw as Prisma.JsonObject;
+      const options = Array.isArray(question.options)
+        ? question.options.flatMap((option) => option && typeof option === 'object' && !Array.isArray(option) && typeof option.text === 'string' ? [option.text] : [])
+        : question.type === 'true_false' ? ['صح', 'خطأ'] : undefined;
+      return {
+        id: typeof question.id === 'string' ? question.id : '',
+        prompt: typeof question.prompt === 'string' ? question.prompt : '',
+        type: typeof question.type === 'string' ? question.type : 'essay',
+        points: typeof question.points === 'number' ? question.points : 1,
+        ...(options ? { options } : {}),
+      };
+    }).filter(Boolean);
+  }
+
   async create(data: CreateAssignmentDto, teacherId: string) {
     const actor = await this.getActiveActor(teacherId);
     if (actor.role !== 'TEACHER' && actor.role !== 'ADMIN') {
@@ -119,7 +200,21 @@ export class AssignmentService {
     }
     const subject = await this.prisma.subject.findUnique({
       where: { id: data.subjectId },
-      select: { id: true, name: true, code: true, teacherId: true, schoolId: true, classId: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        teacherId: true,
+        schoolId: true,
+        classId: true,
+        class: { select: { teacherId: true, schoolId: true } },
+        classSubjects: {
+          select: {
+            teacherId: true,
+            class: { select: { schoolId: true } },
+          },
+        },
+      },
     });
 
     if (!subject) {
@@ -129,7 +224,14 @@ export class AssignmentService {
     if (!subject.schoolId || subject.schoolId !== actor.schoolId) {
       throw new ForbiddenException('Subject belongs to another school');
     }
-    if (actor.role === 'TEACHER' && subject.teacherId !== teacherId) {
+    const teacherHasSubjectAssignment =
+      subject.teacherId === teacherId ||
+      (subject.class.schoolId === actor.schoolId && subject.class.teacherId === teacherId) ||
+      subject.classSubjects.some(
+        (classSubject) =>
+          classSubject.teacherId === teacherId && classSubject.class.schoolId === actor.schoolId,
+      );
+    if (actor.role === 'TEACHER' && !teacherHasSubjectAssignment) {
       throw new ForbiddenException('You do not teach this subject');
     }
     const assignedTeacherId = actor.role === 'TEACHER' ? teacherId : subject.teacherId;
@@ -142,11 +244,24 @@ export class AssignmentService {
       throw new ForbiddenException('The subject teacher is not an active teacher in this school');
     }
     const attachments = await this.ownedFileReferences(data.attachments, actor);
+    const questions = this.validateQuestions(data.questions);
+    const deliveryMode = data.deliveryMode || 'AI_QUESTIONS';
+    if (deliveryMode === 'AI_QUESTIONS' && (!Array.isArray(questions) || questions.length === 0)) {
+      throw new BadRequestException('أنشئ أسئلة الواجب واحفظها قبل الإسناد حتى تظهر للطلاب.');
+    }
+    this.validateCurriculumPages(data);
 
     const assignment = await this.prisma.assignment.create({
       data: {
-        ...data,
+        title: data.title,
+        description: data.description,
+        subjectId: data.subjectId,
         attachments,
+        questions,
+        deliveryMode,
+        curriculumSlug: data.curriculumSlug,
+        curriculumPageFrom: data.curriculumPageFrom,
+        curriculumPageTo: data.curriculumPageTo,
         teacherId: assignedTeacherId,
         schoolId: subject.schoolId,
         classId: subject.classId,
@@ -316,6 +431,7 @@ export class AssignmentService {
       return classSubjects.flatMap((classSubject) =>
         classSubject.subject.assignments.map((assignment) => ({
           ...assignment,
+          questions: this.questionsForStudent(assignment.questions),
           classId: enrollment.classId,
           submission: assignment.submissions[0] || null,
           status: assignment.submissions[0]?.gradedAt
@@ -403,6 +519,7 @@ export class AssignmentService {
     const attachments = data.attachments === undefined
       ? undefined
       : await this.ownedFileReferences(data.attachments, actor);
+    this.validateCurriculumPages(data);
 
     const updatedAssignment = await this.prisma.assignment.update({
       where: { id },
@@ -476,6 +593,9 @@ export class AssignmentService {
     }
     const assignment = (await this.findByStudent(studentId)).find((item) => item.id === assignmentId);
     if (!assignment) throw new NotFoundException('Assignment not found');
+    if (assignment.deliveryMode === 'BOOK_PAGES' && !(data.attachments?.length)) {
+      throw new BadRequestException('ارفع صورة واضحة لصفحات الكتاب بعد كتابة الحل عليها.');
+    }
     const attachments = await this.ownedFileReferences(data.attachments, actor);
 
     // Check if already submitted
@@ -493,7 +613,7 @@ export class AssignmentService {
         throw new ForbiddenException('A graded submission cannot be replaced');
       }
       // Update existing submission
-      return this.prisma.submission.update({
+      const submission = await this.prisma.submission.update({
         where: { id: existing.id },
         data: {
           content: data.content?.trim() || null,
@@ -504,7 +624,8 @@ export class AssignmentService {
           feedback: null,
           gradedAt: null,
         },
-      }).then(async (submission) => {
+      });
+      {
         const assignmentWithSchool = await this.prisma.assignment.findUnique({
           where: { id: assignmentId },
           select: { schoolId: true, title: true },
@@ -521,8 +642,13 @@ export class AssignmentService {
           },
         });
 
-        return this.signAttachmentFields(submission);
-      });
+      }
+      const shouldAutoGrade = Boolean(assignment.questions) || assignment.deliveryMode === 'BOOK_PAGES';
+      if (shouldAutoGrade && this.autoGrading) await this.autoGrading.gradeWithAI(assignmentId, submission.id);
+      const finalSubmission = shouldAutoGrade && this.autoGrading
+        ? await this.prisma.submission.findUnique({ where: { id: submission.id } }) || submission
+        : submission;
+      return this.signAttachmentFields(finalSubmission);
     }
 
     const submission = await this.prisma.submission.create({
@@ -556,7 +682,12 @@ export class AssignmentService {
       await this.gamification.awardXp(studentId, xpAward, reason, submission.id);
     }
 
-    return this.signAttachmentFields(submission);
+    const shouldAutoGrade = Boolean(assignment.questions) || assignment.deliveryMode === 'BOOK_PAGES';
+    if (shouldAutoGrade && this.autoGrading) await this.autoGrading.gradeWithAI(assignmentId, submission.id);
+    const finalSubmission = shouldAutoGrade && this.autoGrading
+      ? await this.prisma.submission.findUnique({ where: { id: submission.id } }) || submission
+      : submission;
+    return this.signAttachmentFields(finalSubmission);
   }
 
   async getSubmissions(assignmentId: string, teacherId: string) {

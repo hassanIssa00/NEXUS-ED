@@ -19,3 +19,14 @@ export function isValidAvatarImage(
     && buffer.toString('ascii', 0, 4) === 'RIFF'
     && buffer.toString('ascii', 8, 12) === 'WEBP';
 }
+
+export function avatarDataUrlToBuffer(value: string, maxSizeBytes = 512 * 1024): Buffer | null {
+  const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+  if (!match || match[2].length > Math.ceil(maxSizeBytes * 4 / 3) + 4) return null;
+
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.toString('base64') !== match[2] || !isValidAvatarImage(buffer, match[1], buffer.length, maxSizeBytes)) {
+    return null;
+  }
+  return buffer;
+}

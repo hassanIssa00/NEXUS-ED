@@ -6,23 +6,29 @@ import { PrismaRateLimitStore } from '../common/persistent-quota-storage';
  * Rate limiting configuration for different endpoints
  */
 
-// General API rate limiter - 100 requests per 15 minutes
+// Broad safety ceiling for every API route. The higher ceiling accounts for
+// school networks where many students and staff share a single public IP;
+// authenticated users also receive the tighter account-based Nest limits.
 export const generalLimiter = rateLimit({
   store: new PrismaRateLimitStore('http-general'),
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 12_000,
   message: {
     success: false,
-    error: 'Too many requests, please try again later.',
+    error: 'تجاوزت الشبكة الحد العام للطلبات. حاول مرة أخرى بعد قليل.',
     retryAfter: '15 minutes',
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  skip: (req: Request) => {
+    if (req.method === 'OPTIONS') return true;
+    const path = (req.originalUrl || req.url).split('?')[0];
+    return /^\/api\/(?:health|metrics)(?:\/|$)/.test(path);
+  },
   handler: (req: Request, res: Response) => {
     res.status(429).json({
       success: false,
-      error:
-        'Too many requests from this IP, please try again after 15 minutes',
+      error: 'تجاوزت الشبكة الحد العام للطلبات. حاول مرة أخرى بعد 15 دقيقة.',
     });
   },
 });

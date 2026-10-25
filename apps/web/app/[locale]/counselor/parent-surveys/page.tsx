@@ -128,7 +128,7 @@ export default function ParentSurveyReportPage() {
 
       {selected && <section className="border-t border-gray-200 pt-5 dark:border-white/10">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white">إجابات {selected.student.name || selected.student.email}</h2>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">{locale === 'en' ? 'Responses for' : 'إجابات'} {selected.student.name || selected.student.email}</h2>
           <p className="text-xs text-gray-500">{t.by} {selected.parent.name || selected.parent.email}</p>
         </div>
         <dl className="mt-4 divide-y divide-gray-100 dark:divide-white/10">

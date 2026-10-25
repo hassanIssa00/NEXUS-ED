@@ -181,7 +181,7 @@ export default function GlobalLoginSelectorPage() {
                                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
                             </div>
                             <div>
-                                <h1 className="text-xl font-black text-slate-900">نكسس</h1>
+                                <h1 className="text-xl font-black text-slate-900">{isArabic ? 'نكسس' : 'NEXUS'}</h1>
                                 <p className="text-[10px] text-primary-500 font-bold tracking-widest uppercase">NEXUS EDU</p>
                             </div>
                         </motion.div>

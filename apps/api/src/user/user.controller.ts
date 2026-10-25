@@ -34,14 +34,12 @@ export class UserController {
     return this.userService.findById(userId, req.user.schoolId);
   }
 
-  /** Update currently logged-in user's profile (name, phone, avatar) */
+  /** Update the current user's editable profile fields. A registered name is immutable here. */
   @Patch('me')
   @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT, Role.PARENT, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.ACCOUNTANT, Role.HR)
   updateMe(@Request() req: any, @Body() updateDto: UpdateUserDto) {
     const userId = req.user?.userId || req.user?.sub || req.user?.id;
-    // Strip admin-only fields
-    const { role, schoolId, ...safeData } = updateDto as any;
-    return this.userService.update(userId, safeData, req.user.schoolId);
+    return this.userService.updateSelfProfile(userId, updateDto, req.user.schoolId);
   }
 
   @Post('me/presence')
@@ -54,6 +52,12 @@ export class UserController {
   @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.ACCOUNTANT, Role.HR)
   findAll(@Query() filters: UserFilterDto, @Request() req: any) {
     return this.userService.findAll(filters, this.schoolId(req));
+  }
+
+  @Get('school-signature')
+  @Roles(Role.ADMIN, Role.TEACHER, Role.STUDENT, Role.PARENT, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.COUNSELOR, Role.SUPERVISOR, Role.ACCOUNTANT, Role.HR)
+  getSchoolSignature(@Request() req: any) {
+    return this.userService.getSchoolPrincipal(this.schoolId(req));
   }
 
   @Get('stats')
@@ -133,7 +137,7 @@ export class UserController {
   @Patch(':id')
   @Roles(Role.ADMIN)
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto, @Request() req: any) {
-    return this.userService.update(id, updateUserDto, this.schoolId(req));
+    return this.userService.update(id, updateUserDto, this.schoolId(req), this.userId(req));
   }
 
   @Delete(':id')

@@ -11,8 +11,11 @@ import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
 import { Loader2, Save, User } from 'lucide-react';
 import { ChangePasswordForm } from '@/components/settings/change-password-form';
+import { useLocale } from 'next-intl';
 
 export default function SettingsPage() {
+    const isEnglish = useLocale() === 'en';
+    const t = (ar: string, en: string) => isEnglish ? en : ar;
     const { user, profile } = useAuth();
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
@@ -40,16 +43,12 @@ export default function SettingsPage() {
     }, [profile]);
 
     const handleSave = async () => {
-        if (!formData.name.trim()) {
-            toast({ title: 'خطأ', description: 'الاسم لا يمكن أن يكون فارغاً', variant: 'destructive' });
-            return;
-        }
         setSaving(true);
         try {
-            await apiClient.patch('/users/me', formData);
-            toast({ title: '✅ تم الحفظ', description: 'تم تحديث بياناتك بنجاح' });
+            await apiClient.patch('/users/me', { phone: formData.phone });
+            toast({ title: `✅ ${t('تم الحفظ', 'Saved')}`, description: t('تم تحديث بياناتك بنجاح', 'Your information has been updated.') });
         } catch (e: any) {
-            toast({ title: 'خطأ', description: e.response?.data?.message || 'فشل حفظ الإعدادات', variant: 'destructive' });
+            toast({ title: t('خطأ', 'Error'), description: isEnglish ? 'Could not save settings. Try again.' : (e.response?.data?.message || 'فشل حفظ الإعدادات'), variant: 'destructive' });
         } finally {
             setSaving(false);
         }
@@ -66,10 +65,10 @@ export default function SettingsPage() {
     const initials = (formData.name || user?.email || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
     return (
-        <div className="max-w-2xl space-y-6" dir="rtl">
+        <div className="max-w-2xl space-y-6" dir={isEnglish ? 'ltr' : 'rtl'}>
             <div>
-                <h1 className="text-3xl font-bold">⚙️ الإعدادات</h1>
-                <p className="text-muted-foreground mt-1">تحكم في ملفك الشخصي وتفضيلاتك</p>
+                <h1 className="text-3xl font-bold">⚙️ {t('الإعدادات', 'Settings')}</h1>
+                <p className="text-muted-foreground mt-1">{t('تحكم في ملفك الشخصي وتفضيلاتك', 'Manage your profile and preferences')}</p>
             </div>
 
             <div className="grid gap-6">
@@ -78,7 +77,7 @@ export default function SettingsPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <User className="w-5 h-5 text-primary" />
-                            الملف الشخصي
+                            {t('الملف الشخصي', 'Profile')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-5">
@@ -90,32 +89,33 @@ export default function SettingsPage() {
                                 </AvatarFallback>
                             </Avatar>
                             <div>
-                                <p className="font-semibold">{formData.name || 'الطالب'}</p>
+                                <p className="font-semibold">{formData.name || t('الطالب', 'Student')}</p>
                                 <p className="text-sm text-muted-foreground">{user?.email}</p>
                             </div>
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="name">الاسم الكامل</Label>
+                                <Label htmlFor="name">{t('الاسم الكامل', 'Full name')}</Label>
                                 <Input
                                     id="name"
                                     value={formData.name}
-                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                    placeholder="أدخل اسمك الكامل"
+                                    disabled
+                                    className="bg-muted"
                                 />
+                                <p className="text-xs text-muted-foreground">{t('الاسم مرتبط بسجل المدرسة ولا يمكن تغييره من الحساب.', 'Your name is linked to the school record and cannot be changed from this account.')}</p>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="email">البريد الإلكتروني</Label>
+                                <Label htmlFor="email">{t('البريد الإلكتروني', 'Email address')}</Label>
                                 <Input id="email" value={user?.email || ''} disabled className="bg-muted" />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="phone">رقم الهاتف</Label>
+                                <Label htmlFor="phone">{t('رقم الهاتف', 'Phone number')}</Label>
                                 <Input
                                     id="phone"
                                     value={formData.phone}
                                     onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                                    placeholder="05XXXXXXXX"
+                                    placeholder={isEnglish ? '05XXXXXXXX' : '05XXXXXXXX'}
                                     dir="ltr"
                                 />
                             </div>
@@ -128,7 +128,7 @@ export default function SettingsPage() {
                 <div className="flex justify-end">
                     <Button onClick={handleSave} disabled={saving} className="gap-2 min-w-32">
                         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+                        {saving ? t('جاري الحفظ...', 'Saving...') : t('حفظ التغييرات', 'Save changes')}
                     </Button>
                 </div>
             </div>

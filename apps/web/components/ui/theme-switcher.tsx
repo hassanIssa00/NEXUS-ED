@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useLocale } from 'next-intl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Moon, Sun, Palette, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,15 +22,16 @@ interface ThemeConfig {
     colorScheme: ColorScheme;
 }
 
-const colorSchemes: Record<ColorScheme, { name: string; primary: string; accent: string }> = {
-    blue: { name: 'كحلي', primary: '#234A65', accent: '#98793E' },
-    purple: { name: 'ذهبي', primary: '#98793E', accent: '#234A65' },
-    green: { name: 'أخضر', primary: '#10b981', accent: '#34d399' },
-    orange: { name: 'برتقالي', primary: '#f59e0b', accent: '#fbbf24' },
-    rose: { name: 'وردي', primary: '#f43f5e', accent: '#fb7185' },
+const colorSchemes: Record<ColorScheme, { name: string; nameEn: string; primary: string; accent: string }> = {
+    blue: { name: 'كحلي', nameEn: 'Navy', primary: '#234A65', accent: '#98793E' },
+    purple: { name: 'ذهبي', nameEn: 'Gold', primary: '#98793E', accent: '#234A65' },
+    green: { name: 'أخضر', nameEn: 'Green', primary: '#10b981', accent: '#34d399' },
+    orange: { name: 'برتقالي', nameEn: 'Orange', primary: '#f59e0b', accent: '#fbbf24' },
+    rose: { name: 'وردي', nameEn: 'Rose', primary: '#f43f5e', accent: '#fb7185' },
 };
 
 export function ThemeSwitcher() {
+    const isEnglish = useLocale() === 'en';
     const [config, setConfig] = useState<ThemeConfig>({ theme: 'system', colorScheme: 'blue' });
     const [mounted, setMounted] = useState(false);
 
@@ -91,25 +93,25 @@ export function ThemeSwitcher() {
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>المظهر</DropdownMenuLabel>
+                <DropdownMenuLabel>{isEnglish ? 'Appearance' : 'المظهر'}</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => setTheme('light')}>
-                    <Sun className="w-4 h-4 ml-2" />
-                    فاتح
+                    <Sun className="w-4 h-4 me-2" />
+                    {isEnglish ? 'Light' : 'فاتح'}
                     {config.theme === 'light' && <Check className="w-4 h-4 mr-auto" />}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setTheme('dark')}>
-                    <Moon className="w-4 h-4 ml-2" />
-                    داكن
+                    <Moon className="w-4 h-4 me-2" />
+                    {isEnglish ? 'Dark' : 'داكن'}
                     {config.theme === 'dark' && <Check className="w-4 h-4 mr-auto" />}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setTheme('system')}>
-                    <Palette className="w-4 h-4 ml-2" />
-                    تلقائي
+                    <Palette className="w-4 h-4 me-2" />
+                    {isEnglish ? 'System' : 'تلقائي'}
                     {config.theme === 'system' && <Check className="w-4 h-4 mr-auto" />}
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel>اللون الرئيسي</DropdownMenuLabel>
+                <DropdownMenuLabel>{isEnglish ? 'Accent color' : 'اللون الرئيسي'}</DropdownMenuLabel>
                 
                 <div className="p-2 grid grid-cols-5 gap-2">
                     {(Object.keys(colorSchemes) as ColorScheme[]).map((scheme) => (
@@ -122,7 +124,7 @@ export function ThemeSwitcher() {
                             style={{ backgroundColor: colorSchemes[scheme].primary }}
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.95 }}
-                            title={colorSchemes[scheme].name}
+                            title={isEnglish ? colorSchemes[scheme].nameEn : colorSchemes[scheme].name}
                         >
                             {config.colorScheme === scheme && (
                                 <Check className="w-4 h-4 text-white" />

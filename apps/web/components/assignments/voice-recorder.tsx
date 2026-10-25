@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Mic, Square, Play, Trash2, Volume2 } from 'lucide-react';
 import { uploadFile } from '@/lib/api/files';
@@ -11,6 +12,8 @@ interface VoiceRecorderProps {
 }
 
 export function VoiceRecorder({ onAudioUpload, isUploading }: VoiceRecorderProps) {
+  const isEnglish = useLocale() === 'en';
+  const copy = (ar: string, en: string) => isEnglish ? en : ar;
   const [isRecording, setIsRecording] = useState(false);
   const [audioURL, setAudioURL] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -41,7 +44,7 @@ export function VoiceRecorder({ onAudioUpload, isUploading }: VoiceRecorderProps
       setIsRecording(true);
     } catch (err) {
       console.error('Error accessing microphone', err);
-      alert('Could not access microphone');
+      alert(copy('تعذر الوصول إلى الميكروفون.', 'Could not access the microphone.'));
     }
   };
 
@@ -73,12 +76,12 @@ export function VoiceRecorder({ onAudioUpload, isUploading }: VoiceRecorderProps
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium flex items-center gap-2">
           <Volume2 className="w-4 h-4" />
-          ملاحظة صوتية
+          {copy('ملاحظة صوتية', 'Voice note')}
         </span>
         {isRecording && (
           <span className="flex items-center gap-1 text-red-500 animate-pulse text-xs">
             <span className="w-2 h-2 bg-red-500 rounded-full" />
-            جاري التسجيل...
+            {copy('جاري التسجيل...', 'Recording...')}
           </span>
         )}
       </div>
@@ -93,7 +96,7 @@ export function VoiceRecorder({ onAudioUpload, isUploading }: VoiceRecorderProps
             className="flex-1 gap-2"
           >
             <Mic className="w-4 h-4 text-red-500" />
-            بدء التسجيل
+            {copy('بدء التسجيل', 'Start recording')}
           </Button>
         )}
 
@@ -106,7 +109,7 @@ export function VoiceRecorder({ onAudioUpload, isUploading }: VoiceRecorderProps
             className="flex-1 gap-2"
           >
             <Square className="w-4 h-4" />
-            إيقاف
+            {copy('إيقاف', 'Stop')}
           </Button>
         )}
 
@@ -127,7 +130,7 @@ export function VoiceRecorder({ onAudioUpload, isUploading }: VoiceRecorderProps
       </div>
       
       {isUploading && (
-        <div className="text-[10px] text-blue-500">جاري الرفع...</div>
+        <div className="text-[10px] text-blue-500">{copy('جاري الرفع...', 'Uploading...')}</div>
       )}
     </div>
   );

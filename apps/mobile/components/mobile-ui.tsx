@@ -7,7 +7,7 @@ import { BRAND } from '@/constants/Config';
 export function AppPage({ children, contentStyle, scroll = true }: { children: React.ReactNode; contentStyle?: ViewStyle; scroll?: boolean }) {
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {scroll ? <ScrollView keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, contentStyle]}>{children}</ScrollView> : <View style={contentStyle}>{children}</View>}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -50,6 +50,7 @@ export function Field({ label, icon, style, secureTextEntry, onFocus, onBlur, ..
           {...props}
           secureTextEntry={secureTextEntry && !passwordVisible}
           autoCorrect={props.autoCorrect ?? false}
+          showSoftInputOnFocus={props.showSoftInputOnFocus ?? true}
           underlineColorAndroid="transparent"
           keyboardAppearance="light"
           style={[styles.input, style]}

@@ -33,6 +33,7 @@ export interface EarlyWarning {
 export interface ParentReport {
   studentInfo: {
     name: string;
+    avatar?: string | null;
     class: string;
     period: string;
   };
@@ -103,7 +104,7 @@ export class StudentAnalyticsService {
     const isTeacher = actorRole === 'TEACHER' && student.enrollments.some(({ class: schoolClass }) =>
       schoolClass.teacherId === actorId || schoolClass.classSubjects.some((subject) => subject.teacherId === actorId),
     );
-    const isSchoolStaff = sameSchool && ['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'COUNSELOR', 'SUPERVISOR', 'HR'].includes(actorRole);
+    const isSchoolStaff = sameSchool && ['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'COUNSELOR', 'SUPERVISOR', 'ACCOUNTANT', 'HR'].includes(actorRole);
 
     if (!isStudent && !isParent && !isTeacher && !isSchoolStaff) {
       throw new ForbiddenException('You do not have access to this student');
@@ -710,6 +711,7 @@ export class StudentAnalyticsService {
           student?.name ||
           `${student?.firstName || ''} ${student?.lastName || ''}`.trim() ||
           'Unknown',
+        avatar: student.avatar,
         class: student.enrollments.map((item) => item.class.name).filter(Boolean).join('، ') || 'غير محدد',
         period: period === 'week' ? 'أسبوعي' : 'شهري',
       },

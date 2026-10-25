@@ -259,77 +259,110 @@ export class AutoGradingService {
 
       const maxScore = assignment.maxScore || (assignment as any).points || 10;
 
-      // Build multi-modal content (text + optional images for Vision)
-      const contentParts: any[] = [
-        {
-          type: 'text',
-          text: `تعليمات الواجب:\n${assignment.description || 'لا توجد تعليمات محددة.'}\n\nإجابة الطالب:\n${submission.content || '(لم يكتب الطالب إجابة نصية)'}`,
-        },
-      ];
+      const answerKey = Array.isArray(assignment.questions) ? assignment.questions.map((raw: any, index) => {
+        if (!raw || typeof raw !== 'object') return null;
+        const options = Array.isArray(raw.options) ? raw.options.map((option: any) => option?.correct ? option.text : null).filter(Boolean) : [];
+        return {
+          question: index + 1,
+          prompt: typeof raw.prompt === 'string' ? raw.prompt : '',
+          type: typeof raw.type === 'string' ? raw.type : 'essay',
+          points: typeof raw.points === 'number' ? raw.points : 1,
+          correctAnswer: options.length ? options.join(' / ') : (typeof raw.correctAnswer === 'string' ? raw.correctAnswer : null),
+        };
+      }).filter(Boolean) : [];
 
+      const isBookPagesWork = (assignment as any).deliveryMode === 'BOOK_PAGES';
       const attachments = (submission.attachments) || [];
       const attachmentUrls = this.uploadService
         ? await this.uploadService.getSignedUrlsForReferences(attachments)
         : attachments;
       const imageUrls: string[] = [];
       for (const url of attachmentUrls) {
-        if (/\.(png|jpg|jpeg|gif|webp)(?:\?|$)/i.test(url)) {
+        if (/\.(png|jpg|jpeg|webp)(?:\?|$)/i.test(url)) {
           imageUrls.push(url);
-          contentParts.push({ type: 'image_url', image_url: { url, detail: 'low' } });
         }
       }
 
-      if (attachmentUrls.length !== imageUrls.length || (this.ai.name === 'Groq' && imageUrls.length > 3)) {
+      const maxImagesPerRequest = this.ai.name === 'Groq' ? 3 : 10;
+      if (
+        attachmentUrls.length !== imageUrls.length ||
+        (isBookPagesWork && imageUrls.length === 0) ||
+        (!isBookPagesWork && imageUrls.length > maxImagesPerRequest)
+      ) {
         await this.prisma.submission.update({
           where: { id: submissionId },
           data: {
             feedback: JSON.stringify({
-              text: 'يتطلب هذا التسليم مراجعة المعلم؛ نوع المرفقات أو عددها لا يدعمه التصحيح الآلي الحالي.',
+              text: 'يتطلب هذا التسليم مراجعة المعلم؛ أرسل صورًا واضحة للحل بصيغة JPG أو PNG أو WebP ليتمكن الذكاء الاصطناعي من قراءته.',
               isAiGenerated: false,
+              requiresReview: true,
             }),
           },
         });
         return;
       }
 
-      const systemPrompt = withNexusContext(`أنت معلم خبير ومتعاطف. قيّم إجابة الطالب بعدالة.
-الدرجة القصوى: ${maxScore}.
-أرجع JSON فقط بهذا الشكل الدقيق:
-{
-  "score": <رقم من 0 إلى ${maxScore}>,
-  "feedback": "<رسالة تشجيعية بالعربية توضح نقاط القوة والأماكن التي تحتاج تحسيناً>",
-  "strengths": ["<نقطة قوة 1>", "<نقطة قوة 2>"],
-  "weaknesses": ["<نقطة تحسين 1>"]
-}`);
-
-      const completion = await this.ai.client.chat.completions.create({
-        model: imageUrls.length ? this.ai.visionModel : this.ai.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: contentParts },
-        ],
-        response_format: { type: 'json_object' },
-        max_tokens: 800,
-        temperature: 0.3,
-      });
-
-      const content = completion.choices[0]?.message?.content;
-      if (!content) throw new Error('Empty AI grading response');
-      const parsed = JSON.parse(content);
-      if (typeof parsed.score !== 'number' || !Number.isFinite(parsed.score) ||
-          parsed.score < 0 || parsed.score > maxScore || typeof parsed.feedback !== 'string' ||
-          !Array.isArray(parsed.strengths) || !parsed.strengths.every((value: unknown) => typeof value === 'string') ||
-          !Array.isArray(parsed.weaknesses) || !parsed.weaknesses.every((value: unknown) => typeof value === 'string')) {
-        throw new Error('AI response did not match the grading schema');
+      const imageBatches: string[][] = [];
+      const batchSize = isBookPagesWork ? maxImagesPerRequest : Math.max(1, imageUrls.length);
+      if (imageUrls.length) {
+        for (let index = 0; index < imageUrls.length; index += batchSize) {
+          imageBatches.push(imageUrls.slice(index, index + batchSize));
+        }
+      } else {
+        imageBatches.push([]);
       }
 
-      const score = Math.round(parsed.score * 100) / 100;
+      const gradeResults: Array<{ score: number; feedback: string; strengths: string[]; weaknesses: string[]; weight: number }> = [];
+      for (const batch of imageBatches) {
+        const batchMaxScore = isBookPagesWork
+          ? maxScore * (batch.length / imageUrls.length)
+          : maxScore;
+        const pageRange = (assignment as any).curriculumPageFrom && (assignment as any).curriculumPageTo
+          ? `الصفحات ${assignment.curriculumPageFrom}–${assignment.curriculumPageTo} من الكتاب.`
+          : '';
+        const gradingInstructions = isBookPagesWork
+          ? `هذا تسليم لواجب صفحات كتاب. الصور المرفقة هي صفحات التمرينات بعد أن كتب الطالب عليها. اقرأ التمرينات المطبوعة وإجابات الطالب بخطه، وقارن كل إجابة بما يطلبه السؤال. ${pageRange} لا تخمّن ما لا يظهر بوضوح؛ اذكر الحاجة إلى مراجعة المعلم في الملاحظات عند وجود صورة غير مقروءة أو سؤال لا يمكن التحقق منه.`
+          : 'صحّح إجابة الطالب بالاعتماد على مفتاح الإجابة إن توفر، وقيّم الإجابات المقالية بإنصاف.';
+        const userContent: any[] = [{
+          type: 'text',
+          text: `تعليمات الواجب:\n${assignment.description || 'لا توجد تعليمات محددة.'}\n\n${gradingInstructions}\n\n${answerKey.length ? `الأسئلة ومفتاح الإجابة المعتمد (مرجع خاص بالتصحيح ولا تعرضه للطالب):\n${JSON.stringify(answerKey, null, 2)}\n\n` : ''}إجابة الطالب النصية إن وجدت:\n${submission.content || '(الحل مكتوب في الصور المرفقة)'}`,
+        }, ...batch.map((url) => ({ type: 'image_url', image_url: { url, detail: 'high' } }))];
+        const systemPrompt = withNexusContext(`أنت معلم خبير ومتعاطف. قيّم إجابة الطالب بعدالة.\nالدرجة القصوى لهذه الدفعة: ${batchMaxScore}.\nأرجع JSON فقط بالشكل الدقيق التالي:\n{\n  "score": <رقم من 0 إلى ${batchMaxScore}>,\n  "feedback": "<ملاحظات عربية واضحة ومشجعة>",\n  "strengths": ["<نقطة قوة>"],\n  "weaknesses": ["<نقطة تحتاج تحسينًا>"]\n}`);
+        const completion = await this.ai.client.chat.completions.create({
+          model: batch.length ? this.ai.visionModel : this.ai.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userContent },
+          ],
+          response_format: { type: 'json_object' },
+          max_tokens: 800,
+          temperature: 0.3,
+        });
+        const responseContent = completion.choices[0]?.message?.content;
+        if (!responseContent) throw new Error('Empty AI grading response');
+        const parsed = JSON.parse(responseContent);
+        if (typeof parsed.score !== 'number' || !Number.isFinite(parsed.score) ||
+            parsed.score < 0 || parsed.score > batchMaxScore || typeof parsed.feedback !== 'string' ||
+            !Array.isArray(parsed.strengths) || !parsed.strengths.every((value: unknown) => typeof value === 'string') ||
+            !Array.isArray(parsed.weaknesses) || !parsed.weaknesses.every((value: unknown) => typeof value === 'string')) {
+          throw new Error('AI response did not match the grading schema');
+        }
+        gradeResults.push({
+          score: parsed.score,
+          feedback: parsed.feedback,
+          strengths: parsed.strengths,
+          weaknesses: parsed.weaknesses,
+          weight: isBookPagesWork ? batch.length / imageUrls.length : 1,
+        });
+      }
 
+      const score = Math.round(gradeResults.reduce((sum, result) => sum + result.score, 0) * 100) / 100;
       const feedbackPayload = JSON.stringify({
-        text: parsed.feedback,
-        strengths: parsed.strengths,
-        weaknesses: parsed.weaknesses,
+        text: gradeResults.map((result) => result.feedback).filter(Boolean).join('\n\n'),
+        strengths: gradeResults.flatMap((result) => result.strengths).slice(0, 12),
+        weaknesses: gradeResults.flatMap((result) => result.weaknesses).slice(0, 12),
         isAiGenerated: true,
+        requiresReview: isBookPagesWork,
       });
 
       await this.saveAutoGrade(submissionId, score, feedbackPayload);

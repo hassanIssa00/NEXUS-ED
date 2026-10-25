@@ -95,3 +95,45 @@ describe('TeacherWorkspaceService parent meeting bookings', () => {
     }));
   });
 });
+
+describe('TeacherWorkspaceService certificate verification', () => {
+  const serial = 'NEX-2026-ABCDEF0123456789ABCD';
+
+  it('returns only the public details needed to verify an issued certificate', async () => {
+    const issuedAt = new Date('2026-10-23T08:00:00.000Z');
+    const certificate = {
+      serial,
+      title: 'شهادة تميز أكاديمي',
+      description: 'تقديرًا للاجتهاد.',
+      createdAt: issuedAt,
+      school: { name: 'مدارس الإخلاص الأهلية' },
+      student: { name: 'اسم الطالب', firstName: 'اسم', lastName: 'الطالب' },
+      issuer: { name: 'المعلم المسؤول' },
+    };
+    const prisma = { certificate: { findUnique: jest.fn().mockResolvedValue(certificate) } };
+    const service = new TeacherWorkspaceService(prisma as any, {} as any);
+
+    await expect(service.verifyCertificate(serial.toLowerCase())).resolves.toEqual({
+      verified: true,
+      serial,
+      title: 'شهادة تميز أكاديمي',
+      description: 'تقديرًا للاجتهاد.',
+      issuedAt,
+      schoolName: 'مدارس الإخلاص الأهلية',
+      studentName: 'اسم الطالب',
+      issuerName: 'المعلم المسؤول',
+    });
+    expect(prisma.certificate.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      where: { serial },
+      select: expect.not.objectContaining({ id: true, schoolId: true, studentId: true, issuerId: true }),
+    }));
+  });
+
+  it('does not query the database for malformed certificate serials', async () => {
+    const prisma = { certificate: { findUnique: jest.fn() } };
+    const service = new TeacherWorkspaceService(prisma as any, {} as any);
+
+    await expect(service.verifyCertificate('invalid')).rejects.toThrow('رقمها غير صالح');
+    expect(prisma.certificate.findUnique).not.toHaveBeenCalled();
+  });
+});

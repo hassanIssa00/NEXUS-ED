@@ -198,7 +198,7 @@ export default function RoleLoginPage() {
                             <img src="/second_logo.webp" alt="Partner Logo" className="w-12 h-12 rounded-2xl object-cover shadow-lg border-2 border-white/20 bg-white" />
                         </div>
                         <div>
-                            <span className="text-2xl font-bold text-white">نِكْسُس</span>
+                            <span className="text-2xl font-bold text-white">{isArabic ? 'نِكْسُس' : 'NEXUS'}</span>
                             <span className="block text-[10px] font-bold tracking-[0.2em] text-white/60 uppercase">NEXUS EDU</span>
                         </div>
                     </div>

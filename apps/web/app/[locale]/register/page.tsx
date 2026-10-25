@@ -421,8 +421,9 @@ function RegisterForm() {
 }
 
 export default function RegisterPage() {
+  const locale = useLocale();
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-gray-500">جارٍ تحميل صفحة التسجيل...</div>}>
+    <Suspense fallback={<div dir={locale === 'en' ? 'ltr' : 'rtl'} className="flex min-h-screen items-center justify-center text-sm text-gray-500">{locale === 'en' ? 'Loading registration…' : 'جارٍ تحميل صفحة التسجيل...'}</div>}>
       <RegisterForm />
     </Suspense>
   );

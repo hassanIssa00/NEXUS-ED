@@ -42,9 +42,11 @@ export default function proxy(request: NextRequest) {
     ]);
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+    const liveKitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://meetings.nexus.masarplatform.org';
 
     addOrigin(apiUrl, connectSources);
     addOrigin(socketUrl, connectSources);
+    addOrigin(liveKitUrl, connectSources);
 
     for (const endpoint of [apiUrl, socketUrl]) {
         if (!endpoint) continue;

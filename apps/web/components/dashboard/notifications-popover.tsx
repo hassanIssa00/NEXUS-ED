@@ -11,7 +11,8 @@ import {
 import { Bell, FileText, Award, Calendar, CheckCircle2, X, Zap, BrainCircuit, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
-import { arSA } from 'date-fns/locale';
+import { arSA, enUS } from 'date-fns/locale';
+import { useLocale } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api/client';
 import { useRealtimeNotifications } from '@/lib/providers/socket-provider';
@@ -27,6 +28,21 @@ interface Notification {
     createdAt: string;
     actionUrl?: string;
     isLive?: boolean;
+}
+
+const englishNotificationTitles: Record<string, string> = {
+    ASSIGNMENT_LATE: 'Assignment deadline',
+    GRADE_POSTED: 'Grade posted',
+    STUDENT_ABSENT: 'Attendance update',
+    ANNOUNCEMENT: 'School announcement',
+    EXAM_REMINDER: 'Exam reminder',
+    new_assignment: 'New assignment',
+    grade_updated: 'Grade updated',
+    message: 'New message',
+};
+
+function isArabicText(value?: string | null) {
+    return Boolean(value && /[\u0600-\u06FF]/.test(value));
 }
 
 // ── Icon map ───────────────────────────────────────────────
@@ -52,6 +68,8 @@ function NotifIcon({ type }: { type: string }) {
 
 // ── Main Component ─────────────────────────────────────────
 export function EnhancedNotifications() {
+    const locale = useLocale();
+    const isEnglish = locale === 'en';
     const [open, setOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(false);
@@ -67,8 +85,12 @@ export function EnhancedNotifications() {
             const items: Notification[] = (res.data?.data || res.data || []).map((n: any) => ({
                 id: n.id,
                 type: n.type || 'ANNOUNCEMENT',
-                title: n.titleAr || n.title || 'إشعار جديد',
-                body: n.bodyAr || n.body || n.message,
+                title: isEnglish
+                    ? (n.titleEn || (!isArabicText(n.title) ? n.title : '') || englishNotificationTitles[n.type] || 'New notification')
+                    : (n.titleAr || n.title || 'إشعار جديد'),
+                body: isEnglish
+                    ? (n.bodyEn || (!isArabicText(n.body) ? n.body : '') || (!isArabicText(n.message) ? n.message : '') || undefined)
+                    : (n.bodyAr || n.body || n.message),
                 isRead: n.isRead ?? false,
                 createdAt: n.createdAt,
                 actionUrl: n.data ? JSON.parse(n.data)?.actionUrl : undefined,
@@ -79,7 +101,7 @@ export function EnhancedNotifications() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [isEnglish]);
 
     useEffect(() => { loadNotifications(); }, [loadNotifications]);
 
@@ -88,8 +110,12 @@ export function EnhancedNotifications() {
         const item: Notification = {
             id: n.id || `live-${Date.now()}`,
             type: n.type || 'ANNOUNCEMENT',
-            title: n.title || 'إشعار جديد',
-            body: n.body,
+            title: isEnglish
+                ? (n.titleEn || (!isArabicText(n.title) ? n.title : '') || englishNotificationTitles[n.type] || 'New notification')
+                : (n.titleAr || n.title || 'إشعار جديد'),
+            body: isEnglish
+                ? (n.bodyEn || (!isArabicText(n.body) ? n.body : '') || undefined)
+                : (n.bodyAr || n.body),
             isRead: false,
             createdAt: n.createdAt || new Date().toISOString(),
             actionUrl: n.actionUrl,
@@ -98,7 +124,7 @@ export function EnhancedNotifications() {
         setNotifications(prev => [item, ...prev]);
         setPulse(true);
         setTimeout(() => setPulse(false), 3000);
-    }, []);
+    }, [isEnglish]);
 
     useRealtimeNotifications(handleLiveNotif);
 
@@ -135,7 +161,7 @@ export function EnhancedNotifications() {
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative h-9 w-9">
+                <Button variant="ghost" size="icon" aria-label={isEnglish ? 'Notifications' : 'الإشعارات'} className="relative h-9 w-9">
                     <Bell className={cn('h-4 w-4 transition-all', pulse && 'text-violet-600 scale-110')} />
                     <AnimatePresence>
                         {unread > 0 && (
@@ -160,22 +186,22 @@ export function EnhancedNotifications() {
                 <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white">
                     <div className="flex items-center gap-2">
                         <Bell className="w-4 h-4" />
-                        <h3 className="font-bold text-sm">الإشعارات</h3>
+                        <h3 className="font-bold text-sm">{isEnglish ? 'Notifications' : 'الإشعارات'}</h3>
                         {unread > 0 && (
                             <span className="bg-white/25 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                                {unread} جديد
+                                {isEnglish ? `${unread} new` : `${unread} جديد`}
                             </span>
                         )}
                         {/* Live indicator */}
                         <span className="flex items-center gap-1 bg-white/15 rounded-full px-2 py-0.5">
                             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                            <span className="text-[9px] font-bold text-white/80">مباشر</span>
+                            <span className="text-[9px] font-bold text-white/80">{isEnglish ? 'Live' : 'مباشر'}</span>
                         </span>
                     </div>
                     {unread > 0 && (
                         <button onClick={markAllRead}
                             className="text-[11px] text-white/70 hover:text-white font-bold transition-colors">
-                            تحديد الكل كمقروء
+                            {isEnglish ? 'Mark all as read' : 'تحديد الكل كمقروء'}
                         </button>
                     )}
                 </div>
@@ -191,21 +217,21 @@ export function EnhancedNotifications() {
                             <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
                                 <CheckCircle2 className="w-6 h-6 text-muted-foreground" />
                             </div>
-                            <p className="text-sm font-bold text-foreground">لا توجد إشعارات</p>
-                            <p className="text-xs text-muted-foreground">ستظهر هنا الإشعارات الجديدة فور وصولها</p>
+                            <p className="text-sm font-bold text-foreground">{isEnglish ? 'No notifications' : 'لا توجد إشعارات'}</p>
+                            <p className="text-xs text-muted-foreground">{isEnglish ? 'New notifications will appear here.' : 'ستظهر هنا الإشعارات الجديدة فور وصولها'}</p>
                         </div>
                     ) : (
-                        <div dir="rtl">
+                        <div dir={isEnglish ? 'ltr' : 'rtl'}>
                             {/* Unread */}
                             {unreadNs.length > 0 && (
                                 <div>
                                     <p className="text-[10px] font-bold text-muted-foreground px-4 pt-3 pb-1 uppercase tracking-wider">
-                                        غير مقروء ({unreadNs.length})
+                                        {isEnglish ? `Unread (${unreadNs.length})` : `غير مقروء (${unreadNs.length})`}
                                     </p>
                                     <div className="divide-y divide-border/50">
                                         <AnimatePresence initial={false}>
                                             {unreadNs.map(n => (
-                                                <NotifRow key={n.id} n={n} onRead={markRead} onDismiss={dismiss} />
+                                                <NotifRow key={n.id} n={n} onRead={markRead} onDismiss={dismiss} isEnglish={isEnglish} />
                                             ))}
                                         </AnimatePresence>
                                     </div>
@@ -215,11 +241,11 @@ export function EnhancedNotifications() {
                             {readNs.length > 0 && (
                                 <div>
                                     <p className="text-[10px] font-bold text-muted-foreground px-4 pt-3 pb-1 uppercase tracking-wider">
-                                        مقروء
+                                        {isEnglish ? 'Read' : 'مقروء'}
                                     </p>
                                     <div className="divide-y divide-border/50 opacity-60">
                                         {readNs.slice(0, 5).map(n => (
-                                            <NotifRow key={n.id} n={n} onRead={markRead} onDismiss={dismiss} />
+                                            <NotifRow key={n.id} n={n} onRead={markRead} onDismiss={dismiss} isEnglish={isEnglish} />
                                         ))}
                                     </div>
                                 </div>
@@ -232,11 +258,11 @@ export function EnhancedNotifications() {
                 <div className="px-4 py-3 border-t border-border flex items-center justify-between bg-muted/30">
                     <button onClick={loadNotifications}
                         className="text-xs text-muted-foreground hover:text-foreground font-bold transition-colors flex items-center gap-1">
-                        <Zap className="w-3 h-3" /> تحديث
+                        <Zap className="w-3 h-3" /> {isEnglish ? 'Refresh' : 'تحديث'}
                     </button>
-                    <a href="/student/notifications"
+                    <a href={`/${locale}/student/notifications`}
                         className="text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors">
-                        عرض الكل
+                        {isEnglish ? 'View all' : 'عرض الكل'}
                     </a>
                 </div>
             </PopoverContent>
@@ -245,14 +271,15 @@ export function EnhancedNotifications() {
 }
 
 // ── Row Component ──────────────────────────────────────────
-function NotifRow({ n, onRead, onDismiss }: {
+function NotifRow({ n, onRead, onDismiss, isEnglish }: {
     n: Notification;
     onRead: (id: string) => void;
     onDismiss: (id: string, e: React.MouseEvent) => void;
+    isEnglish: boolean;
 }) {
     const timeAgo = (() => {
         try {
-            return formatDistanceToNow(new Date(n.createdAt), { addSuffix: true, locale: arSA });
+            return formatDistanceToNow(new Date(n.createdAt), { addSuffix: true, locale: isEnglish ? enUS : arSA });
         } catch { return ''; }
     })();
 
@@ -263,6 +290,7 @@ function NotifRow({ n, onRead, onDismiss }: {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.4 }}
             onClick={() => { onRead(n.id); if (n.actionUrl) window.location.href = n.actionUrl; }}
+            dir={isEnglish ? 'ltr' : 'rtl'}
             className={cn(
                 'flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors relative group',
                 !n.isRead && 'bg-violet-50/50 dark:bg-violet-900/10'
@@ -270,7 +298,7 @@ function NotifRow({ n, onRead, onDismiss }: {
             {/* Live badge */}
             {n.isLive && (
                 <span className="absolute top-2 left-4 text-[9px] bg-violet-600 text-white font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
-                    <span className="w-1 h-1 bg-white rounded-full animate-pulse" /> مباشر
+                    <span className="w-1 h-1 bg-white rounded-full animate-pulse" /> {isEnglish ? 'Live' : 'مباشر'}
                 </span>
             )}
             <NotifIcon type={n.type} />
@@ -291,6 +319,7 @@ function NotifRow({ n, onRead, onDismiss }: {
                 )}
                 <button
                     onClick={e => onDismiss(n.id, e)}
+                    aria-label={isEnglish ? 'Dismiss notification' : 'إخفاء الإشعار'}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted">
                     <X className="w-3 h-3 text-muted-foreground" />
                 </button>

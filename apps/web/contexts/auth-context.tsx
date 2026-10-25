@@ -521,12 +521,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const refreshProfile = async () => {
         const firebaseUser = firebaseAuth?.currentUser;
         if (firebaseUser && getApiBaseUrl()) {
+            const requestEpoch = getAuthSessionEpoch();
+            const refreshFirebaseProfile = async (onboardingOnly: boolean) => {
+                const nextProfile = await exchangeFirebaseSession(firebaseUser, onboardingOnly);
+                if (
+                    nextProfile
+                    && !hasExplicitlySignedOut()
+                    && getAuthSessionEpoch() === requestEpoch
+                    && firebaseAuth?.currentUser?.uid === firebaseUser.uid
+                ) {
+                    setProfile(nextProfile);
+                }
+                return nextProfile;
+            };
+
             try {
                 await reloadFirebaseUser(firebaseUser);
                 if (!firebaseUser.emailVerified) {
                     const firebaseProfile = await fetchFirebaseProfile(firebaseUser.uid);
                     if (firebaseProfile?.role === 'parent') {
-                        return await exchangeFirebaseSession(firebaseUser, true);
+                        return await refreshFirebaseProfile(true);
                     }
                     if (firebaseProfile) {
                         const pendingProfile = { ...firebaseProfile, emailVerified: false };
@@ -535,7 +549,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     }
                     return null;
                 }
-                return await exchangeFirebaseSession(firebaseUser, !firebaseUser.emailVerified);
+                return await refreshFirebaseProfile(!firebaseUser.emailVerified);
             } catch (error) {
                 console.error('Failed to renew the platform session:', error);
                 return null;
@@ -805,7 +819,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signIn = async (email: string, password: string, expectedRole?: UserRole): Promise<UserRole> => {
         const apiBaseUrl = getApiBaseUrl();
-        const useFirebaseFirst = (expectedRole === 'student' || expectedRole === 'parent')
+        const useFirebaseFirst = expectedRole === 'student'
+            && isFirebaseConfigured
+            && Boolean(firebaseAuth);
+        const useFirebaseAfterApi = expectedRole === 'parent'
             && isFirebaseConfigured
             && Boolean(firebaseAuth);
         const apiLoginBaseUrl = useFirebaseFirst ? null : apiBaseUrl;
@@ -876,7 +893,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
             }
 
-            if (supabase && !useFirebaseFirst) {
+            if (supabase && !useFirebaseFirst && !useFirebaseAfterApi) {
                 const { data, error } = await supabase.auth.signInWithPassword({
                     email,
                     password,

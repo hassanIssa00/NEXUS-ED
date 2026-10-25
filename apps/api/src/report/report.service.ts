@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { ReportJobData } from '../queue/processors/report.processor';
+import { PrismaService } from '../prisma.service';
+import { UploadService } from '../upload/upload.service';
+import { avatarDataUrlToBuffer } from '../upload/avatar-validation';
 
 @Injectable()
 export class ReportService {
@@ -9,6 +12,8 @@ export class ReportService {
 
   constructor(
     @InjectQueue('reports') private readonly reportQueue: Queue<ReportJobData>,
+    private readonly prisma: PrismaService,
+    private readonly uploads: UploadService,
   ) {}
 
   /**
@@ -23,10 +28,23 @@ export class ReportService {
       year: string;
     },
   ): Promise<{ jobId: string }> {
+    const student = await this.prisma.user.findFirst({
+      where: { id: studentId, role: 'STUDENT' },
+      select: { name: true, firstName: true, lastName: true, avatar: true },
+    });
+    const studentAvatar = student?.avatar
+      ? student.avatar.startsWith('data:')
+        ? (avatarDataUrlToBuffer(student.avatar) ? student.avatar : null)
+        : await this.uploads.getSignedUrlForReference(student.avatar).catch(() => null)
+      : null;
     const job = await this.reportQueue.add('student-certificate', {
       type: 'student-certificate',
       format: 'pdf',
-      data,
+      data: {
+        ...data,
+        studentName: student?.name || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || data.studentName,
+        studentAvatar,
+      },
       userId: studentId,
     });
 

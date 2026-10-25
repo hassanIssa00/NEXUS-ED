@@ -11,6 +11,8 @@ type AccountRole = 'student' | 'parent';
 
 export default function ResetPasswordPage() {
   const locale = useLocale();
+  const isEnglish = locale === 'en';
+  const copy = (ar: string, en: string) => isEnglish ? en : ar;
   const router = useRouter();
   const [role, setRole] = useState<AccountRole>('student');
   const [ready, setReady] = useState(false);
@@ -26,7 +28,7 @@ export default function ResetPasswordPage() {
     if (requestedRole === 'parent' || requestedRole === 'student') setRole(requestedRole);
     if (!supabase) {
       setChecking(false);
-      setError('رابط الاستعادة غير متاح لمزود الحساب الحالي.');
+      setError(copy('رابط الاستعادة غير متاح لمزود الحساب الحالي.', 'Password recovery is unavailable for this account provider.'));
       return;
     }
 
@@ -49,7 +51,7 @@ export default function ResetPasswordPage() {
         resolved = true;
         await supabase.auth.signOut();
         if (active) {
-          setError('رابط الاستعادة لا يطابق حساب طالب أو ولي أمر.');
+          setError(copy('رابط الاستعادة لا يطابق حساب طالب أو ولي أمر.', 'This recovery link does not match a student or parent account.'));
           setChecking(false);
         }
         return;
@@ -73,7 +75,7 @@ export default function ResetPasswordPage() {
       if (active && !resolved) {
         resolved = true;
         setChecking(false);
-        setError('الرابط غير صالح أو انتهت صلاحيته. اطلب رسالة استعادة جديدة.');
+        setError(copy('الرابط غير صالح أو انتهت صلاحيته. اطلب رسالة استعادة جديدة.', 'This link is invalid or has expired. Request a new password reset email.'));
       }
     }, 8000);
 
@@ -89,14 +91,14 @@ export default function ResetPasswordPage() {
     setError('');
     if (!supabase || !ready) return;
     if (password !== confirmPassword) {
-      setError('كلمتا المرور غير متطابقتين.');
+      setError(copy('كلمتا المرور غير متطابقتين.', 'The passwords do not match.'));
       return;
     }
 
     setLoading(true);
     const { error: updateError } = await supabase.auth.updateUser({ password });
     if (updateError) {
-      setError(updateError.message);
+      setError(isEnglish ? 'Could not update the password. Please try again.' : updateError.message);
       setLoading(false);
       return;
     }
@@ -107,18 +109,18 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10" dir="rtl">
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10" dir={isEnglish ? 'ltr' : 'rtl'}>
       <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-xl sm:p-9">
         <Link href={`/${locale}/login`} className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900">
-          <ArrowRight className="h-4 w-4" /> العودة لتسجيل الدخول
+          <ArrowRight className="h-4 w-4" /> {copy('العودة لتسجيل الدخول', 'Back to sign in')}
         </Link>
         <div className="mb-7 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
             {success ? <CheckCircle2 className="h-6 w-6" /> : <Lock className="h-6 w-6" />}
           </div>
-          <h1 className="text-2xl font-black text-slate-900">{success ? 'تم تغيير كلمة المرور' : 'تعيين كلمة مرور جديدة'}</h1>
+          <h1 className="text-2xl font-black text-slate-900">{success ? copy('تم تغيير كلمة المرور', 'Password changed') : copy('تعيين كلمة مرور جديدة', 'Set a new password')}</h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            {success ? 'تم تحديث كلمة المرور. سجّل الدخول بها الآن.' : 'استخدم كلمة مرور جديدة لا تقل عن 8 أحرف.'}
+            {success ? copy('تم تحديث كلمة المرور. سجّل الدخول بها الآن.', 'Your password has been updated. Sign in with it now.') : copy('استخدم كلمة مرور جديدة لا تقل عن 8 أحرف.', 'Choose a new password with at least 8 characters.')}
           </p>
         </div>
 
@@ -129,24 +131,24 @@ export default function ResetPasswordPage() {
           </div>
         )}
 
-        {checking && <p role="status" className="py-5 text-center text-sm text-slate-500">جارٍ التحقق من رابط الاستعادة...</p>}
+        {checking && <p role="status" className="py-5 text-center text-sm text-slate-500">{copy('جارٍ التحقق من رابط الاستعادة...', 'Checking your recovery link…')}</p>}
         {ready && !success && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <label className="block text-sm font-bold text-slate-700">
-              كلمة المرور الجديدة
+              {copy('كلمة المرور الجديدة', 'New password')}
               <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" minLength={8} maxLength={128} required className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
             </label>
             <label className="block text-sm font-bold text-slate-700">
-              تأكيد كلمة المرور
+              {copy('تأكيد كلمة المرور', 'Confirm password')}
               <input value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} type="password" autoComplete="new-password" minLength={8} maxLength={128} required className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
             </label>
             <button disabled={loading} className="h-12 w-full rounded-xl bg-blue-700 text-sm font-bold text-white transition hover:bg-blue-800 disabled:opacity-50">
-              {loading ? 'جارٍ الحفظ...' : 'حفظ كلمة المرور'}
+              {loading ? copy('جارٍ الحفظ...', 'Saving…') : copy('حفظ كلمة المرور', 'Save password')}
             </button>
           </form>
         )}
 
-        {success && <button onClick={() => router.push(`/login/${role}`)} className="h-12 w-full rounded-xl bg-blue-700 text-sm font-bold text-white hover:bg-blue-800">تسجيل الدخول</button>}
+        {success && <button onClick={() => router.push(`/login/${role}`)} className="h-12 w-full rounded-xl bg-blue-700 text-sm font-bold text-white hover:bg-blue-800">{copy('تسجيل الدخول', 'Sign in')}</button>}
       </section>
     </main>
   );

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nexus EDU",
     "slug": "nexus-edu",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/ikhlas-school-icon.png",
     "scheme": "nexus-edu",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "org.masarplatform.nexusedu",
-      "versionCode": 4,
+      "versionCode": 5,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/ikhlas-adaptive-foreground.png",

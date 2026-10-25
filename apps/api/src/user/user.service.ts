@@ -1,9 +1,10 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateUserDto, UpdateUserDto, UserFilterDto } from './dto/user.dto';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
+import { UploadService } from '../upload/upload.service';
 
 const PARENT_SURVEY_OPTIONS: Record<string, readonly string[]> = {
   q1: ['أقل من 6 سنوات', '6 إلى 10 سنوات', '11 إلى 15 سنة', 'أكثر من 15 سنة'],
@@ -25,7 +26,17 @@ const PARENT_SURVEY_OPTIONS: Record<string, readonly string[]> = {
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService, @Optional() private uploads?: UploadService) { }
+
+  private async signAvatarReferences<T extends { avatar?: string | null }>(users: T[]): Promise<T[]> {
+    const references = [...new Set(users
+      .map((user) => user.avatar)
+      .filter((value): value is string => Boolean(value) && /^(?:storage:\/\/|file:|https?:\/\/)/i.test(value!)))];
+    if (!references.length || !this.uploads) return users;
+    const signed = await this.uploads.getSignedUrlsForReferences(references).catch(() => references);
+    const byReference = new Map(references.map((reference, index) => [reference, signed[index] || reference]));
+    return users.map((user) => ({ ...user, avatar: user.avatar ? byReference.get(user.avatar) || user.avatar : user.avatar }));
+  }
 
   private requireSchool(schoolId?: string) {
     if (!schoolId) throw new ForbiddenException('The account is not assigned to a school');
@@ -68,6 +79,7 @@ export class UserService {
           name: true,
           role: true,
           phone: true,
+          avatar: true,
           isActive: true,
           emailVerified: true,
           lastActiveDate: true,
@@ -80,7 +92,7 @@ export class UserService {
     ]);
 
     return {
-      data: users,
+      data: await this.signAvatarReferences(users),
       meta: {
         total,
         page,
@@ -88,6 +100,25 @@ export class UserService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  /** Return the school principal's public display name for official report stamps. */
+  async getSchoolPrincipal(schoolId?: string) {
+    const scopedSchoolId = this.requireSchool(schoolId);
+    const principal = await this.prisma.user.findFirst({
+      where: { schoolId: scopedSchoolId, role: Role.PRINCIPAL, isActive: true, emailVerified: true },
+      select: { name: true, firstName: true, lastName: true, email: true, role: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const fallback = principal ?? await this.prisma.user.findFirst({
+      where: { schoolId: scopedSchoolId, role: Role.ADMIN, isActive: true, emailVerified: true },
+      select: { name: true, firstName: true, lastName: true, email: true, role: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const name = fallback?.name || [fallback?.firstName, fallback?.lastName].filter(Boolean).join(' ') || fallback?.email || null;
+    return { name, role: fallback?.role ?? null };
   }
 
   async findById(id: string, schoolId?: string) {
@@ -111,7 +142,8 @@ export class UserService {
       },
     });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    const [signedUser] = await this.signAvatarReferences([user]);
+    return signedUser;
   }
 
   async getSchoolStudentRecord(id: string, schoolId: string | undefined, actorId: string, actorRole: string) {
@@ -223,6 +255,7 @@ export class UserService {
       },
     });
     if (!student) throw new NotFoundException('Student not found in this school');
+    const [studentWithSignedAvatar] = await this.signAvatarReferences([student]);
 
     await this.prisma.auditLog.create({
       data: {
@@ -276,12 +309,15 @@ export class UserService {
         ...(includeAssessmentAnswers ? { answers: detailedAnswers, weakAreas } : {}),
       };
     });
+    // The teacher was already checked against this student's assigned class
+    // above. Return the submitted answers for that scoped record, without the
+    // linked parent's contact details.
     const parentSurveys = isTeacher
-      ? student.childSurveys.map(({ id: surveyId, respondentRole, consentedAt, createdAt, updatedAt }) => ({ surveyId, respondentRole, consentedAt, createdAt, updatedAt }))
+      ? student.childSurveys.map(({ id: surveyId, respondentRole, answers, consentedAt, createdAt, updatedAt }) => ({ surveyId, respondentRole, answers, consentedAt, createdAt, updatedAt }))
       : includeSensitiveResponses
       ? student.childSurveys
       : student.childSurveys.map(({ answers: _answers, ...survey }) => ({ ...survey, answers: undefined }));
-    const { placementAssessmentAttempts: _attempts, childSurveys: _surveys, ...studentRecord } = student;
+    const { placementAssessmentAttempts: _attempts, childSurveys: _surveys, ...studentRecord } = studentWithSignedAvatar;
     const teacherSafeRecord = isTeacher
       ? {
           ...studentRecord,
@@ -337,6 +373,7 @@ export class UserService {
           name: true,
           role: true,
           phone: true,
+          avatar: true,
           isActive: true,
           lastActiveDate: true,
           createdAt: true,
@@ -347,7 +384,7 @@ export class UserService {
     ]);
 
     return {
-      data: staff,
+      data: await this.signAvatarReferences(staff),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -375,10 +412,24 @@ export class UserService {
     });
   }
 
-  async update(id: string, data: UpdateUserDto, schoolId?: string) {
+  async update(id: string, data: UpdateUserDto, schoolId?: string, actorId?: string) {
     const scopedSchoolId = this.requireSchool(schoolId);
-    const existing = await this.prisma.user.findFirst({ where: { id, schoolId: scopedSchoolId }, select: { id: true } });
+    const existing = await this.prisma.user.findFirst({
+      where: { id, schoolId: scopedSchoolId },
+      select: { id: true, name: true, firstName: true, lastName: true },
+    });
     if (!existing) throw new NotFoundException('User not found');
+    if (actorId === id && (data.name !== undefined || data.firstName !== undefined || data.lastName !== undefined)) {
+      const currentName = existing.name?.trim()
+        || [existing.firstName, existing.lastName].filter((part) => part?.trim()).join(' ').trim();
+      const normalizeName = (value: string) => value.normalize('NFKC').replace(/\s+/g, ' ').toLocaleLowerCase('ar');
+      const attemptedRename = (data.name !== undefined && normalizeName(data.name) !== normalizeName(currentName))
+        || (data.firstName !== undefined && normalizeName(data.firstName ?? '') !== normalizeName(existing.firstName ?? ''))
+        || (data.lastName !== undefined && normalizeName(data.lastName ?? '') !== normalizeName(existing.lastName ?? ''));
+      if (attemptedRename) {
+        throw new BadRequestException('لا يمكن تغيير الاسم المسجل في حسابك');
+      }
+    }
     const updateData: any = { ...data };
 
     if (data.password) {
@@ -399,6 +450,36 @@ export class UserService {
         updatedAt: true,
       },
     });
+  }
+
+  async updateSelfProfile(id: string, data: UpdateUserDto, schoolId?: string) {
+    const scopedSchoolId = this.requireSchool(schoolId);
+    const existing = await this.prisma.user.findFirst({
+      where: { id, schoolId: scopedSchoolId },
+      select: { id: true, name: true, firstName: true, lastName: true },
+    });
+    if (!existing) throw new NotFoundException('User not found');
+
+    if (data.firstName !== undefined || data.lastName !== undefined) {
+      throw new BadRequestException('لا يمكن تعديل الاسم المسجل من إعدادات الحساب');
+    }
+
+    const existingName = existing.name?.trim()
+      || [existing.firstName, existing.lastName].filter((part) => part?.trim()).join(' ').trim();
+    const requestedName = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : undefined;
+    const normalized = (value: string) => value.normalize('NFKC').replace(/\s+/g, ' ').toLocaleLowerCase('ar');
+
+    if (requestedName && existingName && normalized(requestedName) !== normalized(existingName)) {
+      throw new BadRequestException('الاسم مرتبط بسجل المدرسة ولا يمكن تغييره من الحساب');
+    }
+    if (requestedName && !existingName && requestedName.length < 2) {
+      throw new BadRequestException('أدخل الاسم الكامل');
+    }
+
+    const editableData: UpdateUserDto = {};
+    if (data.phone !== undefined) editableData.phone = data.phone;
+    if (requestedName && !existingName) editableData.name = requestedName;
+    return this.update(id, editableData, scopedSchoolId);
   }
 
   async delete(id: string, schoolId?: string) {

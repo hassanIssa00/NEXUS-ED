@@ -74,4 +74,53 @@ describe('UserService parent/student onboarding', () => {
       }),
     }));
   });
+
+  it('shows parent survey answers inside a teacher-authorized student record without exposing parent contact details', async () => {
+    const survey = {
+      id: 'survey-1',
+      respondentRole: 'PARENT',
+      answers: { q1: '6 سنوات', q2: 'لا توجد حساسية' },
+      consentedAt: new Date('2026-10-20T00:00:00.000Z'),
+      createdAt: new Date('2026-10-19T00:00:00.000Z'),
+      updatedAt: new Date('2026-10-20T00:00:00.000Z'),
+      parent: { id: 'parent-1', name: 'ولي الأمر', email: 'private@example.test' },
+      respondent: { id: 'parent-1', name: 'ولي الأمر', email: 'private@example.test', role: 'PARENT' },
+    };
+    const studentRecord = {
+      ...student,
+      firstName: 'Student',
+      lastName: 'Name',
+      phone: null,
+      avatar: null,
+      createdAt: new Date('2026-10-01T00:00:00.000Z'),
+      studentProfile: { gradeLevel: 1, nationalId: 'private-id', dateOfBirth: new Date('2019-01-01T00:00:00.000Z') },
+      enrollments: [{ enrolledAt: new Date(), class: { id: 'class-1', name: 'أولى ابتدائي 1/2', academicYear: '1448', teacher: { id: 'teacher-1', name: 'المعلم' } } }],
+      attendance: [],
+      studentGrades: [],
+      parents: [{ relationship: 'mother', parent: { id: 'parent-1', name: 'ولي الأمر', email: 'private@example.test', phone: '+966500000000' } }],
+      placementAssessmentAttempts: [],
+      childSurveys: [survey],
+      smartProfile: null,
+      skillMasteries: [],
+    };
+    const prisma = {
+      enrollment: { findFirst: jest.fn().mockResolvedValue({ id: 'enrollment-1' }) },
+      user: { findFirst: jest.fn().mockResolvedValue(studentRecord) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const service = new UserService(prisma as never);
+
+    const record = await service.getSchoolStudentRecord('student-1', 'school-1', 'teacher-1', 'TEACHER');
+
+    expect(record.parentSurveys).toEqual([{
+      surveyId: 'survey-1',
+      respondentRole: 'PARENT',
+      answers: { q1: '6 سنوات', q2: 'لا توجد حساسية' },
+      consentedAt: survey.consentedAt,
+      createdAt: survey.createdAt,
+      updatedAt: survey.updatedAt,
+    }]);
+    expect(record.parents[0].parent).toEqual({ id: 'parent-1', name: 'ولي الأمر', email: '', phone: null });
+    expect(JSON.stringify(record)).not.toContain('private@example.test');
+  });
 });

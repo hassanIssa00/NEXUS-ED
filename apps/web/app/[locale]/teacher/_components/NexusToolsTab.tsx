@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useLocale } from 'next-intl'
 import { Link } from '@/i18n/routing'
 import NexusAiToolDialog from './NexusAiToolDialog'
 import {
@@ -8,7 +9,7 @@ import {
   Briefcase, Calendar, CalendarDays, Check, CheckSquare, Clipboard, FileEdit,
   FileOutput, FileSpreadsheet, FlaskConical, Flower2, Gamepad2, HeartHandshake,
   HelpCircle, Lightbulb, Map, MessageCircle, PenLine, Printer, Search, ShieldCheck,
-  Star, Target, TestTube2, Trophy, TrendingUp, Users, type LucideIcon,
+  Star, Target, TestTube2, Trophy, TrendingUp, Users, Zap, type LucideIcon,
 } from 'lucide-react'
 
 type ToolStatus = 'api' | 'content' | 'ai' | 'unavailable' | 'guide'
@@ -28,7 +29,7 @@ const GROUPS: ToolGroup[] = [
     id: 'grading', label: 'التقييم والتصحيح', emoji: '✅', color: '#f59e0b', tools: [
       { id: 'autograde', label: 'التصحيح الآلي (تصحيحي)', icon: CheckSquare, color: '#f59e0b', status: 'api', href: '/teacher/grading', note: 'التصحيح والدرجات من تسليمات النظام الفعلية.' },
       { id: 'hwgrade', label: 'تصحيح الواجبات', icon: Check, color: '#d97706', status: 'api', href: '/teacher/automation/bulk-grading', note: 'يراجع التسليمات ويحفظ الدرجات عبر API الواجبات.' },
-      { id: 'worksheets', label: 'اختبارات وأوراق عمل', icon: FileEdit, color: '#234A65', status: 'api', href: '/teacher/quizzes', note: 'إنشاء الاختبارات ونشرها ومراجعة التسليمات.' },
+      { id: 'worksheets', label: 'الواجبات والاختبارات', icon: FileEdit, color: '#234A65', status: 'api', href: '/teacher/assignments', note: 'إنشاء الواجبات والاختبارات وإسنادها ومراجعة التسليمات من صفحة الواجبات.' },
       { id: 'diagnosis', label: 'الاختبار التشخيصي', icon: TestTube2, color: '#4A687C', status: 'api', href: '/assessment/reports', note: 'يعرض تقارير محاولات الاختبار التشخيصي المحفوظة في النظام.' },
       { id: 'remedial', label: 'الخطة العلاجية', icon: Target, color: '#98793E', status: 'ai', note: 'لا يوجد API ينشئ خطة علاجية ويحفظها حاليًا. مؤشرات التعثر الفعلية متاحة من لوحة متابعة الطلاب.' },
       { id: 'hwreports', label: 'الاختبارات والواجبات (تقارير...)', icon: BarChart3, color: '#4A687C', status: 'api', href: '/teacher/automation/results', note: 'تحليل درجات وتسليمات الواجبات المحفوظة.' },
@@ -43,6 +44,11 @@ const GROUPS: ToolGroup[] = [
       { id: 'autoreport', label: 'التقارير والشواهد التلقائية', icon: FileOutput, color: '#35556B', status: 'ai', note: 'لا يوجد API يجمع الشواهد وينشئ تقريرًا تلقائيًا حتى الآن.' },
       { id: 'achievement', label: 'ملف إنجاز جاهز بالشواهد', icon: Trophy, color: '#d97706', status: 'ai', note: 'لا توجد خدمة لحفظ الشواهد وبناء ملف إنجاز تلقائيًا.' },
       { id: 'jobportfolio', label: 'ملف إنجاز وشواهد وظيفية', icon: ShieldCheck, color: '#35556B', status: 'ai', note: 'لا توجد خدمة أو API لملف الإنجاز الوظيفي حتى الآن.' },
+    ],
+  },
+  {
+    id: 'automation', label: 'الأتمتة الذكية', emoji: '⚙️', color: '#4A687C', tools: [
+      { id: 'automation-hub', label: 'أدوات الأتمتة الذكية', icon: Zap, color: '#4A687C', status: 'api', href: '/teacher/automation', note: 'إدارة قواعد الأتمتة والتصحيح ورصد الحضور والتحضير من مركز واحد.' },
     ],
   },
   {
@@ -71,7 +77,7 @@ const GROUPS: ToolGroup[] = [
     id: 'communication', label: 'التواصل والتنويه', emoji: '📢', color: '#4A687C', tools: [
       { id: 'parentmsg', label: 'التواصل مع أولياء الأمور', icon: MessageCircle, color: '#4A687C', status: 'api', href: '/teacher/messages', note: 'المحادثات والرسائل تُقرأ وتُرسل عبر API الرسائل.' },
       { id: 'alert', label: 'تنويه', icon: AlertTriangle, color: '#ef4444', status: 'api', href: '/teacher/notifications', note: 'إرسال إشعارات فعلية للطلاب وأولياء الأمور.' },
-      { id: 'forms', label: 'فورمز', icon: FileSpreadsheet, color: '#059669', status: 'api', href: '/teacher/quizzes', note: 'إنشاء نماذج تقييم إلكترونية وحفظ إجاباتها وتسليماتها.' },
+      { id: 'forms', label: 'نماذج الواجبات', icon: FileSpreadsheet, color: '#059669', status: 'api', href: '/teacher/assignments', note: 'إنشاء واجبات بأسئلة متنوعة ومراجعة الإجابات من صفحة الواجبات.' },
       { id: 'submanage', label: 'طلب تفعيل الاشتراك', icon: ShieldCheck, color: '#10b981', status: 'api', href: '/teacher/messages', note: 'افتح محادثات المنصة لإرسال طلب التفعيل للإدارة ومتابعته.' },
     ],
   },
@@ -98,15 +104,70 @@ const GROUPS: ToolGroup[] = [
   },
 ]
 
-function statusLabel(status: ToolStatus) {
-  if (status === 'api') return 'متصل بالنظام'
-  if (status === 'content') return 'محتوى المنصة'
-  if (status === 'ai') return 'جاهز بالذكاء الاصطناعي'
-  if (status === 'guide') return 'دليل'
-  return 'غير متاح حاليًا'
+const ENGLISH_GROUPS: Record<string, string> = {
+  grading: 'Assessment and grading', reports: 'Reports and certificates', automation: 'Smart automation',
+  attendance: 'Attendance and classroom management', curriculum: 'Curriculum and lesson planning',
+  communication: 'Communication and announcements', analytics: 'Analytics and AI', content: 'Interactive content',
+}
+const ENGLISH_TOOLS: Record<string, { label: string; note: string }> = {
+  autograde: { label: 'Automatic grading', note: 'Review grades and submissions recorded in the system.' },
+  hwgrade: { label: 'Grade assignments', note: 'Review submissions and save grades through the assignments API.' },
+  worksheets: { label: 'Assignments and tests', note: 'Create and assign work, then review submissions from the assignments page.' },
+  diagnosis: { label: 'Diagnostic assessment', note: 'View saved diagnostic assessment attempts.' },
+  remedial: { label: 'Remedial plan', note: 'No API currently creates and saves remedial plans. Recorded student risk indicators are available in student monitoring.' },
+  hwreports: { label: 'Assignment and test reports', note: 'Analyze saved assignment grades and submissions.' },
+  perf: { label: 'Professional performance', note: 'No service or API permission is available for teacher performance reports.' },
+  certs: { label: 'Records, certificates, and portfolios', note: 'Issue certificates and save them to the student file through the platform API.' },
+  thanks: { label: 'Appreciation certificates', note: 'Issue an appreciation certificate, save it, and download its PDF.' },
+  report: { label: 'My report', note: 'Reports based on recorded grades, attendance, and assignments.' },
+  autoreport: { label: 'Automated reports and evidence', note: 'No API currently gathers evidence and creates an automated report.' },
+  achievement: { label: 'Evidence-based achievement portfolio', note: 'No service currently saves evidence and builds an achievement portfolio automatically.' },
+  jobportfolio: { label: 'Professional portfolio and evidence', note: 'No service or API is currently available for a professional portfolio.' },
+  'automation-hub': { label: 'Smart automation tools', note: 'Manage automation rules, grading, attendance, and lesson preparation in one place.' },
+  att: { label: 'Classroom management', note: 'Class rosters and attendance are saved through the platform API.' },
+  absent: { label: 'Record absences', note: 'Read and save attendance records by class and date.' },
+  daily: { label: 'Daily and weekly progress', note: 'No daily or weekly progress record with this name exists in the current API.' },
+  activity: { label: 'Student activities', note: 'Manage school events and save them through the events API.' },
+  actleader: { label: 'Activities coordinator', note: 'Manage school events and activities recorded through the events API.' },
+  currdist: { label: 'Curriculum distribution', note: 'No service currently saves curriculum distribution by class.' },
+  curr1448: { label: 'Curriculum distribution 1448 AH', note: 'No distribution or planning service is currently available for academic year 1448 AH.' },
+  prep: { label: 'Lesson planning', note: 'Create, edit, and save lessons through the lessons API.' },
+  print: { label: 'Copy and print lesson plans', note: 'No route currently retrieves saved lesson plans for printing.' },
+  books: { label: 'Textbooks', note: 'Open the books and curriculum catalog available on the platform.' },
+  solutions: { label: 'Textbook solutions 1448 AH', note: 'No solutions library or documented API is available.' },
+  strategies: { label: 'Document learning strategies', note: 'No API currently saves learning strategies and links them to lessons.' },
+  cmap: { label: 'Concept maps', note: 'The content generator can extract concepts from text, but cannot create and save a map.' },
+  weekplan: { label: 'Term plan', note: 'No service is currently available for saving or distributing term plans.' },
+  parentmsg: { label: 'Contact parents', note: 'Conversations and messages are read and sent through the messaging API.' },
+  alert: { label: 'Announcement', note: 'Send notifications to students and parents.' },
+  forms: { label: 'Assignment templates', note: 'Create assignments with varied questions and review responses from the assignments page.' },
+  submanage: { label: 'Request subscription activation', note: 'Open platform conversations to send an activation request to the administration and follow up.' },
+  counselor: { label: 'Student guidance', note: 'View alerts based on recorded grades and attendance.' },
+  search: { label: 'Quick search', note: 'Search student rosters loaded from the system for your classes.' },
+  patterns: { label: 'Learning patterns', note: 'No API currently analyzes or records learning patterns.' },
+  noor: { label: 'Noor monitoring and analysis', note: 'There is no Noor system integration or API credential configured.' },
+  noorext: { label: 'Analyze external results', note: 'There is no service for importing and analyzing external result files.' },
+  nafes: { label: 'NAFS national assessments', note: 'No official NAFS question data or API is connected to the system.' },
+  outcomes: { label: 'Learning outcomes map', note: 'There is no learning outcomes database or API linked to student results.' },
+  games: { label: 'Educational games', note: 'View school games and saved rankings, restricted to the account school.' },
+  vlab: { label: 'Virtual experiments', note: 'No virtual experiment library or dedicated API is available.' },
+  kg: { label: 'Kindergarten platform', note: 'No kindergarten service or data is available in the current API.' },
+  ppt: { label: 'PowerPoint presentations', note: 'The content generator does not export PowerPoint files.' },
+  quran: { label: 'Quran comprehension', note: 'Open the Quran content available in the curriculum catalog.' },
+  guide: { label: 'User guide', note: 'View information about tool sources and availability.' },
+}
+
+function statusLabel(status: ToolStatus, isEnglish: boolean) {
+  if (status === 'api') return isEnglish ? 'Connected' : 'متصل بالنظام'
+  if (status === 'content') return isEnglish ? 'Platform content' : 'محتوى المنصة'
+  if (status === 'ai') return isEnglish ? 'AI assisted' : 'جاهز بالذكاء الاصطناعي'
+  if (status === 'guide') return isEnglish ? 'Guide' : 'دليل'
+  return isEnglish ? 'Currently unavailable' : 'غير متاح حاليًا'
 }
 
 export default function NexusToolsTab() {
+  const isEnglish = useLocale() === 'en'
+  const t = (ar: string, en: string) => isEnglish ? en : ar
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState('all')
   const [guideOpen, setGuideOpen] = useState(false)
@@ -115,37 +176,42 @@ export default function NexusToolsTab() {
   const apiTools = GROUPS.reduce((sum, group) => sum + group.tools.filter((tool) => tool.status === 'api').length, 0)
   const aiTools = GROUPS.reduce((sum, group) => sum + group.tools.filter((tool) => tool.status === 'ai').length, 0)
 
-  const filteredGroups = useMemo(() => GROUPS.map((group) => {
+  const filteredGroups = useMemo(() => GROUPS.map((sourceGroup) => {
+    const group = isEnglish ? {
+      ...sourceGroup,
+      label: ENGLISH_GROUPS[sourceGroup.id] || sourceGroup.label,
+      tools: sourceGroup.tools.map((tool) => ({ ...tool, label: ENGLISH_TOOLS[tool.id]?.label || tool.label, note: ENGLISH_TOOLS[tool.id]?.note || tool.note })),
+    } : sourceGroup
     if (activeCategory !== 'all' && group.id !== activeCategory) return null
-    const tools = group.tools.filter((tool) => !searchQuery.trim() || tool.label.toLocaleLowerCase('ar').includes(searchQuery.trim().toLocaleLowerCase('ar')))
+    const tools = group.tools.filter((tool) => !searchQuery.trim() || tool.label.toLocaleLowerCase(isEnglish ? 'en' : 'ar').includes(searchQuery.trim().toLocaleLowerCase(isEnglish ? 'en' : 'ar')))
     return tools.length ? { ...group, tools } : null
-  }).filter((group): group is ToolGroup => Boolean(group)), [activeCategory, searchQuery])
+  }).filter((group): group is ToolGroup => Boolean(group)), [activeCategory, searchQuery, isEnglish])
 
   return (
-    <div className="space-y-6 pb-12" dir="rtl">
+    <div className="space-y-6 pb-12" dir={isEnglish ? 'ltr' : 'rtl'}>
       <section className="rounded-3xl bg-gradient-to-l from-teal-800 via-sky-800 to-indigo-900 p-6 text-white shadow-lg md:p-8">
         <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
           <div>
-            <p className="mb-2 inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold">صندوق أدوات المعلم</p>
-            <h2 className="text-2xl font-black md:text-3xl">أدوات نكسس</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80">افتح أدوات النظام المرتبطة ببيانات المنصة، أو شغّل الأداة الذكية عبر Groq واحفظ نتيجتها في قوالبك. أدوات التحليل الذكي تعتمد على البيانات التي تدخلها ولا تدّعي قراءة سجل لم يتم تحميله.</p>
+            <p className="mb-2 inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold">{t('صندوق أدوات المعلم', 'Teacher toolbox')}</p>
+            <h2 className="text-2xl font-black md:text-3xl">{t('أدوات نكسس', 'Nexus tools')}</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80">{t('افتح أدوات النظام المرتبطة ببيانات المنصة، أو شغّل الأداة الذكية عبر Groq واحفظ نتيجتها في قوالبك. أدوات التحليل الذكي تعتمد على البيانات التي تدخلها ولا تدّعي قراءة سجل لم يتم تحميله.', 'Open tools connected to platform data, or run an AI tool with Groq and save its result to your templates. AI analysis uses only the data you provide and does not claim to read records that were not loaded.')}</p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3"><p className="text-2xl font-black">{totalTools}</p><p className="text-[11px] text-white/75">أداة</p></div>
-            <div className="rounded-2xl border border-emerald-200/30 bg-emerald-400/15 px-3 py-3"><p className="text-2xl font-black">{apiTools}</p><p className="text-[11px] text-white/75">مرتبطة بـAPI</p></div>
-            <div className="rounded-2xl border border-violet-200/30 bg-violet-400/15 px-3 py-3"><p className="text-2xl font-black">{aiTools}</p><p className="text-[11px] text-white/75">مدعومة بالذكاء</p></div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3"><p className="text-2xl font-black">{totalTools}</p><p className="text-[11px] text-white/75">{t('أداة', 'Tools')}</p></div>
+            <div className="rounded-2xl border border-emerald-200/30 bg-emerald-400/15 px-3 py-3"><p className="text-2xl font-black">{apiTools}</p><p className="text-[11px] text-white/75">{t('مرتبطة بـAPI', 'API connected')}</p></div>
+            <div className="rounded-2xl border border-violet-200/30 bg-violet-400/15 px-3 py-3"><p className="text-2xl font-black">{aiTools}</p><p className="text-[11px] text-white/75">{t('مدعومة بالذكاء', 'AI assisted')}</p></div>
           </div>
         </div>
       </section>
 
       <section className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-[#1e1e2d] md:flex-row md:items-center md:justify-between">
         <label className="relative block flex-1">
-          <Search className="absolute right-3.5 top-3 h-4 w-4 text-gray-400" />
-          <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="ابحث عن أداة..." className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-3 pr-10 text-sm outline-none focus:border-teal-600 dark:border-white/10 dark:bg-white/5 dark:text-white" />
+          <Search className={`absolute ${isEnglish ? 'left-3.5' : 'right-3.5'} top-3 h-4 w-4 text-gray-400`} />
+          <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={t('ابحث عن أداة...', 'Search tools...')} className={`w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 ${isEnglish ? 'pl-10 pr-3' : 'pl-3 pr-10'} text-sm outline-none focus:border-teal-600 dark:border-white/10 dark:bg-white/5 dark:text-white`} />
         </label>
         <div className="flex gap-1.5 overflow-x-auto pb-1">
-          <button onClick={() => setActiveCategory('all')} className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold ${activeCategory === 'all' ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300'}`}>الكل ({totalTools})</button>
-          {GROUPS.map((group) => <button key={group.id} onClick={() => setActiveCategory(group.id)} className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold ${activeCategory === group.id ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300'}`}>{group.label} ({group.tools.length})</button>)}
+          <button onClick={() => setActiveCategory('all')} className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold ${activeCategory === 'all' ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300'}`}>{t('الكل', 'All')} ({totalTools})</button>
+          {GROUPS.map((group) => <button key={group.id} onClick={() => setActiveCategory(group.id)} className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold ${activeCategory === group.id ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300'}`}>{isEnglish ? ENGLISH_GROUPS[group.id] : group.label} ({group.tools.length})</button>)}
         </div>
       </section>
 
@@ -153,7 +219,7 @@ export default function NexusToolsTab() {
         <section key={group.id} className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#1e1e2d]">
           <header className="flex items-center gap-3 border-b border-gray-100 px-5 py-4 dark:border-white/10">
             <span className="grid h-10 w-10 place-items-center rounded-xl text-lg" style={{ backgroundColor: `${group.color}18` }}>{group.emoji}</span>
-            <div><h3 className="font-black text-gray-900 dark:text-white">{group.label}</h3><p className="text-xs text-gray-500">{group.tools.length} أدوات</p></div>
+            <div><h3 className="font-black text-gray-900 dark:text-white">{group.label}</h3><p className="text-xs text-gray-500">{group.tools.length} {t('أدوات', 'tools')}</p></div>
           </header>
           <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {group.tools.map((tool) => {
@@ -161,8 +227,8 @@ export default function NexusToolsTab() {
               const content = <>
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ backgroundColor: `${tool.color}18`, color: tool.color }}><Icon className="h-5 w-5" /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2"><span className="font-bold text-gray-900 dark:text-white">{tool.label}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${tool.status === 'api' ? 'bg-emerald-100 text-emerald-800' : tool.status === 'ai' ? 'bg-violet-100 text-violet-800' : tool.status === 'content' || tool.status === 'guide' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-900'}`}>{statusLabel(tool.status)}</span></span>
-                  <span className="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">{tool.status === 'ai' ? 'يشغّل المهمة عبر Groq ويتيح حفظ الناتج وطباعته. أدخل بيانات كافية ومجهولة الهوية.' : tool.note}</span>
+                  <span className="flex flex-wrap items-center gap-2"><span className="font-bold text-gray-900 dark:text-white">{tool.label}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${tool.status === 'api' ? 'bg-emerald-100 text-emerald-800' : tool.status === 'ai' ? 'bg-violet-100 text-violet-800' : tool.status === 'content' || tool.status === 'guide' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-900'}`}>{statusLabel(tool.status, isEnglish)}</span></span>
+                  <span className="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">{tool.status === 'ai' ? t('يشغّل المهمة عبر Groq ويتيح حفظ الناتج وطباعته. أدخل بيانات كافية ومجهولة الهوية.', 'Runs the task with Groq and lets you save or print the result. Provide sufficient anonymized data.') : tool.note}</span>
                 </span>
               </>
 
@@ -175,12 +241,12 @@ export default function NexusToolsTab() {
         </section>
       ))}
 
-      {filteredGroups.length === 0 && <p className="rounded-2xl border border-dashed p-10 text-center text-sm text-gray-500">مفيش أدوات مطابقة للبحث.</p>}
+      {filteredGroups.length === 0 && <p className="rounded-2xl border border-dashed p-10 text-center text-sm text-gray-500">{t('لا توجد أدوات مطابقة للبحث.', 'No tools match your search.')}</p>}
 
       {guideOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={() => setGuideOpen(false)}>
         <section role="dialog" aria-modal="true" aria-labelledby="nexus-tools-guide-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-[#1e1e2d]" onClick={(event) => event.stopPropagation()}>
-          <div className="flex items-start gap-3"><HelpCircle className="mt-1 h-6 w-6 text-sky-700" /><div><h3 id="nexus-tools-guide-title" className="text-lg font-black text-gray-900 dark:text-white">دليل الأدوات</h3><p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">الأدوات الخضراء تقرأ أو تحفظ عبر خدمات المنصة. الأدوات البنفسجية تنفذ المهمة بالذكاء الاصطناعي ثم تتيح حفظ الناتج وطباعته. التحليل الذكي لا يقرأ بيانات المدرسة تلقائيًا؛ ألصق بيانات مجهولة الهوية عند الحاجة.</p></div></div>
-          <button type="button" onClick={() => setGuideOpen(false)} className="mt-5 w-full rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white">إغلاق</button>
+          <div className="flex items-start gap-3"><HelpCircle className="mt-1 h-6 w-6 text-sky-700" /><div><h3 id="nexus-tools-guide-title" className="text-lg font-black text-gray-900 dark:text-white">{t('دليل الأدوات', 'Tools guide')}</h3><p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{t('الأدوات الخضراء تقرأ أو تحفظ عبر خدمات المنصة. الأدوات البنفسجية تنفذ المهمة بالذكاء الاصطناعي ثم تتيح حفظ الناتج وطباعته. التحليل الذكي لا يقرأ بيانات المدرسة تلقائيًا؛ ألصق بيانات مجهولة الهوية عند الحاجة.', 'Green tools read or save data through platform services. Purple tools use AI and let you save or print the result. AI analysis does not read school data automatically; paste anonymized data when needed.')}</p></div></div>
+          <button type="button" onClick={() => setGuideOpen(false)} className="mt-5 w-full rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white">{t('إغلاق', 'Close')}</button>
         </section>
       </div>}
       {activeTool && <NexusAiToolDialog tool={activeTool} onClose={() => setActiveTool(null)} />}

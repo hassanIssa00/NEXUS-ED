@@ -121,6 +121,7 @@ export class AuthService {
         role: string;
         name: string;
         schoolId: string;
+        onboardingOnly?: boolean;
     }) {
         return {
             sub: user.id,
@@ -129,6 +130,7 @@ export class AuthService {
             role: user.role,
             name: user.name ?? user.email,
             schoolId: user.schoolId,
+            ...(user.onboardingOnly ? { onboardingOnly: true } : {}),
         };
     }
 
@@ -520,11 +522,13 @@ export class AuthService {
             role: user.role,
             name: user.name || identity.fullName,
             schoolId: user.schoolId,
+            onboardingOnly: allowUnverified && !identity.emailVerified && isPublicAccountRole(String(user.role)),
         });
         // Public student and parent accounts complete their identity checks in the
         // school flow (student profile or parent link code), not by email status.
         const accessToken = await this.jwtService.signAsync(payload);
-        const refreshToken = await this.issueRefreshToken(user.id);
+        const onboardingOnly = payload.onboardingOnly === true;
+        const refreshToken = await this.issueRefreshToken(user.id, onboardingOnly);
 
         await this.createAuditLog({
             schoolId: user.schoolId,
@@ -785,11 +789,12 @@ export class AuthService {
         return createHash('sha256').update(token).digest('hex');
     }
 
-    private async issueRefreshToken(userId: string): Promise<string> {
+    private async issueRefreshToken(userId: string, onboardingOnly = false): Promise<string> {
         const payload = {
             sub: userId,
             type: 'refresh',
             jti: randomBytes(16).toString('hex'),
+            ...(onboardingOnly ? { onboardingOnly: true } : {}),
         };
         const refreshToken = await this.jwtService.signAsync(payload, {
             secret: this.getRefreshSecret(),
@@ -855,7 +860,10 @@ export class AuthService {
                 throw new UnauthorizedException('User not found');
             }
 
-            if (requiresVerifiedEmail(user.role) && !user.emailVerified) {
+            const onboardingOnly = payload.onboardingOnly === true
+                && !user.emailVerified
+                && isPublicAccountRole(String(user.role));
+            if (requiresVerifiedEmail(user.role) && !user.emailVerified && !onboardingOnly) {
                 stage = 'revoke unverified account session';
                 await this.prisma.refreshToken.update({ where: { tokenHash }, data: { revokedAt: new Date() } });
                 throw new UnauthorizedException('Verify your email before refreshing this session');
@@ -873,9 +881,10 @@ export class AuthService {
                 role: user.role,
                 name: user.name,
                 schoolId: user.schoolId,
+                onboardingOnly,
             });
             const accessToken = await this.jwtService.signAsync(newPayload);
-            const nextRefreshToken = await this.issueRefreshToken(user.id);
+            const nextRefreshToken = await this.issueRefreshToken(user.id, onboardingOnly);
 
             stage = 'write audit event';
             await this.createAuditLog({
@@ -901,7 +910,7 @@ export class AuthService {
         }
     }
 
-    async validateUser(userId: string) {
+    async validateUser(userId: string, allowUnverifiedOnboarding = false) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
             select: {
@@ -922,7 +931,10 @@ export class AuthService {
             },
         });
 
-        if (!user?.isActive || (requiresVerifiedEmail(user.role) && !user.emailVerified)) {
+        const unverifiedOnboardingAllowed = allowUnverifiedOnboarding
+            && isPublicAccountRole(String(user?.role))
+            && user?.emailVerified === false;
+        if (!user?.isActive || (requiresVerifiedEmail(user.role) && !user.emailVerified && !unverifiedOnboardingAllowed)) {
             return null;
         }
 

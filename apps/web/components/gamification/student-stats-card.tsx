@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,9 +32,11 @@ interface StudentGamificationCardProps {
 }
 
 const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000];
-const LEVEL_NAMES = ['مبتدئ', 'متعلم', 'متفوق', 'نجم', 'بطل نكسس'];
+const LEVEL_NAMES = { ar: ['مبتدئ', 'متعلم', 'متفوق', 'نجم', 'بطل نكسس'], en: ['Beginner', 'Learner', 'Achiever', 'Star', 'Nexus Champion'] };
 
 export function StudentGamificationCard({ studentId, data: propData }: StudentGamificationCardProps) {
+    const isEnglish = useLocale() === 'en';
+    const levelNames = LEVEL_NAMES[isEnglish ? 'en' : 'ar'];
     const [data, setData] = useState<StudentGamificationStats | null>(propData || null);
     const [loading, setLoading] = useState(!propData);
 
@@ -41,7 +44,7 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
         if (!propData) {
             fetchData();
         }
-    }, [studentId]);
+    }, [studentId, isEnglish]);
 
     const fetchData = async () => {
         try {
@@ -52,7 +55,7 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
             const level = apiData?.level;
             const points = apiData?.points;
 
-            if (!Number.isInteger(level) || level < 1 || level > LEVEL_NAMES.length ||
+            if (!Number.isInteger(level) || level < 1 || level > levelNames.length ||
                 typeof points !== 'number' || !Number.isFinite(points)) {
                 setData(null);
                 return;
@@ -61,7 +64,7 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
             setData({
                 totalPoints: points,
                 level,
-                levelName: apiData.levelName || LEVEL_NAMES[level - 1],
+                levelName: levelNames[level - 1],
                 currentLevelPoints: points,
                 nextLevelPoints: LEVEL_THRESHOLDS[level] ?? null,
                 rank: Number.isInteger(apiData.rank) ? apiData.rank : null,
@@ -91,7 +94,7 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
         return (
             <Card>
                 <CardContent className="py-6 text-center text-sm text-muted-foreground">
-                    بيانات النقاط والترتيب غير متاحة لهذا الحساب حاليًا.
+                    {isEnglish ? 'Points and ranking data are not currently available for this account.' : 'بيانات النقاط والترتيب غير متاحة لهذا الحساب حاليًا.'}
                 </CardContent>
             </Card>
         );
@@ -119,7 +122,7 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
                             <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur flex items-center justify-center mb-2">
                                 <span className="text-3xl font-bold">{data.level}</span>
                             </div>
-                            <p className="text-sm opacity-90">{LEVEL_NAMES[data.level - 1]}</p>
+                            <p className="text-sm opacity-90">{levelNames[data.level - 1]}</p>
                         </motion.div>
 
                         {/* Points */}
@@ -128,7 +131,7 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
                                 <Star className="w-8 h-8 text-yellow-300" />
                                 <span className="text-4xl font-bold">{data.totalPoints}</span>
                             </div>
-                            <p className="text-sm opacity-90">نقطة</p>
+                            <p className="text-sm opacity-90">{isEnglish ? 'points' : 'نقطة'}</p>
                         </div>
 
                         {/* Streak */}
@@ -137,7 +140,7 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
                                 <Flame className="w-8 h-8 text-orange-300" />
                                 <span className="text-4xl font-bold">{data.streak ?? '—'}</span>
                             </div>
-                            <p className="text-sm opacity-90">يوم متتالي</p>
+                            <p className="text-sm opacity-90">{isEnglish ? 'day streak' : 'يوم متتالي'}</p>
                         </div>
 
                         {/* Rank */}
@@ -146,15 +149,15 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
                                 <Trophy className="w-8 h-8 text-yellow-300" />
                                 <span className="text-4xl font-bold">{data.rank === null ? '—' : `#${data.rank}`}</span>
                             </div>
-                            <p className="text-sm opacity-90">من {data.totalStudents ?? '—'}</p>
+                            <p className="text-sm opacity-90">{isEnglish ? `out of ${data.totalStudents ?? '—'}` : `من ${data.totalStudents ?? '—'}`}</p>
                         </div>
                     </div>
 
                     {/* Level Progress */}
                     <div className="mt-6">
                         <div className="flex justify-between text-sm mb-2">
-                            <span>المستوى {data.level}</span>
-                            <span>{data.nextLevelPoints === null ? 'أعلى مستوى' : `${data.currentLevelPoints}/${data.nextLevelPoints} نقطة`}</span>
+                            <span>{isEnglish ? `Level ${data.level}` : `المستوى ${data.level}`}</span>
+                            <span>{data.nextLevelPoints === null ? (isEnglish ? 'Maximum level' : 'أعلى مستوى') : `${data.currentLevelPoints}/${data.nextLevelPoints} ${isEnglish ? 'points' : 'نقطة'}`}</span>
                         </div>
                         <div className="h-3 bg-white/20 rounded-full overflow-hidden">
                             <motion.div 
@@ -173,13 +176,13 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
                 <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-lg">
                         <Zap className="w-5 h-5 text-yellow-500" />
-                        سجل النقاط
+                        {isEnglish ? 'Points history' : 'سجل النقاط'}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
                         {data.recentTransactions.length === 0 ? (
-                            <p className="text-sm text-center text-gray-500 py-4">لا توجد نقاط مسجلة بعد</p>
+                            <p className="text-sm text-center text-gray-500 py-4">{isEnglish ? 'No points have been recorded yet.' : 'لا توجد نقاط مسجلة بعد'}</p>
                         ) : (
                             data.recentTransactions.map((tx, index) => (
                                 <motion.div
@@ -192,11 +195,11 @@ export function StudentGamificationCard({ studentId, data: propData }: StudentGa
                                     <div>
                                         <p className="font-medium text-sm">{tx.reason}</p>
                                         <p className="text-xs text-gray-500 mt-1">
-                                            {new Date(tx.createdAt).toLocaleDateString('ar-SA')}
+                                            {new Date(tx.createdAt).toLocaleDateString(isEnglish ? 'en-US' : 'ar-SA')}
                                         </p>
                                     </div>
                                     <Badge variant="default" className="bg-yellow-500 hover:bg-yellow-600">
-                                        +{tx.amount} نقطة
+                                        +{tx.amount} {isEnglish ? 'points' : 'نقطة'}
                                     </Badge>
                                 </motion.div>
                             ))
