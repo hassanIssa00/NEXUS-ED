@@ -25,7 +25,6 @@ export default function LoginScreen() {
   const [remember, setRemember] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-
   useEffect(() => {
     SecureStore.getItemAsync(REMEMBERED_CREDENTIALS_KEY).then(async (value) => {
       if (!value) return;
@@ -60,7 +59,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <AppPage contentStyle={styles.page}>
+    <AppPage contentStyle={styles.page} keyboardDismissMode="none">
       <BrandHeader />
       <View style={styles.body}>
         <View style={styles.intro}>

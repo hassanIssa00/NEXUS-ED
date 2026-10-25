@@ -169,6 +169,8 @@ export default function ChatScreen() {
           <FlatList
             data={messages}
             keyExtractor={(item) => item.id}
+            keyboardDismissMode="none"
+            keyboardShouldPersistTaps="always"
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadMessages(selected.id).finally(() => setRefreshing(false)); }} />}
             contentContainerStyle={messages.length ? styles.messageList : styles.emptyList}
             ListEmptyComponent={<Text style={styles.empty}>لا توجد رسائل في هذه المحادثة بعد.</Text>}
