@@ -197,7 +197,7 @@ function TeacherLessons({ subjects, lessons, reload, notify, fail }: { subjects:
     </Surface>
     <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={close}>
       <View style={lessonStyles.modalBackdrop}><View style={lessonStyles.modalCard}>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={lessonStyles.modalContent}>
+        <ScrollView keyboardDismissMode="none" keyboardShouldPersistTaps="always" contentContainerStyle={lessonStyles.modalContent}>
           <SectionHeading title={editing ? 'تعديل الدرس' : 'إضافة درس'} action={<TouchableOpacity accessibilityRole="button" onPress={close}><Ionicons name="close-circle-outline" size={24} color={BRAND.muted} /></TouchableOpacity>} />
           <Field label="عنوان الدرس" value={title} onChangeText={setTitle} placeholder="اكتب عنوانًا واضحًا" />
           <Field label="المحتوى" value={content} onChangeText={setContent} placeholder="اكتب شرح الدرس" multiline style={styles.multiline} />

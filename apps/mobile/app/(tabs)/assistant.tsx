@@ -61,7 +61,7 @@ export default function AssistantScreen() {
             <View style={styles.titleCopy}><Text style={styles.title}>{roleName}</Text><Text style={styles.subtitle}>إجابات من خدمة المنصة مع مراعاة دورك والصفحة التي تتصفحها.</Text></View>
           </View>
         </View>
-        <ScrollView ref={scrollRef} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.messages} keyboardDismissMode="none" keyboardShouldPersistTaps="always" onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
           {messages.length === 0 ? <View style={styles.intro}>
             <Ionicons name="chatbubbles-outline" size={29} color={BRAND.teal} />
             <Text style={styles.introTitle}>كيف أساعدك؟</Text>

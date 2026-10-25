@@ -4,11 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BRAND } from '@/constants/Config';
 
-export function AppPage({ children, contentStyle, scroll = true }: { children: React.ReactNode; contentStyle?: ViewStyle; scroll?: boolean }) {
+export function AppPage({ children, contentStyle, scroll = true, keyboardDismissMode }: { children: React.ReactNode; contentStyle?: ViewStyle; scroll?: boolean; keyboardDismissMode?: 'none' | 'on-drag' | 'interactive' }) {
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {scroll ? <ScrollView keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, contentStyle]}>{children}</ScrollView> : <View style={contentStyle}>{children}</View>}
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {scroll ? <ScrollView keyboardDismissMode={keyboardDismissMode ?? (Platform.OS === 'ios' ? 'interactive' : 'on-drag')} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, contentStyle]}>{children}</ScrollView> : <View style={contentStyle}>{children}</View>}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -38,27 +38,23 @@ export function ScreenTitle({ title, subtitle }: { title: string; subtitle?: str
   );
 }
 
-export function Field({ label, icon, style, secureTextEntry, onFocus, onBlur, ...props }: TextInputProps & { label: string; icon?: React.ComponentProps<typeof Ionicons>['name'] }) {
+export function Field({ label, icon, style, secureTextEntry, ...props }: TextInputProps & { label: string; icon?: React.ComponentProps<typeof Ionicons>['name'] }) {
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputFrame, focused && styles.inputFrameFocused]}>
+      <View style={styles.inputFrame}>
         {icon ? <Ionicons name={icon} size={18} color={BRAND.muted} /> : null}
         <TextInput
           {...props}
           secureTextEntry={secureTextEntry && !passwordVisible}
           autoCorrect={props.autoCorrect ?? false}
-          showSoftInputOnFocus={props.showSoftInputOnFocus ?? true}
           underlineColorAndroid="transparent"
           keyboardAppearance="light"
           style={[styles.input, style]}
           placeholderTextColor="#95A2B2"
           textAlign="right"
           selectionColor={BRAND.teal}
-          onFocus={(event) => { setFocused(true); onFocus?.(event); }}
-          onBlur={(event) => { setFocused(false); onBlur?.(event); }}
         />
         {secureTextEntry ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={passwordVisible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} onPress={() => setPasswordVisible((value) => !value)} hitSlop={10}>
           <Ionicons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={19} color={BRAND.muted} />
@@ -149,7 +145,6 @@ const styles = StyleSheet.create({
   fieldWrap: { gap: 7 },
   label: { color: BRAND.ink, fontSize: 13, fontWeight: '700', textAlign: 'right', writingDirection: 'rtl' },
   inputFrame: { flexDirection: 'row-reverse', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 14, borderWidth: 1, borderColor: BRAND.line, borderRadius: 14, backgroundColor: '#FBFCFD' },
-  inputFrameFocused: { borderColor: BRAND.teal, backgroundColor: '#FFFFFF', shadowColor: BRAND.teal, shadowOpacity: 0.08, shadowRadius: 7, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   input: { flex: 1, minHeight: 48, color: '#111827', opacity: 1, backgroundColor: 'transparent', fontSize: 16, writingDirection: 'rtl', paddingVertical: 8, includeFontPadding: false },
   primary: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 9, minHeight: 54, paddingHorizontal: 16, borderRadius: 15, elevation: 2, shadowColor: BRAND.ink, shadowOpacity: 0.1, shadowRadius: 7, shadowOffset: { width: 0, height: 3 } },
   primaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', writingDirection: 'rtl' },
