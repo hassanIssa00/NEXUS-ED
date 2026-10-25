@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { Trophy, Medal, Award } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useLocale } from 'next-intl';
 
 interface LeaderboardEntry {
     userId: string;
@@ -20,6 +21,7 @@ interface LeaderboardProps {
 }
 
 export function Leaderboard({ entries, currentUserId }: LeaderboardProps) {
+    const isEnglish = useLocale() === 'en';
     const getRankIcon = (rank: number) => {
         switch (rank) {
             case 1:
@@ -47,19 +49,19 @@ export function Leaderboard({ entries, currentUserId }: LeaderboardProps) {
     };
 
     return (
-        <div className="w-full" dir="rtl">
+        <div className="w-full" dir={isEnglish ? 'ltr' : 'rtl'}>
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-6">
                     <h3 className="text-2xl font-bold text-white flex items-center gap-3">
                         <Trophy className="w-8 h-8" />
-                        لوحة المتصدرين
+                        {isEnglish ? 'Leaderboard' : 'لوحة المتصدرين'}
                     </h3>
                 </div>
 
                 <div className="p-6 space-y-3">
                     {entries.length === 0 ? (
                         <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                            لا توجد نتائج بعد...
+                            {isEnglish ? 'No results yet…' : 'لا توجد نتائج بعد...'}
                         </p>
                     ) : (
                         entries.map((entry, index) => (
@@ -98,12 +100,12 @@ export function Leaderboard({ entries, currentUserId }: LeaderboardProps) {
                                             {entry.name}
                                             {entry.userId === currentUserId && (
                                                 <span className="mr-2 text-xs bg-blue-500 text-white px-2 py-1 rounded-full">
-                                                    أنت
+                                                    {isEnglish ? 'You' : 'أنت'}
                                                 </span>
                                             )}
                                         </p>
                                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                                            {entry.correctAnswers} من {entry.questionsAnswered} صحيحة
+                                            {isEnglish ? `${entry.correctAnswers} of ${entry.questionsAnswered} correct` : `${entry.correctAnswers} من ${entry.questionsAnswered} صحيحة`}
                                         </p>
                                     </div>
                                 </div>
@@ -114,7 +116,7 @@ export function Leaderboard({ entries, currentUserId }: LeaderboardProps) {
                                         {entry.totalPoints}
                                     </p>
                                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        نقطة
+                                        {isEnglish ? 'points' : 'نقطة'}
                                     </p>
                                 </div>
                             </motion.div>

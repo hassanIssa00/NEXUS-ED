@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { usePathname } from 'expo-router';
 import { AppPage, BrandHeader, ErrorNotice } from '@/components/mobile-ui';
 import { BRAND } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
@@ -16,6 +17,7 @@ function errorMessage(error: any) {
 
 export default function AssistantScreen() {
   const { user } = useAuth();
+  const pathname = usePathname();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -36,6 +38,7 @@ export default function AssistantScreen() {
       const response = await apiClient.post<{ success: boolean; data: { answer: string } }>('/ai/ask', {
         question,
         history: history,
+        portalPath: pathname,
       });
       const answer = response.data.data?.answer?.trim();
       if (!answer) throw new Error('لم ترجع خدمة المساعد إجابة نصية.');
@@ -55,7 +58,7 @@ export default function AssistantScreen() {
           <BrandHeader eyebrow="مساعد ذكي متصل بخدمات نكسس" />
           <View style={styles.titleRow}>
             <View style={styles.aiIcon}><Ionicons name="sparkles" size={21} color="#FFFFFF" /></View>
-            <View style={styles.titleCopy}><Text style={styles.title}>{roleName}</Text><Text style={styles.subtitle}>إجابات مباشرة من خدمة المنصة، بحسب صلاحيات حسابك.</Text></View>
+            <View style={styles.titleCopy}><Text style={styles.title}>{roleName}</Text><Text style={styles.subtitle}>إجابات من خدمة المنصة مع مراعاة دورك والصفحة التي تتصفحها.</Text></View>
           </View>
         </View>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>

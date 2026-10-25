@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLocale } from 'next-intl';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Users, Trophy, TrendingUp, Medal } from 'lucide-react';
@@ -20,6 +21,8 @@ interface ClassComparisonCardProps {
 }
 
 export function ClassComparisonCard({ studentId, data: propData }: ClassComparisonCardProps) {
+    const isEnglish = useLocale() === 'en';
+    const t = (ar: string, en: string) => isEnglish ? en : ar;
     const [data, setData] = useState<ClassComparison | null>(propData || null);
     const [loading, setLoading] = useState(!propData);
 
@@ -27,7 +30,7 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
         if (!propData) {
             fetchData();
         }
-    }, [studentId]);
+    }, [studentId, isEnglish]);
 
     const fetchData = async () => {
         try {
@@ -50,11 +53,11 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
     };
 
     const getPerformanceMessage = (percentile: number) => {
-        if (percentile >= 90) return { message: 'أداء متميز! من أفضل 10% في الفصل', color: 'text-green-600' };
-        if (percentile >= 75) return { message: 'أداء ممتاز! من أفضل 25% في الفصل', color: 'text-blue-600' };
-        if (percentile >= 50) return { message: 'أداء جيد! فوق المتوسط', color: 'text-teal-600' };
-        if (percentile >= 25) return { message: 'أداء مقبول، يحتاج تحسين', color: 'text-orange-600' };
-        return { message: 'يحتاج متابعة ودعم إضافي', color: 'text-red-600' };
+        if (percentile >= 90) return { message: t('أداء متميز! من أفضل 10% في الفصل', 'Outstanding performance! In the top 10% of the class'), color: 'text-green-600' };
+        if (percentile >= 75) return { message: t('أداء ممتاز! من أفضل 25% في الفصل', 'Excellent performance! In the top 25% of the class'), color: 'text-blue-600' };
+        if (percentile >= 50) return { message: t('أداء جيد! فوق المتوسط', 'Good performance! Above average'), color: 'text-teal-600' };
+        if (percentile >= 25) return { message: t('أداء مقبول، يحتاج تحسين', 'Fair performance; there is room to improve'), color: 'text-orange-600' };
+        return { message: t('يحتاج متابعة ودعم إضافي', 'Needs follow-up and additional support'), color: 'text-red-600' };
     };
 
     if (loading) {
@@ -77,7 +80,7 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
         return (
             <Card>
                 <CardContent className="pt-6 text-center text-gray-500">
-                    لا توجد بيانات للمقارنة
+                    {t('لا توجد بيانات للمقارنة', 'No comparison data is available')}
                 </CardContent>
             </Card>
         );
@@ -87,10 +90,10 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
         return (
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Users className="w-5 h-5" />مقارنة مع الفصل</CardTitle>
+                    <CardTitle className="flex items-center gap-2"><Users className="w-5 h-5" />{t('مقارنة مع الفصل', 'Class comparison')}</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-2 text-center text-gray-500">
-                    لا توجد درجات مسجلة كافية لحساب الترتيب والمقارنة.
+                    {t('لا توجد درجات مسجلة كافية لحساب الترتيب والمقارنة.', 'There are not enough recorded grades to calculate a rank or comparison.')}
                 </CardContent>
             </Card>
         );
@@ -103,9 +106,9 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
             <CardHeader className="bg-gradient-to-r from-purple-500/10 to-blue-500/10">
                 <CardTitle className="flex items-center gap-2">
                     <Users className="w-5 h-5" />
-                    مقارنة مع الفصل
+                    {t('مقارنة مع الفصل', 'Class comparison')}
                 </CardTitle>
-                <CardDescription>مستوى الطالب مقارنة بزملائه</CardDescription>
+                <CardDescription>{t('مستوى الطالب مقارنة بزملائه', 'Student performance compared with classmates')}</CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -118,7 +121,7 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
                             </span>
                         </div>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            الترتيب من {data.totalStudents} طالب
+                            {isEnglish ? `Rank out of ${data.totalStudents} students` : `الترتيب من ${data.totalStudents} طالب`}
                         </p>
                     </div>
 
@@ -126,7 +129,7 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
                     <div className="space-y-4 md:col-span-2">
                         <div className="space-y-2">
                             <div className="flex justify-between text-sm">
-                                <span className="font-medium">الطالب</span>
+                                <span className="font-medium">{t('الطالب', 'Student')}</span>
                                 <span className="text-blue-600 font-bold">{data.studentAverage}%</span>
                             </div>
                             <Progress 
@@ -137,7 +140,7 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
 
                         <div className="space-y-2">
                             <div className="flex justify-between text-sm">
-                                <span className="font-medium">متوسط الفصل</span>
+                                <span className="font-medium">{t('متوسط الفصل', 'Class average')}</span>
                                 <span className="text-gray-600 font-bold">{data.classAverage}%</span>
                             </div>
                             <Progress 
@@ -150,7 +153,7 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
                         <div className="mt-4 p-4 rounded-lg bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20">
                             <div className="flex items-center gap-2">
                                 <Trophy className="w-5 h-5 text-purple-500" />
-                                <span className="text-sm font-medium">التصنيف: في أفضل {100 - data.percentile}% من الفصل</span>
+                                <span className="text-sm font-medium">{isEnglish ? `Ranking: in the top ${100 - data.percentile}% of the class` : `التصنيف: في أفضل ${100 - data.percentile}% من الفصل`}</span>
                             </div>
                             <p className={`mt-2 text-sm font-medium ${performance.color}`}>
                                 {performance.message}
@@ -168,7 +171,7 @@ export function ClassComparisonCard({ studentId, data: propData }: ClassComparis
                             {(data.studentAverage - data.classAverage).toFixed(1)}%
                         </span>
                         <span className="text-sm text-gray-600">
-                            {data.studentAverage >= data.classAverage ? 'فوق المتوسط' : 'تحت المتوسط'}
+                            {data.studentAverage >= data.classAverage ? t('فوق المتوسط', 'Above average') : t('تحت المتوسط', 'Below average')}
                         </span>
                     </div>
                 </div>

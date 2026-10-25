@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { BrainCircuit, Target, AlertTriangle, TrendingUp, Sparkles, Send, User, RotateCcw } from 'lucide-react'
 import { apiClient } from '@/lib/api/client'
 import Link from 'next/link'
+import { useLocale } from 'next-intl'
 
 function ChatMessage({ msg }: { msg: { role: 'user' | 'ai', text: string } }) {
     const isUser = msg.role === 'user'
@@ -22,6 +23,8 @@ function ChatMessage({ msg }: { msg: { role: 'user' | 'ai', text: string } }) {
 }
 
 export default function AiPersonalTutorPage() {
+    const isEnglish = useLocale() === 'en'
+    const t = (ar: string, en: string) => isEnglish ? en : ar
     const [data, setData] = useState<any>(null)
     const [loadingMap, setLoadingMap] = useState(true)
     const [messages, setMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([])
@@ -48,12 +51,12 @@ export default function AiPersonalTutorPage() {
         setLoadingChat(true)
         setChatError('')
         try {
-            const res = await apiClient.post('/ai/ask', { question: q })
+            const res = await apiClient.post('/ai/ask', { question: isEnglish ? `Reply in English. ${q}` : q })
             const answer = res.data?.data?.answer
             if (!answer) throw new Error('AI response is empty')
             setMessages(p => [...p, { role: 'ai', text: answer }])
         } catch {
-            setChatError('تعذر الحصول على رد من خدمة المساعد الآن.')
+            setChatError(t('تعذر الحصول على رد من خدمة المساعد الآن.', 'The assistant could not respond right now.'))
         } finally {
             setLoadingChat(false)
         }
@@ -68,12 +71,12 @@ export default function AiPersonalTutorPage() {
                     <BrainCircuit className="w-10 h-10 text-indigo-500 animate-pulse" />
                 </div>
             </div>
-            <p className="text-sm font-bold text-gray-500">جاري بناء خريطة ذكائك الاصطناعي...</p>
+            <p className="text-sm font-bold text-gray-500">{t('جارٍ بناء خريطة ذكائك الاصطناعي...', 'Building your AI learning map...')}</p>
         </div>
     )
 
     return (
-        <div className="space-y-6 pb-12" dir="rtl">
+        <div className="space-y-6 pb-12" dir={isEnglish ? 'ltr' : 'rtl'}>
             {/* HERO */}
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
                 className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-indigo-900 via-violet-800 to-purple-900 p-8 text-white shadow-2xl">
@@ -88,9 +91,9 @@ export default function AiPersonalTutorPage() {
                         <Sparkles className="w-8 h-8 text-yellow-300 animate-pulse" />
                     </div>
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight">المعلم الذكي التفاعلي</h1>
+                        <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight">{t('المعلم الذكي التفاعلي', 'Interactive AI tutor')}</h1>
                         <p className="text-indigo-200 text-sm md:text-base font-medium max-w-2xl leading-relaxed">
-                            مساعدك الشخصي المدعوم بالذكاء الاصطناعي. يناقش معك الدروس، يحلل نقاط ضعفك، ويبني لك مساراً للنجاح.
+                            {t('مساعدك الشخصي المدعوم بالذكاء الاصطناعي. يناقش معك الدروس، يحلل نقاط ضعفك، ويبني لك مسارًا للنجاح.', 'Your personal AI-powered tutor can discuss lessons, identify learning gaps, and help you build a path to success.')}
                         </p>
                     </div>
                 </div>
@@ -109,12 +112,12 @@ export default function AiPersonalTutorPage() {
                                 </div>
                             </div>
                             <div>
-                                <h3 className="font-bold text-gray-900 dark:text-white text-sm">نكسس AI</h3>
-                                <p className="text-[10px] text-gray-500 font-medium">خدمة خارجية تعتمد على إعدادات المدرسة</p>
+                                <h3 className="font-bold text-gray-900 dark:text-white text-sm">Nexus AI</h3>
+                                <p className="text-[10px] text-gray-500 font-medium">{t('خدمة خارجية تعتمد على إعدادات المدرسة', 'External service configured by the school')}</p>
                             </div>
                         </div>
                         <button onClick={() => { setMessages([]); setChatError('') }}
-                            className="p-2 bg-white dark:bg-[#12121a] rounded-lg border border-gray-100 dark:border-white/10 text-gray-500 hover:text-indigo-600 transition-colors shadow-sm" title="محادثة جديدة">
+                            className="p-2 bg-white dark:bg-[#12121a] rounded-lg border border-gray-100 dark:border-white/10 text-gray-500 hover:text-indigo-600 transition-colors shadow-sm" title={t('محادثة جديدة', 'New conversation')}>
                             <RotateCcw className="w-4 h-4" />
                         </button>
                     </div>
@@ -122,7 +125,7 @@ export default function AiPersonalTutorPage() {
                     {/* Messages */}
                     <div ref={chatRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-gray-50/30 dark:bg-transparent">
                         <AnimatePresence>
-                            {messages.length === 0 && <p className="text-center text-sm text-gray-500">اكتب سؤالك لبدء محادثة جديدة.</p>}
+                            {messages.length === 0 && <p className="text-center text-sm text-gray-500">{t('اكتب سؤالك لبدء محادثة جديدة.', 'Ask a question to start a new conversation.')}</p>}
                             {messages.map((m, i) => <ChatMessage key={i} msg={m} />)}
                             {loadingChat && (
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3 ml-auto">
@@ -142,7 +145,7 @@ export default function AiPersonalTutorPage() {
                     <div className="p-4 bg-white dark:bg-[#1e1e2d] border-t border-gray-100 dark:border-white/5">
                         <div className="relative flex items-end gap-2 bg-gray-50 dark:bg-[#12121a] rounded-2xl border border-gray-200 dark:border-white/10 p-1 focus-within:border-indigo-500/50 transition-colors shadow-inner">
                             <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg() } }}
-                                placeholder="اسألني عن أي شيء..." rows={1}
+                                placeholder={t('اسألني عن أي شيء...', 'Ask me anything...')} rows={1}
                                 className="w-full max-h-32 min-h-[44px] bg-transparent text-sm text-gray-900 dark:text-white px-4 py-3 outline-none resize-none placeholder:text-gray-400" />
                             <button onClick={sendMsg} disabled={!input.trim() || loadingChat}
                                 className="w-11 h-11 mb-0.5 ml-0.5 flex-shrink-0 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-800 rounded-xl flex items-center justify-center text-white transition-all shadow-md">
@@ -160,7 +163,7 @@ export default function AiPersonalTutorPage() {
                             className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-500/20 rounded-[2rem] p-6 shadow-sm relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl" />
                             <h3 className="font-extrabold text-indigo-900 dark:text-indigo-300 flex items-center gap-2 text-sm mb-3 relative z-10">
-                                <Target className="w-4 h-4 text-indigo-500" /> مسار التعلم الذكي
+                                <Target className="w-4 h-4 text-indigo-500" /> {t('مسار التعلم الذكي', 'Personalized learning path')}
                             </h3>
                             <p className="text-sm font-medium text-indigo-800 dark:text-indigo-200 leading-relaxed relative z-10">"{data.learningPath}"</p>
                         </motion.div>
@@ -170,24 +173,24 @@ export default function AiPersonalTutorPage() {
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}
                         className="bg-white dark:bg-[#1e1e2d] border border-gray-100 dark:border-white/5 rounded-[2rem] p-6 shadow-sm">
                         <h3 className="font-extrabold text-gray-900 dark:text-white flex items-center gap-2 text-sm mb-5">
-                            <AlertTriangle className="w-4 h-4 text-rose-500" /> خريطة التحسين
+                            <AlertTriangle className="w-4 h-4 text-rose-500" /> {t('خريطة التحسين', 'Areas to improve')}
                         </h3>
                         {data?.topics?.length > 0 ? (
                             <div className="space-y-4">
-                                {data.topics.map((t: any, i: number) => (
+                                {data.topics.map((topicItem: any, i: number) => (
                                     <div key={i} className="space-y-1.5">
                                         <div className="flex justify-between items-end">
                                             <div>
-                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{t.topic}</p>
-                                                <p className="text-[10px] text-gray-500 leading-tight mt-0.5">{t.description}</p>
+                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{topicItem.topic}</p>
+                                                <p className="text-[10px] text-gray-500 leading-tight mt-0.5">{topicItem.description}</p>
                                             </div>
                                             <span className="text-[10px] font-black bg-rose-50 text-rose-600 dark:bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-100 dark:border-rose-500/20">
-                                                فجوة درجات {t.score}%
+                                                {t('فجوة درجات', 'Learning gap')} {topicItem.score}%
                                             </span>
                                         </div>
                                         <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                                             <motion.div className="h-full bg-rose-500 rounded-full relative"
-                                                initial={{ width: 0 }} animate={{ width: `${t.score}%` }} transition={{ duration: 1 }}>
+                                                initial={{ width: 0 }} animate={{ width: `${topicItem.score}%` }} transition={{ duration: 1 }}>
                                                 <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] opacity-50" />
                                             </motion.div>
                                         </div>
@@ -196,10 +199,10 @@ export default function AiPersonalTutorPage() {
                             </div>
                         ) : data ? (
                             <div className="flex flex-col items-center justify-center p-4 text-center">
-                                <p className="text-xs text-gray-500">لا توجد بيانات كافية لعرض نقاط تحسين حتى الآن.</p>
+                                <p className="text-xs text-gray-500">{t('لا توجد بيانات كافية لعرض نقاط تحسين حتى الآن.', 'There is not enough data to show areas for improvement yet.')}</p>
                             </div>
                         ) : (
-                            <p className="text-xs text-gray-500">خريطة التحسين غير متاحة حاليًا.</p>
+                            <p className="text-xs text-gray-500">{t('خريطة التحسين غير متاحة حاليًا.', 'Areas for improvement are currently unavailable.')}</p>
                         )}
                     </motion.div>
 
@@ -208,7 +211,7 @@ export default function AiPersonalTutorPage() {
                         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}
                             className="bg-white dark:bg-[#1e1e2d] border border-gray-100 dark:border-white/5 rounded-[2rem] p-6 shadow-sm">
                             <h3 className="font-extrabold text-gray-900 dark:text-white flex items-center gap-2 text-sm mb-4">
-                                <TrendingUp className="w-4 h-4 text-emerald-500" /> التوصيات
+                                <TrendingUp className="w-4 h-4 text-emerald-500" /> {t('التوصيات', 'Recommendations')}
                             </h3>
                             <ul className="space-y-3">
                                 {data.recommendations.map((rec: string, i: number) => (

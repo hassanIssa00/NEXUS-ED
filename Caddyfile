@@ -1,3 +1,7 @@
+meetings.{$DOMAIN_NAME} {
+	reverse_proxy livekit:7880
+}
+
 {$DOMAIN_NAME} {
 	encode zstd gzip
 

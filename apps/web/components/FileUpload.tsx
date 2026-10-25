@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useLocale } from 'next-intl';
 import { uploadService, UploadResponse } from '@/lib/services/upload.service';
 
 interface FileUploadProps {
@@ -18,6 +19,7 @@ export default function FileUpload({
     onUploadComplete,
     multiple = true,
 }: FileUploadProps) {
+    const isEnglish = useLocale() === 'en';
     const [files, setFiles] = useState<File[]>([]);
     const [uploadedFiles, setUploadedFiles] = useState<UploadResponse[]>([]);
     const [uploading, setUploading] = useState(false);
@@ -74,7 +76,7 @@ export default function FileUpload({
             setProgress({});
         } catch (error) {
             console.error('Upload failed:', error);
-            alert('فشل رفع الملفات');
+            alert(isEnglish ? 'File upload failed.' : 'فشل رفع الملفات');
         } finally {
             setUploading(false);
         }
@@ -100,10 +102,10 @@ export default function FileUpload({
             >
                 <div className="text-4xl mb-4">📁</div>
                 <p className="text-gray-600 dark:text-gray-400 mb-2">
-                    اسحب الملفات هنا أو اضغط للاختيار
+                    {isEnglish ? 'Drag files here or click to browse' : 'اسحب الملفات هنا أو اضغط للاختيار'}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-                    الحد الأقصى: {maxFiles} ملفات، {maxSize} MB لكل ملف
+                    {isEnglish ? `Maximum: ${maxFiles} files, ${maxSize} MB each` : `الحد الأقصى: ${maxFiles} ملفات، ${maxSize} MB لكل ملف`}
                 </p>
                 <input
                     type="file"
@@ -117,7 +119,7 @@ export default function FileUpload({
                     htmlFor="file-upload"
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer inline-block"
                 >
-                    اختر ملفات
+                    {isEnglish ? 'Choose files' : 'اختر ملفات'}
                 </label>
             </div>
 
@@ -125,7 +127,7 @@ export default function FileUpload({
             {files.length > 0 && (
                 <div className="mt-4">
                     <h4 className="font-semibold mb-2 text-gray-800 dark:text-white">
-                        ملفات محددة ({files.length}):
+                        {isEnglish ? `Selected files (${files.length}):` : `ملفات محددة (${files.length}):`}
                     </h4>
                     <div className="space-y-2">
                         {files.map((file, index) => (
@@ -172,7 +174,7 @@ export default function FileUpload({
                         disabled={uploading}
                         className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {uploading ? 'جاري الرفع...' : 'رفع الملفات'}
+                        {uploading ? (isEnglish ? 'Uploading…' : 'جاري الرفع...') : (isEnglish ? 'Upload files' : 'رفع الملفات')}
                     </button>
                 </div>
             )}
@@ -181,7 +183,7 @@ export default function FileUpload({
             {uploadedFiles.length > 0 && (
                 <div className="mt-4">
                     <h4 className="font-semibold mb-2 text-green-600">
-                        تم الرفع بنجاح ✓
+                        {isEnglish ? 'Uploaded successfully ✓' : 'تم الرفع بنجاح ✓'}
                     </h4>
                     <div className="space-y-2">
                         {uploadedFiles.map((file, index) => (

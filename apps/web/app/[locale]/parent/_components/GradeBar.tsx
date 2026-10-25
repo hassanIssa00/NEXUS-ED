@@ -1,8 +1,10 @@
 'use client'
 import { motion } from 'framer-motion'
 import { TrendingUp, TrendingDown, BookOpen } from 'lucide-react'
+import { useLocale } from 'next-intl'
 
 export function MiniGradeBar({ label, value, max = 100, color }: { label: string; value: number; max?: number; color: string }) {
+  const isEnglish = useLocale() === 'en'
   const pct = Math.min(Math.round((value / max) * 100), 100)
   return (
     <div className="space-y-1.5">
@@ -18,7 +20,7 @@ export function MiniGradeBar({ label, value, max = 100, color }: { label: string
           <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.25)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.25)_50%,rgba(255,255,255,0.25)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] opacity-60" />
         </motion.div>
       </div>
-      <p className="text-[10px] text-gray-400 font-medium text-left">{pct}% من المجموع</p>
+      <p className="text-[10px] text-gray-400 font-medium text-left">{pct}% {isEnglish ? 'of total' : 'من المجموع'}</p>
     </div>
   )
 }

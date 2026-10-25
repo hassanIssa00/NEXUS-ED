@@ -18,6 +18,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLocale } from 'next-intl';
 
 interface TeacherClass {
     id: string;
@@ -25,11 +26,13 @@ interface TeacherClass {
 }
 
 const TARGET_TYPES = [
-    { value: 'all-students', label: '👥 جميع طلابي', icon: Users },
-    { value: 'parents', label: '👨‍👩‍👦 أولياء الأمور', icon: Heart },
+    { value: 'all-students', ar: '👥 جميع طلابي', en: '👥 All my students', icon: Users },
+    { value: 'parents', ar: '👨‍👩‍👦 أولياء الأمور', en: '👨‍👩‍👦 Parents', icon: Heart },
 ] as const;
 
 export default function NotificationsPage() {
+    const isEnglish = useLocale() === 'en';
+    const t = (ar: string, en: string) => isEnglish ? en : ar;
     const { toast } = useToast();
     const [classes, setClasses] = useState<TeacherClass[]>([]);
     const [loadingClasses, setLoadingClasses] = useState(true);
@@ -62,11 +65,11 @@ export default function NotificationsPage() {
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!form.title.trim() || !form.message.trim()) {
-            toast({ title: 'خطأ', description: 'عنوان ونص الرسالة مطلوبان', variant: 'destructive' });
+            toast({ title: t('خطأ', 'Error'), description: t('عنوان ونص الرسالة مطلوبان', 'A title and message are required.'), variant: 'destructive' });
             return;
         }
         if (form.targetType === 'class' && !form.targetClassId) {
-            toast({ title: 'خطأ', description: 'يرجى اختيار الفصل', variant: 'destructive' });
+            toast({ title: t('خطأ', 'Error'), description: t('يرجى اختيار الفصل', 'Select a class.'), variant: 'destructive' });
             return;
         }
 
@@ -85,11 +88,11 @@ export default function NotificationsPage() {
             setSentCount(count);
             setSent(true);
             setForm({ targetType: 'all-students', targetClassId: '', title: '', message: '' });
-            toast({ title: `تم حفظ الإشعار لـ ${count} مستلم`, description: 'تم تسجيله في النظام.' });
+            toast({ title: t(`تم حفظ الإشعار لـ ${count} مستلم`, `Notification saved for ${count} recipients`), description: t('تم تسجيله في النظام.', 'It was recorded in the system.') });
         } catch (e: any) {
             toast({
-                title: 'خطأ في الإرسال',
-                description: e.response?.data?.message || 'فشل إرسال الإشعار',
+                title: t('خطأ في الإرسال', 'Send error'),
+                description: t('فشل إرسال الإشعار', 'Could not send the notification.'),
                 variant: 'destructive',
             });
         } finally {
@@ -98,10 +101,10 @@ export default function NotificationsPage() {
     };
 
     return (
-        <div className="max-w-2xl mx-auto space-y-6" dir="rtl">
+        <div className="max-w-2xl mx-auto space-y-6" dir={isEnglish ? 'ltr' : 'rtl'}>
             <div>
-                <h1 className="text-3xl font-bold">🔔 إرسال التنبيهات</h1>
-                <p className="text-muted-foreground mt-1">إرسال إشعارات فورية للطلاب وأولياء الأمور</p>
+                <h1 className="text-3xl font-bold">{t('🔔 إرسال التنبيهات', '🔔 Send notifications')}</h1>
+                <p className="text-muted-foreground mt-1">{t('إرسال إشعارات فورية للطلاب وأولياء الأمور', 'Send instant notifications to students and parents.')}</p>
             </div>
 
             {/* Success Banner */}
@@ -115,7 +118,7 @@ export default function NotificationsPage() {
                     >
                         <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
                         <p className="text-sm text-green-800 dark:text-green-200 font-medium">
-                            تم إرسال الإشعار بنجاح إلى {sentCount} شخص!
+                            {t(`تم إرسال الإشعار بنجاح إلى ${sentCount} شخص!`, `Notification sent successfully to ${sentCount} people!`)}
                         </p>
                         <Button variant="ghost" size="sm" onClick={() => setSent(false)} className="mr-auto text-green-700">
                             ×
@@ -126,14 +129,14 @@ export default function NotificationsPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>رسالة جديدة</CardTitle>
-                    <CardDescription>سيصل هذا الإشعار فوراً عبر التطبيق</CardDescription>
+                    <CardTitle>{t('رسالة جديدة', 'New notification')}</CardTitle>
+                    <CardDescription>{t('سيصل هذا الإشعار فورًا عبر التطبيق', 'This notification will be delivered through the app.')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSend} className="space-y-5">
                         {/* Target Type */}
                         <div className="space-y-2">
-                            <Label>المستلمون</Label>
+                            <Label>{t('المستلمون', 'Recipients')}</Label>
                             <div className="grid grid-cols-2 gap-2 mb-3">
                                 {TARGET_TYPES.map(type => (
                                     <button
@@ -147,7 +150,7 @@ export default function NotificationsPage() {
                                         }`}
                                     >
                                         <type.icon className="w-4 h-4" />
-                                        {type.label}
+                                        {isEnglish ? type.en : type.ar}
                                     </button>
                                 ))}
                             </div>
@@ -164,17 +167,17 @@ export default function NotificationsPage() {
                                     }`}
                                 >
                                     <BookOpen className="w-4 h-4" />
-                                    📋 فصل دراسي محدد
+                                    {t('📋 فصل دراسي محدد', '📋 A specific class')}
                                 </button>
                             )}
-                            {classLoadFailed && <p className="text-sm text-destructive">تعذر تحميل فصولك من النظام.</p>}
+                            {classLoadFailed && <p className="text-sm text-destructive">{t('تعذر تحميل فصولك من النظام.', 'Could not load your classes from the system.')}</p>}
 
                             {/* Class selector */}
                             {form.targetType === 'class' && (
                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
                                     <Select value={form.targetClassId} onValueChange={v => setForm({ ...form, targetClassId: v })}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="اختر الفصل..." />
+                                            <SelectValue placeholder={t('اختر الفصل...', 'Select a class...')} />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {classes.map(cls => (
@@ -190,24 +193,24 @@ export default function NotificationsPage() {
 
                         {/* Title */}
                         <div className="space-y-2">
-                            <Label htmlFor="notif-title">عنوان التنبيه</Label>
+                            <Label htmlFor="notif-title">{t('عنوان التنبيه', 'Notification title')}</Label>
                             <Input
                                 id="notif-title"
                                 value={form.title}
                                 onChange={e => setForm({ ...form, title: e.target.value })}
-                                placeholder="مثال: تذكير بموعد الاختبار غداً 📝"
+                                placeholder={t('مثال: تذكير بموعد الاختبار غدًا 📝', 'e.g. Reminder: test tomorrow 📝')}
                                 required
                             />
                         </div>
 
                         {/* Message */}
                         <div className="space-y-2">
-                            <Label htmlFor="notif-msg">نص الرسالة</Label>
+                            <Label htmlFor="notif-msg">{t('نص الرسالة', 'Message')}</Label>
                             <Textarea
                                 id="notif-msg"
                                 value={form.message}
                                 onChange={e => setForm({ ...form, message: e.target.value })}
-                                placeholder="اكتب تفاصيل الإشعار هنا..."
+                                placeholder={t('اكتب تفاصيل الإشعار هنا...', 'Enter the notification details...')}
                                 className="min-h-[120px]"
                                 required
                             />
@@ -217,7 +220,7 @@ export default function NotificationsPage() {
                         <div className="flex justify-end">
                             <Button type="submit" disabled={loading} className="gap-2 min-w-36">
                                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                {loading ? 'جاري الإرسال...' : 'إرسال الآن'}
+                                {loading ? t('جارٍ الإرسال...', 'Sending...') : t('إرسال الآن', 'Send now')}
                             </Button>
                         </div>
                     </form>

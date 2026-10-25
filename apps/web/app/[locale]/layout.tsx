@@ -1,9 +1,10 @@
 import { NextIntlClientProvider } from 'next-intl';
-import { getMessages } from 'next-intl/server';
+import { getMessages, setRequestLocale } from 'next-intl/server';
 import { headers } from 'next/headers';
+import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import '../globals.css';
-import { locales, type Locale, defaultLocale } from '../../i18n';
+import { locales, type Locale } from '../../i18n';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/contexts/auth-context';
 import { AuthGuard } from '@/components/auth/auth-guard';
@@ -32,15 +33,19 @@ export default async function LocaleLayout({
     // A request-bound CSP nonce requires Next.js to render scripts dynamically.
     await headers();
     const { locale } = await params;
+    if (!locales.includes(locale as Locale)) notFound();
+    const activeLocale = locale as Locale;
 
-    // Get messages - next-intl will handle validation
+    // Keep the server and client locale bound to the URL segment. Without
+    // this, a request can render /en/... with the default Arabic client locale.
+    setRequestLocale(activeLocale);
     const messages = await getMessages();
 
     return (
-        <html lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+        <html lang={activeLocale} dir={activeLocale === 'ar' ? 'rtl' : 'ltr'}>
             <body>
                 <AuthProvider>
-                    <NextIntlClientProvider messages={messages}>
+                    <NextIntlClientProvider locale={activeLocale} messages={messages}>
                         <AuthGuard>
                             {children}
                         </AuthGuard>

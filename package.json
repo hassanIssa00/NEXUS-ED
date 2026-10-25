@@ -16,7 +16,7 @@
     "prettier": "^3.6.2",
     "tailwindcss": "^3.4.19",
     "turbo": "^2.6.1",
-    "typescript": "5.9.2"
+    "typescript": "~6.0.3"
   },
   "engines": {
     "node": ">=22"
@@ -27,8 +27,9 @@
     "packages/*"
   ],
   "dependencies": {
-    "@grpc/grpc-js": "1.14.5",
-    "next": "^16.3.8",
+    "@grpc/grpc-js": "1.14.6",
+    "proxy-addr": "2.0.8",
+    "next": "16.4.2",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
@@ -69,12 +70,26 @@
     "@swc/core-win32-x64-msvc": "1.16.13"
   },
   "overrides": {
-    "@grpc/grpc-js": "1.14.5",
+    "decode-uri-component": "0.5.0",
+    "postcss-selector-parser": "7.1.7",
+    "handlebars": "4.7.10",
+    "@grpc/grpc-js": "1.14.6",
+    "uuid": "11.1.1",
+    "deepmerge-ts": "8.0.2",
     "react-native": "0.86.3",
     "react-native-reanimated": "4.5.1",
     "react-native-worklets": "0.10.1",
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "5.5.0"
+    },
     "@firebase/firestore": {
-      "@grpc/grpc-js": "1.14.5"
+      "@grpc/grpc-js": "1.14.6"
+    },
+    "@nestjs/swagger": {
+      "js-yaml": "5.5.0"
+    },
+    "query-string": {
+      "decode-uri-component": "0.5.0"
     }
   }
 }

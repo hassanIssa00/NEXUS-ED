@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { ParentReportView } from '@/components/analytics/parent-report-view'
 import { apiClient } from '@/lib/api/client'
+import { useLocale } from 'next-intl'
 
 interface SchoolClass {
   id: string
@@ -14,9 +15,11 @@ interface Student {
   name: string | null
   firstName: string | null
   lastName: string | null
+  avatar?: string | null
 }
 
 export default function TeacherReportsPage() {
+  const isEnglish = useLocale() === 'en'
   const [classes, setClasses] = useState<SchoolClass[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [classId, setClassId] = useState('')
@@ -29,9 +32,9 @@ export default function TeacherReportsPage() {
   useEffect(() => {
     apiClient.get('/classes')
       .then(({ data }) => setClasses(Array.isArray(data) ? data : []))
-      .catch(() => setError('تعذر تحميل الفصول من النظام.'))
+      .catch(() => setError(isEnglish ? 'Could not load classes.' : 'تعذر تحميل الفصول من النظام.'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [isEnglish])
 
   useEffect(() => {
     if (!classId) {
@@ -49,48 +52,48 @@ export default function TeacherReportsPage() {
           : []
         setStudents(roster)
       })
-      .catch(() => setError('تعذر تحميل قائمة طلاب الفصل.'))
+      .catch(() => setError(isEnglish ? 'Could not load this class roster.' : 'تعذر تحميل قائمة طلاب الفصل.'))
       .finally(() => setRosterLoading(false))
-  }, [classId])
+  }, [classId, isEnglish])
 
   const selectedStudent = students.find((student) => student.id === studentId)
   const studentName = selectedStudent?.name || [selectedStudent?.firstName, selectedStudent?.lastName].filter(Boolean).join(' ')
 
   return (
-    <div className="space-y-6 pb-12" dir="rtl">
+    <div className="space-y-6 pb-12" dir={isEnglish ? 'ltr' : 'rtl'}>
       <header>
-        <h1 className="text-2xl font-bold">تقارير الطلاب</h1>
-        <p className="text-sm text-muted-foreground">تقارير مبنية على الدرجات والحضور والواجبات المسجلة في النظام.</p>
+        <h1 className="text-2xl font-bold">{isEnglish ? 'Student reports' : 'تقارير الطلاب'}</h1>
+        <p className="text-sm text-muted-foreground">{isEnglish ? 'Reports based on grades, attendance, and assignments recorded in the system.' : 'تقارير مبنية على الدرجات والحضور والواجبات المسجلة في النظام.'}</p>
       </header>
 
       <section className="grid gap-4 sm:grid-cols-3">
         <label className="space-y-2 text-sm font-medium">
-          الفصل
+          {isEnglish ? 'Class' : 'الفصل'}
           <select className="w-full rounded-md border bg-background p-2.5" value={classId} onChange={(event) => setClassId(event.target.value)} disabled={loading || classes.length === 0}>
-            <option value="">{loading ? 'جارٍ تحميل الفصول...' : 'اختر الفصل'}</option>
+            <option value="">{loading ? (isEnglish ? 'Loading classes...' : 'جارٍ تحميل الفصول...') : (isEnglish ? 'Select a class' : 'اختر الفصل')}</option>
             {classes.map((schoolClass) => <option key={schoolClass.id} value={schoolClass.id}>{schoolClass.name}</option>)}
           </select>
         </label>
         <label className="space-y-2 text-sm font-medium">
-          الطالب
+          {isEnglish ? 'Student' : 'الطالب'}
           <select className="w-full rounded-md border bg-background p-2.5" value={studentId} onChange={(event) => setStudentId(event.target.value)} disabled={!classId || rosterLoading || students.length === 0}>
-            <option value="">{rosterLoading ? 'جارٍ تحميل الطلاب...' : 'اختر الطالب'}</option>
+            <option value="">{rosterLoading ? (isEnglish ? 'Loading students...' : 'جارٍ تحميل الطلاب...') : (isEnglish ? 'Select a student' : 'اختر الطالب')}</option>
             {students.map((student) => <option key={student.id} value={student.id}>{student.name || [student.firstName, student.lastName].filter(Boolean).join(' ')}</option>)}
           </select>
         </label>
         <label className="space-y-2 text-sm font-medium">
-          الفترة
+          {isEnglish ? 'Period' : 'الفترة'}
           <select className="w-full rounded-md border bg-background p-2.5" value={period} onChange={(event) => setPeriod(event.target.value as 'week' | 'month')}>
-            <option value="week">آخر أسبوع</option>
-            <option value="month">آخر شهر</option>
+            <option value="week">{isEnglish ? 'Last week' : 'آخر أسبوع'}</option>
+            <option value="month">{isEnglish ? 'Last month' : 'آخر شهر'}</option>
           </select>
         </label>
       </section>
 
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {!loading && !error && classes.length === 0 && <p className="py-10 text-center text-muted-foreground">لا توجد فصول مرتبطة بحسابك.</p>}
-      {classId && !rosterLoading && students.length === 0 && <p className="py-8 text-center text-muted-foreground">لا يوجد طلاب مسجلون في هذا الفصل.</p>}
-      {studentId && <div><p className="mb-3 text-sm text-muted-foreground">تقرير {studentName}</p><ParentReportView key={`${studentId}-${period}`} studentId={studentId} period={period} /></div>}
+      {!loading && !error && classes.length === 0 && <p className="py-10 text-center text-muted-foreground">{isEnglish ? 'No classes are linked to your account.' : 'لا توجد فصول مرتبطة بحسابك.'}</p>}
+      {classId && !rosterLoading && students.length === 0 && <p className="py-8 text-center text-muted-foreground">{isEnglish ? 'No students are enrolled in this class.' : 'لا يوجد طلاب مسجلون في هذا الفصل.'}</p>}
+      {studentId && <div className="space-y-3"><div className="flex items-center gap-3 rounded-xl border bg-card p-3"><div className="size-12 shrink-0 overflow-hidden rounded-full bg-muted">{selectedStudent?.avatar ? <img src={selectedStudent.avatar} alt={isEnglish ? `Photo of ${studentName}` : `صورة ${studentName}`} className="h-full w-full bg-white object-contain" /> : <span className="grid h-full w-full place-items-center font-bold text-muted-foreground">{studentName.slice(0, 1)}</span>}</div><p className="text-sm text-muted-foreground">{isEnglish ? 'Report for ' : 'تقرير الطالب '}<strong className="text-foreground">{studentName}</strong></p></div><ParentReportView key={`${studentId}-${period}`} studentId={studentId} period={period} /></div>}
     </div>
   )
 }

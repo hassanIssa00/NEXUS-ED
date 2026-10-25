@@ -4,13 +4,15 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateEnrollmentDto } from './dto/enrollment.dto';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class EnrollmentService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, @Optional() private uploads?: UploadService) {}
 
   private requireSchool(schoolId?: string) {
     if (!schoolId) throw new ForbiddenException('The account is not assigned to a school');
@@ -69,13 +71,26 @@ export class EnrollmentService {
 
   async findByClass(classId: string, actorId: string, role: string, schoolId?: string) {
     await this.assertClassAccess(classId, actorId, role, schoolId);
-    return this.prisma.enrollment.findMany({
+    const enrollments = await this.prisma.enrollment.findMany({
       where: { classId },
       include: {
-        student: { select: { id: true, email: true, firstName: true, lastName: true, name: true, phone: true } },
+        student: { select: { id: true, email: true, firstName: true, lastName: true, name: true, phone: true, avatar: true, isActive: true, lastActiveDate: true } },
       },
       orderBy: { enrolledAt: 'desc' },
     });
+    const avatarReferences = [...new Set(enrollments
+      .map(({ student }) => student.avatar)
+      .filter((value): value is string => Boolean(value) && /^(?:storage:\/\/|file:|https?:\/\/)/i.test(value)))];
+    if (!avatarReferences.length || !this.uploads) return enrollments;
+    const signed = await this.uploads.getSignedUrlsForReferences(avatarReferences).catch(() => avatarReferences);
+    const signedByReference = new Map(avatarReferences.map((reference, index) => [reference, signed[index] || reference]));
+    return enrollments.map((enrollment) => ({
+      ...enrollment,
+      student: {
+        ...enrollment.student,
+        avatar: enrollment.student.avatar ? signedByReference.get(enrollment.student.avatar) || enrollment.student.avatar : null,
+      },
+    }));
   }
 
   async findByStudent(studentId: string, actorId: string, role: string, schoolId?: string) {

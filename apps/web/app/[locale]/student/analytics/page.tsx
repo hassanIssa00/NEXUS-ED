@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { TrendingUp, Users, Award, FileText } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
+import { useLocale } from 'next-intl';
 
 // Import new analytics components
 import { StudentProgressChart } from '@/components/analytics/student-progress-chart';
@@ -24,12 +25,13 @@ function LoadingCard() {
 }
 
 export default function StudentAnalyticsPage() {
+    const isEnglish = useLocale() === 'en';
+    const t = (ar: string, en: string) => isEnglish ? en : ar;
     const { user, profile } = useAuth();
     const studentId = user?.id;
-    const studentName = profile?.full_name || 'الطالب';
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6" dir={isEnglish ? 'ltr' : 'rtl'}>
             {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -37,16 +39,9 @@ export default function StudentAnalyticsPage() {
                 className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl p-8 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
             >
                 <div>
-                    <h1 className="text-3xl font-bold mb-2">📊 تحليلات الأداء</h1>
-                    <p className="text-blue-100 text-lg">تابع تقدمك وقارن مستواك بزملائك</p>
+                    <h1 className="text-3xl font-bold mb-2">📊 {t('تحليلات الأداء', 'Performance analytics')}</h1>
+                    <p className="text-blue-100 text-lg">{t('تابع تقدمك وقارن مستواك بزملائك', 'Track your progress and compare your performance with classmates')}</p>
                 </div>
-                <button
-                    onClick={() => window.print()}
-                    className="flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-2 rounded-xl transition-all border border-white/30 print:hidden"
-                >
-                    <FileText className="w-5 h-5" />
-                    <span>تحميل تقرير PDF</span>
-                </button>
             </motion.div>
 
             {/* Tabs */}
@@ -54,19 +49,19 @@ export default function StudentAnalyticsPage() {
                 <TabsList className="grid w-full grid-cols-4 mb-6">
                     <TabsTrigger value="progress" className="flex items-center gap-2">
                         <TrendingUp className="w-4 h-4" />
-                        <span className="hidden sm:inline">تطور المستوى</span>
+                        <span className="hidden sm:inline">{t('تطور المستوى', 'Progress')}</span>
                     </TabsTrigger>
                     <TabsTrigger value="comparison" className="flex items-center gap-2">
                         <Users className="w-4 h-4" />
-                        <span className="hidden sm:inline">مقارنة بالفصل</span>
+                        <span className="hidden sm:inline">{t('مقارنة بالفصل', 'Class comparison')}</span>
                     </TabsTrigger>
                     <TabsTrigger value="achievements" className="flex items-center gap-2">
                         <Award className="w-4 h-4" />
-                        <span className="hidden sm:inline">الإنجازات</span>
+                        <span className="hidden sm:inline">{t('الإنجازات', 'Achievements')}</span>
                     </TabsTrigger>
                     <TabsTrigger value="report" className="flex items-center gap-2">
                         <FileText className="w-4 h-4" />
-                        <span className="hidden sm:inline">التقرير</span>
+                        <span className="hidden sm:inline">{t('التقرير', 'Report')}</span>
                     </TabsTrigger>
                 </TabsList>
 
@@ -77,7 +72,7 @@ export default function StudentAnalyticsPage() {
                         animate={{ opacity: 1, y: 0 }}
                     >
                         <Suspense fallback={<LoadingCard />}>
-                            {studentId ? <StudentProgressChart studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">سجّل الدخول لعرض بياناتك.</p>}
+                            {studentId ? <StudentProgressChart studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">{t('سجّل الدخول لعرض بياناتك.', 'Sign in to view your data.')}</p>}
                         </Suspense>
                     </motion.div>
                 </TabsContent>
@@ -89,7 +84,7 @@ export default function StudentAnalyticsPage() {
                         animate={{ opacity: 1, y: 0 }}
                     >
                         <Suspense fallback={<LoadingCard />}>
-                            {studentId ? <ClassComparisonCard studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">سجّل الدخول لعرض بياناتك.</p>}
+                            {studentId ? <ClassComparisonCard studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">{t('سجّل الدخول لعرض بياناتك.', 'Sign in to view your data.')}</p>}
                         </Suspense>
                     </motion.div>
                 </TabsContent>
@@ -101,7 +96,7 @@ export default function StudentAnalyticsPage() {
                         animate={{ opacity: 1, y: 0 }}
                     >
                         <Suspense fallback={<LoadingCard />}>
-                            {studentId ? <StudentGamificationCard studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">سجّل الدخول لعرض بياناتك.</p>}
+                            {studentId ? <StudentGamificationCard studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">{t('سجّل الدخول لعرض بياناتك.', 'Sign in to view your data.')}</p>}
                         </Suspense>
                     </motion.div>
                 </TabsContent>
@@ -113,7 +108,7 @@ export default function StudentAnalyticsPage() {
                         animate={{ opacity: 1, y: 0 }}
                     >
                         <Suspense fallback={<LoadingCard />}>
-                            {studentId ? <ParentReportView studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">سجّل الدخول لعرض بياناتك.</p>}
+                            {studentId ? <ParentReportView studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">{t('سجّل الدخول لعرض بياناتك.', 'Sign in to view your data.')}</p>}
                         </Suspense>
                     </motion.div>
                 </TabsContent>

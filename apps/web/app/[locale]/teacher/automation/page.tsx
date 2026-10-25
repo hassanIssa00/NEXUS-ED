@@ -5,6 +5,7 @@ import { BookOpen, BarChart3, ClipboardCheck, PieChart } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { useLocale } from 'next-intl'
 
 const automationModules = [
     {
@@ -38,21 +39,29 @@ const automationModules = [
 ]
 
 export default function AutomationHubPage() {
+    const isEnglish = useLocale() === 'en'
+    const t = (ar: string, en: string) => isEnglish ? en : ar
+    const labels: Record<string, { title: string; desc: string }> = {
+        'مساعد تحضير الدروس': { title: 'Lesson preparation assistant', desc: 'Create a lesson summary and questions from saved lesson content using the available AI service.' },
+        'رصد الدرجات الجماعي': { title: 'Bulk grading', desc: 'Review and save grades for actual submissions assigned to you.' },
+        'رصد الحضور': { title: 'Attendance tracking', desc: 'Open the attendance screen for classes assigned to your account.' },
+        'تحليل نتائج التكليفات': { title: 'Assignment results analysis', desc: 'View statistics from submissions and grades recorded in the system.' },
+    }
     return (
-        <div className="space-y-8 max-w-7xl mx-auto">
+        <div className="space-y-8 max-w-7xl mx-auto" dir={isEnglish ? 'ltr' : 'rtl'}>
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="border-b border-border pb-5"
             >
-                <h1 className="text-2xl font-bold">أدوات المعلم</h1>
-                <p className="mt-1 text-sm text-muted-foreground">أدوات مرتبطة ببيانات التكليفات والحضور والدروس في حسابك.</p>
+                <h1 className="text-2xl font-bold">{t('أدوات المعلم', 'Teacher tools')}</h1>
+                <p className="mt-1 text-sm text-muted-foreground">{t('أدوات مرتبطة ببيانات التكليفات والحضور والدروس في حسابك.', 'Tools connected to assignment, attendance, and lesson data in your account.')}</p>
             </motion.div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {automationModules.map((mod, i) => (
                     <motion.div
-                        key={mod.label}
+                        key={mod.href}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }}
@@ -66,15 +75,15 @@ export default function AutomationHubPage() {
                                         <mod.icon className="w-5 h-5 text-white" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <h3 className="text-base font-bold text-foreground leading-tight">{mod.label}</h3>
+                                        <h3 className="text-base font-bold text-foreground leading-tight">{isEnglish ? labels[mod.label]?.title : mod.label}</h3>
                                     </div>
                                 </div>
-                                <p className="text-sm text-muted-foreground mb-6 leading-relaxed flex-1">{mod.desc}</p>
+                                <p className="text-sm text-muted-foreground mb-6 leading-relaxed flex-1">{isEnglish ? labels[mod.label]?.desc : mod.desc}</p>
                                 
                                 <div className="mt-auto">
                                     <Link href={mod.href} className="block mt-4">
                                         <Button className="w-full font-medium">
-                                            فتح الأداة
+                                            {t('فتح الأداة', 'Open tool')}
                                         </Button>
                                     </Link>
                                 </div>

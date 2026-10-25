@@ -3,7 +3,7 @@ import { renderCertificatePdf } from './certificate-pdf';
 describe('renderCertificatePdf', () => {
   it('creates a printable branded PDF with embedded Arabic and school assets', async () => {
     const pdf = await renderCertificatePdf({
-      serial: 'NEX-2026-ABC123',
+      serial: 'NEX-2026-ABCDEF0123456789ABCD',
       title: 'شهادة تميز في الرياضيات',
       description: 'تقديرًا للجهد والاجتهاد خلال الفصل الدراسي',
       createdAt: new Date('2026-10-17T12:00:00.000Z'),

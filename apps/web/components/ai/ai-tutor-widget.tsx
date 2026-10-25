@@ -2,11 +2,20 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, X, Send, Loader2, Minimize2, Maximize2 } from 'lucide-react';
+import { Bot, X, Send, Loader2, Minimize2, Maximize2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api/client';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
+import { downloadBrandedPdf } from '@/lib/report-pdf';
+import { useLocale } from 'next-intl';
+
+type CurriculumPageContext = {
+  slug: string;
+  title: string;
+  page: number;
+  totalPages: number;
+};
 
 export function AiTutorWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,13 +23,33 @@ export function AiTutorWidget() {
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [downloadingPdfIndex, setDownloadingPdfIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const isEnglish = useLocale() === 'en';
   const { profile } = useAuth();
+  const [curriculumPage, setCurriculumPage] = useState<CurriculumPageContext | null>(null);
+
+  useEffect(() => {
+    const pageWindow = window as typeof window & { __nexusCurriculumPageContext?: CurriculumPageContext };
+    setCurriculumPage(pageWindow.__nexusCurriculumPageContext || null);
+    const onPageContext = (event: Event) => {
+      const detail = (event as CustomEvent<CurriculumPageContext | null>).detail;
+      setCurriculumPage(detail || null);
+    };
+    window.addEventListener('nexus:curriculum-page-context', onPageContext);
+    return () => window.removeEventListener('nexus:curriculum-page-context', onPageContext);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isOpen, isMinimized]);
+
+  useEffect(() => {
+    setMessages([]);
+    setInputValue('');
+    setIsOpen(false);
+  }, [profile?.id]);
 
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
@@ -33,14 +62,16 @@ export function AiTutorWidget() {
     try {
       let subjectContext = 'General';
       if (pathname.includes('/student/assignments')) {
-        subjectContext = 'Homework Help';
+        subjectContext = isEnglish ? 'Homework Help' : 'مساعدة في الواجب';
       } else if (pathname.includes('/student/content')) {
-        subjectContext = 'Lesson Review';
+        subjectContext = isEnglish ? 'Lesson Review' : 'مراجعة الدرس';
       }
 
       const res = await apiClient.post('/ai/ask', {
         question: userMsg,
         subject: subjectContext,
+        portalPath: pathname,
+        currentPage: curriculumPage || undefined,
         history: messages.slice(-10).map((message) => ({
           role: message.role,
           content: message.content.slice(0, 1500),
@@ -55,21 +86,33 @@ export function AiTutorWidget() {
     } catch (error) {
       const status = (error as { response?: { status?: number } })?.response?.status;
       const apiMessage = (error as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
-      const message = typeof apiMessage === 'string' ? apiMessage : Array.isArray(apiMessage) ? apiMessage.join('، ') : '';
-      const content = message || (status === 401
-        ? 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى ثم حاول.'
+      const content = status === 401
+        ? (isEnglish ? 'Your session has expired. Sign in again and try once more.' : 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى ثم حاول.')
         : status === 403
-          ? 'المساعد غير متاح لهذا الحساب حاليًا.'
+          ? (isEnglish ? 'The assistant is not available for this account right now.' : 'المساعد غير متاح لهذا الحساب حاليًا.')
         : status === 429
-          ? 'وصل المساعد إلى حد الطلبات المؤقت. انتظر قليلًا ثم أعد المحاولة.'
+          ? (isEnglish ? 'The assistant has reached its temporary request limit. Wait a moment and try again.' : 'وصل المساعد إلى حد الطلبات المؤقت. انتظر قليلًا ثم أعد المحاولة.')
           : status === 503
-            ? 'خدمة الذكاء الاصطناعي غير متاحة مؤقتًا. حاول بعد قليل.'
-            : 'تعذر الوصول إلى المساعد. تحقق من الاتصال وحاول مرة أخرى.');
+            ? (isEnglish ? 'The AI service is temporarily unavailable. Please try again shortly.' : 'خدمة الذكاء الاصطناعي غير متاحة مؤقتًا. حاول بعد قليل.')
+            : (isEnglish ? 'Could not reach the assistant. Check your connection and try again.' : 'تعذر الوصول إلى المساعد. تحقق من الاتصال وحاول مرة أخرى.');
       setMessages(prev => [...prev, { role: 'assistant', content }]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const downloadAnswer = async (index: number, content: string) => {
+    setDownloadingPdfIndex(index);
+    try {
+      await downloadBrandedPdf(isEnglish ? 'NEXUS AI assistant response' : 'رد المساعد الذكي NEXUS', content, `nexus-ai-response-${index + 1}.pdf`);
+    } catch (error) {
+      window.alert(isEnglish ? 'Could not download the PDF response. Please try again.' : 'تعذر تنزيل الرد PDF الآن. حاول مرة أخرى.');
+    } finally {
+      setDownloadingPdfIndex(null);
+    }
+  };
+
+  if (!profile?.id) return null;
 
   return (
     <>
@@ -80,7 +123,7 @@ export function AiTutorWidget() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             onClick={() => setIsOpen(true)}
-            className="print:hidden fixed bottom-6 left-6 z-50 p-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-full shadow-[0_8px_30px_rgb(124,58,237,0.5)] hover:shadow-[0_8px_40px_rgb(124,58,237,0.7)] hover:scale-105 transition-all duration-300 flex items-center justify-center group"
+            className="print:hidden fixed bottom-6 left-6 z-50 p-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-full shadow-[0_8px_30px_rgb(35,74,101,0.5)] hover:shadow-[0_8px_40px_rgb(35,74,101,0.7)] hover:scale-105 transition-all duration-300 flex items-center justify-center group"
           >
             <div className="absolute inset-0 bg-white/20 rounded-full animate-ping" />
             <Bot className="w-6 h-6 group-hover:rotate-12 transition-transform" />
@@ -92,9 +135,9 @@ export function AiTutorWidget() {
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ 
-              opacity: 1, 
-              y: 0, 
+            animate={{
+              opacity: 1,
+              y: 0,
               scale: 1,
               height: isMinimized ? 'auto' : '500px'
             }}
@@ -107,19 +150,25 @@ export function AiTutorWidget() {
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
                   <Bot className="w-5 h-5" />
                 </div>
+
+                {curriculumPage && (
+                  <div className={`border-b border-violet-100 bg-violet-50 px-4 py-2 text-[11px] font-semibold text-violet-900 ${isEnglish ? 'text-left' : 'text-right'}`} dir={isEnglish ? 'ltr' : 'rtl'}>
+                    {isEnglish ? 'Textbook: ' : 'مرتبط بالكتاب: '}{curriculumPage.title} · {isEnglish ? 'Page' : 'الصفحة'} {curriculumPage.page} {isEnglish ? 'of' : 'من'} {curriculumPage.totalPages}
+                  </div>
+                )}
                 <div>
-                  <h3 className="font-extrabold text-sm shadow-sm">المساعد الذكي NEXUS</h3>
-                  <p className="text-[11px] text-violet-100 font-medium">مساعدك الشخصي للنجاح</p>
+                  <h3 className="font-extrabold text-sm shadow-sm">{isEnglish ? 'NEXUS AI assistant' : 'المساعد الذكي NEXUS'}</h3>
+                  <p className="text-[11px] text-violet-100 font-medium">{isEnglish ? 'Your personal learning assistant' : 'مساعدك الشخصي للنجاح'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <button 
+                <button
                   onClick={() => setIsMinimized(!isMinimized)}
                   className="p-1 hover:bg-primary-foreground/20 rounded-md transition-colors"
                 >
                   {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
                 </button>
-                <button 
+                <button
                   onClick={() => setIsOpen(false)}
                   className="p-1 hover:bg-primary-foreground/20 rounded-md transition-colors"
                 >
@@ -137,26 +186,29 @@ export function AiTutorWidget() {
                         <Bot className="w-10 h-10 text-violet-500" />
                       </div>
                       <p className="font-bold text-gray-700 dark:text-gray-300 mb-1">
-                        مرحباً {profile?.full_name ? profile.full_name.split(' ')[0] : ''}! 
+                        {isEnglish ? 'Hello' : 'مرحباً'} {profile?.full_name ? profile.full_name.split(' ')[0] : ''}!
                       </p>
-                      <p>أنا مساعدك الذكي NEXUS.<br/>كيف يمكنني مساعدتك اليوم؟</p>
+                      <p>{isEnglish ? <>I’m your NEXUS AI assistant.<br />How can I help you today?</> : <>أنا مساعدك الذكي NEXUS.<br/>كيف يمكنني مساعدتك اليوم؟</>}</p>
                     </div>
                   )}
                   {messages.map((msg, idx) => (
-                    <div 
-                      key={idx} 
+                    <div
+                      key={idx}
                       className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}
                       dir={msg.role === 'user' ? 'ltr' : 'rtl'}
                     >
-                      <div 
-                        className={`max-w-[85%] p-3.5 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed shadow-sm ${
-                          msg.role === 'user' 
-                            ? 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-tr-sm' 
-                            : 'bg-white dark:bg-[#2b2b3d] border border-gray-100 dark:border-white/5 rounded-tl-sm text-gray-800 dark:text-gray-200'
-                        }`}
-                        dir="rtl"
-                      >
-                        {msg.content}
+                      <div className="flex max-w-[85%] flex-col items-end gap-1.5">
+                        <div
+                          className={`p-3.5 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed shadow-sm ${
+                            msg.role === 'user'
+                              ? 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-tr-sm'
+                              : 'bg-white dark:bg-[#2b2b3d] border border-gray-100 dark:border-white/5 rounded-tl-sm text-gray-800 dark:text-gray-200'
+                          }`}
+                          dir={isEnglish ? 'ltr' : 'rtl'}
+                        >
+                          {msg.content}
+                        </div>
+                        {msg.role === 'assistant' && <button type="button" onClick={() => void downloadAnswer(idx, msg.content)} disabled={downloadingPdfIndex === idx} className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-white px-2 py-1 text-[11px] font-bold text-teal-800 disabled:opacity-60"><Download className="h-3.5 w-3.5" />{downloadingPdfIndex === idx ? (isEnglish ? 'Preparing PDF' : 'جارٍ تجهيز PDF') : (isEnglish ? 'Download PDF response' : 'تنزيل الرد PDF')}</button>}
                       </div>
                     </div>
                   ))}
@@ -173,7 +225,7 @@ export function AiTutorWidget() {
                 </div>
 
                 <div className="p-4 bg-white/50 dark:bg-black/20 backdrop-blur-md border-t border-gray-100 dark:border-white/5">
-                  <form 
+                  <form
                     onSubmit={(e) => { e.preventDefault(); handleSend(); }}
                     className="flex items-center gap-2"
                   >
@@ -182,14 +234,14 @@ export function AiTutorWidget() {
                       value={inputValue}
                       maxLength={2000}
                       onChange={(e) => setInputValue(e.target.value)}
-                      placeholder="اسألني أي سؤال..."
+                      placeholder={isEnglish ? 'Ask me a question…' : 'اسألني أي سؤال...'}
                       className="flex-1 bg-white dark:bg-[#2b2b3d] border border-gray-200 dark:border-white/10 rounded-full px-5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 shadow-inner"
-                      dir="rtl"
+                      dir={isEnglish ? 'ltr' : 'rtl'}
                       disabled={isLoading}
                     />
-                    <Button 
-                      type="submit" 
-                      size="icon" 
+                    <Button
+                      type="submit"
+                      size="icon"
                       className="rounded-full shrink-0 w-10 h-10 bg-violet-600 hover:bg-violet-700 text-white shadow-md transition-transform active:scale-95"
                       disabled={!inputValue.trim() || isLoading}
                     >

@@ -1,4 +1,4 @@
-import { IsNumber, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateSchoolInvoiceDto {
   @IsUUID()
@@ -12,4 +12,8 @@ export class CreateSchoolInvoiceDto {
   @IsString()
   @MaxLength(500)
   description: string;
+
+  @IsOptional()
+  @IsIn(['SAR', 'USD'])
+  currency?: string;
 }

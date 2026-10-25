@@ -71,7 +71,10 @@ describe('TeacherWorkspaceService parent meeting bookings', () => {
   it('reactivates a cancelled booking instead of violating the unique booking key', async () => {
     const booking = { id: 'booking-1', meetingId: 'meeting-1', status: 'BOOKED', createdAt: new Date() };
     const tx = {
-      parentMeeting: { findFirst: jest.fn().mockResolvedValue({ id: 'meeting-1', classId: 'class-1', maxBookings: 1, startsAt: new Date(Date.now() + 60_000) }) },
+      parentMeeting: { findFirst: jest.fn().mockResolvedValue({
+        id: 'meeting-1', classId: 'class-1', maxBookings: 1, startsAt: new Date(Date.now() + 60_000),
+        bookings: [{ id: 'booking-1', status: 'CANCELLED' }],
+      }) },
       enrollment: { findFirst: jest.fn().mockResolvedValue({ id: 'enrollment-1' }) },
       parentMeetingBooking: {
         count: jest.fn().mockResolvedValue(0),
@@ -93,5 +96,47 @@ describe('TeacherWorkspaceService parent meeting bookings', () => {
       where: { meetingId_parentId_studentId: { meetingId: 'meeting-1', parentId: 'parent-1', studentId: 'student-1' } },
       update: { status: 'BOOKED', note: 'Please call me' },
     }));
+  });
+});
+
+describe('TeacherWorkspaceService certificate verification', () => {
+  const serial = 'NEX-2026-ABCDEF0123456789ABCD';
+
+  it('returns only the public details needed to verify an issued certificate', async () => {
+    const issuedAt = new Date('2026-10-23T08:00:00.000Z');
+    const certificate = {
+      serial,
+      title: 'شهادة تميز أكاديمي',
+      description: 'تقديرًا للاجتهاد.',
+      createdAt: issuedAt,
+      school: { name: 'مدارس الإخلاص الأهلية' },
+      student: { name: 'اسم الطالب', firstName: 'اسم', lastName: 'الطالب' },
+      issuer: { name: 'المعلم المسؤول' },
+    };
+    const prisma = { certificate: { findUnique: jest.fn().mockResolvedValue(certificate) } };
+    const service = new TeacherWorkspaceService(prisma as any, {} as any);
+
+    await expect(service.verifyCertificate(serial.toLowerCase())).resolves.toEqual({
+      verified: true,
+      serial,
+      title: 'شهادة تميز أكاديمي',
+      description: 'تقديرًا للاجتهاد.',
+      issuedAt,
+      schoolName: 'مدارس الإخلاص الأهلية',
+      studentName: 'اسم الطالب',
+      issuerName: 'مدارس الإخلاص الأهلية',
+    });
+    expect(prisma.certificate.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      where: { serial },
+      select: expect.not.objectContaining({ id: true, schoolId: true, studentId: true, issuerId: true }),
+    }));
+  });
+
+  it('does not query the database for malformed certificate serials', async () => {
+    const prisma = { certificate: { findUnique: jest.fn() } };
+    const service = new TeacherWorkspaceService(prisma as any, {} as any);
+
+    await expect(service.verifyCertificate('invalid')).rejects.toThrow('رقمها غير صالح');
+    expect(prisma.certificate.findUnique).not.toHaveBeenCalled();
   });
 });

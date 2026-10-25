@@ -56,8 +56,8 @@ export const curriculaList: CurriculumSubject[] = [
     term: 'الفصل الدراسي الأول',
     year: '1448هـ',
     pageCount: 155,
-    color: '#1d4ed8',
-    accent: '#3b82f6',
+    color: '#234A65',
+    accent: '#4A687C',
     badge: 'الأعداد والعمليات',
     promise:
       'كتاب الرياضيات التفاعلي للصف الأول الابتدائي يشمل تدريبات المقارنة والتصنيف، الأعداد حتى 20، والجمع والطرح التفاعلي.',
@@ -79,7 +79,7 @@ export const curriculaList: CurriculumSubject[] = [
     year: '1448هـ',
     pageCount: 84,
     color: '#065f46',
-    accent: '#14b8a6',
+    accent: '#98793E',
     badge: 'القرآن والعقيدة والآداب',
     promise:
       'كتاب الدراسات الإسلامية التفاعلي يشمل سور القرآن الكريم المقررة، أركان الإسلام، والآداب والسلوكيات اليومية مع التدريبات التفاعلية.',
@@ -118,8 +118,8 @@ export const curriculaList: CurriculumSubject[] = [
     term: 'First Semester',
     year: '1448H',
     pageCount: 108,
-    color: '#4338ca',
-    accent: '#6366f1',
+    color: '#234A65',
+    accent: '#35556B',
     badge: 'English & Phonics',
     promise:
       'كتاب اللغة الإنجليزية We Can 1 التفاعلي يتيح للطالب التدرب على الحروف الإنجليزية، الكلمات الأولى، المحادثات البسيطة، والأنشطة بالقلم التفاعلي.',
@@ -140,8 +140,8 @@ export const curriculaList: CurriculumSubject[] = [
     term: 'الفصل الدراسي الأول',
     year: '1448هـ',
     pageCount: 82,
-    color: '#c026d3',
-    accent: '#d946ef',
+    color: '#98793E',
+    accent: '#98793E',
     badge: 'المهارات والسلوك والاستقلالية',
     promise:
       'كتاب المهارات الحياتية والأسرية التفاعلي يركز على تنمية مهارات الطفل الاستقلالية، النظافة الشخصية، السلامة، وآداب التعامل الأسري.',

@@ -28,9 +28,13 @@ function isMobileAuthRequest(url?: string) {
   return url?.includes('/auth/mobile/') ?? false;
 }
 
+function isFirebaseRegistrationRequest(url?: string) {
+  return url?.includes('/auth/teacher-registration/avatar') ?? false;
+}
+
 apiClient.interceptors.request.use(async (config) => {
   if (!API_URL) throw new Error(API_CONFIG_ERROR ?? 'Nexus API is not configured.');
-  if (!isMobileAuthRequest(config.url)) {
+  if (!isMobileAuthRequest(config.url) && !isFirebaseRegistrationRequest(config.url)) {
     const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
     if (token) config.headers.Authorization = `Bearer ${token}`;
   }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AppPage, BrandHeader, ChoiceButton, ErrorNotice, Field, PrimaryButton, ScreenTitle, Surface } from '@/components/mobile-ui';
@@ -20,6 +21,7 @@ export default function StudentProfileScreen() {
   const [gradeLevel, setGradeLevel] = useState<number | null>(user?.gradeLevel ?? null);
   const [nationalId, setNationalId] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [photo, setPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -87,7 +89,17 @@ export default function StudentProfileScreen() {
             ))}
           </View>
           <Field label="رقم الهوية الوطنية / الإقامة" icon="card-outline" value={nationalId} onChangeText={(value) => setNationalId(value.replace(/\D/g, '').slice(0, 10))} placeholder="10 أرقام" keyboardType="number-pad" maxLength={10} />
-          <Field label="تاريخ الميلاد (اختياري)" icon="calendar-outline" value={dateOfBirth} onChangeText={setDateOfBirth} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" />
+          <View style={styles.dateField}>
+            <Text style={styles.section}>تاريخ الميلاد (اختياري)</Text>
+            <TouchableOpacity accessibilityRole="button" onPress={() => setShowDatePicker(true)} style={styles.dateButton}>
+              <Ionicons name="calendar-outline" size={18} color={BRAND.teal} />
+              <Text style={styles.dateText}>{dateOfBirth ? new Date(`${dateOfBirth}T00:00:00`).toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' }) : 'اختر تاريخ الميلاد'}</Text>
+            </TouchableOpacity>
+            {showDatePicker ? <DateTimePicker value={dateOfBirth ? new Date(`${dateOfBirth}T00:00:00`) : new Date(2015, 0, 1)} mode="date" display="default" maximumDate={new Date()} onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
+              setShowDatePicker(false);
+              if (event.type === 'set' && selectedDate) setDateOfBirth(`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`);
+            }} /> : null}
+          </View>
           {error ? <ErrorNotice>{error}</ErrorNotice> : null}
           <PrimaryButton title="حفظ ومتابعة للاختبار" icon="arrow-forward" onPress={() => void submit()} loading={saving} />
         </Surface>
@@ -106,5 +118,8 @@ const styles = StyleSheet.create({
   photoTitle: { color: BRAND.ink, fontSize: 14, fontWeight: '700', writingDirection: 'rtl' },
   photoHint: { color: BRAND.muted, fontSize: 12, writingDirection: 'rtl' },
   grades: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 7 },
-  gradeCell: { width: '48.5%' },
+  gradeCell: { flexGrow: 1, flexShrink: 1, flexBasis: '45%', minWidth: 124 },
+  dateField: { gap: 7 },
+  dateButton: { minHeight: 50, flexDirection: 'row-reverse', alignItems: 'center', gap: 9, paddingHorizontal: 13, borderWidth: 1, borderColor: BRAND.line, borderRadius: 12, backgroundColor: '#FFFFFF' },
+  dateText: { color: BRAND.ink, fontSize: 14, fontWeight: '700', writingDirection: 'rtl' },
 });

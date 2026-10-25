@@ -1,13 +1,8 @@
 'use client'
 import { motion } from 'framer-motion'
 import { Link } from '@/i18n/routing'
+import { useLocale } from 'next-intl'
 import { BookOpen, FileText, Calendar, ChevronLeft, Clock } from 'lucide-react'
-
-const URGENCY: Record<string, { label: string; color: string }> = {
-  high:   { label: 'عاجل',  color: '#ef4444' },
-  medium: { label: 'قريب',  color: '#f59e0b' },
-  low:    { label: 'متاح',  color: '#10b981' },
-}
 
 function getUrgency(due?: string | null) {
   if (!due) return 'low'
@@ -16,15 +11,17 @@ function getUrgency(due?: string | null) {
 }
 
 export function AssignmentsTimeline({ assignments, liveCount }: { assignments: any[]; liveCount: number }) {
+  const isEnglish = useLocale() === 'en'
+  const urgencyLabel = (urgency: string) => urgency === 'high' ? (isEnglish ? 'Urgent' : 'عاجل') : urgency === 'medium' ? (isEnglish ? 'Due soon' : 'قريب') : (isEnglish ? 'Available' : 'متاح')
   return (
-    <div className="bg-white dark:bg-[#1e1e2d] border border-gray-100 dark:border-white/5 rounded-[2rem] overflow-hidden shadow-sm flex flex-col">
+    <div dir={isEnglish ? 'ltr' : 'rtl'} className="bg-white dark:bg-[#1e1e2d] border border-gray-100 dark:border-white/5 rounded-[2rem] overflow-hidden shadow-sm flex flex-col">
       <div className="flex items-center justify-between px-7 py-5 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.02]">
         <h3 className="font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
-          <Clock className="w-5 h-5 text-amber-500" /> الواجبات والمهام القادمة
-          {liveCount > 0 && <span className="text-[9px] bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">+{liveCount} جديدة</span>}
+          <Clock className="w-5 h-5 text-amber-500" /> {isEnglish ? 'Upcoming assignments and tasks' : 'الواجبات والمهام القادمة'}
+          {liveCount > 0 && <span className="text-[9px] bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">+{liveCount} {isEnglish ? 'new' : 'جديدة'}</span>}
         </h3>
         <Link href="/student/assignments" className="text-xs text-violet-600 dark:text-violet-400 font-bold flex items-center gap-1 hover:gap-2 transition-all px-3 py-1.5 rounded-full hover:bg-violet-50 dark:hover:bg-violet-500/10">
-          عرض الكل <ChevronLeft className="w-3 h-3" />
+          {isEnglish ? 'View all' : 'عرض الكل'} <ChevronLeft className="w-3 h-3" />
         </Link>
       </div>
 
@@ -34,13 +31,13 @@ export function AssignmentsTimeline({ assignments, liveCount }: { assignments: a
             <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-500/10 rounded-full flex items-center justify-center mb-3">
               <span className="text-3xl">🎉</span>
             </div>
-            <p className="font-bold text-gray-900 dark:text-white">أنجزت جميع مهامك!</p>
-            <p className="text-xs text-gray-500 mt-1">لا توجد واجبات معلقة الآن.</p>
+            <p className="font-bold text-gray-900 dark:text-white">{isEnglish ? 'You’re all caught up!' : 'أنجزت جميع مهامك!'}</p>
+            <p className="text-xs text-gray-500 mt-1">{isEnglish ? 'There are no pending assignments.' : 'لا توجد واجبات معلقة الآن.'}</p>
           </div>
         )}
         {assignments.slice(0, 7).map((a: any, i) => {
           const urgency = getUrgency(a.dueDate)
-          const { color } = URGENCY[urgency]
+          const color = urgency === 'high' ? '#ef4444' : urgency === 'medium' ? '#f59e0b' : '#10b981'
           return (
             <motion.div key={a.id || i}
               initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
@@ -57,11 +54,11 @@ export function AssignmentsTimeline({ assignments, liveCount }: { assignments: a
               </div>
               <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                 <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg" style={{ backgroundColor: `${color}15`, color }}>
-                  {URGENCY[urgency].label}
+                  {urgencyLabel(urgency)}
                 </span>
                 <p className="text-[10px] text-gray-400 flex items-center gap-1 font-medium">
                   <Calendar className="w-3 h-3" />
-                  {a.dueDate ? new Date(a.dueDate).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' }) : 'غير محدد'}
+                  {a.dueDate ? new Date(a.dueDate).toLocaleDateString(isEnglish ? 'en-US' : 'ar-SA', { month: 'short', day: 'numeric' }) : (isEnglish ? 'Not set' : 'غير محدد')}
                 </p>
               </div>
             </motion.div>

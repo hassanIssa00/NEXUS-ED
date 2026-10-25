@@ -9,6 +9,7 @@ import { Trophy, Star, Medal } from 'lucide-react';
 import { Leaderboard } from '@/components/gamification/leaderboard';
 import { StudentGamificationCard } from '@/components/gamification/student-stats-card';
 import { useAuth } from '@/contexts/auth-context';
+import { useLocale } from 'next-intl';
 
 function LoadingCard() {
     return (
@@ -21,11 +22,13 @@ function LoadingCard() {
 }
 
 export default function LeaderboardPage() {
+    const isEnglish = useLocale() === 'en';
+    const t = (ar: string, en: string) => isEnglish ? en : ar;
     const { user } = useAuth();
     const studentId = user?.id;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6" dir={isEnglish ? 'ltr' : 'rtl'}>
             {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -37,9 +40,9 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="relative z-10">
                     <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-                        🏆 لوحة الشرف
+                        🏆 {t('لوحة الشرف', 'Leaderboard')}
                     </h1>
-                    <p className="text-yellow-100 text-lg">تنافس مع زملائك واجمع النقاط!</p>
+                    <p className="text-yellow-100 text-lg">{t('تنافس مع زملائك واجمع النقاط!', 'Compete with classmates and earn points!')}</p>
                 </div>
             </motion.div>
 
@@ -65,7 +68,7 @@ export default function LeaderboardPage() {
                         transition={{ delay: 0.2 }}
                     >
                         <Suspense fallback={<LoadingCard />}>
-                            {studentId ? <StudentGamificationCard studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">سجّل الدخول لعرض بياناتك.</p>}
+                            {studentId ? <StudentGamificationCard studentId={studentId} /> : <p className="p-6 text-center text-muted-foreground">{t('سجّل الدخول لعرض بياناتك.', 'Sign in to view your data.')}</p>}
                         </Suspense>
                     </motion.div>
                 </div>

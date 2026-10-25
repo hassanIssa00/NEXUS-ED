@@ -27,15 +27,15 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    SecureStore.getItemAsync(REMEMBERED_CREDENTIALS_KEY).then((value) => {
+    SecureStore.getItemAsync(REMEMBERED_CREDENTIALS_KEY).then(async (value) => {
       if (!value) return;
-      const saved = JSON.parse(value) as { email?: string; password?: string; portal?: Portal };
-      if (saved.email && saved.password) {
+      const saved = JSON.parse(value) as { email?: string; portal?: Portal };
+      if (saved.email) {
         setEmail(saved.email);
-        setPassword(saved.password);
         if (saved.portal) setPortal(saved.portal);
         setRemember(true);
-      }
+        await SecureStore.setItemAsync(REMEMBERED_CREDENTIALS_KEY, JSON.stringify({ email: saved.email, portal: saved.portal }));
+      } else await SecureStore.deleteItemAsync(REMEMBERED_CREDENTIALS_KEY);
     }).catch(() => undefined);
   }, []);
 
@@ -46,7 +46,7 @@ export default function LoginScreen() {
     try {
       await signIn(email, password, portal);
       try {
-        if (remember) await SecureStore.setItemAsync(REMEMBERED_CREDENTIALS_KEY, JSON.stringify({ email: email.trim(), password, portal }));
+        if (remember) await SecureStore.setItemAsync(REMEMBERED_CREDENTIALS_KEY, JSON.stringify({ email: email.trim(), portal }));
         else await SecureStore.deleteItemAsync(REMEMBERED_CREDENTIALS_KEY);
       } catch {
         // A failed opt-in credential save must not undo a valid sign-in.
@@ -91,9 +91,9 @@ export default function LoginScreen() {
           </View>
           <PrimaryButton title="تسجيل الدخول" icon="arrow-forward" onPress={() => void submit()} loading={submitting} />
           <Link href="/register" asChild>
-            <TouchableOpacity style={styles.registerLink}><Ionicons name="person-add-outline" size={17} color={BRAND.blue} /><Text style={styles.registerText}>إنشاء حساب طالب أو ولي أمر</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.registerLink}><Ionicons name="person-add-outline" size={17} color={BRAND.blue} /><Text style={styles.registerText}>إنشاء حساب طالب أو ولي أمر أو معلم</Text></TouchableOpacity>
           </Link>
-          <Text style={styles.staffNote}>حسابات المعلمين والموظفين تصدرها إدارة المدرسة.</Text>
+          <Text style={styles.staffNote}>يحتاج تسجيل المعلم إلى كود المدرسة؛ أما بقية حسابات الموظفين فتصدرها الإدارة.</Text>
         </Surface>
       </View>
       <Text style={styles.footer}>Nexus EDU · مدارس الإخلاص الأهلية</Text>

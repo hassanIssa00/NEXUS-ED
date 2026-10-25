@@ -54,7 +54,24 @@ export class PaymentController {
       body.amount,
       body.description,
       req.user.schoolId,
+      req.user.userId || req.user.sub || req.user.id,
+      body.currency ?? 'SAR',
     );
+  }
+
+  @Get('school-students')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ACCOUNTANT, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
+  async getSchoolStudents(
+    @Request() req: any,
+    @Query('page') pageValue?: string,
+    @Query('limit') limitValue?: string,
+    @Query('search') search?: string,
+  ) {
+    if (!req.user.schoolId) throw new ForbiddenException('The account is not assigned to a school');
+    const page = Math.max(1, Number(pageValue) || 1);
+    const limit = Math.min(100, Math.max(1, Number(limitValue) || 25));
+    return this.paymentService.getSchoolStudents(req.user.schoolId, page, limit, search);
   }
 
   @Get('history')

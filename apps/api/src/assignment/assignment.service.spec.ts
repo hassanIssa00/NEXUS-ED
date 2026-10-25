@@ -57,10 +57,14 @@ describe('AssignmentService', () => {
   it('creates a teacher assignment only for their active school subject', async () => {
     prisma.subject.findUnique.mockResolvedValue({
       id: 'subject-1', name: 'Math', code: 'M', teacherId: 'teacher-1', schoolId: 'school-1', classId: 'class-1',
+      class: { teacherId: null, schoolId: 'school-1', teacherAssignments: [] }, classSubjects: [],
     });
     prisma.assignment.create.mockResolvedValue({ id: 'assignment-1', title: 'Quiz' });
 
-    await expect(service.create({ title: 'Quiz', subjectId: 'subject-1' }, 'teacher-1'))
+    await expect(service.create({
+      title: 'Quiz', subjectId: 'subject-1',
+      questions: [{ id: 'q1', prompt: 'Sample question', type: 'essay', points: 10 }],
+    }, 'teacher-1'))
       .resolves.toMatchObject({ id: 'assignment-1' });
     expect(prisma.assignment.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ teacherId: 'teacher-1', schoolId: 'school-1', classId: 'class-1', maxScore: 100 }),
@@ -70,6 +74,7 @@ describe('AssignmentService', () => {
   it('persists stable file references and returns only signed attachment links', async () => {
     prisma.subject.findUnique.mockResolvedValue({
       id: 'subject-1', name: 'Math', code: 'M', teacherId: 'teacher-1', schoolId: 'school-1', classId: 'class-1',
+      class: { teacherId: null, schoolId: 'school-1', teacherAssignments: [] }, classSubjects: [],
     });
     prisma.assignment.create.mockResolvedValue({ id: 'assignment-1', attachments: ['file:file-1'] });
     uploadService.getOwnedFileReference.mockResolvedValue('file:file-1');
@@ -78,6 +83,7 @@ describe('AssignmentService', () => {
       title: 'Quiz',
       subjectId: 'subject-1',
       attachments: ['file:file-1'],
+      questions: [{ id: 'q1', prompt: 'Sample question', type: 'essay', points: 10 }],
     }, 'teacher-1')).resolves.toMatchObject({
       id: 'assignment-1',
       attachments: ['https://storage.test/temporary-file'],
@@ -90,9 +96,30 @@ describe('AssignmentService', () => {
   });
 
   it('rejects a teacher who does not own the subject', async () => {
-    prisma.subject.findUnique.mockResolvedValue({ id: 'subject-1', teacherId: 'teacher-2', schoolId: 'school-1' });
-    await expect(service.create({ title: 'Quiz', subjectId: 'subject-1' }, 'teacher-1'))
+    prisma.subject.findUnique.mockResolvedValue({
+      id: 'subject-1', teacherId: 'teacher-2', schoolId: 'school-1',
+      class: { teacherId: 'teacher-2', schoolId: 'school-1', teacherAssignments: [] }, classSubjects: [],
+    });
+    await expect(service.create({
+      title: 'Quiz', subjectId: 'subject-1',
+      questions: [{ id: 'q1', prompt: 'Sample question', type: 'essay', points: 10 }],
+    }, 'teacher-1'))
       .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('allows a teacher assigned to the subject class to create its assignment', async () => {
+    prisma.subject.findUnique.mockResolvedValue({
+      id: 'subject-1', name: 'Math', code: 'M', teacherId: 'teacher-2', schoolId: 'school-1', classId: 'class-1',
+      class: { teacherId: 'teacher-3', schoolId: 'school-1', teacherAssignments: [{ teacherId: 'teacher-1' }] },
+      classSubjects: [],
+    });
+    prisma.assignment.create.mockResolvedValue({ id: 'assignment-1', title: 'Quiz' });
+
+    await expect(service.create({
+      title: 'Quiz', subjectId: 'subject-1',
+      questions: [{ id: 'q1', prompt: 'Sample question', type: 'essay', points: 10 }],
+    }, 'teacher-1'))
+      .resolves.toMatchObject({ id: 'assignment-1' });
   });
 
   it('limits teacher assignment lists to their own school and assignments', async () => {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEventsSocket } from '@/hooks/use-events-socket';
+import { useLocale } from 'next-intl';
 import { Zap, Trophy } from 'lucide-react';
 
 interface XpEvent {
@@ -14,6 +15,7 @@ interface XpEvent {
 }
 
 export function XpToast() {
+  const isEnglish = useLocale() === 'en';
   const { socket, isConnected } = useEventsSocket();
   const [events, setEvents] = useState<(XpEvent & { id: string })[]>([]);
 
@@ -55,8 +57,8 @@ export function XpToast() {
                   <Trophy className="w-8 h-8 text-white" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-lg">مستوى جديد!</h4>
-                  <p className="text-white/90 text-sm">لقد وصلت إلى {event.levelName}</p>
+                  <h4 className="font-bold text-lg">{isEnglish ? 'Level up!' : 'مستوى جديد!'}</h4>
+                  <p className="text-white/90 text-sm">{isEnglish ? `You reached ${event.levelName}` : `لقد وصلت إلى ${event.levelName}`}</p>
                 </div>
               </div>
             ) : (
@@ -66,7 +68,7 @@ export function XpToast() {
                   <Zap className="w-6 h-6" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-bold text-gray-900 dark:text-white">+{event.amount} نقطة</h4>
+                  <h4 className="font-bold text-gray-900 dark:text-white">{isEnglish ? `+${event.amount} points` : `+${event.amount} نقطة`}</h4>
                   <p className="text-gray-500 dark:text-gray-400 text-xs">{event.reason}</p>
                 </div>
               </div>

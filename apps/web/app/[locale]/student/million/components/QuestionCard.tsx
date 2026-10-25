@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -16,6 +17,7 @@ interface QuestionCardProps {
 }
 
 export function QuestionCard({ question, timeLimit, onSubmit, disabled = false }: QuestionCardProps) {
+    const isEnglish = useLocale() === 'en';
     const [timeLeft, setTimeLeft] = useState(timeLimit);
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
     const [submitted, setSubmitted] = useState(false);
@@ -59,7 +61,7 @@ export function QuestionCard({ question, timeLimit, onSubmit, disabled = false }
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             className="w-full max-w-3xl mx-auto"
-            dir="rtl"
+            dir={isEnglish ? 'ltr' : 'rtl'}
         >
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
                 {/* Timer */}
@@ -122,7 +124,7 @@ export function QuestionCard({ question, timeLimit, onSubmit, disabled = false }
                     className="w-full py-6 text-xl font-bold bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500"
                     size="lg"
                 >
-                    {submitted ? '✓ تم الإرسال' : 'إرسال الإجابة'}
+                    {submitted ? (isEnglish ? '✓ Submitted' : '✓ تم الإرسال') : (isEnglish ? 'Submit answer' : 'إرسال الإجابة')}
                 </Button>
 
                 {submitted && (
@@ -131,7 +133,7 @@ export function QuestionCard({ question, timeLimit, onSubmit, disabled = false }
                         animate={{ opacity: 1 }}
                         className="text-center text-green-600 dark:text-green-400 mt-4 font-medium"
                     >
-                        ✓ تم استلام إجابتك! في انتظار النتيجة...
+                        {isEnglish ? '✓ Your answer has been received. Waiting for the result…' : '✓ تم استلام إجابتك! في انتظار النتيجة...'}
                     </motion.p>
                 )}
             </div>

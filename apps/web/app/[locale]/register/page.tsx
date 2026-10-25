@@ -6,56 +6,25 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
 import { useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, Phone, GraduationCap, Users, BookOpen, ArrowLeft, Sparkles, AlertCircle, KeyRound } from 'lucide-react';
+import { User, Mail, Lock, Phone, GraduationCap, Users, BookOpen, ArrowLeft, Sparkles, AlertCircle, ImagePlus, ShieldCheck } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { isAuthenticationConfigured, useAuth } from '@/contexts/auth-context';
+import { getApiBaseUrl } from '@/lib/api/endpoints';
+import { getCurrentUser } from '@/lib/firebase/auth';
 
-const registrationCopy = {
-  ar: {
-    unavailable: 'إنشاء الحساب غير متاح حاليًا. يُرجى التواصل مع إدارة المدرسة.',
-    fullNameRequired: 'يرجى كتابة الاسم كاملاً',
-    emailRequired: 'يرجى إدخال بريد إلكتروني صحيح',
-    passwordShort: 'كلمة المرور يجب ألا تقل عن 8 أحرف أو أرقام',
-    passwordMismatch: 'كلمات المرور غير متطابقة',
-    teacherCodeRequired: 'أدخل كود المدرس المعتمد من إدارة المدرسة.',
-    submitError: 'حدث خطأ أثناء إنشاء الحساب',
-    logoAlt: 'نكسس التعليمية',
-    academicYear: 'مدارس نكسس التعليمية الأهلية — العام الدراسي 1448هـ',
-    title: (role: string) => role === 'student' ? 'إنشاء حساب طالب' : role === 'teacher' ? 'إنشاء حساب معلم' : 'إنشاء حساب ولي أمر',
-    subtitle: 'انضم إلى المنظومة المدرسية الشاملة مع معرف نظام موحد (Universal ID)',
-    parent: 'ولي أمر', student: 'طالب', teacher: 'معلم',
-    parentName: 'اسم ولي الأمر الكامل *', studentName: 'اسم الطالب الكامل *', teacherName: 'اسم المعلم الكامل *',
-    parentPlaceholder: 'مثال: فيصل الغامدي', studentPlaceholder: 'مثال: أحمد فيصل الغامدي', teacherPlaceholder: 'مثال: محمد أحمد',
-    email: 'البريد الإلكتروني *', phone: 'رقم الجوال *',
-    teacherCode: 'كود المدرس *', teacherCodePlaceholder: 'أدخل كود التسجيل من إدارة المدرسة', teacherCodeHint: 'هذا الكود مطلوب لإنشاء حساب مدرس.',
-    password: 'كلمة المرور *', confirmPassword: 'تأكيد كلمة المرور *',
-    createTeacher: 'إنشاء حساب المعلم', createAccount: 'إنشاء الحساب وإصدار المعرف الرسمي',
-    already: 'لديك حساب بالفعل؟', login: 'تسجيل الدخول',
-    loading: 'جارٍ تحميل صفحة التسجيل...',
-  },
-  en: {
-    unavailable: 'Account creation is currently unavailable. Please contact the school administration.',
-    fullNameRequired: 'Enter your full name.',
-    emailRequired: 'Enter a valid email address.',
-    passwordShort: 'Password must contain at least 8 characters.',
-    passwordMismatch: 'Passwords do not match.',
-    teacherCodeRequired: 'Enter the teacher registration code provided by the school.',
-    submitError: 'There was a problem creating your account.',
-    logoAlt: 'Nexus EDU',
-    academicYear: 'Nexus EDU Private Schools — Academic Year 1448 AH',
-    title: (role: string) => role === 'student' ? 'Create a student account' : role === 'teacher' ? 'Create a teacher account' : 'Create a parent account',
-    subtitle: 'Join the school platform with one unified account.',
-    parent: 'Parent', student: 'Student', teacher: 'Teacher',
-    parentName: 'Parent full name *', studentName: 'Student full name *', teacherName: 'Teacher full name *',
-    parentPlaceholder: 'e.g. Faisal Alghamdi', studentPlaceholder: 'e.g. Ahmed Faisal Alghamdi', teacherPlaceholder: 'e.g. Mohamed Ahmed',
-    email: 'Email address *', phone: 'Mobile number *',
-    teacherCode: 'Teacher registration code *', teacherCodePlaceholder: 'Enter the code from your school', teacherCodeHint: 'A valid school code is required to register as a teacher.',
-    password: 'Password *', confirmPassword: 'Confirm password *',
-    createTeacher: 'Create teacher account', createAccount: 'Create account and issue your ID',
-    already: 'Already have an account?', login: 'Sign in',
-    loading: 'Loading registration...',
-  },
-} as const;
+const elementarySubjects = [
+  ['ARABIC', 'لغتي / اللغة العربية', 'Arabic Language'],
+  ['ISLAMIC_STUDIES', 'الدراسات الإسلامية', 'Islamic Studies'],
+  ['MATHEMATICS', 'الرياضيات', 'Mathematics'],
+  ['SCIENCE', 'العلوم', 'Science'],
+  ['ENGLISH', 'اللغة الإنجليزية', 'English'],
+  ['SOCIAL_STUDIES', 'الدراسات الاجتماعية', 'Social Studies'],
+  ['LIFE_SKILLS', 'المهارات الحياتية والأسرية', 'Life and Family Skills'],
+  ['DIGITAL_SKILLS', 'المهارات الرقمية', 'Digital Skills'],
+  ['PHYSICAL_EDUCATION', 'التربية البدنية والدفاع عن النفس', 'Physical Education'],
+  ['ART_EDUCATION', 'التربية الفنية', 'Art Education'],
+  ['ACTIVITY', 'النشاط', 'Activity'],
+] as const;
 
 function RegisterForm() {
   const router = useRouter();
@@ -63,8 +32,7 @@ function RegisterForm() {
   const searchParams = useSearchParams();
   const { signUp } = useAuth();
   const authConfigured = isAuthenticationConfigured();
-  const isEnglish = locale === 'en';
-  const copy = registrationCopy[isEnglish ? 'en' : 'ar'];
+  const isArabic = locale !== 'en';
   const requestedRole = searchParams.get('role');
   const initialRole = requestedRole === 'student' || requestedRole === 'teacher' ? requestedRole : 'parent';
   const [accountType, setAccountType] = useState<'parent' | 'student' | 'teacher'>(initialRole);
@@ -80,8 +48,56 @@ function RegisterForm() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [teacherCode, setTeacherCode] = useState('');
+  const [nationalId, setNationalId] = useState('');
+  const [specialization, setSpecialization] = useState('');
+  const [teacherPhoto, setTeacherPhoto] = useState<File | null>(null);
+  const [teacherArchiveCreated, setTeacherArchiveCreated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const copy = isArabic ? {
+    logoAlt: 'شعار منصة Nexus EDU',
+    unavailable: 'إنشاء الحساب غير متاح حاليًا. يُرجى التواصل مع إدارة المدرسة.',
+    missingName: 'يرجى كتابة الاسم كاملاً', invalidEmail: 'يرجى إدخال بريد إلكتروني صحيح',
+    shortPassword: 'كلمة المرور يجب ألا تقل عن 8 أحرف أو أرقام', mismatch: 'كلمات المرور غير متطابقة',
+    createError: 'حدث خطأ أثناء إنشاء الحساب', parent: 'ولي أمر', student: 'طالب', teacher: 'معلم',
+    titleParent: 'إنشاء حساب ولي أمر', titleStudent: 'إنشاء حساب طالب', titleTeacher: 'إنشاء حساب معلم',
+    schoolYear: 'مدارس نكسس التعليمية الأهلية — العام الدراسي 1448هـ', subtitle: 'انضم إلى المنظومة المدرسية الشاملة مع معرف نظام موحد (Universal ID)',
+    teacherNote: 'يلزم كود تسجيل المعلمين المعتمد من المدرسة. يمكنك تحديد فصول التدريس وفصل الريادة بعد الدخول إلى بوابة المعلم.',
+    nameParent: 'اسم ولي الأمر الكامل *', nameStudent: 'اسم الطالب الكامل *', nameTeacher: 'اسم المعلم الكامل *',
+    nameExParent: 'مثال: فيصل الغامدي', nameExStudent: 'مثال: أحمد فيصل الغامدي', nameExTeacher: 'مثال: محمد أحمد',
+    email: 'البريد الإلكتروني *', phone: 'رقم الجوال *', password: 'كلمة المرور *', confirm: 'تأكيد كلمة المرور *',
+    teacherCode: 'كود تسجيل المعلم *', nationalId: 'رقم الهوية الوطنية أو الإقامة *', specialization: 'التخصص أو المادة *',
+    chooseSubject: 'اختر المادة التي تدرسها', photo: 'الصورة الشخصية للمعلم *', photoHint: 'JPG أو PNG أو WebP — حتى 512 كيلوبايت',
+    teacherData: 'بيانات المعلم والتحقق', studentData: 'بيانات التسجيل', optionalClasses: 'تُضاف الفصول التي تدرسها وفصل الريادة من داخل بوابة المعلم بعد تسجيل الدخول.',
+    createTeacher: 'إنشاء حساب المعلم وإرسال رابط التحقق', createAccount: 'إنشاء الحساب وإصدار المعرف الرسمي',
+    already: 'لديك حساب بالفعل؟', login: 'تسجيل الدخول', signupUnavailable: 'إنشاء الحساب غير متاح حاليًا. يُرجى التواصل مع إدارة المدرسة.',
+    exampleEmail: 'name@nexusedu.sa', codeUnavailable: 'خدمة التحقق من كود المعلم غير متاحة حاليًا.',
+    invalidCode: 'كود تسجيل المعلم غير صحيح.', invalidId: 'أدخل رقم هوية أو إقامة مكوّنًا من 10 أرقام.', chooseSpecialty: 'اختر التخصص أو المادة.',
+    invalidPhoto: 'اختر صورة JPG أو PNG أو WebP لا يتجاوز حجمها 512 كيلوبايت.', uploadPhoto: 'تعذر رفع الصورة. أعد المحاولة مع اتصال مستقر.',
+  } : {
+    logoAlt: 'Nexus EDU logo',
+    unavailable: 'Account creation is currently unavailable. Please contact the school administration.',
+    missingName: 'Enter your full name.', invalidEmail: 'Enter a valid email address.',
+    shortPassword: 'Password must be at least 8 characters.', mismatch: 'Passwords do not match.',
+    createError: 'An error occurred while creating your account.', parent: 'Parent', student: 'Student', teacher: 'Teacher',
+    titleParent: 'Create a parent account', titleStudent: 'Create a student account', titleTeacher: 'Create a teacher account',
+    schoolYear: 'Nexus Private Schools — Academic Year 1448 AH', subtitle: 'Join the school platform with one Universal ID.',
+    teacherNote: 'A school-issued teacher registration code is required. Teaching classes and your homeroom class can be assigned from the teacher portal after sign-in.',
+    nameParent: 'Parent full name *', nameStudent: 'Student full name *', nameTeacher: 'Teacher full name *',
+    nameExParent: 'Example: Faisal Alghamdi', nameExStudent: 'Example: Ahmed Faisal Alghamdi', nameExTeacher: 'Example: Mohammed Ahmed',
+    email: 'Email address *', phone: 'Mobile number *', password: 'Password *', confirm: 'Confirm password *',
+    teacherCode: 'Teacher registration code *', nationalId: 'National ID or residency number *', specialization: 'Subject specialization *',
+    chooseSubject: 'Choose the subject you teach', photo: 'Teacher profile photo *', photoHint: 'JPG, PNG, or WebP — up to 512 KB',
+    teacherData: 'Teacher details and verification', studentData: 'Registration details', optionalClasses: 'Your teaching classes and homeroom class can be added in the teacher portal after sign-in.',
+    createTeacher: 'Create teacher account and send verification link', createAccount: 'Create account and issue your official ID',
+    already: 'Already have an account?', login: 'Sign in', signupUnavailable: 'Account creation is currently unavailable. Please contact the school administration.',
+    exampleEmail: 'name@nexusedu.sa', codeUnavailable: 'Teacher-code verification is currently unavailable.',
+    invalidCode: 'The teacher registration code is incorrect.', invalidId: 'Enter a 10-digit national ID or residency number.', chooseSpecialty: 'Choose a subject specialization.',
+    invalidPhoto: 'Choose a JPG, PNG, or WebP image no larger than 512 KB.', uploadPhoto: 'The photo could not be uploaded. Retry with a stable connection.',
+  };
+
+  const title = accountType === 'student' ? copy.titleStudent : accountType === 'teacher' ? copy.titleTeacher : copy.titleParent;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,50 +108,92 @@ function RegisterForm() {
       return;
     }
 
+    const uploadTeacherPhoto = async () => {
+      const user = getCurrentUser();
+      const apiBaseUrl = getApiBaseUrl();
+      if (!user || !apiBaseUrl || !teacherPhoto) throw new Error(copy.uploadPhoto);
+      const idToken = await user.getIdToken();
+      const formData = new FormData();
+      formData.append('file', teacherPhoto);
+      const response = await fetch(`${apiBaseUrl}/auth/teacher-registration/avatar`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` },
+        body: formData,
+      });
+      if (!response.ok) throw new Error(copy.uploadPhoto);
+    };
+
     if (!fullName.trim()) {
-      setError(copy.fullNameRequired);
+      setError(copy.missingName);
       return;
     }
 
     if (!email.trim() || !email.includes('@')) {
-      setError(copy.emailRequired);
+      setError(copy.invalidEmail);
       return;
     }
 
     if (password.length < 8) {
-      setError(copy.passwordShort);
+      setError(copy.shortPassword);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError(copy.passwordMismatch);
+      setError(copy.mismatch);
       return;
     }
 
-    if (accountType === 'teacher' && !teacherCode.trim()) {
-      setError(copy.teacherCodeRequired);
-      return;
+    if (accountType === 'teacher') {
+      if (!/^[12]\d{9}$/.test(nationalId.trim())) { setError(copy.invalidId); return; }
+      if (!elementarySubjects.some(([key]) => key === specialization)) { setError(copy.chooseSpecialty); return; }
+      if (!teacherCode.trim()) { setError(copy.invalidCode); return; }
+      if (!teacherPhoto || !['image/jpeg', 'image/png', 'image/webp'].includes(teacherPhoto.type) || teacherPhoto.size > 512 * 1024) {
+        setError(copy.invalidPhoto);
+        return;
+      }
     }
 
     setLoading(true);
 
     try {
-      await signUp(email.trim().toLowerCase(), password, fullName.trim(), accountType, phone.trim(), teacherCode.trim());
+      if (accountType === 'teacher' && !teacherArchiveCreated) {
+        const apiBaseUrl = getApiBaseUrl();
+        if (!apiBaseUrl) throw new Error(copy.codeUnavailable);
+        const codeResponse = await fetch(`${apiBaseUrl}/auth/teacher-registration/verify-code`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: teacherCode.trim() }),
+        });
+        if (!codeResponse.ok) throw new Error(copy.codeUnavailable);
+        const codeResult = await codeResponse.json();
+        if (!codeResult.valid) throw new Error(copy.invalidCode);
+        const subject = elementarySubjects.find(([key]) => key === specialization)?.[0];
+        await signUp(email.trim().toLowerCase(), password, fullName.trim(), accountType, phone.trim(), {
+          teacherCode: teacherCode.trim(),
+          profile: { nationalId: nationalId.trim(), specialization: subject || '' },
+        });
+        setTeacherArchiveCreated(true);
+      } else if (accountType !== 'teacher') {
+        await signUp(email.trim().toLowerCase(), password, fullName.trim(), accountType, phone.trim());
+      }
       if (accountType === 'teacher') {
-        router.push('/teacher/onboarding');
+        await uploadTeacherPhoto();
+        router.push('/verify-email');
         return;
       }
-      const flow = accountType === 'student' ? 'student' : 'parent';
-      router.push(`/student/new?flow=${flow}`);
+      if (accountType === 'student') {
+        router.push('/verify-email');
+        return;
+      }
+      router.push('/student/new?flow=parent');
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || copy.submitError);
+      setError(err?.message || copy.createError);
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-slate-50 dark:bg-[#0f1015]" dir={isEnglish ? 'ltr' : 'rtl'}>
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-slate-50 dark:bg-[#0f1015]" dir={isArabic ? 'rtl' : 'ltr'}>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-[520px] my-auto">
         <div className="bg-white/90 dark:bg-[#1e1e2d]/90 backdrop-blur-2xl border border-gray-100 dark:border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
           <div className="flex justify-between items-center mb-6">
@@ -149,10 +207,10 @@ function RegisterForm() {
           <div className="text-center mb-6">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 text-xs font-bold mb-3">
               <Sparkles className="w-3 h-3" />
-              <span>{copy.academicYear}</span>
+              <span>{copy.schoolYear}</span>
             </div>
             <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
-              {copy.title(accountType)}
+              {title}
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {copy.subtitle}
@@ -199,6 +257,13 @@ function RegisterForm() {
             </button>
           </div>
 
+          {accountType === 'teacher' && (
+            <div role="status" className="mb-4 flex items-start gap-2 rounded-2xl border border-blue-200 bg-blue-50 p-3 text-xs leading-5 font-semibold text-blue-900">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{copy.teacherNote}</span>
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 text-xs font-bold flex items-center gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -209,16 +274,14 @@ function RegisterForm() {
           {!authConfigured && (
             <div role="status" className="mb-4 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
               <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span>{copy.unavailable}</span>
+              <span>{copy.signupUnavailable}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">
-                {accountType === 'parent'
-                  ? copy.parentName
-                  : accountType === 'teacher' ? copy.teacherName : copy.studentName}
+                {accountType === 'parent' ? copy.nameParent : accountType === 'teacher' ? copy.nameTeacher : copy.nameStudent}
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
@@ -227,9 +290,7 @@ function RegisterForm() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder={
-                    accountType === 'parent'
-                      ? copy.parentPlaceholder
-                      : accountType === 'teacher' ? copy.teacherPlaceholder : copy.studentPlaceholder
+                    accountType === 'parent' ? copy.nameExParent : accountType === 'teacher' ? copy.nameExTeacher : copy.nameExStudent
                   }
                   className="w-full pr-10 pl-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm font-medium text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 />
@@ -246,7 +307,7 @@ function RegisterForm() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@nexusedu.sa"
+                    placeholder={copy.exampleEmail}
                     dir="ltr"
                     className="w-full pr-10 pl-3 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-xs font-medium text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                   />
@@ -270,26 +331,33 @@ function RegisterForm() {
             </div>
 
             {accountType === 'teacher' && (
-              <div>
-                <label htmlFor="teacher-registration-code" className="mb-1.5 block text-xs font-black text-gray-600 dark:text-gray-300">{copy.teacherCode}</label>
-                <div className="relative">
-                  <KeyRound className="absolute right-3.5 top-3.5 h-4 w-4 text-gray-400" />
-                  <input
-                    id="teacher-registration-code"
-                    required
-                    value={teacherCode}
-                    onChange={(event) => setTeacherCode(event.target.value)}
-                    placeholder={copy.teacherCodePlaceholder}
-                    autoCapitalize="characters"
-                    autoComplete="one-time-code"
-                    spellCheck={false}
-                    maxLength={64}
-                    dir="ltr"
-                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-4 pr-10 text-sm font-bold uppercase tracking-wider text-gray-900 placeholder:text-right placeholder:text-xs placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                  />
+              <section className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 dark:border-blue-500/20 dark:bg-blue-500/5">
+                <h2 className="text-sm font-black text-blue-950 dark:text-blue-100">{copy.teacherData}</h2>
+                <div>
+                  <label className="mb-1.5 block text-xs font-black text-gray-600 dark:text-gray-300">{copy.teacherCode}</label>
+                  <input required value={teacherCode} onChange={(e) => setTeacherCode(e.target.value)} autoComplete="off" dir="ltr" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm dark:border-white/10 dark:bg-white/5 dark:text-white" />
                 </div>
-                <p className="mt-1.5 text-[11px] text-gray-500">{copy.teacherCodeHint}</p>
-              </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-black text-gray-600 dark:text-gray-300">{copy.nationalId}</label>
+                  <input required inputMode="numeric" maxLength={10} value={nationalId} onChange={(e) => setNationalId(e.target.value.replace(/\D/g, '').slice(0, 10))} dir="ltr" placeholder="10 digits" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm dark:border-white/10 dark:bg-white/5 dark:text-white" />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-black text-gray-600 dark:text-gray-300">{copy.specialization}</label>
+                  <select required value={specialization} onChange={(e) => setSpecialization(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm dark:border-white/10 dark:bg-white/5 dark:text-white">
+                    <option value="">{copy.chooseSubject}</option>
+                    {elementarySubjects.map(([key, ar, en]) => <option key={key} value={key}>{isArabic ? ar : en}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-black text-gray-600 dark:text-gray-300">{copy.photo}</label>
+                  <div className="flex items-center gap-3 rounded-xl border border-dashed border-blue-200 bg-white p-3 dark:border-blue-400/20 dark:bg-white/5">
+                    <ImagePlus className="h-5 w-5 shrink-0 text-blue-600" />
+                    <input required={!teacherArchiveCreated} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setTeacherPhoto(e.target.files?.[0] ?? null)} className="min-w-0 w-full text-xs text-gray-600 file:me-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:font-bold file:text-blue-700 dark:text-gray-300" />
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{copy.photoHint}</p>
+                </div>
+                <p className="text-[11px] leading-5 text-blue-800 dark:text-blue-200">{copy.optionalClasses}</p>
+              </section>
             )}
 
             <div className="grid grid-cols-2 gap-3">
@@ -309,7 +377,7 @@ function RegisterForm() {
               </div>
 
               <div>
-                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">{copy.confirmPassword}</label>
+                <label className="text-xs font-black text-gray-600 dark:text-gray-300 mb-1.5 block">{copy.confirm}</label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5" />
                   <input
@@ -335,7 +403,7 @@ function RegisterForm() {
                 ) : (
                   <>
                     <span>{accountType === 'teacher' ? copy.createTeacher : copy.createAccount}</span>
-                    <ArrowLeft className={`w-4 h-4 ${isEnglish ? 'rotate-180' : ''}`} />
+                    <ArrowLeft className="w-4 h-4" />
                   </>
                 )}
               </button>
@@ -356,9 +424,8 @@ function RegisterForm() {
 
 export default function RegisterPage() {
   const locale = useLocale();
-  const isEnglish = locale === 'en';
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-gray-500" dir={isEnglish ? 'ltr' : 'rtl'}>{registrationCopy[isEnglish ? 'en' : 'ar'].loading}</div>}>
+    <Suspense fallback={<div dir={locale === 'en' ? 'ltr' : 'rtl'} className="flex min-h-screen items-center justify-center text-sm text-gray-500">{locale === 'en' ? 'Loading registration…' : 'جارٍ تحميل صفحة التسجيل...'}</div>}>
       <RegisterForm />
     </Suspense>
   );

@@ -43,6 +43,68 @@ services:
     networks:
       - private
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+
+  livekit:
+    image: ${LIVEKIT_SERVER_IMAGE:-livekit/livekit-server:v1.13.10}
+    restart: unless-stopped
+    command:
+      - --config
+      - /etc/livekit.yaml
+      - --keys
+      - ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY in .env.production}:${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET in .env.production}
+      - --node-ip
+      - ${LIVEKIT_NODE_IP:?Set LIVEKIT_NODE_IP to this server's public IPv4 address}
+      - --bind
+      - 0.0.0.0
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "7881:7881/tcp"
+      - "50000-51000:50000-51000/udp"
+    networks:
+      - private
+    security_opt:
+      - no-new-privileges:true
+
+  livekit-egress:
+    image: ${LIVEKIT_EGRESS_IMAGE:-livekit/egress:latest}
+    restart: unless-stopped
+    shm_size: 1gb
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY in .env.production}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET in .env.production}
+      LIVEKIT_WS_URL: ws://livekit:7880
+    volumes:
+      - ./livekit-egress.yaml:/etc/egress.yaml:ro
+    depends_on:
+      livekit:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - private
+    security_opt:
+      - no-new-privileges:true
+
   api:
     build:
       context: .
@@ -58,7 +120,6 @@ services:
       PUBLIC_SCHOOL_SLUG: ${PUBLIC_SCHOOL_SLUG:-al-ikhlas-jeddah}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.production}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env.production}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID in .env.production}
       SMTP_HOST: ${SMTP_HOST:?Set SMTP_HOST in .env.production}
       SMTP_PORT: ${SMTP_PORT:?Set SMTP_PORT in .env.production}
       SMTP_USER: ${SMTP_USER:?Set SMTP_USER in .env.production}
@@ -67,9 +128,22 @@ services:
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Nexus EDU}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      LIVEKIT_INTERNAL_URL: http://livekit:7880
+      LIVEKIT_PUBLIC_URL: wss://meetings.${DOMAIN_NAME:?Set DOMAIN_NAME in .env.production}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY in .env.production}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET in .env.production}
+      LIVEKIT_RECORDING_S3_ENDPOINT: ${LIVEKIT_RECORDING_S3_ENDPOINT:-}
+      LIVEKIT_RECORDING_S3_ACCESS_KEY: ${LIVEKIT_RECORDING_S3_ACCESS_KEY:-}
+      LIVEKIT_RECORDING_S3_SECRET: ${LIVEKIT_RECORDING_S3_SECRET:-}
+      LIVEKIT_RECORDING_S3_REGION: ${LIVEKIT_RECORDING_S3_REGION:-ap-southeast-1}
+      LIVEKIT_RECORDING_S3_BUCKET: ${LIVEKIT_RECORDING_S3_BUCKET:-assignments}
     depends_on:
       migrate:
         condition: service_completed_successfully
+      livekit:
+        condition: service_started
+      livekit-egress:
+        condition: service_started
     networks:
       - private
     security_opt:
@@ -81,6 +155,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL:?Set NEXT_PUBLIC_LIVEKIT_URL in .env.production}
         NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:-}
         NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-}
         NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}

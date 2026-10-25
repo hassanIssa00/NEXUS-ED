@@ -28,10 +28,11 @@ const PUBLIC_ROUTES = [
     '/auth/action',
 ];
 const SHARED_ROLE_ROUTES: Array<{ path: string; roles: UserRole[]; exact?: boolean }> = [
+    { path: '/meetings', roles: ['student', 'teacher', 'parent', 'admin', 'manager', 'principal', 'vice_principal', 'counselor', 'supervisor', 'accountant', 'hr'] },
     { path: '/student/new', roles: ['student'] },
     { path: '/survey', roles: ['parent'], exact: true },
     { path: '/assessment', roles: ['student'], exact: true },
-    { path: '/teacher/onboarding', roles: ['teacher'] },
+    { path: '/assessment/reports', roles: ['student', 'parent', 'teacher', 'admin', 'principal', 'vice_principal', 'counselor', 'supervisor'] },
 ];
 
 function matchesRoute(pathname: string, route: string) {
@@ -112,16 +113,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
                 router.replace(destination);
                 return;
             }
-            if ((profile.role === 'student' || profile.role === 'parent') && matchesRoute(pathname, '/verify-email')) {
+            if (profile.role === 'parent' && matchesRoute(pathname, '/verify-email')) {
+                router.replace(ROLE_ROUTES[profile.role]);
+                return;
+            }
+            if (profile.emailVerified && (profile.role === 'student' || profile.role === 'teacher') && matchesRoute(pathname, '/verify-email')) {
                 router.replace(ROLE_ROUTES[profile.role]);
                 return;
             }
         }
 
-        // Student/parent onboarding is verified by the school profile and link code.
+        // Public student and teacher accounts must verify their email before using the portal.
         if (user && profile?.emailVerified === false
-            && profile.role !== 'student' && profile.role !== 'parent'
-            && profile.role !== 'teacher'
+            && (profile.role === 'student' || profile.role === 'teacher')
             && !matchesRoute(pathname, '/verify-email')
             && !isAllowedOnboardingPath(pathname, profile.role, profile.onboardingStep)) {
             router.replace('/verify-email');
@@ -154,8 +158,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     const isPendingVerification = user && profile?.emailVerified === false
-        && profile.role !== 'student' && profile.role !== 'parent'
-        && profile.role !== 'teacher'
+        && (profile.role === 'student' || profile.role === 'teacher')
         && !matchesRoute(pathname, '/verify-email')
         && !isAllowedOnboardingPath(pathname, profile.role, profile.onboardingStep);
     const isWrongRole = user && profile && !canAccessRoute(pathname, profile.role)

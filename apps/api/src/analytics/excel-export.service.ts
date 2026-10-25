@@ -14,6 +14,10 @@ export interface ExcelExportOptions {
 export class ExcelExportService {
   constructor(private prisma: PrismaService) { }
 
+  private attendanceLabel(status: string): string {
+    return ({ PRESENT: 'حاضر', ABSENT: 'غائب', LATE: 'متأخر', EXCUSED: 'بعذر' } as Record<string, string>)[status] || status;
+  }
+
   /**
    * Create basic Excel file with data
    */
@@ -71,20 +75,16 @@ export class ExcelExportService {
   }
 
   /**
-   * Export student grades (From Submissions)
+   * Export recorded student grades
    */
   async exportStudentGrades(studentId: string): Promise<any> {
-    const submissions = await this.prisma.submission.findMany({
+    const grades = await this.prisma.grade.findMany({
       where: {
         studentId,
-        grade: { not: null },
+        maxScore: { gt: 0 },
       },
-      include: {
-        assignment: {
-          include: { subject: true },
-        },
-      },
-      orderBy: { submittedAt: 'desc' },
+      include: { subject: true, assignment: { select: { title: true } } },
+      orderBy: { createdAt: 'desc' },
     });
 
     const headers = [
@@ -95,13 +95,13 @@ export class ExcelExportService {
       'النسبة المئوية',
       'التاريخ',
     ];
-    const data = submissions.map((sub) => [
-      sub.assignment.subject?.name || 'Unknown',
-      sub.assignment.title,
-      sub.grade || 0,
-      sub.assignment.maxScore || 100,
-      `${Math.round(((Number(sub.grade) || 0) / (Number(sub.assignment.maxScore) || 100)) * 100)}%`,
-      new Date(sub.gradedAt || sub.submittedAt).toLocaleDateString('ar-EG'),
+    const data = grades.map((grade) => [
+      grade.subject?.name || '—',
+      grade.assignment?.title || 'تقييم مسجل',
+      Number(grade.grade),
+      Number(grade.maxScore),
+      `${Math.round((Number(grade.grade) / Number(grade.maxScore)) * 100)}%`,
+      new Date(grade.createdAt).toLocaleDateString('ar-EG'),
     ]);
 
     return this.createExcel({
@@ -123,11 +123,7 @@ export class ExcelExportService {
   ): Promise<any> {
     const attendanceRecords = await this.prisma.attendance.findMany({
       where: {
-        student: {
-          enrollments: {
-            some: { classId },
-          },
-        },
+        classId,
         date: {
           gte: startDate,
           lte: endDate,
@@ -143,11 +139,7 @@ export class ExcelExportService {
     const data = attendanceRecords.map((record) => [
       record.student.name || record.student.firstName || '',
       new Date(record.date).toLocaleDateString('ar-EG'),
-      record.status === 'PRESENT'
-        ? 'حاضر'
-        : record.status === 'ABSENT'
-          ? 'غائب'
-          : 'متأخر',
+      this.attendanceLabel(record.status),
       record.notes || '-',
     ]);
 
@@ -183,21 +175,21 @@ export class ExcelExportService {
     if (student) {
       infoSheet.addRow(['الاسم', student.name || student.firstName || '']);
       infoSheet.addRow(['البريد الإلكتروني', student.email]);
-      infoSheet.addRow(['الصف', student.enrollments[0]?.class.name || '-']);
+      infoSheet.addRow(['الفصول', student.enrollments.map((item) => item.class.name).join('، ') || '—']);
       infoSheet.addRow([
         'تاريخ التسجيل',
         new Date(student.createdAt).toLocaleDateString('ar-EG'),
       ]);
     }
 
-    // Sheet 2: Grades (Submissions)
-    const submissions = await this.prisma.submission.findMany({
+    // Sheet 2: Grades from the same grade records used by student reports.
+    const grades = await this.prisma.grade.findMany({
       where: {
         studentId,
-        grade: { not: null },
+        maxScore: { gt: 0 },
       },
-      include: { assignment: { include: { subject: true } } },
-      orderBy: { submittedAt: 'desc' },
+      include: { subject: true, assignment: { select: { title: true } } },
+      orderBy: { createdAt: 'desc' },
     });
 
     const gradesSheet = workbook.addWorksheet('الدرجات', {
@@ -218,21 +210,21 @@ export class ExcelExportService {
       fgColor: { argb: '667eea' },
     };
 
-    submissions.forEach((sub) => {
+    grades.forEach((grade) => {
       gradesSheet.addRow([
-        sub.assignment.subject?.name || 'Unknown',
-        sub.assignment.title,
-        `${sub.grade}/${sub.assignment.maxScore || 100}`,
-        `${Math.round(((Number(sub.grade) || 0) / (Number(sub.assignment.maxScore) || 100)) * 100)}%`,
-        new Date(sub.gradedAt || sub.submittedAt).toLocaleDateString('ar-EG'),
+        grade.subject?.name || '—',
+        grade.assignment?.title || 'تقييم مسجل',
+        `${Number(grade.grade)}/${Number(grade.maxScore)}`,
+        `${Math.round((Number(grade.grade) / Number(grade.maxScore)) * 100)}%`,
+        new Date(grade.createdAt).toLocaleDateString('ar-EG'),
       ]);
     });
 
     // Sheet 3: Attendance
     const attendance = await this.prisma.attendance.findMany({
       where: { studentId },
+      include: { class: { select: { name: true } } },
       orderBy: { date: 'desc' },
-      take: 50,
     });
 
     const attendanceSheet = workbook.addWorksheet('الحضور', {
@@ -241,6 +233,7 @@ export class ExcelExportService {
 
     const attendanceHeaders = attendanceSheet.addRow([
       'التاريخ',
+      'الفصل',
       'الحالة',
       'ملاحظات',
     ]);
@@ -254,11 +247,8 @@ export class ExcelExportService {
     attendance.forEach((record) => {
       attendanceSheet.addRow([
         new Date(record.date).toLocaleDateString('ar-EG'),
-        record.status === 'PRESENT'
-          ? 'حاضر'
-          : record.status === 'ABSENT'
-            ? 'غائب'
-            : 'متأخر',
+        record.class.name,
+        this.attendanceLabel(record.status),
         record.notes || '-',
       ]);
     });
@@ -270,16 +260,16 @@ export class ExcelExportService {
    * Export all students grades for a subject
    */
   async exportSubjectGrades(subjectId: string): Promise<any> {
-    const submissions = await this.prisma.submission.findMany({
+    const grades = await this.prisma.grade.findMany({
       where: {
-        assignment: { subjectId },
-        grade: { not: null },
+        subjectId,
+        maxScore: { gt: 0 },
       },
       include: {
         student: true,
-        assignment: true,
+        assignment: { select: { title: true } },
       },
-      orderBy: [{ student: { name: 'asc' } }, { submittedAt: 'desc' }],
+      orderBy: [{ student: { name: 'asc' } }, { createdAt: 'desc' }],
     });
 
     const headers = [
@@ -290,13 +280,13 @@ export class ExcelExportService {
       'النسبة المئوية',
       'التاريخ',
     ];
-    const data = submissions.map((sub) => [
-      sub.student.name || sub.student.firstName || '',
-      sub.assignment.title,
-      sub.grade,
-      sub.assignment.maxScore || 100,
-      `${Math.round(((Number(sub.grade) || 0) / (Number(sub.assignment.maxScore) || 100)) * 100)}%`,
-      new Date(sub.gradedAt || sub.submittedAt).toLocaleDateString('ar-EG'),
+    const data = grades.map((grade) => [
+      grade.student.name || grade.student.firstName || '',
+      grade.assignment?.title || 'تقييم مسجل',
+      Number(grade.grade),
+      Number(grade.maxScore),
+      `${Math.round((Number(grade.grade) / Number(grade.maxScore)) * 100)}%`,
+      new Date(grade.createdAt).toLocaleDateString('ar-EG'),
     ]);
 
     return this.createExcel({
@@ -320,35 +310,27 @@ export class ExcelExportService {
       'عدد التقييمات',
     ];
 
-    // Aggregate data by subject (Using Submissions)
-    const subjects = await this.prisma.subject.findMany({
-      include: {
-        assignments: {
-          include: {
-            submissions: {
-              where: { studentId, grade: { not: null } },
-            },
-          },
-        },
-      },
+    const grades = await this.prisma.grade.findMany({
+      where: { studentId, maxScore: { gt: 0 } },
+      include: { subject: true },
+      orderBy: { createdAt: 'desc' },
     });
-
-    const data = subjects
-      .map((subject) => {
-        // Flatten submissions for this subject
-        const scores = subject.assignments.flatMap((a) =>
-          a.submissions.map((s) => Number(s.grade) || 0),
-        );
-
-        if (scores.length === 0) return null;
-
-        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-        const max = Math.max(...scores);
-        const min = Math.min(...scores);
-
-        return [subject.name, Math.round(avg), max, min, scores.length];
-      })
-      .filter((row) => row !== null);
+    const bySubject = new Map<string, { name: string; percentages: number[] }>();
+    grades.forEach((grade) => {
+      const score = Number(grade.grade);
+      const maxScore = Number(grade.maxScore);
+      if (!Number.isFinite(score) || !Number.isFinite(maxScore) || maxScore <= 0) return;
+      const bucket = bySubject.get(grade.subjectId) || { name: grade.subject.name, percentages: [] };
+      bucket.percentages.push((score / maxScore) * 100);
+      bySubject.set(grade.subjectId, bucket);
+    });
+    const data = Array.from(bySubject.values()).map(({ name, percentages }) => [
+      name,
+      Math.round(percentages.reduce((sum, value) => sum + value, 0) / percentages.length),
+      Math.round(Math.max(...percentages)),
+      Math.round(Math.min(...percentages)),
+      percentages.length,
+    ]);
 
     return this.createExcel({
       fileName: 'student_analytics.xlsx',

@@ -6,6 +6,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { ExcelExportService } from './excel-export.service';
 import { StudentAnalyticsService } from './student-analytics.service';
@@ -16,6 +17,7 @@ import { RolesGuard } from '../auth/roles.guard';
 @ApiTags('Excel Export')
 @Controller('export')
 @ApiBearerAuth()
+@Throttle({ long: { limit: 12, ttl: 60_000 } })
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class ExcelExportController {
   constructor(

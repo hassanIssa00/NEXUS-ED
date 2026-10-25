@@ -51,7 +51,11 @@ describe('PlacementAssessmentService', () => {
       where: expect.objectContaining({
         schoolId: 'school-1',
         student: expect.objectContaining({
-          enrollments: { some: { class: { OR: [{ teacherId: 'teacher-1' }, { classSubjects: { some: { teacherId: 'teacher-1' } } }] } } },
+          enrollments: { some: { class: { OR: [
+            { teacherId: 'teacher-1' },
+            { classSubjects: { some: { teacherId: 'teacher-1' } } },
+            { teacherAssignments: { some: { teacherId: 'teacher-1' } } },
+          ] } } },
         }),
       }),
     }));

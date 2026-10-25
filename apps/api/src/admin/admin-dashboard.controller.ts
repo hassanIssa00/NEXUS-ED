@@ -34,7 +34,7 @@ export class AdminDashboardController {
   }
 
   @Get('teachers')
-  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.SUPERVISOR)
+  @Roles(Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL, Role.SUPERVISOR)
   @ApiOperation({ summary: 'Get teacher performance metrics' })
   @ApiResponse({
     status: 200,

@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 export class RequestIdMiddleware implements NestMiddleware {
     use(req: Request, res: Response, next: NextFunction) {
         const requestId = req.headers['x-request-id'] || uuidv4();
-        req.headers['x-request-id'] = requestId as string;
+        req.headers['x-request-id'] = requestId;
         res.setHeader('x-request-id', requestId);
         next();
     }

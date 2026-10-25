@@ -1,208 +1,113 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Check, CheckCheck, CircleAlert, Clock3, Loader2, Save, UserX, X } from 'lucide-react';
+import { CalendarDays, CircleAlert, Clock3, Loader2, Radio, RefreshCw, UserCheck, UserX } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
-import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DatePicker, dateInputValue } from '@/components/ui/date-picker';
+import { useLocale } from 'next-intl';
 
-type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
-type Student = { id: string; name?: string | null; firstName?: string | null; lastName?: string | null; avatar?: string | null };
 type SchoolClass = { id: string; name: string };
+type Student = { id: string; name?: string | null; firstName?: string | null; lastName?: string | null; avatar?: string | null };
+type AttendanceRecord = { studentId: string; status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED'; notes?: string | null; updatedAt?: string };
+type SessionRecord = { id: string; title: string; startTime: string; duration: number; isActive: boolean; endedAt?: string | null; attendance: Array<{ studentId: string; status: string; joinedAt?: string | null }> };
 
-const statusLabels: Record<AttendanceStatus, string> = {
-  PRESENT: 'حاضر',
-  ABSENT: 'غائب',
-  LATE: 'متأخر',
-  EXCUSED: 'بعذر',
-};
-
-const statusStyles: Record<AttendanceStatus, string> = {
-  PRESENT: 'border-emerald-600 bg-emerald-600 text-white',
-  ABSENT: 'border-rose-600 bg-rose-600 text-white',
-  LATE: 'border-amber-500 bg-amber-500 text-white',
-  EXCUSED: 'border-sky-600 bg-sky-600 text-white',
-};
-
-function todayLocal() {
-  const date = new Date();
-  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-  return date.toISOString().slice(0, 10);
-}
-
-function getErrorMessage(error: any) {
-  return error?.response?.data?.message || 'تعذر الاتصال بالخادم. حاول مرة أخرى.';
-}
+function todaySchoolDate() { return dateInputValue(new Date()); }
+const nameOf = (student: Student, isEnglish: boolean) => student.name || [student.firstName, student.lastName].filter(Boolean).join(' ') || (isEnglish ? 'Student' : 'طالب');
 
 export default function AttendancePage() {
-  const { toast } = useToast();
+  const isEnglish = useLocale() === 'en';
+  const t = (ar: string, en: string) => isEnglish ? en : ar;
+  const errorMessage = (reason: any) => {
+    const message = reason?.response?.data?.message;
+    return isEnglish ? (typeof message === 'string' && !/[\u0600-\u06ff]/.test(message) ? message : 'Could not load attendance records.') : (message || 'تعذر تحميل سجل الحضور.');
+  };
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [selectedClassId, setSelectedClassId] = useState('');
-  const [date, setDate] = useState(todayLocal);
+  const [date, setDate] = useState(todaySchoolDate);
   const [students, setStudents] = useState<Student[]>([]);
-  const [statuses, setStatuses] = useState<Record<string, AttendanceStatus>>({});
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
-  const [loadingRoster, setLoadingRoster] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
-    apiClient.get('/classes')
-      .then(({ data }) => { if (active) setClasses(Array.isArray(data) ? data : []); })
-      .catch((error) => { if (active) setLoadError(getErrorMessage(error)); })
+    apiClient.get<SchoolClass[]>('/classes')
+      .then(({ data }) => {
+        if (!active) return;
+        const rows = Array.isArray(data) ? data : [];
+        setClasses(rows);
+        setSelectedClassId(rows[0]?.id || '');
+      })
+      .catch((reason) => { if (active) setError(errorMessage(reason)); })
       .finally(() => { if (active) setLoadingClasses(false); });
     return () => { active = false; };
-  }, []);
+  }, [isEnglish]);
 
-  const loadRoster = useCallback(async () => {
-    if (!selectedClassId) {
-      setStudents([]);
-      setStatuses({});
-      return;
-    }
-    setLoadingRoster(true);
-    setLoadError('');
+  const load = useCallback(async (silent = false) => {
+    if (!selectedClassId) { setStudents([]); setRecords([]); setSessions([]); return; }
+    if (!silent) { setLoading(true); setError(''); }
     try {
-      const { data } = await apiClient.get(`/attendance/classes/${selectedClassId}`, { params: { date } });
-      const roster: Student[] = Array.isArray(data?.students) ? data.students : [];
-      const marked: Record<string, AttendanceStatus> = {};
-      for (const record of Array.isArray(data?.records) ? data.records : []) {
-        marked[record.studentId] = record.status;
-      }
-      setStudents(roster);
-      setStatuses(marked);
-    } catch (error) {
-      setStudents([]);
-      setStatuses({});
-      setLoadError(getErrorMessage(error));
-    } finally {
-      setLoadingRoster(false);
-    }
+      const [daily, history] = await Promise.all([
+        apiClient.get(`/attendance/classes/${encodeURIComponent(selectedClassId)}`, { params: { date } }),
+        apiClient.get<SessionRecord[]>(`/classes/${encodeURIComponent(selectedClassId)}/sessions/history`),
+      ]);
+      setStudents(Array.isArray(daily.data?.students) ? daily.data.students : []);
+      setRecords(Array.isArray(daily.data?.records) ? daily.data.records : []);
+      setSessions(Array.isArray(history.data) ? history.data : []);
+    } catch (reason) {
+      if (!silent) { setStudents([]); setRecords([]); setSessions([]); setError(errorMessage(reason)); }
+    } finally { if (!silent) setLoading(false); }
   }, [selectedClassId, date]);
 
-  useEffect(() => { void loadRoster(); }, [loadRoster]);
+  useEffect(() => {
+    void load();
+    const interval = window.setInterval(() => { void load(true); }, 60_000);
+    return () => window.clearInterval(interval);
+  }, [load]);
 
-  const counts = useMemo(() => {
-    const initial = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, pending: 0 };
-    for (const student of students) {
-      const status = statuses[student.id];
-      if (status) initial[status] += 1;
-      else initial.pending += 1;
-    }
-    return initial;
-  }, [students, statuses]);
-
-  const updateStatus = (studentId: string, status: AttendanceStatus) => {
-    setStatuses((current) => ({ ...current, [studentId]: status }));
-  };
-
-  const markAllPresent = () => {
-    setStatuses(Object.fromEntries(students.map((student) => [student.id, 'PRESENT'])));
-  };
-
-  const saveAttendance = async () => {
-    if (!selectedClassId || students.length === 0 || counts.pending > 0) return;
-    setSaving(true);
-    try {
-      const entries = students.map((student) => ({ studentId: student.id, status: statuses[student.id] }));
-      const { data } = await apiClient.post(`/attendance/classes/${selectedClassId}`, { date, entries });
-      toast({ title: 'تم حفظ التحضير', description: `تم حفظ ${data.savedCount} سجلًا بتاريخ ${date}.` });
-      await loadRoster();
-    } catch (error) {
-      toast({ title: 'لم يتم حفظ التحضير', description: getErrorMessage(error), variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
+  const byStudent = useMemo(() => new Map(records.map((record) => [record.studentId, record])), [records]);
+  const counts = useMemo(() => records.reduce((result, record) => {
+    result[record.status] = (result[record.status] || 0) + 1;
+    return result;
+  }, { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 } as Record<string, number>), [records]);
+  const classSessions = useMemo(() => sessions.filter((session) => dateInputValue(new Date(session.startTime)) === date), [sessions, date]);
   const selectedClass = classes.find((item) => item.id === selectedClassId);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10" dir="rtl">
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">تحضير الطلاب</h1>
-          <p className="mt-1 text-sm text-muted-foreground">سجل يومي مرتبط بفصول وطلاب المدرسة.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="sr-only" htmlFor="attendance-date">تاريخ التحضير</label>
-          <div className="flex h-10 items-center gap-2 rounded-md border bg-background px-3">
-            <CalendarDays className="h-4 w-4 text-muted-foreground" />
-            <input id="attendance-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className="bg-transparent text-sm outline-none" />
-          </div>
-          <Button variant="outline" onClick={markAllPresent} disabled={!students.length || loadingRoster}>
-            <CheckCheck className="ml-2 h-4 w-4" />
-            اعتبار الجميع حاضرين
-          </Button>
-          <Button onClick={saveAttendance} disabled={!students.length || counts.pending > 0 || saving || loadingRoster}>
-            {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />}
-            حفظ التحضير
-          </Button>
-        </div>
+    <main className="mx-auto max-w-6xl space-y-6 pb-10" dir={isEnglish ? 'ltr' : 'rtl'}>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div><h1 className="text-2xl font-bold">{t('رصد الحضور والغياب', 'Attendance tracking')}</h1><p className="mt-1 text-sm text-muted-foreground">{t('يُسجل الحضور عند اتصال الطالب بالبث من بوابته، ويُثبت الغياب بعد انتهاء الحصة.', 'Attendance is recorded when a student joins the live class from their portal. Absence is recorded after the session ends.')}</p></div>
+        <div className="flex flex-wrap items-center gap-2"><DatePicker value={date} onChange={setDate} placeholder={t('اختر التاريخ', 'Choose date')} ariaLabel={t('تاريخ الحضور', 'Attendance date')} className="h-10 w-auto min-w-44" locale={isEnglish ? 'en' : 'ar'} /><Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`me-2 size-4 ${loading ? 'animate-spin' : ''}`} />{t('تحديث', 'Refresh')}</Button></div>
       </header>
 
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">الفصل الدراسي</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <Select value={selectedClassId} onValueChange={setSelectedClassId}>
-            <SelectTrigger className="max-w-md"><SelectValue placeholder={loadingClasses ? 'جاري تحميل الفصول...' : 'اختر فصلًا'} /></SelectTrigger>
-            <SelectContent>
-              {classes.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {loadError && <p role="alert" className="flex items-center gap-2 text-sm text-destructive"><CircleAlert className="h-4 w-4" />{loadError}</p>}
-        </CardContent>
-      </Card>
+      {error && <p role="alert" className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><CircleAlert className="size-4 shrink-0" />{error}</p>}
 
-      {selectedClass && (
-        <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            {(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'] as const).map((status) => (
-              <Card key={status}><CardContent className="flex items-center justify-between p-4"><span className="text-sm text-muted-foreground">{statusLabels[status]}</span><strong className="text-xl">{counts[status]}</strong></CardContent></Card>
-            ))}
-            <Card><CardContent className="flex items-center justify-between p-4"><span className="text-sm text-muted-foreground">غير مسجل</span><strong className="text-xl">{counts.pending}</strong></CardContent></Card>
-          </div>
+      <Card><CardHeader className="pb-3"><CardTitle className="text-base">{t('الفصل الدراسي', 'Class')}</CardTitle></CardHeader><CardContent><Select value={selectedClassId} onValueChange={setSelectedClassId}><SelectTrigger className="max-w-xl"><SelectValue placeholder={loadingClasses ? t('جارٍ تحميل الفصول...', 'Loading classes…') : t('اختر فصلًا', 'Choose a class')} /></SelectTrigger><SelectContent>{classes.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></CardContent></Card>
 
-          <Card>
-            <CardHeader className="border-b"><CardTitle className="text-base">{selectedClass.name} · {date}</CardTitle></CardHeader>
-            <CardContent className="p-0">
-              {loadingRoster ? (
-                <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />تحميل قائمة الفصل...</div>
-              ) : students.length === 0 ? (
-                <div className="p-10 text-center text-sm text-muted-foreground">لا يوجد طلاب مسجلون في هذا الفصل.</div>
-              ) : (
-                <ul className="divide-y">
-                  {students.map((student) => {
-                    const fullName = student.name || [student.firstName, student.lastName].filter(Boolean).join(' ') || 'طالب';
-                    return (
-                      <li key={student.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold">{fullName.slice(0, 1)}</span>
-                          <span className="truncate text-sm font-medium">{fullName}</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'] as const).map((status) => {
-                            const Icon = status === 'PRESENT' ? Check : status === 'ABSENT' ? UserX : status === 'LATE' ? Clock3 : X;
-                            const selected = statuses[student.id] === status;
-                            return (
-                              <Button key={status} type="button" size="sm" variant={selected ? 'default' : 'outline'} className={selected ? statusStyles[status] : ''} onClick={() => updateStatus(student.id, status)} aria-pressed={selected}>
-                                <Icon className="ml-1.5 h-4 w-4" />{statusLabels[status]}
-                              </Button>
-                            );
-                          })}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
-    </div>
+      {selectedClass && <>
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Card><CardContent className="flex items-center justify-between p-4"><span className="flex items-center gap-2 text-sm text-emerald-700"><UserCheck className="size-4" />{t('حاضر', 'Present')}</span><strong className="text-xl">{counts.PRESENT || 0}</strong></CardContent></Card>
+          <Card><CardContent className="flex items-center justify-between p-4"><span className="flex items-center gap-2 text-sm text-rose-700"><UserX className="size-4" />{t('غائب', 'Absent')}</span><strong className="text-xl">{counts.ABSENT || 0}</strong></CardContent></Card>
+          <Card><CardContent className="flex items-center justify-between p-4"><span className="flex items-center gap-2 text-sm text-amber-700"><Clock3 className="size-4" />{t('متأخر', 'Late')}</span><strong className="text-xl">{counts.LATE || 0}</strong></CardContent></Card>
+          <Card><CardContent className="flex items-center justify-between p-4"><span className="flex items-center gap-2 text-sm text-sky-700"><CalendarDays className="size-4" />{t('بعذر', 'Excused')}</span><strong className="text-xl">{counts.EXCUSED || 0}</strong></CardContent></Card>
+        </section>
+
+        <Card><CardHeader className="border-b"><CardTitle className="text-base">{selectedClass.name} · {new Date(`${date}T12:00:00`).toLocaleDateString(isEnglish ? 'en-US' : 'ar-SA', { dateStyle: 'full' })}</CardTitle></CardHeader><CardContent className="p-0">
+          {loading ? <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />{t('تحميل الحضور...', 'Loading attendance…')}</div> : students.length === 0 ? <p className="p-10 text-center text-sm text-muted-foreground">{t('لا يوجد طلاب مسجلون في هذا الفصل.', 'No students are enrolled in this class.')}</p> : <ul className="divide-y">{students.map((student) => {
+            const record = byStudent.get(student.id);
+            const state = record?.status === 'PRESENT' ? t('حاضر', 'Present') : record?.status === 'ABSENT' ? t('غائب', 'Absent') : record?.status === 'LATE' ? t('متأخر', 'Late') : record?.status === 'EXCUSED' ? t('بعذر', 'Excused') : t('لم تُسجل حصة بعد', 'No session recorded yet');
+            const badge = record?.status === 'PRESENT' ? 'bg-emerald-100 text-emerald-800' : record?.status === 'ABSENT' ? 'bg-rose-100 text-rose-800' : record ? 'bg-amber-100 text-amber-800' : 'bg-muted text-muted-foreground';
+            return <li key={student.id} className="flex items-center justify-between gap-3 p-4"><div className="flex min-w-0 items-center gap-3">{student.avatar ? <img src={student.avatar} alt={`${t('صورة', 'Photo')} ${nameOf(student, isEnglish)}`} className="size-10 rounded-full bg-white object-cover" /> : <span className="grid size-10 place-items-center rounded-full bg-muted font-semibold">{nameOf(student, isEnglish).slice(0, 1)}</span>}<div className="min-w-0"><p className="truncate text-sm font-medium">{nameOf(student, isEnglish)}</p>{record?.notes && <p className="mt-0.5 truncate text-xs text-muted-foreground">{record.notes}</p>}</div></div><span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${badge}`}>{state}</span></li>;
+          })}</ul>}
+        </CardContent></Card>
+
+        <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Radio className="size-4 text-primary" />{t('حصص البث وحالة الاتصال', 'Live classes and connection status')}</CardTitle></CardHeader><CardContent>{classSessions.length ? <div className="space-y-3">{classSessions.map((session) => <article key={session.id} className="rounded-xl border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="font-semibold">{session.title}</h2><p className="mt-1 text-xs text-muted-foreground">{new Date(session.startTime).toLocaleTimeString(isEnglish ? 'en-US' : 'ar-SA', { hour: 'numeric', minute: '2-digit' })} · {session.duration} {t('دقيقة', 'minutes')}{session.endedAt ? ` · ${t('انتهت', 'Ended')}` : ` · ${t('مباشرة', 'Live')}`}</p></div><span className="rounded-full bg-muted px-3 py-1 text-xs">{session.attendance?.filter((row) => row.status === 'PRESENT').length || 0} {t('حاضر', 'present')} · {session.attendance?.filter((row) => row.status === 'ABSENT').length || 0} {t('غائب', 'absent')}</span></div></article>)}</div> : <p className="text-sm text-muted-foreground">{t('لا توجد جلسات بث محفوظة لهذا الفصل في هذا اليوم.', 'No live sessions are saved for this class on this date.')}</p>}</CardContent></Card>
+      </>}
+    </main>
   );
 }

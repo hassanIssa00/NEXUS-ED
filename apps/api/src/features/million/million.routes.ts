@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { authenticateToken } from '../../middleware/auth.middleware';
 import { validate, validateUUID } from '../../middleware/validation.middleware';
 import {
-  generalLimiter,
   answerLimiter,
   roomCreationLimiter,
 } from '../../middleware/ratelimit.middleware';
@@ -73,7 +72,6 @@ router.post(
 router.post(
   '/join-room',
   authenticateToken,
-  generalLimiter,
   validate(joinRoomSchema),
   joinRoom,
 );
@@ -85,7 +83,6 @@ router.post(
 router.post(
   '/leave-room',
   authenticateToken,
-  generalLimiter,
   validate(leaveRoomSchema),
   leaveRoom,
 );
@@ -97,7 +94,6 @@ router.post(
 router.post(
   '/start-round',
   authenticateToken,
-  generalLimiter,
   validate(startRoundSchema),
   startRound,
 );
@@ -121,7 +117,6 @@ router.post(
 router.get(
   '/room/:roomId',
   authenticateToken,
-  generalLimiter,
   validateUUID('roomId'),
   getRoom,
 );
@@ -133,7 +128,6 @@ router.get(
 router.get(
   '/leaderboard/:roomId',
   authenticateToken,
-  generalLimiter,
   validateUUID('roomId'),
   getLeaderboard,
 );
@@ -145,7 +139,6 @@ router.get(
 router.get(
   '/history/:userId',
   authenticateToken,
-  generalLimiter,
   validateUUID('userId'),
   getUserHistory,
 );
@@ -157,7 +150,6 @@ router.get(
 router.get(
   '/questions/:roundId',
   authenticateToken,
-  generalLimiter,
   validateUUID('roundId'),
   getRoundQuestions,
 );

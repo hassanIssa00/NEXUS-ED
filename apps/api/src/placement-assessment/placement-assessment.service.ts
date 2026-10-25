@@ -5,6 +5,47 @@ import { StudentAnalyticsService } from '../analytics/student-analytics.service'
 import { getPlacementAssessment, PlacementGradeKey, PlacementQuestion } from './placement-assessment.data';
 
 const LEADERSHIP_ROLES = ['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'COUNSELOR', 'SUPERVISOR'];
+const MANUAL_ASSESSMENT_ROLES = ['TEACHER', ...LEADERSHIP_ROLES];
+
+function describeAssessmentAnswers(rawAnswers: Prisma.JsonValue, rawSnapshot: Prisma.JsonValue) {
+  const answers = rawAnswers && typeof rawAnswers === 'object' && !Array.isArray(rawAnswers)
+    ? rawAnswers as Record<string, unknown>
+    : {};
+  const questions = Array.isArray(rawSnapshot) ? rawSnapshot as Array<{
+    id: string;
+    category?: string;
+    prompt?: string;
+    correctAnswer?: string;
+    explanation?: string;
+  }> : [];
+  const details = questions.map((question) => ({
+    id: question.id,
+    category: question.category ?? 'عام',
+    prompt: question.prompt ?? '',
+    selectedAnswer: typeof answers[question.id] === 'string' ? answers[question.id] as string : null,
+    correctAnswer: question.correctAnswer ?? null,
+    isCorrect: Boolean(question.correctAnswer) && answers[question.id] === question.correctAnswer,
+    explanation: question.explanation ?? '',
+  }));
+  const categories = new Map<string, { total: number; correct: number }>();
+  for (const answer of details) {
+    const score = categories.get(answer.category) ?? { total: 0, correct: 0 };
+    score.total += 1;
+    if (answer.isCorrect) score.correct += 1;
+    categories.set(answer.category, score);
+  }
+  const weakAreas = [...categories.entries()]
+    .map(([category, score]) => ({
+      category,
+      total: score.total,
+      correct: score.correct,
+      incorrect: score.total - score.correct,
+      accuracy: Math.round((score.correct / score.total) * 100),
+    }))
+    .filter((area) => area.incorrect > 0)
+    .sort((left, right) => left.accuracy - right.accuracy || right.incorrect - left.incorrect);
+  return { answers: details, weakAreas };
+}
 
 @Injectable()
 export class PlacementAssessmentService {
@@ -77,14 +118,14 @@ export class PlacementAssessmentService {
           studentId,
           gradeLevel: student.studentProfile.gradeLevel,
           assessmentKey,
-          answers: answers as Prisma.InputJsonValue,
+          answers,
           questionSnapshot: questions.map((question) => ({
             id: question.id,
             category: question.categoryLabel,
             prompt: question.prompt,
             correctAnswer: question.correct,
             explanation: question.explanation,
-          })) as Prisma.InputJsonValue,
+          })),
           correctCount,
           questionCount,
           score,
@@ -99,16 +140,165 @@ export class PlacementAssessmentService {
     }
   }
 
+  async getManualAssessmentCatalog(actorId: string, actorRole: string) {
+    await this.getManualAssessmentActor(actorId, actorRole);
+    return {
+      items: Array.from({ length: 13 }, (_, gradeLevel) => {
+        const assessmentKey = this.assessmentKeyForGrade(gradeLevel);
+        const assessment = this.objectiveAssessment(assessmentKey);
+        return {
+          gradeLevel,
+          gradeLabel: this.gradeLabel(gradeLevel),
+          assessmentKey,
+          title: gradeLevel === 1 ? 'اختبار تحديد مستوى الصف الأول' : assessment.shortTitle,
+          subtitle: assessment.subtitle,
+          subjects: assessment.subjects,
+          questionCount: assessment.questions.length,
+        };
+      }),
+    };
+  }
+
+  async getManualAssessment(actorId: string, actorRole: string, gradeLevel: number) {
+    await this.getManualAssessmentActor(actorId, actorRole);
+    const assessmentKey = this.assessmentKeyForGrade(gradeLevel);
+    const assessment = this.objectiveAssessment(assessmentKey);
+    return {
+      gradeLevel,
+      gradeLabel: this.gradeLabel(gradeLevel),
+      assessmentKey,
+      title: gradeLevel === 1 ? 'اختبار تحديد مستوى الصف الأول' : assessment.title,
+      subtitle: assessment.subtitle,
+      subjects: assessment.subjects,
+      questions: assessment.questions.map((question) => this.publicQuestion(question)),
+    };
+  }
+
+  async submitManualAssessment(
+    actorId: string,
+    actorRole: string,
+    candidateName: string,
+    gradeLevel: number,
+    rawAnswers: Record<string, unknown>,
+  ) {
+    const actor = await this.getManualAssessmentActor(actorId, actorRole);
+    const normalizedName = candidateName?.trim();
+    if (!normalizedName || normalizedName.length < 2 || normalizedName.length > 160) {
+      throw new BadRequestException('اكتب اسم المتقدم بشكل صحيح');
+    }
+    const assessmentKey = this.assessmentKeyForGrade(gradeLevel);
+    const assessment = this.objectiveAssessment(assessmentKey);
+    if (!rawAnswers || typeof rawAnswers !== 'object' || Array.isArray(rawAnswers)) {
+      throw new BadRequestException('إجابات الاختبار غير صالحة');
+    }
+
+    const questions = assessment.questions;
+    const answerIds = Object.keys(rawAnswers);
+    if (answerIds.length !== questions.length || questions.some(({ id }) => !Object.prototype.hasOwnProperty.call(rawAnswers, id))) {
+      throw new BadRequestException('أكمل جميع أسئلة الاختبار قبل الحفظ');
+    }
+
+    const answers: Record<string, string> = {};
+    let correctCount = 0;
+    for (const question of questions) {
+      const answer = rawAnswers[question.id];
+      if (typeof answer !== 'string' || answer.length > 300 || !question.options.includes(answer)) {
+        throw new BadRequestException('تحتوي الإجابات على اختيار غير صالح');
+      }
+      answers[question.id] = answer;
+      if (answer === question.correct) correctCount += 1;
+    }
+
+    const questionCount = questions.length;
+    const score = Math.round((correctCount / questionCount) * 10000) / 100;
+    return this.prisma.manualPlacementAssessment.create({
+      data: {
+        schoolId: actor.schoolId,
+        createdById: actorId,
+        candidateName: normalizedName,
+        gradeLevel,
+        assessmentKey,
+        answers,
+        questionSnapshot: questions.map((question) => ({
+          id: question.id,
+          category: question.categoryLabel,
+          prompt: question.prompt,
+          correctAnswer: question.correct,
+          explanation: question.explanation,
+        })),
+        correctCount,
+        questionCount,
+        score,
+      },
+      select: { id: true, candidateName: true, gradeLevel: true, assessmentKey: true, correctCount: true, questionCount: true, score: true, completedAt: true },
+    });
+  }
+
+  async listManualPlacementReports(actorId: string, actorRole: string, page: number, limit: number) {
+    const actor = await this.getManualAssessmentActor(actorId, actorRole);
+    const safePage = Math.max(1, Math.floor(page));
+    const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const where = { schoolId: actor.schoolId };
+    const [items, total] = await Promise.all([
+      this.prisma.manualPlacementAssessment.findMany({
+        where,
+        orderBy: { completedAt: 'desc' },
+        skip: (safePage - 1) * safeLimit,
+        take: safeLimit,
+      }),
+      this.prisma.manualPlacementAssessment.count({ where }),
+    ]);
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        candidateName: item.candidateName,
+        gradeLevel: item.gradeLevel,
+        assessmentKey: item.assessmentKey,
+        correctCount: item.correctCount,
+        questionCount: item.questionCount,
+        score: item.score,
+        completedAt: item.completedAt,
+      })),
+      page: safePage,
+      limit: safeLimit,
+      total,
+    };
+  }
+
+  async getManualPlacementReport(actorId: string, actorRole: string, reportId: string) {
+    const actor = await this.getManualAssessmentActor(actorId, actorRole);
+    const report = await this.prisma.manualPlacementAssessment.findFirst({
+      where: { id: reportId, schoolId: actor.schoolId },
+      include: { school: { select: { name: true } } },
+    });
+    if (!report) throw new NotFoundException('تقرير اختبار المتقدم غير موجود');
+    return {
+      id: report.id,
+      candidateName: report.candidateName,
+      studentName: report.candidateName,
+      schoolName: report.school.name,
+      gradeLevel: report.gradeLevel,
+      assessmentKey: report.assessmentKey,
+      score: report.score,
+      correctCount: report.correctCount,
+      questionCount: report.questionCount,
+      completedAt: report.completedAt,
+      ...describeAssessmentAnswers(report.answers, report.questionSnapshot),
+    };
+  }
+
   async listReports(actorId: string, actorRole: string, page: number, limit: number) {
     const actor = await this.prisma.user.findUnique({ where: { id: actorId }, select: { id: true, role: true, schoolId: true } });
     if (!actor?.schoolId) throw new ForbiddenException('الحساب غير مرتبط بمدرسة');
     const safePage = Math.max(1, Math.floor(page));
     const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
-    if (!['TEACHER', 'PARENT'].includes(actorRole) && !LEADERSHIP_ROLES.includes(actorRole)) {
+    if (!['STUDENT', 'TEACHER', 'PARENT'].includes(actorRole) && !LEADERSHIP_ROLES.includes(actorRole)) {
       throw new ForbiddenException('لا تملك صلاحية عرض تقارير الاختبارات');
     }
     const studentScope: Prisma.UserWhereInput = { schoolId: actor.schoolId };
-    if (actorRole === 'TEACHER') {
+    if (actorRole === 'STUDENT') {
+      studentScope.id = actorId;
+    } else if (actorRole === 'TEACHER') {
       studentScope.enrollments = {
         some: {
           class: {
@@ -147,6 +337,10 @@ export class PlacementAssessmentService {
         score: item.score,
         completedAt: item.completedAt,
         studentName: this.studentName(item.student),
+        // Keep answer keys and individual answers out of teacher reports. The
+        // student, their linked parent, and leadership/counseling reports can
+        // access the full diagnostic detail for support and follow-up.
+        ...(actorRole === 'TEACHER' ? {} : describeAssessmentAnswers(item.answers, item.questionSnapshot)),
       })),
       page: safePage,
       limit: safeLimit,
@@ -166,41 +360,30 @@ export class PlacementAssessmentService {
             name: true,
             firstName: true,
             lastName: true,
+            avatar: true,
             studentProfile: { select: { gradeLevel: true } },
           },
         },
+        school: { select: { name: true } },
       },
     });
     if (!attempt) throw new NotFoundException('تقرير الاختبار غير موجود');
     await this.studentAnalytics.assertCanAccessStudent(actorId, actorRole, attempt.studentId);
 
-    const answers = attempt.answers as Record<string, string>;
-    const questions = attempt.questionSnapshot as Array<{
-      id: string;
-      category: string;
-      prompt: string;
-      correctAnswer: string;
-      explanation: string;
-    }>;
+    const assessmentDetails = describeAssessmentAnswers(attempt.answers, attempt.questionSnapshot);
     return {
       id: attempt.id,
       studentId: attempt.studentId,
       studentName: this.studentName(attempt.student),
+      studentAvatar: attempt.student.avatar,
+      schoolName: attempt.school.name,
       gradeLevel: attempt.gradeLevel,
       assessmentKey: attempt.assessmentKey,
       score: attempt.score,
       correctCount: attempt.correctCount,
       questionCount: attempt.questionCount,
       completedAt: attempt.completedAt,
-      answers: questions.map((question) => ({
-        id: question.id,
-        category: question.category,
-        prompt: question.prompt,
-        selectedAnswer: answers[question.id] ?? null,
-        correctAnswer: question.correctAnswer,
-        isCorrect: answers[question.id] === question.correctAnswer,
-        explanation: question.explanation,
-      })),
+      ...assessmentDetails,
     };
   }
 
@@ -233,6 +416,26 @@ export class PlacementAssessmentService {
     );
     if (!questions.length) throw new BadRequestException('لا توجد أسئلة اختيار آلي معتمدة لهذا التقييم');
     return { ...assessment, questions };
+  }
+
+  private async getManualAssessmentActor(actorId: string, actorRole: string) {
+    if (!MANUAL_ASSESSMENT_ROLES.includes(actorRole)) {
+      throw new ForbiddenException('هذه الخدمة مخصصة لموظفي المدرسة');
+    }
+    const actor = await this.prisma.user.findUnique({
+      where: { id: actorId },
+      select: { id: true, schoolId: true },
+    });
+    if (!actor?.schoolId) throw new ForbiddenException('الحساب غير مرتبط بمدرسة');
+    return actor;
+  }
+
+  private gradeLabel(level: number) {
+    if (level === 0) return 'رياض الأطفال';
+    if (level <= 6) return `الصف ${level} الابتدائي`;
+    if (level <= 9) return `الصف ${level - 6} المتوسط`;
+    if (level <= 12) return `الصف ${level - 9} الثانوي`;
+    throw new BadRequestException('اختر صفًا دراسيًا من الروضة إلى الثالث الثانوي');
   }
 
   private publicQuestion(question: PlacementQuestion) {

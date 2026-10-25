@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiClient } from '@/lib/api/client'
+import { useLocale } from 'next-intl'
 import { aiApi } from '@/lib/api/ai'
 import { assignmentService } from '@/lib/services/assignment.service'
 import {
@@ -16,6 +17,7 @@ function AiSuggestionBubble({ suggestion, onAccept }: {
   suggestion: { score: number; feedback: string; confidence?: number; maxScore: number };
   onAccept: (score: number, feedback: string) => void;
 }) {
+  const isEnglish = useLocale() === 'en'
   const conf = suggestion.confidence
   const confColor = conf === undefined ? '#64748b' : conf >= 0.85 ? '#22c55e' : conf >= 0.65 ? '#f59e0b' : '#ef4444'
   return (
@@ -23,9 +25,9 @@ function AiSuggestionBubble({ suggestion, onAccept }: {
       className="bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border border-violet-200 dark:border-violet-800 rounded-2xl p-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-violet-700 dark:text-violet-300 flex items-center gap-1">
-          <Sparkles className="w-3 h-3" /> اقتراح AI
+          <Sparkles className="w-3 h-3" /> {isEnglish ? 'AI suggestion' : 'اقتراح AI'}
         </span>
-        {conf !== undefined && <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: confColor, backgroundColor: `${confColor}15` }}>ثقة: {Math.round(conf * 100)}%</span>}
+        {conf !== undefined && <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: confColor, backgroundColor: `${confColor}15` }}>{isEnglish ? 'Confidence' : 'ثقة'}: {Math.round(conf * 100)}%</span>}
       </div>
       <p className="text-2xl font-extrabold text-violet-700 dark:text-violet-300 mb-1">{suggestion.score} / {suggestion.maxScore}</p>
       {suggestion.feedback && (
@@ -33,7 +35,7 @@ function AiSuggestionBubble({ suggestion, onAccept }: {
       )}
       <button onClick={() => onAccept(suggestion.score, suggestion.feedback)}
         className="w-full bg-violet-600 hover:bg-violet-700 text-white py-2 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1">
-        <Check className="w-3 h-3" /> قبول الاقتراح
+        <Check className="w-3 h-3" /> {isEnglish ? 'Accept suggestion' : 'قبول الاقتراح'}
       </button>
     </motion.div>
   )
@@ -41,6 +43,8 @@ function AiSuggestionBubble({ suggestion, onAccept }: {
 
 // ── Grade Modal ────────────────────────────────────────────
 function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; onSaved: (id: string, score: number) => void }) {
+  const isEnglish = useLocale() === 'en'
+  const t = (ar: string, en: string) => isEnglish ? en : ar
   const maxScore = Number(sub.assignment?.maxScore) || 100
   const [score, setScore] = useState(sub.aiSuggestion?.score?.toString() ?? '')
   const [feedback, setFeedback] = useState(sub.aiSuggestion?.feedback ?? '')
@@ -55,9 +59,9 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
     try {
       const res = await aiApi.autoGrade(sub.id)
       const s = res.data?.data ?? res.data
-      if (typeof s?.score !== 'number') throw new Error('لم يرجع الخادم باقتراح تصحيح صالح')
+      if (typeof s?.score !== 'number') throw new Error(t('لم يرجع الخادم باقتراح تصحيح صالح', 'The server did not return a valid grading suggestion.'))
       setAiSuggestion({ score: s.score, feedback: s.feedback || '', confidence: s.confidence, maxScore })
-    } catch (error: any) { setAiError(error?.response?.data?.message || error?.message || 'تعذر الحصول على اقتراح التصحيح') }
+    } catch { setAiError(t('تعذر الحصول على اقتراح التصحيح', 'Could not get a grading suggestion.')) }
     finally { setAiLoading(false) }
   }
 
@@ -70,7 +74,7 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
       onSaved(sub.id, numericScore)
       onClose()
     } catch (e: any) {
-      alert('تعذر حفظ الدرجة')
+      alert(t('تعذر حفظ الدرجة', 'Could not save the grade.'))
     } finally { setLoading(false) }
   }
 
@@ -88,7 +92,7 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-extrabold text-lg flex items-center gap-2">
-                <Wand2 className="w-5 h-5" /> تصحيح الواجب
+                <Wand2 className="w-5 h-5" /> {t('تصحيح الواجب', 'Grade assignment')}
               </h3>
               <p className="text-teal-100 text-sm mt-0.5">{sub.student?.name || sub.student?.email}</p>
             </div>
@@ -103,7 +107,7 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
             <button onClick={runAi} disabled={aiLoading}
               className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white py-3 rounded-2xl font-bold text-sm transition-opacity disabled:opacity-60">
               {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <BrainCircuit className="w-4 h-4" />}
-              {aiLoading ? 'AI يحلل الإجابة...' : 'تصحيح سحري بالذكاء الاصطناعي ✨'}
+              {aiLoading ? t('AI يحلل الإجابة...', 'AI is analyzing the response...') : t('تصحيح بالذكاء الاصطناعي ✨', 'Grade with AI ✨')}
             </button>
           )}
 
@@ -118,7 +122,7 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
 
           {/* Manual grade input */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground">الدرجة (من {maxScore})</label>
+            <label className="text-xs font-bold text-foreground">{t('الدرجة (من', 'Score (out of')} {maxScore})</label>
             <div className="flex items-center gap-3">
               <input type="number" min={0} max={maxScore} value={score} onChange={e => setScore(e.target.value)}
                 className="flex-1 border border-border rounded-xl px-4 py-3 bg-muted text-foreground font-extrabold text-xl outline-none focus:border-teal-500 transition-colors" />
@@ -142,9 +146,9 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
 
           {/* Feedback */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground">ملاحظات للطالب</label>
-            <textarea value={feedback} onChange={e => setFeedback(e.target.value)} rows={4} dir="rtl"
-              placeholder="اكتب ملاحظاتك هنا... أو اقبل اقتراح AI"
+            <label className="text-xs font-bold text-foreground">{t('ملاحظات للطالب', 'Feedback for student')}</label>
+            <textarea value={feedback} onChange={e => setFeedback(e.target.value)} rows={4} dir={isEnglish ? 'ltr' : 'rtl'}
+              placeholder={t('اكتب ملاحظاتك هنا... أو اقبل اقتراح AI', 'Enter feedback here, or accept the AI suggestion...')}
               className="w-full border border-border rounded-xl px-4 py-3 bg-muted text-foreground text-sm outline-none resize-none focus:border-teal-500 leading-relaxed" />
           </div>
 
@@ -153,10 +157,10 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
             <button onClick={save} disabled={loading || !score || Number(score) < 0 || Number(score) > maxScore}
               className="flex-1 bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-xl font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              {loading ? 'جاري الحفظ...' : 'رصد الدرجة'}
+              {loading ? t('جارٍ الحفظ...', 'Saving...') : t('حفظ الدرجة', 'Save grade')}
             </button>
             <button onClick={onClose} className="px-5 py-3 border border-border rounded-xl text-sm text-muted-foreground hover:bg-muted transition-colors">
-              إلغاء
+              {t('إلغاء', 'Cancel')}
             </button>
           </div>
         </div>
@@ -167,6 +171,8 @@ function GradeModal({ sub, onClose, onSaved }: { sub: any; onClose: () => void; 
 
 // ── Main page ──────────────────────────────────────────────
 export default function GradingPage() {
+  const isEnglish = useLocale() === 'en'
+  const t = (ar: string, en: string) => isEnglish ? en : ar
   const [submissions, setSubmissions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -185,10 +191,10 @@ export default function GradingPage() {
       }))
     } catch (error: any) {
       setSubmissions([])
-      setLoadError(error?.response?.data?.message || 'تعذر تحميل التسليمات من الخادم.')
+      setLoadError(t('تعذر تحميل التسليمات من الخادم.', 'Could not load submissions from the server.'))
     }
     finally { setLoading(false) }
-  }, [])
+  }, [isEnglish])
 
   useEffect(() => { load() }, [load])
 
@@ -206,7 +212,7 @@ export default function GradingPage() {
   const graded = submissions.filter(s => s.grade != null || s.status === 'graded').length
 
   return (
-    <div className="space-y-6 pb-10" dir="rtl">
+    <div className="space-y-6 pb-10" dir={isEnglish ? 'ltr' : 'rtl'}>
       {/* Hero */}
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-600 via-cyan-600 to-emerald-600 p-7 text-white shadow-2xl">
@@ -215,31 +221,31 @@ export default function GradingPage() {
         </div>
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-teal-200 text-sm mb-1">التصحيح والدرجات</p>
-            <h1 className="text-2xl font-extrabold mb-3">مركز تصحيح الواجبات ✍️</h1>
+            <p className="text-teal-200 text-sm mb-1">{t('التصحيح والدرجات', 'Grading and scores')}</p>
+            <h1 className="text-2xl font-extrabold mb-3">{t('مركز تصحيح الواجبات ✍️', 'Assignment grading center ✍️')}</h1>
             <div className="flex gap-3 flex-wrap">
               <div className="bg-white/15 backdrop-blur-sm rounded-xl px-4 py-2 text-center">
                 <p className="text-xl font-extrabold">{pending}</p>
-                <p className="text-xs text-white/70">بانتظار التصحيح</p>
+                <p className="text-xs text-white/70">{t('بانتظار التصحيح', 'Awaiting grading')}</p>
               </div>
               <div className="bg-white/15 backdrop-blur-sm rounded-xl px-4 py-2 text-center">
                 <p className="text-xl font-extrabold">{graded}</p>
-                <p className="text-xs text-white/70">تم تصحيحها</p>
+                <p className="text-xs text-white/70">{t('تم تصحيحها', 'Graded')}</p>
               </div>
               <div className="bg-white/15 backdrop-blur-sm rounded-xl px-4 py-2 text-center">
                 <p className="text-xl font-extrabold">{submissions.length}</p>
-                <p className="text-xs text-white/70">إجمالي التسليمات</p>
+                <p className="text-xs text-white/70">{t('إجمالي التسليمات', 'Total submissions')}</p>
               </div>
             </div>
           </div>
           <div className="flex flex-col gap-2">
             <button onClick={load}
               className="flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl px-4 py-2.5 text-sm font-bold transition-colors">
-              <RefreshCw className="w-4 h-4" /> تحديث القائمة
+              <RefreshCw className="w-4 h-4" /> {t('تحديث القائمة', 'Refresh list')}
             </button>
             <div className="flex items-center gap-1 bg-white/10 rounded-xl px-3 py-2">
               <BrainCircuit className="w-4 h-4 text-yellow-300" />
-              <span className="text-xs font-bold text-white/90">اقتراح تصحيح عند تهيئة خدمة الذكاء الاصطناعي</span>
+              <span className="text-xs font-bold text-white/90">{t('اقتراح التصحيح متاح عند إعداد خدمة الذكاء الاصطناعي', 'AI grading suggestions are available when the AI service is configured')}</span>
             </div>
           </div>
         </div>
@@ -250,7 +256,7 @@ export default function GradingPage() {
         {(['all', 'pending', 'graded'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${filter === f ? 'bg-teal-600 text-white' : 'bg-card border border-border text-muted-foreground hover:bg-muted'}`}>
-            {f === 'all' ? 'الكل' : f === 'pending' ? `بانتظار التصحيح (${pending})` : `تم التصحيح (${graded})`}
+            {f === 'all' ? t('الكل', 'All') : f === 'pending' ? `${t('بانتظار التصحيح', 'Awaiting grading')} (${pending})` : `${t('تم التصحيح', 'Graded')} (${graded})`}
           </button>
         ))}
       </div>
@@ -264,16 +270,16 @@ export default function GradingPage() {
       ) : loadError ? (
         <div role="alert" className="flex flex-col items-center gap-3 py-16 bg-card border border-destructive/30 rounded-3xl text-center">
           <AlertCircle className="w-12 h-12 text-destructive" />
-          <p className="font-bold text-foreground">تعذر تحميل التسليمات</p>
+          <p className="font-bold text-foreground">{t('تعذر تحميل التسليمات', 'Could not load submissions')}</p>
           <p className="text-muted-foreground text-sm">{loadError}</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-16 bg-card border border-border rounded-3xl text-center">
           <CheckCircle2 className="w-16 h-16 text-teal-500" />
           <p className="font-bold text-foreground text-lg">
-            {filter === 'pending' ? '🎉 أحسنت! لا توجد واجبات بانتظار التصحيح' : 'لا توجد بيانات'}
+            {filter === 'pending' ? t('🎉 أحسنت! لا توجد واجبات بانتظار التصحيح', '🎉 Great! No assignments are awaiting grading') : t('لا توجد بيانات', 'No data available')}
           </p>
-          <p className="text-muted-foreground text-sm">ستظهر التسليمات هنا فور وصولها</p>
+          <p className="text-muted-foreground text-sm">{t('ستظهر التسليمات هنا فور وصولها', 'Submissions will appear here when received.')}</p>
         </div>
       ) : (
         <div className="bg-card border border-border rounded-3xl overflow-hidden">
@@ -281,7 +287,7 @@ export default function GradingPage() {
             {filtered.map((sub, i) => {
               const isGraded = sub.grade != null || sub.status === 'graded'
               const timeAgo = sub.submittedAt
-                ? new Date(sub.submittedAt).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                ? new Date(sub.submittedAt).toLocaleDateString(isEnglish ? 'en-US' : 'ar-SA', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                 : '—'
               return (
                 <motion.div key={sub.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}
@@ -295,15 +301,15 @@ export default function GradingPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-sm text-foreground truncate">
-                        {sub.student?.name || sub.student?.email || 'طالب'}
+                        {sub.student?.name || sub.student?.email || t('طالب', 'Student')}
                       </p>
                       {sub.aiSuggestion && (
                         <span className="text-[10px] bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
-                          <Sparkles className="w-2.5 h-2.5" /> AI جاهز
+                          <Sparkles className="w-2.5 h-2.5" /> {t('AI جاهز', 'AI ready')}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{sub.assignment?.title || 'واجب'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{sub.assignment?.title || t('واجب', 'Assignment')}</p>
                     <p className="text-[10px] text-muted-foreground/60 mt-0.5 flex items-center gap-1">
                       <Clock className="w-3 h-3" /> {timeAgo}
                     </p>
@@ -321,7 +327,7 @@ export default function GradingPage() {
                       </div>
                     ) : (
                       <span className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 px-2 py-1 rounded-full font-bold">
-                        ⏳ قيد الانتظار
+                        {t('⏳ قيد الانتظار', '⏳ Pending')}
                       </span>
                     )}
                   </div>
@@ -330,7 +336,7 @@ export default function GradingPage() {
                   {!isGraded && (
                     <button onClick={() => setSelected(sub)}
                       className="flex-shrink-0 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1">
-                      <Wand2 className="w-3 h-3" /> صحح
+                      <Wand2 className="w-3 h-3" /> {t('صحح', 'Grade')}
                     </button>
                   )}
                 </motion.div>

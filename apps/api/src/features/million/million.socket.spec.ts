@@ -1,6 +1,7 @@
 import { generateToken } from '../../middleware/auth.middleware';
 import setupMillionSocket from './million.socket';
 import millionService from './million.service';
+import { MillionGateway } from './million.gateway';
 
 jest.mock('./million.service', () => ({
   __esModule: true,
@@ -308,7 +309,7 @@ describe('Million WebSocket', () => {
     }
   });
 
-  it('submits an answer and broadcasts the result plus leaderboard update', async () => {
+  it('submits an answer privately and broadcasts only the leaderboard update', async () => {
     const roomId = 'room-123';
     const callback = jest.fn();
     const socket = createSocket(
@@ -337,7 +338,7 @@ describe('Million WebSocket', () => {
 
     expect(callback).toHaveBeenCalledWith({ success: true });
     expect(socket.emit).toHaveBeenCalledWith('answer.received', { acknowledged: true });
-    expect(roomEmitter.emit).toHaveBeenCalledWith('question.result', {
+    expect(socket.emit).toHaveBeenCalledWith('question.result', {
       questionId: 9,
       correctIndex: 2,
       scores: [
@@ -348,9 +349,45 @@ describe('Million WebSocket', () => {
         },
       ],
     });
+    expect(roomEmitter.emit).not.toHaveBeenCalledWith('question.result', expect.anything());
     expect(roomEmitter.emit).toHaveBeenCalledWith('leaderboard.updated', {
       roomId,
       leaderboard,
     });
+  });
+});
+
+describe('MillionGateway answer privacy', () => {
+  const mockedMillionService = millionService as jest.Mocked<typeof millionService>;
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('sends the correct answer only to its author while updating the room leaderboard', async () => {
+    const roomEmitter = { emit: jest.fn() };
+    const server = { to: jest.fn(() => roomEmitter) };
+    const gateway = new MillionGateway({} as any);
+    gateway.server = server as any;
+    const client = {
+      data: { user: { id: 'student-1', name: 'Student', role: 'STUDENT' } },
+      emit: jest.fn(),
+    } as any;
+    const leaderboard = [{ userId: 'student-1', totalPoints: 50, rank: 1 }];
+
+    mockedMillionService.submitAnswer.mockResolvedValue({
+      isCorrect: true,
+      pointsAwarded: 50,
+      correctIndex: 1,
+    });
+    mockedMillionService.getLeaderboard.mockResolvedValue(leaderboard as any);
+
+    await gateway.submitAnswer(client, { roomId: 'room-1', questionId: 4, chosenIndex: 1, timeTaken: 3 });
+
+    expect(client.emit).toHaveBeenCalledWith('question.result', {
+      questionId: 4,
+      correctIndex: 1,
+      scores: [{ userId: 'student-1', points: 50, isCorrect: true }],
+    });
+    expect(roomEmitter.emit).not.toHaveBeenCalledWith('question.result', expect.anything());
+    expect(roomEmitter.emit).toHaveBeenCalledWith('leaderboard.updated', { roomId: 'room-1', leaderboard });
   });
 });

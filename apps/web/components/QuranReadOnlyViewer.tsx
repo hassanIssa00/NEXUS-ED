@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useLocale } from 'next-intl';
 import {
   BookOpen,
   ChevronLeft,
@@ -30,14 +31,20 @@ export default function QuranReadOnlyViewer({
 }: {
   curriculum: CurriculumSubject;
 }) {
+  const isEnglish = useLocale() === 'en';
+  const tr = (ar: string, en: string) => isEnglish ? en : ar;
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState('1');
+  const [pageTurnDirection, setPageTurnDirection] = useState<'forward' | 'backward' | null>(null);
   const [zoom, setZoom] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const turnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalPages = curriculum.pageCount || 72;
+  const spreadStartPage = page % 2 === 0 ? page - 1 : page;
+  const pageSpread = [spreadStartPage, spreadStartPage + 1].filter((pageNum) => pageNum <= totalPages);
   const pdfUrl = `/resources/curricula/${curriculum.slug}/juz-amma.pdf`;
 
   // Pre-rendered fast page image
@@ -47,12 +54,21 @@ export default function QuranReadOnlyViewer({
   const goToPage = useCallback(
     (n: number) => {
       const clamped = Math.max(1, Math.min(totalPages, n));
+      if (clamped !== page) {
+        setPageTurnDirection(clamped > page ? 'forward' : 'backward');
+        if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
+        turnTimerRef.current = setTimeout(() => setPageTurnDirection(null), 420);
+      }
       setPage(clamped);
       setPageInput(String(clamped));
       setImageLoaded(false);
     },
-    [totalPages],
+    [page, totalPages],
   );
+
+  useEffect(() => () => {
+    if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
+  }, []);
 
   const handlePageInput = (v: string) => {
     setPageInput(v);
@@ -116,7 +132,7 @@ export default function QuranReadOnlyViewer({
   return (
     <div
       className={`flex flex-col gap-4 ${isFullscreen ? 'fixed inset-0 z-50 bg-slate-950 p-4 overflow-auto' : ''}`}
-      dir="rtl"
+      dir={isEnglish ? 'ltr' : 'rtl'}
     >
       {/* ── Header ── */}
       <div
@@ -133,7 +149,7 @@ export default function QuranReadOnlyViewer({
               </span>
               <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-black text-white/90">
                 <Sparkles size={11} className="text-amber-300" />
-                تحميل فوري سريع (0.1 ثانية)
+                {tr('تحميل فوري سريع (0.1 ثانية)', 'Fast loading (0.1 seconds)')}
               </span>
             </div>
             <h1 className="text-2xl md:text-3xl font-black">{curriculum.title}</h1>
@@ -142,15 +158,15 @@ export default function QuranReadOnlyViewer({
 
           <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
             <span className="bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">{curriculum.grade}</span>
-            <span className="bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">{totalPages} صفحة كاملة</span>
+            <span className="bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">{totalPages} {tr('صفحة كاملة', 'pages')}</span>
             <a
               href={pdfUrl}
-              download="جزء-عم-المصحف-الشريف.pdf"
+              download={isEnglish ? 'juz-amma-quran.pdf' : 'جزء-عم-المصحف-الشريف.pdf'}
               className="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 px-3.5 py-1.5 rounded-xl text-xs font-black shadow-xs transition"
-              title="تحميل نسخة PDF الأصلية للطباعة"
+              title={tr('تحميل نسخة PDF الأصلية للطباعة', 'Download the original PDF for printing')}
             >
               <Download size={13} />
-              <span>تحميل PDF</span>
+              <span>{tr('تحميل PDF', 'Download PDF')}</span>
             </a>
           </div>
         </div>
@@ -162,7 +178,7 @@ export default function QuranReadOnlyViewer({
           <button
             key={unit.title}
             onClick={() => goToPage(unit.fromPage)}
-            className={`rounded-xl border px-3.5 py-2 text-xs font-black transition hover:opacity-90 ${
+            className={`book-unit-tab rounded-xl border px-3.5 py-2 text-xs font-black transition hover:opacity-90 ${
               UNIT_COLORS[i % UNIT_COLORS.length]
             } ${activeUnit?.title === unit.title ? 'ring-2 ring-offset-1 ring-emerald-700 font-extrabold scale-[1.02]' : ''}`}
           >
@@ -180,7 +196,7 @@ export default function QuranReadOnlyViewer({
             onClick={() => goToPage(page - 1)}
             disabled={page <= 1}
             className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition"
-            title="الصفحة السابقة (السهم الأيمن)"
+            title={tr('الصفحة السابقة (السهم الأيمن)', 'Previous page (right arrow)')}
           >
             <ChevronRight size={20} />
           </button>
@@ -201,7 +217,7 @@ export default function QuranReadOnlyViewer({
             onClick={() => goToPage(page + 1)}
             disabled={page >= totalPages}
             className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition"
-            title="الصفحة التالية (السهم الأيسر)"
+            title={tr('الصفحة التالية (السهم الأيسر)', 'Next page (left arrow)')}
           >
             <ChevronLeft size={20} />
           </button>
@@ -220,7 +236,7 @@ export default function QuranReadOnlyViewer({
           <button
             onClick={() => setZoom((z) => clampZoom(z - 15))}
             className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition"
-            title="تصغير"
+            title={tr('تصغير', 'Zoom out')}
           >
             <ZoomOut size={17} />
           </button>
@@ -228,21 +244,21 @@ export default function QuranReadOnlyViewer({
           <button
             onClick={() => setZoom((z) => clampZoom(z + 15))}
             className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition"
-            title="تكبير"
+            title={tr('تكبير', 'Zoom in')}
           >
             <ZoomIn size={17} />
           </button>
           <button
             onClick={() => setZoom(100)}
             className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition"
-            title="إعادة ضبط الحجم"
+            title={tr('إعادة ضبط الحجم', 'Reset zoom')}
           >
             <RotateCcw size={15} />
           </button>
           <button
             onClick={() => setIsFullscreen((f) => !f)}
             className="grid h-10 w-10 place-items-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
-            title={isFullscreen ? 'خروج من ملء الشاشة' : 'ملء الشاشة'}
+            title={isFullscreen ? tr('خروج من ملء الشاشة', 'Exit full screen') : tr('ملء الشاشة', 'Full screen')}
           >
             {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
           </button>
@@ -250,49 +266,72 @@ export default function QuranReadOnlyViewer({
       </div>
 
       {/* ── Read-Only Quran Page Display (Instant Loading) ── */}
-      <div
-        className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-100 shadow-sm"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
+      <div className="book-reader-stage overflow-hidden rounded-3xl border border-slate-200 shadow-sm">
         {/* Read-only notice */}
         <div className="flex items-center justify-between border-b border-slate-200 bg-amber-50/80 px-4 py-2">
           <div className="flex items-center gap-2">
             <span className="text-sm">📖</span>
             <p className="text-[11px] font-black text-amber-900">
-              وضع القراءة والتلاوة فقط — محفوظ من الكتابة أو التعديل تقديساً لكتاب الله الكريم
+              {tr('وضع القراءة والتلاوة فقط — محفوظ من الكتابة أو التعديل تقديساً لكتاب الله الكريم', 'Read-only recitation mode — editing is disabled to preserve the Quran text.')}
             </p>
           </div>
           <span className="text-[10px] font-bold text-slate-400 hidden sm:inline">
-            اسحب لليمين/اليسار للتقليب، أو استخدم الأسهم ⬅️ ➡️
+            {tr('اسحب لليمين/اليسار للتقليب، أو استخدم الأسهم ⬅️ ➡️', 'Swipe left or right to turn pages, or use the arrow keys ⬅️ ➡️')}
           </span>
         </div>
 
         {/* Page Container */}
-        <div className="relative flex items-center justify-center p-4 sm:p-8 bg-[#fdfbf7] min-h-[70vh] transition-all">
-          {/* Subtle loading placeholder */}
+        <div className="book-reader-ribbon flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
+          <span className="inline-flex items-center gap-2 text-xs font-black"><BookOpen size={15} />{tr('المصحف المفتوح', 'Open Quran')}</span>
+          <span className="text-[11px] font-bold text-slate-600">{activeUnit?.title || curriculum.title}</span>
+          <span className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-black text-slate-600">{page} / {totalPages}</span>
+        </div>
+        <div
+          className={`book-spread relative flex items-center justify-center p-3 sm:p-5 ${isEnglish ? 'book-spread-ltr' : 'book-spread-rtl'} ${pageSpread.length === 1 ? 'book-spread-single' : ''}`}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           {!imageLoaded && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#fdfbf7]/80 z-10">
+            <div className="book-loading-overlay absolute inset-0 z-10 flex flex-col items-center justify-center gap-3">
               <Loader2 className="animate-spin text-emerald-600" size={32} />
-              <p className="text-xs font-black text-emerald-800">جاري عرض صفحة {page}...</p>
+              <p className="text-xs font-black text-emerald-800">{tr('جاري عرض صفحة', 'Loading page')} {page}...</p>
             </div>
           )}
-
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            key={`quran-page-${page}`}
-            src={pageSrc(page)}
-            alt={`القرآن الكريم - جزء عم - صفحة ${page}`}
-            onLoad={() => setImageLoaded(true)}
-            className="rounded-2xl shadow-xl transition-all duration-200 select-none pointer-events-none"
-            style={{
-              width: `${zoom}%`,
-              maxWidth: '900px',
-              minWidth: '280px',
-              display: 'block',
-              margin: '0 auto',
-            }}
-          />
+          <div className="book-spread-pages relative z-[1] flex w-full items-center justify-center">
+            {pageSpread.map((pageNum) => {
+              const isActive = pageNum === page;
+              return (
+                <div
+                  key={`${pageNum}-${isActive ? 'active' : 'preview'}`}
+                  role={isActive ? undefined : 'button'}
+                  tabIndex={isActive ? undefined : 0}
+                  aria-label={isActive ? undefined : `${tr('انتقل إلى الصفحة', 'Select page')} ${pageNum}`}
+                  onClick={() => { if (!isActive) goToPage(pageNum); }}
+                  onKeyDown={(event) => {
+                    if (!isActive && (event.key === 'Enter' || event.key === ' ')) {
+                      event.preventDefault();
+                      goToPage(pageNum);
+                    }
+                  }}
+                  className={`book-leaf ${isActive ? 'book-leaf-active' : 'book-leaf-preview'} ${pageTurnDirection ? `book-page-turn-${pageTurnDirection}` : ''}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    key={`quran-page-${pageNum}-${isActive ? 'active' : 'preview'}`}
+                    src={pageSrc(pageNum)}
+                    alt={`${tr('القرآن الكريم - جزء عم - صفحة', 'The Holy Quran - Juz Amma - page')} ${pageNum}`}
+                    onLoad={isActive ? () => setImageLoaded(true) : undefined}
+                    className="book-page-image select-none pointer-events-none"
+                    style={{ width: `${zoom}%`, maxWidth: '900px', minWidth: '280px', display: 'block', margin: '0 auto' }}
+                  />
+                  {!isActive && <span className="book-page-preview-hint">{tr('اضغط لعرض الصفحة', 'Select to read this page')}</span>}
+                  <span className={`book-page-number ${isActive ? 'book-page-number-active' : ''}`}>
+                    {tr('صفحة', 'Page')} {pageNum}{isActive ? ` · ${tr('مفتوحة', 'open')}` : ''}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Bottom Fast Page Switcher Bar */}
@@ -303,11 +342,12 @@ export default function QuranReadOnlyViewer({
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition"
           >
             <ChevronRight size={16} />
-            <span>الصفحة السابقة</span>
+            <span>{tr('الصفحة السابقة', 'Previous page')}</span>
           </button>
 
           <span className="text-xs font-black text-emerald-800">
-            صفحة {page} من {totalPages}
+            <span className="book-spread-desktop-label">{pageSpread.length > 1 ? `${tr('الصفحتان', 'Pages')} ${pageSpread[0]}–${pageSpread[pageSpread.length - 1]}` : `${tr('صفحة', 'Page')} ${page}`}</span>
+            <span className="book-spread-mobile-label">{tr('صفحة', 'Page')} {page}</span> {tr('من', 'of')} {totalPages}
           </span>
 
           <button
@@ -315,7 +355,7 @@ export default function QuranReadOnlyViewer({
             disabled={page >= totalPages}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition"
           >
-            <span>الصفحة التالية</span>
+            <span>{tr('الصفحة التالية', 'Next page')}</span>
             <ChevronLeft size={16} />
           </button>
         </div>
@@ -323,7 +363,7 @@ export default function QuranReadOnlyViewer({
 
       {/* ── Quick Page Jump Grid ── */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-        <p className="mb-3 text-xs font-black text-slate-500">انتقل سريعاً إلى أي قسم في جزء عم:</p>
+        <p className="mb-3 text-xs font-black text-slate-500">{tr('انتقل سريعاً إلى أي قسم في جزء عم:', 'Jump to a section in Juz Amma:')}</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {curriculum.units.map((unit, i) => (
             <button
@@ -333,7 +373,7 @@ export default function QuranReadOnlyViewer({
             >
               <p className="text-xs font-black leading-5">{unit.title}</p>
               <p className="mt-1 text-[11px] font-bold opacity-75">
-                صفحة {unit.fromPage} – {unit.toPage}
+                {tr('صفحة', 'Pages')} {unit.fromPage} – {unit.toPage}
               </p>
             </button>
           ))}

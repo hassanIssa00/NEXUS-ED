@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 
 interface AssignmentFormProps {
     open: boolean;
@@ -62,11 +63,11 @@ export function AssignmentForm({ open, onOpenChange, onSubmit }: AssignmentFormP
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium">تاريخ التسليم</label>
-                            <Input
-                                type="date"
-                                required
+                            <DatePicker
                                 value={formData.dueDate}
-                                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                                onChange={(dueDate) => setFormData({ ...formData, dueDate })}
+                                placeholder="اختر تاريخ التسليم"
+                                ariaLabel="تاريخ التسليم"
                             />
                         </div>
 

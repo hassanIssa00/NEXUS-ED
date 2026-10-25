@@ -18,6 +18,7 @@ export default function LinkStudentScreen() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [profileReady, setProfileReady] = useState(false);
+  const [canSetName, setCanSetName] = useState(false);
   const [code, setCode] = useState('');
   const [relationship, setRelationship] = useState<'father' | 'mother' | 'guardian'>('father');
   const [error, setError] = useState('');
@@ -25,10 +26,12 @@ export default function LinkStudentScreen() {
 
   useEffect(() => {
     let mounted = true;
-    apiClient.get<{ name?: string; phone?: string }>('/users/me')
+    apiClient.get<{ name?: string; firstName?: string; lastName?: string; phone?: string }>('/users/me')
       .then(({ data }) => {
         if (!mounted) return;
-        setName(data.name ?? '');
+        const registeredName = data.name?.trim() || [data.firstName, data.lastName].filter(Boolean).join(' ').trim();
+        setName(registeredName);
+        setCanSetName(!registeredName);
         setPhone(data.phone ?? '');
         setProfileReady(true);
       })
@@ -42,13 +45,13 @@ export default function LinkStudentScreen() {
   }, []);
 
   const submit = async () => {
-    if (name.trim().length < 2) return setError('أدخل اسم ولي الأمر الكامل.');
+    if (canSetName && name.trim().length < 2) return setError('أدخل اسم ولي الأمر الكامل.');
     if (!/^[+0-9()\-\s]{7,30}$/.test(phone.trim())) return setError('أدخل رقم جوال صحيحًا.');
     if (!/^[a-fA-F0-9]{16}$/.test(code.trim())) return setError('رمز الطالب يتكون من 16 خانة من الأرقام والحروف A-F.');
     setLoading(true);
     setError('');
     try {
-      await apiClient.patch('/users/me', { name: name.trim(), phone: phone.trim() });
+      await apiClient.patch('/users/me', { ...(canSetName ? { name: name.trim() } : {}), phone: phone.trim() });
       await apiClient.post('/users/link-student', { code: code.trim().toUpperCase(), relationship });
       await refreshProfile();
     } catch (linkError: any) {
@@ -66,7 +69,8 @@ export default function LinkStudentScreen() {
         <View style={styles.titleRow}><View style={styles.icon}><Ionicons name="people-outline" size={24} color={BRAND.amber} /></View><View style={styles.titleText}><ScreenTitle title="ربط حساب ولي الأمر" subtitle="أدخل رمز الربط الذي يصدره الطالب من حسابه. لا نطابق الحسابات بالأسماء أو أرقام الجوال." /></View></View>
         <Surface>
           <Text style={styles.sectionTitle}>بيانات ولي الأمر</Text>
-          <Field label="الاسم الكامل" icon="person-outline" value={name} onChangeText={setName} placeholder="الاسم كما في الهوية" editable={profileReady} />
+          <Field label="الاسم الكامل" icon="person-outline" value={name} onChangeText={setName} placeholder="الاسم كما في الهوية" editable={profileReady && canSetName} />
+          {profileReady && !canSetName ? <Text style={styles.noticeText}>الاسم مسجل لدى المدرسة ولا يمكن تغييره من الحساب.</Text> : null}
           <Field label="رقم الجوال" icon="call-outline" value={phone} onChangeText={setPhone} placeholder="05xxxxxxxx" keyboardType="phone-pad" editable={profileReady} />
           <Text style={styles.sectionTitle}>بيانات الربط</Text>
           <Field label="رمز الطالب" icon="key-outline" value={code} onChangeText={(value) => setCode(value.replace(/[^a-fA-F0-9]/g, '').slice(0, 16))} placeholder="16 خانة" autoCapitalize="characters" maxLength={16} />
