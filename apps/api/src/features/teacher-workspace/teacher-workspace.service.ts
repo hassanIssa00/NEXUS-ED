@@ -66,7 +66,7 @@ export class TeacherWorkspaceService {
         },
       },
     });
-    const avatarReferences = [...new Set(enrollments.map(({ student }) => student.avatar).filter((value): value is string => Boolean(value) && (value!.startsWith('storage://') || value!.startsWith('https://'))))];
+    const avatarReferences = [...new Set(enrollments.map(({ student }) => student.avatar).filter((value): value is string => Boolean(value) && (value.startsWith('storage://') || value.startsWith('https://'))))];
     const signedAvatars = avatarReferences.length
       ? await this.uploads.getSignedUrlsForReferences(avatarReferences).catch(() => avatarReferences)
       : [];

@@ -27,7 +27,7 @@ export class AttendanceService {
   private async signStudentAvatars<T extends { avatar?: string | null }>(students: T[]): Promise<T[]> {
     const references = [...new Set(students
       .map((student) => student.avatar)
-      .filter((value): value is string => Boolean(value) && /^(?:storage:\/\/|file:|https?:\/\/)/i.test(value!)))];
+      .filter((value): value is string => Boolean(value) && /^(?:storage:\/\/|file:|https?:\/\/)/i.test(value)))];
     if (!references.length || !this.uploads) return students;
     const signed = await this.uploads.getSignedUrlsForReferences(references).catch(() => references);
     const byReference = new Map(references.map((reference, index) => [reference, signed[index] || reference]));

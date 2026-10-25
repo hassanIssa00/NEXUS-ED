@@ -15,7 +15,7 @@ type BrandAssets = { schoolSeal: Awaited<ReturnType<typeof loadImage>>; nexusLog
 let assetsPromise: Promise<BrandAssets> | undefined;
 
 function loadAssets() {
-  if (!assetsPromise) {
+  if (assetsPromise === undefined) {
     const arabicFont = GlobalFonts.registerFromPath(join(ASSETS, 'noto-sans-arabic.woff2'), 'NotoSansArabic');
     const latinFont = GlobalFonts.registerFromPath(join(ASSETS, 'noto-sans-latin.woff2'), 'NotoSansLatin');
     if (!arabicFont || !latinFont) throw new Error('Nexus report fonts could not be loaded.');
@@ -146,7 +146,7 @@ function buildPages(rows: ReportRow[], ctx: ReturnType<ReturnType<typeof createC
   return pages;
 }
 
-function drawContain(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, image: BrandAssets['schoolSeal'] | BrandAssets['nexusLogo'], x: number, y: number, width: number, height: number) {
+function drawContain(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, image: Awaited<ReturnType<typeof loadImage>>, x: number, y: number, width: number, height: number) {
   const scale = Math.min(width / image.width, height / image.height);
   const drawWidth = image.width * scale;
   const drawHeight = image.height * scale;

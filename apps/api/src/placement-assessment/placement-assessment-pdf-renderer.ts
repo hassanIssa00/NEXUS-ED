@@ -53,13 +53,10 @@ type AnswerCard = {
 let assetsPromise: Promise<BrandAssets> | undefined;
 
 function loadAssets() {
-  if (!assetsPromise) {
-    if (!GlobalFonts.registerFromPath(join(ASSETS, 'noto-sans-arabic.woff2'), 'NotoSansArabic')) {
-      throw new Error('Nexus report Arabic font could not be loaded.');
-    }
-    if (!GlobalFonts.registerFromPath(join(ASSETS, 'noto-sans-latin.woff2'), 'NotoSansLatin')) {
-      throw new Error('Nexus report Latin font could not be loaded.');
-    }
+  if (assetsPromise === undefined) {
+    const arabicFont = GlobalFonts.registerFromPath(join(ASSETS, 'noto-sans-arabic.woff2'), 'NotoSansArabic');
+    const latinFont = GlobalFonts.registerFromPath(join(ASSETS, 'noto-sans-latin.woff2'), 'NotoSansLatin');
+    if (!arabicFont || !latinFont) throw new Error('Nexus report fonts could not be loaded.');
     assetsPromise = Promise.all([
       loadImage(join(ASSETS, 'school-seal.png')),
       loadImage(join(ASSETS, 'nexus-logo.png')),
@@ -113,7 +110,7 @@ function formattedDate(value: string | Date, isEnglish: boolean) {
   return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat(isEnglish ? 'en-GB' : 'ar-EG-u-ca-gregory', { dateStyle: 'medium' }).format(date);
 }
 
-function drawContain(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, image: BrandAssets['schoolSeal'] | BrandAssets['nexusLogo'], x: number, y: number, width: number, height: number) {
+function drawContain(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, image: Awaited<ReturnType<typeof loadImage>>, x: number, y: number, width: number, height: number) {
   const scale = Math.min(width / image.width, height / image.height);
   const drawWidth = image.width * scale;
   const drawHeight = image.height * scale;

@@ -5,6 +5,10 @@ import { PrismaService } from '../../prisma.service';
 export class GamesService {
   constructor(private prisma: PrismaService) {}
 
+  private schoolScope(schoolId: string) {
+    return { subject: { schoolId } };
+  }
+
   async findAll(schoolId: string) {
     return this.prisma.game.findMany({
       where: { subject: { schoolId } },

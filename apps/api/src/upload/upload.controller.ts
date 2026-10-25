@@ -39,8 +39,6 @@ export function isValidStudentAvatarUpload(file: Express.Multer.File | null | un
   return isValidAvatarImage(file?.buffer, file?.mimetype, file?.size);
 }
 
-export const isValidStudentAvatarUpload = isValidAvatarUpload;
-
 @Controller('upload')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class UploadController {
@@ -174,7 +172,7 @@ export class UploadController {
   }))
   async setMyAvatar(@UploadedFile() file: Express.Multer.File, @Request() req: any) {
     const userId = req.user.userId || req.user.sub || req.user.id;
-    if (!isValidAvatarUpload(file)) {
+    if (!isValidStudentAvatarUpload(file)) {
       throw new BadRequestException('اختر صورة JPEG أو PNG أو WebP صالحة لا يتجاوز حجمها 512 كيلوبايت');
     }
 

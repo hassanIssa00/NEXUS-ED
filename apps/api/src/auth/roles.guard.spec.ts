@@ -4,6 +4,8 @@ import { Role } from './role.enum';
 import { UploadController } from '../upload/upload.controller';
 
 describe('profile avatar role authorization', () => {
+  // This method reference is used to read Nest route metadata, not invoke it detached.
+  // eslint-disable-next-line @typescript-eslint/unbound-method
   const handler = UploadController.prototype.setMyAvatar;
   const allowedRoles = Reflect.getMetadata('roles', handler) as Role[];
 
@@ -16,7 +18,7 @@ describe('profile avatar role authorization', () => {
       switchToHttp: () => ({ getRequest: () => ({ user: { role } }) }),
     } as any;
 
-    return guard.canActivate(context);
+    return guard.canActivate.call(guard, context);
   };
 
   it('allows an authenticated teacher to change their own profile image', () => {

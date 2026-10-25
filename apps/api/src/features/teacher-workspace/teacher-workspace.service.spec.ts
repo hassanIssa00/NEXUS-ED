@@ -71,7 +71,10 @@ describe('TeacherWorkspaceService parent meeting bookings', () => {
   it('reactivates a cancelled booking instead of violating the unique booking key', async () => {
     const booking = { id: 'booking-1', meetingId: 'meeting-1', status: 'BOOKED', createdAt: new Date() };
     const tx = {
-      parentMeeting: { findFirst: jest.fn().mockResolvedValue({ id: 'meeting-1', classId: 'class-1', maxBookings: 1, startsAt: new Date(Date.now() + 60_000) }) },
+      parentMeeting: { findFirst: jest.fn().mockResolvedValue({
+        id: 'meeting-1', classId: 'class-1', maxBookings: 1, startsAt: new Date(Date.now() + 60_000),
+        bookings: [{ id: 'booking-1', status: 'CANCELLED' }],
+      }) },
       enrollment: { findFirst: jest.fn().mockResolvedValue({ id: 'enrollment-1' }) },
       parentMeetingBooking: {
         count: jest.fn().mockResolvedValue(0),
@@ -121,7 +124,7 @@ describe('TeacherWorkspaceService certificate verification', () => {
       issuedAt,
       schoolName: 'مدارس الإخلاص الأهلية',
       studentName: 'اسم الطالب',
-      issuerName: 'المعلم المسؤول',
+      issuerName: 'مدارس الإخلاص الأهلية',
     });
     expect(prisma.certificate.findUnique).toHaveBeenCalledWith(expect.objectContaining({
       where: { serial },

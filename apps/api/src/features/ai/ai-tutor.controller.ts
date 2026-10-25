@@ -245,7 +245,12 @@ export class AiTutorController {
       where: {
         id: body.subjectId,
         schoolId,
-        OR: [{ teacherId }, { classSubjects: { some: { teacherId } } }, { class: { teacherId } }],
+        OR: [
+          { teacherId },
+          { classSubjects: { some: { teacherId } } },
+          { class: { teacherId } },
+          { class: { teacherAssignments: { some: { teacherId } } } },
+        ],
       },
       select: { name: true, class: { select: { name: true } } },
     });
@@ -317,12 +322,12 @@ export class AiTutorController {
       where: { id: userId },
       select: { role: true, schoolId: true, isActive: true },
     });
-    if (!actor?.isActive || !actor.schoolId || actor.role !== role) {
+    if (!actor?.isActive || !actor.schoolId || String(actor.role) !== String(role)) {
       throw new ForbiddenException('حسابك غير نشط أو غير مرتبط بمدرسة');
     }
 
     const lessonAccess =
-      role === Role.TEACHER
+      String(role) === String(Role.TEACHER)
         ? { authorId: userId }
         : {
             subject: {

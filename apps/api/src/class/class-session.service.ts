@@ -146,7 +146,7 @@ export class ClassSessionService {
     const egress = new EgressClient(config.internalUrl, config.apiKey, config.apiSecret);
     for (const row of rows) {
       try {
-        const [info] = await egress.listEgress({ egressId: row.recordingEgressId! });
+        const [info] = await egress.listEgress({ egressId: row.recordingEgressId });
         if (!info) continue;
         let status = 'PROCESSING';
         if (info.status === EgressStatus.EGRESS_COMPLETE) status = 'READY';

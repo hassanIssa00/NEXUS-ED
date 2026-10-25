@@ -29,6 +29,9 @@ import { getJwtRefreshSecret } from '../../../config/jwt';
 import { UploadService } from '../../../upload/upload.service';
 import { isValidAvatarImage } from '../../../upload/avatar-validation';
 
+const normalizeClassCode = (value: string): string =>
+    value.trim().toUpperCase().replace(/\s+/g, '');
+
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '7d';
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -381,7 +384,7 @@ export class AuthService {
             identity.emailVerified
             && teacherRegistration
             && teacherRegistration.email === identity.email
-            && teacherRegistration.role === Role.TEACHER
+            && String(teacherRegistration.role) === String(Role.TEACHER)
             && teacherRegistration.schoolId
             && ['VERIFIED', 'COMPLETED'].includes(teacherRegistration.status),
         );
@@ -401,7 +404,7 @@ export class AuthService {
             || String(user.role) !== String(identity.role)
             || user.email !== identity.email
             || (!isPublicAccountRole(String(user.role)) && !user.schoolId && !canActivateTeacher)
-            || (hasVerifiedTeacherRegistration && user.schoolId && user.schoolId !== teacherRegistration!.schoolId)
+            || (hasVerifiedTeacherRegistration && user.schoolId && user.schoolId !== teacherRegistration.schoolId)
         )) {
             throw new UnauthorizedException('Firebase account does not match its Nexus account');
         }
@@ -428,7 +431,7 @@ export class AuthService {
                     (!existingUser.isActive && !canActivateTeacher)
                     || String(existingUser.role) !== String(identity.role)
                     || (!isPublicAccountRole(String(existingUser.role)) && !existingUser.schoolId && !canActivateTeacher)
-                    || (hasVerifiedTeacherRegistration && existingUser.schoolId && existingUser.schoolId !== teacherRegistration!.schoolId)
+                    || (hasVerifiedTeacherRegistration && existingUser.schoolId && existingUser.schoolId !== teacherRegistration.schoolId)
                 ) {
                     throw new UnauthorizedException('Firebase account does not match its Nexus account');
                 }
@@ -458,7 +461,7 @@ export class AuthService {
                     throw new UnauthorizedException('Staff accounts must be provisioned by school administration');
                 }
                 const schoolId = hasVerifiedTeacherRegistration
-                    ? teacherRegistration!.schoolId!
+                    ? teacherRegistration.schoolId
                     : await this.resolvePublicSchoolId();
                 const password = await bcrypt.hash(randomBytes(48).toString('hex'), 12);
                 user = await this.prisma.$transaction(async (transaction) => {
@@ -1146,7 +1149,12 @@ export class AuthService {
             });
         } catch (error) {
             if ((error as { code?: string })?.code === 'P2002') {
-                const target = String((error as { meta?: { target?: unknown } })?.meta?.target ?? '');
+                const targetValue = (error as { meta?: { target?: unknown } })?.meta?.target;
+                const target = typeof targetValue === 'string'
+                    ? targetValue
+                    : Array.isArray(targetValue)
+                        ? targetValue.filter((value): value is string => typeof value === 'string').join(',')
+                        : '';
                 if (target.toLowerCase().includes('residencenumber')) {
                     throw new ConflictException('رقم الهوية أو الإقامة مسجل لحساب آخر.');
                 }

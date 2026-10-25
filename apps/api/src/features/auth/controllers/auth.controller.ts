@@ -1,6 +1,7 @@
 import {
     Controller,
     Post,
+    Put,
     Body,
     UseGuards,
     Get,
@@ -31,6 +32,7 @@ import { AccountLockGuard } from '../guards/account-lock.guard';
 import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
 import { ConfirmPasswordResetDto } from '../dto/confirm-password-reset.dto';
 import { FirebaseLoginDto } from '../dto/firebase-login.dto';
+import { SaveTeacherProfileDto } from '../dto/teacher-profile.dto';
 import { RegistrationAttemptDto, VerifyTeacherRegistrationCodeDto } from '../dto/registration-attempt.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';

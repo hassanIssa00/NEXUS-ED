@@ -209,11 +209,11 @@ jobs:
           NODE
 
       - name: Lint Web
-        if: ${{ !cancelled() }}
+        if: ${{ success() }}
         run: npm run lint --workspace=web
 
       - name: Lint API
-        if: ${{ !cancelled() }}
+        if: ${{ success() }}
         run: npm run lint --workspace=api
 
   deploy-oci:

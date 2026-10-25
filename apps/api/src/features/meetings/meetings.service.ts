@@ -56,7 +56,7 @@ export class MeetingsService {
 
   private schoolId(actor: MeetingActor) {
     if (!actor.schoolId) throw new ForbiddenException('الحساب غير مرتبط بمدرسة.');
-    if (!MEETING_ACCOUNT_ROLES.includes(actor.role as (typeof MEETING_ACCOUNT_ROLES)[number])) {
+    if (!MEETING_ACCOUNT_ROLES.includes(actor.role)) {
       throw new ForbiddenException('هذه الخدمة متاحة لحسابات المدرسة والطلاب وأولياء الأمور فقط.');
     }
     return actor.schoolId;
@@ -244,7 +244,7 @@ export class MeetingsService {
         if (requestedParentIds.length === 0) throw new BadRequestException('اختر ولي أمر واحدًا على الأقل من أولياء أمور الفصل.');
         const linkedParentIds = new Set(enrollments.flatMap(({ student }) => student.parents
           .map(({ parent }) => parent)
-          .filter((parent) => parent.schoolId === schoolId && parent.role === Role.PARENT && parent.isActive)
+          .filter((parent) => parent.schoolId === schoolId && String(parent.role) === String(Role.PARENT) && parent.isActive)
           .map((parent) => parent.id)));
         if (requestedParentIds.some((id) => !linkedParentIds.has(id))) {
           throw new BadRequestException('يمكن دعوة أولياء الأمور المرتبطين بطلاب الفصل المحدد فقط.');

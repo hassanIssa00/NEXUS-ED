@@ -76,6 +76,8 @@ describe('AiTutorController teacher tools', () => {
           OR: [
             { teacherId: 'teacher-1' },
             { classSubjects: { some: { teacherId: 'teacher-1' } } },
+            { class: { teacherId: 'teacher-1' } },
+            { class: { teacherAssignments: { some: { teacherId: 'teacher-1' } } } },
           ],
         }),
       }),
@@ -129,7 +131,7 @@ describe('AiTutorController teacher tools', () => {
     });
 
     await expect(
-      controller.summarizeLesson('lesson-1', {
+      controller.summarizeLesson('lesson-1', undefined, {
         user: { userId: 'teacher-1', role: Role.TEACHER },
       }),
     ).resolves.toEqual({
@@ -163,7 +165,7 @@ describe('AiTutorController teacher tools', () => {
       },
       select: { id: true, title: true, content: true },
     });
-    expect(aiContentService.processContent).toHaveBeenCalledWith('محتوى الدرس');
+    expect(aiContentService.processContent).toHaveBeenCalledWith('محتوى الدرس', 'ar');
   });
 
   it('does not summarize a lesson that is not owned by the teacher', async () => {
@@ -181,7 +183,7 @@ describe('AiTutorController teacher tools', () => {
     });
 
     await expect(
-      controller.summarizeLesson('another-teachers-lesson', {
+      controller.summarizeLesson('another-teachers-lesson', undefined, {
         user: { userId: 'teacher-1', role: Role.TEACHER },
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
@@ -226,7 +228,7 @@ describe('AiTutorController teacher tools', () => {
       },
     });
 
-    const result = await controller.summarizeLesson('lesson-1', {
+    const result = await controller.summarizeLesson('lesson-1', undefined, {
       user: { userId: 'student-1', role: Role.STUDENT },
     });
     expect(result).toEqual({
@@ -278,7 +280,7 @@ describe('AiTutorController teacher tools', () => {
     });
 
     await expect(
-      controller.summarizeLesson('lesson-1', {
+      controller.summarizeLesson('lesson-1', undefined, {
         user: { userId: 'teacher-1', role: Role.TEACHER },
       }),
     ).rejects.toThrow('حسابك غير نشط أو غير مرتبط بمدرسة');

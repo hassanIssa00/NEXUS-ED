@@ -163,7 +163,7 @@ export class EmailService {
       return this.gmailAccessToken;
     }
 
-    if (this.gmailTokenRefresh) return this.gmailTokenRefresh;
+    if (this.gmailTokenRefresh !== undefined) return this.gmailTokenRefresh;
 
     this.gmailTokenRefresh = (async () => {
       const body = new URLSearchParams({

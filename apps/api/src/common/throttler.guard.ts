@@ -8,13 +8,13 @@ import { getJwtSecret } from '../config/jwt';
 export class CustomThrottlerGuard extends ThrottlerGuard {
   private readonly customLogger = new Logger(CustomThrottlerGuard.name);
 
-  protected async getTracker(req: Record<string, unknown>): Promise<string> {
+  protected getTracker(req: Record<string, unknown>): Promise<string> {
     // APP_GUARD runs before route-level Passport guards, so req.user is usually
     // empty here. Verify the bearer token ourselves instead of trusting decoded
     // or client-supplied claims so authenticated requests share an account quota.
     const user = req['user'] as { id?: string; userId?: string; sub?: string } | undefined;
     const authenticatedId = user?.id || user?.userId || user?.sub;
-    if (authenticatedId) return `user:${authenticatedId}`;
+    if (authenticatedId) return Promise.resolve(`user:${authenticatedId}`);
 
     const headers = req['headers'] as Record<string, string | string[] | undefined> | undefined;
     const authorization = headers?.authorization;
@@ -25,7 +25,7 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
       try {
         const payload = verify(token, getJwtSecret(), { algorithms: ['HS256'] });
         if (typeof payload !== 'string' && typeof payload.sub === 'string' && payload.sub) {
-          return `user:${payload.sub}`;
+          return Promise.resolve(`user:${payload.sub}`);
         }
       } catch {
         // Invalid/expired tokens receive the unauthenticated IP quota.
@@ -34,7 +34,7 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
 
     const socket = req['socket'] as { remoteAddress?: string } | undefined;
     const ip = (req['ip'] as string | undefined) || socket?.remoteAddress || 'unknown';
-    return `ip:${ip}`;
+    return Promise.resolve(`ip:${ip}`);
   }
 
   protected shouldSkip(context: ExecutionContext): Promise<boolean> {

@@ -15,7 +15,7 @@ export class MessagesService {
   private async signAvatars<T extends { avatar?: string | null }>(items: T[]): Promise<T[]> {
     const references = [...new Set(items
       .map((item) => item.avatar)
-      .filter((value): value is string => Boolean(value) && /^(?:storage:\/\/|file:|https?:\/\/)/i.test(value!)))];
+      .filter((value): value is string => Boolean(value) && /^(?:storage:\/\/|file:|https?:\/\/)/i.test(value)))];
     if (!references.length || !this.uploads) return items;
     const signed = await this.uploads.getSignedUrlsForReferences(references).catch(() => references);
     const byReference = new Map(references.map((reference, index) => [reference, signed[index] || reference]));

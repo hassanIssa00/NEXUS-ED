@@ -58,10 +58,13 @@ model User {
   totalXP                           Int                          @default(0)
   level                             Int                          @default(1)
   school                            School?                      @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  teacherProfile                    TeacherProfile?
   assignments                       Assignment[]
   attendance                        Attendance[]
   geofenceAttendances               GeofenceAttendance[]
   taughtClasses                     Class[]                      @relation("ClassTeacher")
+  classAssignments                  TeacherClassAssignment[]
+  homeroomClass                     Class?                       @relation("ClassHomeroomTeacher")
   classSessions                     ClassSession[]
   classSessionAttendances           ClassSessionAttendance[]
   conversations                     ConversationParticipant[]
@@ -302,12 +305,16 @@ model Class {
   description                 String?
   academicYear                String?
   teacherId                   String?
+  classCode                   String                @unique @default(cuid())
+  homeroomTeacherId           String?               @unique
   createdAt                   DateTime              @default(now())
   updatedAt                   DateTime              @updatedAt
   school                      School?               @relation(fields: [schoolId], references: [id], onDelete: SetNull)
   attendance                  Attendance[]
   geofenceAttendances         GeofenceAttendance[]
   teacher                     User?                 @relation("ClassTeacher", fields: [teacherId], references: [id])
+  homeroomTeacher             User?                 @relation("ClassHomeroomTeacher", fields: [homeroomTeacherId], references: [id], onDelete: SetNull)
+  teacherAssignments          TeacherClassAssignment[]
   sessions                    ClassSession[]
   students                    Enrollment[]
   subjects                    Subject[]

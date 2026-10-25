@@ -47,7 +47,7 @@ export class MillionGateway implements OnGatewayConnection, OnGatewayDisconnect 
       const userId = [claims.userId, claims.sub, claims.id].find((value): value is string => typeof value === 'string' && value.length > 0);
       if (!userId) throw new Error('Invalid user');
       const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, role: true, isActive: true } });
-      if (!user?.isActive || user.role !== Role.STUDENT) throw new Error('Student account required');
+      if (!user?.isActive || String(user.role) !== String(Role.STUDENT)) throw new Error('Student account required');
       client.data.user = { id: user.id, name: user.name ?? 'طالب', role: user.role };
       client.emit('connected', { userId: user.id, timestamp: new Date().toISOString() });
     } catch (error) {
@@ -78,7 +78,7 @@ export class MillionGateway implements OnGatewayConnection, OnGatewayDisconnect 
       return { success: false, error: 'بيانات الغرفة غير مكتملة أو غير صالحة.' };
     }
     try {
-      const room = await millionService.createRoom(user.id, title, type!, settings);
+      const room = await millionService.createRoom(user.id, title, type, settings);
       await client.join(room.id);
       const fullRoom = await millionService.getRoom(room.id);
       this.server.emit('room.created', { roomId: room.id, room: fullRoom });
@@ -148,11 +148,11 @@ export class MillionGateway implements OnGatewayConnection, OnGatewayDisconnect 
   async submitAnswer(@ConnectedSocket() client: MillionSocket, @MessageBody() data: { roomId?: string; questionId?: number; chosenIndex?: number; timeTaken?: number }) {
     const user = client.data.user;
     const { roomId, questionId, chosenIndex, timeTaken } = data ?? {};
-    if (!user || !roomId || !Number.isInteger(questionId) || !Number.isInteger(chosenIndex) || !Number.isFinite(timeTaken) || timeTaken! < 0) {
+    if (!user || !roomId || !Number.isInteger(questionId) || !Number.isInteger(chosenIndex) || !Number.isFinite(timeTaken) || timeTaken < 0) {
       return { success: false, error: 'الإجابة غير مكتملة أو غير صالحة.' };
     }
     try {
-      const result = await millionService.submitAnswer(user.id, roomId, questionId!, chosenIndex!, timeTaken!);
+      const result = await millionService.submitAnswer(user.id, roomId, questionId, chosenIndex, timeTaken);
       client.emit('answer.received', { acknowledged: true });
       const leaderboard = await millionService.getLeaderboard(roomId);
       // Keep the answer key private to the student who submitted it. Broadcasting

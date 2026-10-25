@@ -136,16 +136,16 @@ export class AssignmentService {
       if (!raw || typeof raw !== 'object') throw new BadRequestException(`السؤال ${index + 1} غير صالح`);
       const question = raw as Record<string, unknown>;
       const prompt = typeof question.prompt === 'string' ? question.prompt.trim() : '';
-      const type = question.type;
+      const type = typeof question.type === 'string' ? question.type : '';
       const points = Number(question.points);
-      if (prompt.length < 2 || prompt.length > 2000 || !['multiple_choice', 'true_false', 'short_answer', 'essay'].includes(String(type)) || !Number.isFinite(points) || points <= 0 || points > 100) {
+      if (prompt.length < 2 || prompt.length > 2000 || !['multiple_choice', 'true_false', 'short_answer', 'essay'].includes(type) || !Number.isFinite(points) || points <= 0 || points > 100) {
         throw new BadRequestException(`تحقق من نص ونوع ودرجة السؤال ${index + 1}`);
       }
 
       const normalized: Record<string, Prisma.InputJsonValue> = {
         id: typeof question.id === 'string' && /^[a-z0-9_-]{1,50}$/i.test(question.id) ? question.id : `q${index + 1}`,
         prompt,
-        type: String(type),
+        type,
         points,
       };
       if (type === 'multiple_choice') {
@@ -160,8 +160,9 @@ export class AssignmentService {
         normalized.options = options;
       }
       if (type === 'true_false') {
-        if (!['true', 'false'].includes(String(question.correctAnswer))) throw new BadRequestException(`حدد إجابة السؤال ${index + 1}`);
-        normalized.correctAnswer = String(question.correctAnswer);
+        const answer = typeof question.correctAnswer === 'string' ? question.correctAnswer : '';
+        if (!['true', 'false'].includes(answer)) throw new BadRequestException(`حدد إجابة السؤال ${index + 1}`);
+        normalized.correctAnswer = answer;
       }
       if (type === 'short_answer') {
         const answer = typeof question.correctAnswer === 'string' ? question.correctAnswer.trim() : '';
@@ -172,14 +173,14 @@ export class AssignmentService {
         normalized.correctAnswer = question.correctAnswer.trim().slice(0, 1000);
       }
       return normalized;
-    }) as Prisma.InputJsonValue;
+    });
   }
 
   private questionsForStudent(value: Prisma.JsonValue | null) {
     if (!Array.isArray(value)) return [];
     return value.map((raw) => {
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-      const question = raw as Prisma.JsonObject;
+      const question = raw;
       const options = Array.isArray(question.options)
         ? question.options.flatMap((option) => option && typeof option === 'object' && !Array.isArray(option) && typeof option.text === 'string' ? [option.text] : [])
         : question.type === 'true_false' ? ['صح', 'خطأ'] : undefined;
@@ -207,7 +208,13 @@ export class AssignmentService {
         teacherId: true,
         schoolId: true,
         classId: true,
-        class: { select: { teacherId: true, schoolId: true } },
+        class: {
+          select: {
+            teacherId: true,
+            schoolId: true,
+            teacherAssignments: { where: { teacherId }, select: { teacherId: true } },
+          },
+        },
         classSubjects: {
           select: {
             teacherId: true,
@@ -227,6 +234,7 @@ export class AssignmentService {
     const teacherHasSubjectAssignment =
       subject.teacherId === teacherId ||
       (subject.class.schoolId === actor.schoolId && subject.class.teacherId === teacherId) ||
+      subject.class.teacherAssignments.some((assignment) => assignment.teacherId === teacherId) ||
       subject.classSubjects.some(
         (classSubject) =>
           classSubject.teacherId === teacherId && classSubject.class.schoolId === actor.schoolId,

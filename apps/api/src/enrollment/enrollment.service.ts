@@ -80,7 +80,7 @@ export class EnrollmentService {
     });
     const avatarReferences = [...new Set(enrollments
       .map(({ student }) => student.avatar)
-      .filter((value): value is string => Boolean(value) && /^(?:storage:\/\/|file:|https?:\/\/)/i.test(value!)))];
+      .filter((value): value is string => Boolean(value) && /^(?:storage:\/\/|file:|https?:\/\/)/i.test(value)))];
     if (!avatarReferences.length || !this.uploads) return enrollments;
     const signed = await this.uploads.getSignedUrlsForReferences(avatarReferences).catch(() => avatarReferences);
     const signedByReference = new Map(avatarReferences.map((reference, index) => [reference, signed[index] || reference]));
