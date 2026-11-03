@@ -1071,7 +1071,9 @@ export class AuthService {
             profile: teacher.teacherProfile
                 ? {
                     ...teacher.teacherProfile,
-                    classCodes: classes.map((schoolClass) => schoolClass.classCode),
+                    classCodes: classes
+                        .map((schoolClass) => schoolClass.classCode)
+                        .filter((classCode): classCode is string => Boolean(classCode)),
                     homeroomCode: teacher.homeroomClass?.classCode ?? '',
                 }
                 : null,

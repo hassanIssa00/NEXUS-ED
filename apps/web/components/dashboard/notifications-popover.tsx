@@ -81,7 +81,7 @@ export function EnhancedNotifications() {
     const loadNotifications = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await apiClient.get('/notifications/my');
+            const res = await apiClient.get('/notifications');
             const items: Notification[] = (res.data?.data || res.data || []).map((n: any) => ({
                 id: n.id,
                 type: n.type || 'ANNOUNCEMENT',
@@ -131,7 +131,7 @@ export function EnhancedNotifications() {
     // Mark all read
     const markAllRead = async () => {
         try {
-            await apiClient.patch('/notifications/mark-all-read');
+            await apiClient.post('/notifications/read-all');
         } catch { /* ignore */ }
         setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     };
@@ -143,7 +143,7 @@ export function EnhancedNotifications() {
             return;
         }
         try {
-            await apiClient.patch(`/notifications/${id}/read`);
+            await apiClient.post(`/notifications/${id}/read`);
         } catch { /* ignore */ }
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     };
