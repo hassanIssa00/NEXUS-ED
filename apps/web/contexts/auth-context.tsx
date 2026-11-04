@@ -58,6 +58,7 @@ interface AuthContextType {
     session: Session | null;
     loading: boolean;
     signIn: (email: string, password: string, expectedRole?: UserRole) => Promise<UserRole>;
+    completeInitialPasswordChange: (email: string, currentPassword: string, newPassword: string) => Promise<void>;
     signUp: (
         email: string,
         password: string,
@@ -844,9 +845,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signIn = async (email: string, password: string, expectedRole?: UserRole): Promise<UserRole> => {
         const apiBaseUrl = getApiBaseUrl();
-        const useFirebaseFirst = expectedRole === 'student'
-            && isFirebaseConfigured
-            && Boolean(firebaseAuth);
+        // School provisioned accounts live in the platform API. Try it first for
+        // students too; retain Firebase as a fallback for legacy self-registered users.
+        const useFirebaseFirst = false;
         const useFirebaseAfterApi = expectedRole === 'parent'
             && isFirebaseConfigured
             && Boolean(firebaseAuth);
@@ -885,6 +886,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         }).catch(() => undefined);
                         throw new Error('PORTAL_ROLE_MISMATCH');
                     }
+                    if (data.mustChangePassword === true) {
+                        throw new Error('INITIAL_PASSWORD_CHANGE_REQUIRED');
+                    }
                     const fallbackProfile: UserProfile = {
                         id: data.user.id,
                         email: data.user.email,
@@ -918,7 +922,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
             }
 
-            if (supabase && !useFirebaseFirst && !useFirebaseAfterApi) {
+            if (supabase && expectedRole !== 'student' && !useFirebaseFirst && !useFirebaseAfterApi) {
                 const { data, error } = await supabase.auth.signInWithPassword({
                     email,
                     password,
@@ -1012,6 +1016,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error: any) {
             console.error('Login error:', error);
             throw new Error(error.message || 'حدث خطأ في تسجيل الدخول');
+        }
+    };
+
+    const completeInitialPasswordChange = async (email: string, currentPassword: string, newPassword: string) => {
+        const apiBaseUrl = getApiBaseUrl();
+        if (!apiBaseUrl) throw new Error('Nexus API is not configured.');
+        const response = await fetch(`${apiBaseUrl}/auth/initial-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, currentPassword, newPassword }),
+            credentials: 'include',
+        });
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({ message: 'تعذر تغيير كلمة المرور.' }));
+            throw new Error(Array.isArray(payload.message) ? payload.message.join('، ') : payload.message || 'تعذر تغيير كلمة المرور.');
         }
     };
 
@@ -1262,6 +1281,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session,
         loading,
         signIn,
+        completeInitialPasswordChange,
         signUp,
         requestPasswordReset,
         confirmPasswordReset,

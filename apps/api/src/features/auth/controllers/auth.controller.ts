@@ -24,6 +24,7 @@ import { AuthService } from '../services/auth.service';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
+import { CompleteInitialPasswordDto } from '../dto/complete-initial-password.dto';
 import { MobileRefreshDto } from '../dto/mobile-refresh.dto';
 import { Roles } from '../../../infrastructure/decorators/roles.decorator';
 import { RolesGuard } from '../../../auth/roles.guard';
@@ -148,6 +149,28 @@ export class AuthController {
         return this.authService.changePassword(req.user.id, body);
     }
 
+    @Post('initial-password')
+    @UseGuards(AccountLockGuard)
+    @Throttle({ short: { limit: 5, ttl: 60000 } })
+    async completeInitialPassword(@Body() body: CompleteInitialPasswordDto) {
+        const key = `lockout:${body.email.trim().toLowerCase()}`;
+        try {
+            const result = await this.authService.completeInitialPasswordChange(
+                body.email,
+                body.currentPassword,
+                body.newPassword,
+            );
+            await this.cacheManager.del(key);
+            return result;
+        } catch (error) {
+            if (error instanceof UnauthorizedException) {
+                const attempts = (await this.cacheManager.get<number>(key)) || 0;
+                await this.cacheManager.set(key, attempts + 1, 15 * 60 * 1000);
+            }
+            throw error;
+        }
+    }
+
     @Post('login')
     @UseGuards(AccountLockGuard)
     @Throttle({ short: { limit: 5, ttl: 60000 } })
@@ -158,12 +181,14 @@ export class AuthController {
         const isProduction = process.env.NODE_ENV === 'production';
         const result = await this.authenticate(loginDto);
 
-        res.cookie('refresh_token', result.refresh_token, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? 'none' : 'lax',
-            path: '/',
-        });
+        if ('refresh_token' in result && result.refresh_token) {
+            res.cookie('refresh_token', result.refresh_token, {
+                httpOnly: true,
+                secure: isProduction,
+                sameSite: isProduction ? 'none' : 'lax',
+                path: '/',
+            });
+        }
 
         const { refresh_token, ...responseData } = result;
         return responseData;

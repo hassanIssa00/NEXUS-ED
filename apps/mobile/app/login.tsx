@@ -18,10 +18,13 @@ const portalOptions: Array<{ id: Portal; title: string; icon: React.ComponentPro
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, completeInitialPasswordChange } = useAuth();
   const [portal, setPortal] = useState<Portal>('STUDENT');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [initialPasswordChangeRequired, setInitialPasswordChangeRequired] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [remember, setRemember] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -43,7 +46,16 @@ export default function LoginScreen() {
     setSubmitting(true);
     setError('');
     try {
-      await signIn(email, password, portal);
+      if (initialPasswordChangeRequired) {
+        if (newPassword.length < 8) throw new Error('كلمة المرور الجديدة يجب ألا تقل عن 8 أحرف.');
+        if (newPassword !== confirmNewPassword) throw new Error('تأكيد كلمة المرور غير مطابق.');
+        await completeInitialPasswordChange(email, password, newPassword);
+        setPassword(newPassword);
+        setInitialPasswordChangeRequired(false);
+        await signIn(email, newPassword, portal);
+      } else {
+        await signIn(email, password, portal);
+      }
       try {
         if (remember) await SecureStore.setItemAsync(REMEMBERED_CREDENTIALS_KEY, JSON.stringify({ email: email.trim(), portal }));
         else await SecureStore.deleteItemAsync(REMEMBERED_CREDENTIALS_KEY);
@@ -52,7 +64,13 @@ export default function LoginScreen() {
       }
       router.replace('/');
     } catch (loginError: any) {
-      setError(loginError?.message || 'تعذر تسجيل الدخول. تحقق من البيانات وحاول مرة أخرى.');
+      if (loginError?.message === 'INITIAL_PASSWORD_CHANGE_REQUIRED') {
+        setInitialPasswordChangeRequired(true);
+        setNewPassword('');
+        setConfirmNewPassword('');
+      } else {
+        setError(loginError?.message || 'تعذر تسجيل الدخول. تحقق من البيانات وحاول مرة أخرى.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -67,18 +85,29 @@ export default function LoginScreen() {
           <ScreenTitle title="مرحبًا بعودتك" subtitle="اختر بوابتك وسجّل الدخول إلى حساب نكسس." />
         </View>
         <Surface style={styles.form}>
-          <View style={styles.segment}>
+          {!initialPasswordChangeRequired && <View style={styles.segment}>
             {portalOptions.map((option) => (
               <TouchableOpacity key={option.id} accessibilityRole="button" accessibilityState={{ selected: portal === option.id }} onPress={() => setPortal(option.id)} style={[styles.segmentOption, portal === option.id && styles.segmentSelected]}>
                 <Ionicons name={option.icon} size={17} color={portal === option.id ? '#FFFFFF' : BRAND.muted} />
                 <Text style={[styles.segmentText, portal === option.id && styles.segmentTextSelected]}>{option.title}</Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </View>}
           {error ? <ErrorNotice>{error}</ErrorNotice> : null}
-          <Field label="البريد الإلكتروني" icon="mail-outline" value={email} onChangeText={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email" returnKeyType="next" />
-          <Field label="كلمة المرور" icon="lock-closed-outline" value={password} onChangeText={setPassword} placeholder="أدخل كلمة المرور" secureTextEntry autoCapitalize="none" autoComplete="current-password" onSubmitEditing={() => void submit()} />
-          <View style={styles.forgotRow}>
+          {initialPasswordChangeRequired ? (
+            <>
+              <Text style={styles.firstLoginNote}>هذه أول مرة تدخل فيها. اختر كلمة مرور جديدة للمتابعة إلى حسابك.</Text>
+              <Field label="كلمة المرور المؤقتة" icon="lock-closed-outline" value={password} editable={false} secureTextEntry autoCapitalize="none" autoComplete="current-password" />
+              <Field label="كلمة المرور الجديدة" icon="key-outline" value={newPassword} onChangeText={setNewPassword} placeholder="٨ أحرف على الأقل" secureTextEntry autoCapitalize="none" autoComplete="new-password" />
+              <Field label="تأكيد كلمة المرور الجديدة" icon="key-outline" value={confirmNewPassword} onChangeText={setConfirmNewPassword} placeholder="أعد كتابة كلمة المرور" secureTextEntry autoCapitalize="none" autoComplete="new-password" onSubmitEditing={() => void submit()} />
+            </>
+          ) : (
+            <>
+              <Field label="البريد الإلكتروني" icon="mail-outline" value={email} onChangeText={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email" returnKeyType="next" />
+              <Field label="كلمة المرور" icon="lock-closed-outline" value={password} onChangeText={setPassword} placeholder="أدخل كلمة المرور" secureTextEntry autoCapitalize="none" autoComplete="current-password" onSubmitEditing={() => void submit()} />
+            </>
+          )}
+          {!initialPasswordChangeRequired && <View style={styles.forgotRow}>
             <Link href="/forgot-password" asChild><TouchableOpacity><Text style={styles.link}>نسيت كلمة المرور؟</Text></TouchableOpacity></Link>
             <TouchableOpacity accessibilityRole="checkbox" accessibilityState={{ checked: remember }} onPress={() => {
               setRemember((current) => !current);
@@ -87,12 +116,12 @@ export default function LoginScreen() {
               <Ionicons name={remember ? 'checkbox' : 'square-outline'} size={19} color={remember ? BRAND.teal : BRAND.muted} />
               <Text style={styles.helper}>تذكرني على هذا الجهاز</Text>
             </TouchableOpacity>
-          </View>
-          <PrimaryButton title="تسجيل الدخول" icon="arrow-forward" onPress={() => void submit()} loading={submitting} />
-          <Link href="/register" asChild>
+          </View>}
+          <PrimaryButton title={initialPasswordChangeRequired ? 'حفظ كلمة المرور والمتابعة' : 'تسجيل الدخول'} icon={initialPasswordChangeRequired ? 'checkmark' : 'arrow-forward'} onPress={() => void submit()} loading={submitting} />
+          {!initialPasswordChangeRequired && <Link href="/register" asChild>
             <TouchableOpacity style={styles.registerLink}><Ionicons name="person-add-outline" size={17} color={BRAND.blue} /><Text style={styles.registerText}>إنشاء حساب طالب أو ولي أمر أو معلم</Text></TouchableOpacity>
-          </Link>
-          <Text style={styles.staffNote}>يحتاج تسجيل المعلم إلى كود المدرسة؛ أما بقية حسابات الموظفين فتصدرها الإدارة.</Text>
+          </Link>}
+          {!initialPasswordChangeRequired && <Text style={styles.staffNote}>يحتاج تسجيل المعلم إلى كود المدرسة؛ أما بقية حسابات الموظفين فتصدرها الإدارة.</Text>}
         </Surface>
       </View>
       <Text style={styles.footer}>Nexus EDU · مدارس الإخلاص الأهلية</Text>
@@ -115,6 +144,7 @@ const styles = StyleSheet.create({
   remember: { flexDirection: 'row-reverse', alignItems: 'center', gap: 5, minHeight: 36 },
   link: { color: BRAND.blue, fontSize: 13, fontWeight: '700', writingDirection: 'rtl' },
   helper: { color: BRAND.muted, fontSize: 11, writingDirection: 'rtl' },
+  firstLoginNote: { color: '#8A5B00', backgroundColor: '#FFF7DE', borderColor: '#F2D27B', borderWidth: 1, borderRadius: 14, padding: 13, textAlign: 'right', lineHeight: 21, writingDirection: 'rtl' },
   registerLink: { flexDirection: 'row-reverse', justifyContent: 'center', alignItems: 'center', gap: 8, minHeight: 42 },
   registerText: { color: BRAND.blue, fontSize: 14, fontWeight: '800', writingDirection: 'rtl' },
   staffNote: { color: BRAND.muted, fontSize: 12, textAlign: 'center', writingDirection: 'rtl' },

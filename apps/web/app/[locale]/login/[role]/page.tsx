@@ -44,11 +44,14 @@ export default function RoleLoginPage() {
     const roleConfig = roleMapping[role];
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [initialPasswordChangeRequired, setInitialPasswordChangeRequired] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState<string | null>(null);
     
-    const { signIn } = useAuth();
+    const { signIn, completeInitialPasswordChange } = useAuth();
     const authConfigured = isAuthenticationConfigured();
     const router = useRouter();
     const { toast } = useToast();
@@ -65,6 +68,7 @@ export default function RoleLoginPage() {
         error: '❌ خطأ', portal: 'بوابة', signIn: 'تسجيل دخول', signInDescription: 'أدخل بيانات الاعتماد الخاصة بك للوصول لمنصتك',
         unavailable: 'تسجيل الدخول غير متاح حاليًا. يُرجى التواصل مع إدارة المدرسة.', email: 'البريد الإلكتروني', password: 'كلمة المرور', remember: 'تذكر بياناتي',
         forgot: 'نسيت كلمة المرور؟', support: 'تواصل مع الدعم', loading: 'جاري تسجيل الدخول...', submit: 'تسجيل الدخول للنظام',
+        newPassword: 'كلمة المرور الجديدة', confirmNewPassword: 'تأكيد كلمة المرور الجديدة', setPassword: 'حفظ كلمة المرور والمتابعة',
         noAccount: 'ليس لديك حساب؟', createStudent: 'إنشاء حساب طالب', createParent: 'إنشاء حساب ولي أمر', createTeacher: 'إنشاء حساب معلم',
         footer: '© 2026 Nexus EDU — جميع الحقوق محفوظة لمدارس الإخلاص الأهلية', school: 'مدارس الإخلاص الأهلية · جدة',
         platform: 'منصة نِكْسُس التعليمية',
@@ -78,6 +82,7 @@ export default function RoleLoginPage() {
         error: '❌ Error', portal: 'Portal', signIn: 'Sign in to', signInDescription: 'Enter your credentials to access your portal.',
         unavailable: 'Sign-in is currently unavailable. Contact the school administration.', email: 'Email address', password: 'Password', remember: 'Remember me',
         forgot: 'Forgot password?', support: 'Contact support', loading: 'Signing in...', submit: 'Sign in',
+        newPassword: 'New password', confirmNewPassword: 'Confirm new password', setPassword: 'Save password and continue',
         noAccount: 'Don’t have an account?', createStudent: 'Create a student account', createParent: 'Create a parent account', createTeacher: 'Create a teacher account',
         footer: '© 2026 Nexus EDU — Al-Ikhlas Private Schools. All rights reserved.', school: 'Al-Ikhlas Private Schools · Jeddah',
         platform: 'Nexus EDU learning platform',
@@ -107,7 +112,16 @@ export default function RoleLoginPage() {
         setLoading(true);
 
         try {
-            await signIn(email, password, role as UserRole);
+            if (initialPasswordChangeRequired) {
+                if (newPassword.length < 8) throw new Error(isArabic ? 'كلمة المرور الجديدة يجب ألا تقل عن 8 أحرف.' : 'The new password must be at least 8 characters.');
+                if (newPassword !== confirmNewPassword) throw new Error(isArabic ? 'تأكيد كلمة المرور غير مطابق.' : 'The password confirmation does not match.');
+                await completeInitialPasswordChange(email, password, newPassword);
+                setPassword(newPassword);
+                setInitialPasswordChangeRequired(false);
+                await signIn(email, newPassword, role as UserRole);
+            } else {
+                await signIn(email, password, role as UserRole);
+            }
             toast({ title: copy.success, description: copy.welcome });
             
             if(role === 'teacher') router.push(`/${locale}/teacher`);
@@ -121,6 +135,13 @@ export default function RoleLoginPage() {
             else if(role === 'hr') router.push(`/${locale}/hr`);
             else router.push(`/${locale}/student`);
         } catch (error: any) {
+            if (error?.message === 'INITIAL_PASSWORD_CHANGE_REQUIRED') {
+                setInitialPasswordChangeRequired(true);
+                setNewPassword('');
+                setConfirmNewPassword('');
+                setLoading(false);
+                return;
+            }
             const description = error?.message === 'PORTAL_ROLE_MISMATCH'
                 ? copy.roleMismatch
                 : error?.message === 'NEXUS_PROFILE_NOT_PROVISIONED'
@@ -352,7 +373,7 @@ export default function RoleLoginPage() {
                                 animate={{ scale: focusedField === 'password' ? 1.01 : 1 }}
                                 transition={{ type: 'spring', stiffness: 300 }}
                             >
-                                <label className="text-[14px] font-bold text-slate-700">{copy.password}</label>
+                                <label className="text-[14px] font-bold text-slate-700">{initialPasswordChangeRequired ? (isArabic ? 'كلمة المرور المؤقتة' : 'Temporary password') : copy.password}</label>
                                 <div className="relative">
                                     <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] transition-colors" style={{ color: focusedField === 'password' ? roleConfig.color : `${roleConfig.color}80` }} />
                                     <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required 
@@ -367,7 +388,23 @@ export default function RoleLoginPage() {
                                 </div>
                             </motion.div>
 
-                            <div className="flex items-center justify-between pt-1">
+                            {initialPasswordChangeRequired && (
+                                <>
+                                    <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+                                        {isArabic ? 'هذه أول مرة تدخل فيها. اختر كلمة مرور جديدة للمتابعة إلى حسابك.' : 'This is your first sign-in. Set a new password to continue to your account.'}
+                                    </p>
+                                    <div className="space-y-2">
+                                        <label className="text-[14px] font-bold text-slate-700">{copy.newPassword}</label>
+                                        <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required minLength={8} autoComplete="new-password" className="w-full h-[52px] px-4 rounded-2xl text-slate-900 text-[15px] outline-none focus:ring-2 border-2 border-slate-200 bg-slate-50 focus:bg-white" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[14px] font-bold text-slate-700">{copy.confirmNewPassword}</label>
+                                        <input type="password" value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} required minLength={8} autoComplete="new-password" className="w-full h-[52px] px-4 rounded-2xl text-slate-900 text-[15px] outline-none focus:ring-2 border-2 border-slate-200 bg-slate-50 focus:bg-white" />
+                                    </div>
+                                </>
+                            )}
+
+                            {!initialPasswordChangeRequired && <div className="flex items-center justify-between pt-1">
                                 <label className="flex items-center gap-2 cursor-pointer group">
                                     <input type="checkbox" className="w-[18px] h-[18px] rounded-md transition-transform group-hover:scale-105 border-2 border-slate-300" style={{ accentColor: roleConfig.color }} />
                                     <span className="text-[13px] font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">{copy.remember}</span>
@@ -381,7 +418,7 @@ export default function RoleLoginPage() {
                                         {copy.support}
                                     </a>
                                 )}
-                            </div>
+                            </div>}
 
                             <motion.button 
                                 type="submit" 
@@ -401,14 +438,14 @@ export default function RoleLoginPage() {
                                     </span>
                                 ) : (
                                     <>
-                                        {copy.submit}
+                                        {initialPasswordChangeRequired ? copy.setPassword : copy.submit}
                                         <ArrowLeft className="w-[20px] h-[20px]" />
                                     </>
                                 )}
                             </motion.button>
                         </form>
 
-                        {(role === 'student' || role === 'parent' || role === 'teacher') && (
+                        {!initialPasswordChangeRequired && (role === 'student' || role === 'parent' || role === 'teacher') && (
                             <p className="mt-5 text-center text-sm text-slate-500">
                                 {copy.noAccount}{' '}
                                 <Link href={`/${locale}/register?role=${role}`} className="font-bold hover:underline" style={{ color: roleConfig.color }}>

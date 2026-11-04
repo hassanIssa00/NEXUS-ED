@@ -714,6 +714,20 @@ export class AuthService {
             throw new UnauthorizedException('Invalid credentials');
         }
 
+        if (user.mustChangePassword) {
+            return {
+                mustChangePassword: true,
+                user: this.buildSafeUser({
+                    id: user.id,
+                    email: user.email,
+                    role: user.role,
+                    name: user.name,
+                    schoolId: user.schoolId,
+                    phone: user.phone,
+                }),
+            };
+        }
+
         const schoolId = user.schoolId;
         const payload = this.buildAuthPayload({
             id: user.id,
@@ -738,6 +752,7 @@ export class AuthService {
         });
 
         return {
+            mustChangePassword: false,
             access_token: accessToken,
             refresh_token: refreshToken,
             user: this.buildSafeUser({
@@ -784,6 +799,37 @@ export class AuthService {
         });
 
         return { message: 'Password changed. Sign in again on your other devices.' };
+    }
+
+    async completeInitialPasswordChange(email: string, currentPassword: string, newPassword: string) {
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+        if (!user?.isActive || !user.mustChangePassword || !(await bcrypt.compare(currentPassword, user.password))) {
+            throw new UnauthorizedException('بيانات الدخول غير صحيحة أو لا يوجد تغيير كلمة مرور معلق.');
+        }
+        if (await bcrypt.compare(newPassword, user.password)) {
+            throw new BadRequestException('اختر كلمة مرور مختلفة عن كلمة المرور المؤقتة.');
+        }
+
+        const password = await bcrypt.hash(newPassword, 10);
+        await this.prisma.$transaction([
+            this.prisma.user.update({
+                where: { id: user.id },
+                data: { password, mustChangePassword: false },
+            }),
+            this.prisma.refreshToken.updateMany({
+                where: { userId: user.id, revokedAt: null },
+                data: { revokedAt: new Date() },
+            }),
+        ]);
+        await this.createAuditLog({
+            schoolId: user.schoolId ?? undefined,
+            userId: user.id,
+            action: 'auth.initial_password_changed',
+            entityType: 'user',
+            entityId: user.id,
+        });
+        return { message: 'تم تغيير كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.' };
     }
 
     private getRefreshSecret(): string {
@@ -858,10 +904,10 @@ export class AuthService {
             stage = 'find active user';
             const user = await this.prisma.user.findUnique({
                 where: { id: payload.sub },
-                select: { id: true, email: true, role: true, name: true, schoolId: true, isActive: true, emailVerified: true },
+                select: { id: true, email: true, role: true, name: true, schoolId: true, isActive: true, emailVerified: true, mustChangePassword: true },
             });
 
-            if (!user?.isActive) {
+            if (!user?.isActive || user.mustChangePassword) {
                 throw new UnauthorizedException('User not found');
             }
 
@@ -928,6 +974,7 @@ export class AuthService {
                 avatar: true,
                 isActive: true,
                 emailVerified: true,
+                mustChangePassword: true,
                 authIdentities: {
                     where: { provider: 'firebase' },
                     select: { providerSubject: true },
@@ -939,7 +986,7 @@ export class AuthService {
         const unverifiedOnboardingAllowed = allowUnverifiedOnboarding
             && isPublicAccountRole(String(user?.role))
             && user?.emailVerified === false;
-        if (!user?.isActive || (requiresVerifiedEmail(user.role) && !user.emailVerified && !unverifiedOnboardingAllowed)) {
+        if (!user?.isActive || user.mustChangePassword || (requiresVerifiedEmail(user.role) && !user.emailVerified && !unverifiedOnboardingAllowed)) {
             return null;
         }
 
@@ -963,13 +1010,14 @@ export class AuthService {
                 avatar: true,
                 schoolId: true,
                 emailVerified: true,
-                teacherProfile: { select: { id: true, residenceNumber: true, specialization: true } },
+                mustChangePassword: true,
+                teacherProfile: { select: { id: true, residenceNumber: true, specialization: true, schoolManaged: true } },
                 authIdentities: {
                     where: { provider: 'firebase' },
                     select: { providerSubject: true },
                     take: 1,
                 },
-                studentProfile: { select: { gradeLevel: true, nationalId: true } },
+                studentProfile: { select: { gradeLevel: true, nationalId: true, schoolManaged: true } },
                 placementAssessmentAttempts: { select: { assessmentKey: true } },
                 children: {
                     select: {
@@ -994,9 +1042,9 @@ export class AuthService {
         let gradeLevel = -1;
         if (String(user.role) === 'STUDENT') {
             gradeLevel = user.studentProfile?.gradeLevel ?? -1;
-            if (gradeLevel < 0 || !user.studentProfile?.nationalId || !user.avatar) {
+            if (!user.studentProfile?.schoolManaged && (gradeLevel < 0 || !user.studentProfile?.nationalId || !user.avatar)) {
                 onboardingStep = 'student-profile';
-            } else {
+            } else if (!user.studentProfile?.schoolManaged) {
                 const assessmentKey = this.placementAssessmentKey(gradeLevel);
                 onboardingStep = assessmentKey && user.placementAssessmentAttempts.some(
                     (attempt) => attempt.assessmentKey === assessmentKey,
@@ -1012,7 +1060,7 @@ export class AuthService {
             }
         } else if (String(user.role) === 'TEACHER') {
             const hasValidSubject = SAUDI_PRIMARY_SUBJECTS.some((subject) => subject === user.teacherProfile?.specialization);
-            if (!user.teacherProfile?.residenceNumber || !hasValidSubject || !user.avatar) {
+            if (!user.teacherProfile?.schoolManaged && (!user.teacherProfile?.residenceNumber || !hasValidSubject || !user.avatar)) {
                 onboardingStep = 'teacher-profile';
             }
         }

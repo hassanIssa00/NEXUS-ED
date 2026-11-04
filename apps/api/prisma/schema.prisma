@@ -50,6 +50,7 @@ model User {
   phone                             String?
   behaviorScore                     Float?
   emailVerified                     Boolean                      @default(false)
+  mustChangePassword                Boolean                      @default(false)
   firstName                         String?
   isActive                          Boolean                      @default(true)
   lastName                          String?
@@ -216,6 +217,7 @@ model StudentProfile {
   gradeLevel  Int
   nationalId  String?   @unique
   dateOfBirth DateTime?
+  schoolManaged Boolean @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -338,6 +340,7 @@ model TeacherProfile {
   residenceNumber String?  @unique
   qualification   String   @default("")
   yearsExperience Int      @default(0)
+  schoolManaged   Boolean  @default(false)
   bio             String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

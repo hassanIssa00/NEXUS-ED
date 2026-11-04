@@ -43,6 +43,7 @@ type AuthContextType = {
   user: AuthUser | null;
   loading: boolean;
   signIn: (email: string, password: string, expectedRole?: string) => Promise<void>;
+  completeInitialPasswordChange: (email: string, currentPassword: string, newPassword: string) => Promise<void>;
   register: (data: {
     email: string;
     password: string;
@@ -255,8 +256,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string, expectedRole?: string) => {
     authActionRef.current += 1;
     try {
-      let signedInProfile: AuthUser;
-      if (expectedRole === 'STAFF' && firebaseAuth && firebaseDb && isFirebaseConfigured) {
+      let signedInProfile: AuthUser | undefined;
+      if (expectedRole === 'STUDENT') {
+        await clearStoredSession();
+        try {
+          const response = await apiClient.post<ApiSession & { mustChangePassword?: boolean }>('/auth/mobile/login', { email: email.trim(), password });
+          if (response.data.mustChangePassword) throw new Error('INITIAL_PASSWORD_CHANGE_REQUIRED');
+          if (!response.data.access_token || !response.data.refresh_token || !response.data.user?.id) {
+            throw new Error('لم يُرجع الخادم جلسة صالحة. تحقق من بيانات الحساب وحاول مرة أخرى.');
+          }
+          await persistTokens(response.data.access_token, response.data.refresh_token);
+          try {
+            signedInProfile = await loadProfile() ?? undefined;
+          } catch (profileError) {
+            await clearStoredSession();
+            throw profileError;
+          }
+        } catch (apiError: any) {
+          if (apiError?.response?.status !== 401 || !firebaseAuth || !isFirebaseConfigured) throw apiError;
+          // Older student accounts may still exist only in Firebase; fall through to that sign-in.
+        }
+      }
+      if (!signedInProfile && expectedRole === 'STAFF' && firebaseAuth && firebaseDb && isFirebaseConfigured) {
         let firebaseCredentialsAccepted = false;
         try {
           const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
@@ -287,7 +308,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ].some((code) => firebaseCode.includes(code));
           if (!canTryLegacyStaffLogin) throw firebaseError;
 
-          const response = await apiClient.post<ApiSession>('/auth/mobile/login', { email: email.trim(), password });
+          const response = await apiClient.post<ApiSession & { mustChangePassword?: boolean }>('/auth/mobile/login', { email: email.trim(), password });
+          if (response.data.mustChangePassword) throw new Error('INITIAL_PASSWORD_CHANGE_REQUIRED');
           if (!response.data.access_token || !response.data.refresh_token || !response.data.user?.id) {
             throw new Error('لم يُرجع الخادم جلسة صالحة. تحقق من إعداد حساب الموظف وحاول مرة أخرى.');
           }
@@ -299,8 +321,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             throw profileError;
           }
         }
-      } else if (expectedRole === 'STAFF' || !firebaseAuth) {
-        const response = await apiClient.post<ApiSession>('/auth/mobile/login', { email: email.trim(), password });
+      } else if (!signedInProfile && (expectedRole === 'STAFF' || !firebaseAuth)) {
+        const response = await apiClient.post<ApiSession & { mustChangePassword?: boolean }>('/auth/mobile/login', { email: email.trim(), password });
+        if (response.data.mustChangePassword) throw new Error('INITIAL_PASSWORD_CHANGE_REQUIRED');
         if (!response.data.access_token || !response.data.refresh_token || !response.data.user?.id) {
           throw new Error('لم يُرجع الخادم جلسة صالحة. تحقق من إعداد حساب الموظف وحاول مرة أخرى.');
         }
@@ -311,15 +334,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await clearStoredSession();
           throw profileError;
         }
-      } else {
-        const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
+      } else if (!signedInProfile) {
+        const firebase = firebaseAuth;
+        if (!firebase) throw new Error('تسجيل الدخول غير متاح حاليًا.');
+        const credential = await signInWithEmailAndPassword(firebase, email.trim(), password);
         await reload(credential.user);
         const pendingProfile = await readPendingFirebaseProfile(credential.user);
         if (pendingProfile) {
           const expectedRoleMatches = !expectedRole
             || (expectedRole === 'STAFF' ? pendingProfile.role === 'TEACHER' : pendingProfile.role === expectedRole);
           if (!expectedRoleMatches) {
-            await signOutFirebase(firebaseAuth);
+            await signOutFirebase(firebase);
             throw new Error('هذا الحساب لا يتبع البوابة المختارة. اختر نوع الحساب الصحيح.');
           }
           await clearStoredSession();
@@ -345,6 +370,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       authActionRef.current -= 1;
     }
+  };
+
+  const completeInitialPasswordChange = async (email: string, currentPassword: string, newPassword: string) => {
+    await clearStoredSession();
+    await apiClient.post('/auth/initial-password', {
+      email: email.trim(),
+      currentPassword,
+      newPassword,
+    });
   };
 
   const register = async ({ email, password, name, phone, role, teacherCode, teacherProfile, teacherPhoto }: {
@@ -487,7 +521,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, register, uploadTeacherRegistrationAvatar, refreshProfile, sendVerificationEmail, refreshVerifiedSession, requestPasswordReset, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, completeInitialPasswordChange, register, uploadTeacherRegistrationAvatar, refreshProfile, sendVerificationEmail, refreshVerifiedSession, requestPasswordReset, signOut }}>
       {children}
     </AuthContext.Provider>
   );
