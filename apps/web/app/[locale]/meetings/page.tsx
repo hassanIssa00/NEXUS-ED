@@ -195,8 +195,8 @@ export default function NexusMeetingsPage() {
     setError('')
     try {
       if (action === 'join') {
-        if (meeting.status === 'SCHEDULED' && meeting.host.id !== profile?.id) {
-          setError(isEnglish ? 'Waiting for the meeting host to open the room.' : 'الاجتماع لم يبدأ بعد؛ انتظر المنظم ليفتح الغرفة.')
+        if (meeting.status === 'SCHEDULED' && meeting.host.id !== profile?.id && new Date(meeting.scheduledAt).getTime() > Date.now()) {
+          setError(isEnglish ? 'You can join when the meeting reaches its scheduled time.' : 'يتاح الدخول عند حلول موعد الاجتماع.')
           return
         }
         router.push(`/meetings/${meeting.id}` as never)
@@ -294,7 +294,8 @@ export default function NexusMeetingsPage() {
             const isHost = meeting.host.id === profile?.id
             const canManage = isHost || isSchoolManager
             const ended = meeting.status === 'ENDED' || meeting.status === 'CANCELLED'
-            const joinDisabled = ended || (meeting.status === 'SCHEDULED' && !isHost)
+            const beforeScheduledTime = new Date(meeting.scheduledAt).getTime() > clockNow.getTime()
+            const joinDisabled = ended || (meeting.status === 'SCHEDULED' && !isHost && beforeScheduledTime)
             return <article key={meeting.id} className="rounded-2xl border bg-card p-5 shadow-sm transition hover:border-[#234a65]/30 hover:shadow-md">
               <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${meeting.status === 'LIVE' ? 'bg-emerald-100 text-emerald-800' : meeting.status === 'SCHEDULED' ? 'bg-blue-50 text-blue-800' : 'bg-muted text-muted-foreground'}`}>{meeting.status === 'LIVE' ? <Radio className="h-3.5 w-3.5 animate-pulse" /> : <Clock3 className="h-3.5 w-3.5" />}{statusText(meeting.status)}</span><span className="rounded-full bg-[#234a65]/8 px-2.5 py-1 text-xs font-medium text-[#234a65]">{typeLabel(meeting.meetingType)}{meeting.classroom?.name ? ` · ${meeting.classroom.name}` : ''}</span>{isHost && <span className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">{isEnglish ? 'Organizer' : 'أنت المنظم'}</span>}</div><h3 className="truncate text-base font-bold">{meeting.title}</h3><p className="mt-1 text-sm text-muted-foreground">{formatDate(meeting.scheduledAt)}</p></div><div className="shrink-0 rounded-xl bg-[#234a65]/10 p-2.5 text-[#234a65]"><Video className="h-5 w-5" /></div></div>
               {meeting.description && <p className="mt-3 line-clamp-2 text-sm leading-6 text-muted-foreground">{meeting.description}</p>}

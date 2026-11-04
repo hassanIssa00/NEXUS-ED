@@ -369,7 +369,9 @@ export class MeetingsService {
     const rooms = this.roomService(config);
 
     if (meeting.status === 'SCHEDULED') {
-      if (meeting.hostId !== actor.userId) throw new ConflictException('بانتظار منظم الاجتماع لفتحه.');
+      const isHost = meeting.hostId === actor.userId;
+      const scheduledTimeReached = meeting.scheduledAt.getTime() <= Date.now();
+      if (!isHost && !scheduledTimeReached) throw new ConflictException('الاجتماع مجدول؛ يتاح الدخول عند موعده.');
       await this.ensureRoom(rooms, { ...meeting, participantCount: meeting.participants.length });
       const started = await this.prisma.nexusMeeting.updateMany({
         where: { id: meeting.id, status: 'SCHEDULED' },

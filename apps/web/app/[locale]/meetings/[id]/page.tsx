@@ -99,10 +99,13 @@ export default function NexusMeetingRoomPage() {
   const [chatOpen, setChatOpen] = useState(true)
   const [pendingEnd, setPendingEnd] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [clockNow, setClockNow] = useState(() => Date.now())
 
   const isHost = meeting?.host.id === profile?.id
   const canManage = isHost || ['principal', 'hr'].includes(profile?.role || '')
   const isLive = meeting?.status === 'LIVE'
+  const scheduledTimeReached = !!meeting && new Date(meeting.scheduledAt).getTime() <= clockNow
+  const canJoinScheduledMeeting = isHost || scheduledTimeReached
   const initials = useMemo(() => meeting?.host.name?.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('') || 'N', [meeting?.host.name])
 
   const loadMeeting = useCallback(async () => {
@@ -116,6 +119,19 @@ export default function NexusMeetingRoomPage() {
   }, [meetingId, isEnglish])
 
   useEffect(() => { void loadMeeting() }, [loadMeeting])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 15_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    if (!meeting || meeting.status !== 'SCHEDULED') return
+    const timer = window.setInterval(() => {
+      void apiClient.get<Meeting>(`/meetings/${meetingId}`).then(({ data }) => setMeeting(data)).catch(() => undefined)
+    }, 15_000)
+    return () => window.clearInterval(timer)
+  }, [meetingId, meeting?.status])
 
   const refreshTiles = useCallback((room: Room) => {
     const list = [room.localParticipant, ...room.remoteParticipants.values()]
@@ -141,6 +157,7 @@ export default function NexusMeetingRoomPage() {
     let room: Room | null = null
     try {
       const { data } = await apiClient.post<JoinResponse>(`/meetings/${meeting.id}/join`)
+      setMeeting((current) => current ? { ...current, status: data.meeting.status } : current)
       const livekit = await import('livekit-client')
       room = new livekit.Room({
         adaptiveStream: true,
@@ -315,9 +332,9 @@ export default function NexusMeetingRoomPage() {
     {!connected ? <section className="mx-auto mt-10 max-w-3xl overflow-hidden rounded-3xl border bg-card shadow-lg">
       <div className="bg-gradient-to-br from-[#193d53] to-[#356079] px-6 py-8 text-center text-white sm:px-10"><div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full border border-white/30 bg-white/10 text-2xl font-bold">{initials}</div><p className="text-xs text-white/70">{isEnglish ? `Meeting host · ${meeting.host.name}` : `منظم الاجتماع · ${meeting.host.name}`}{meeting.classroom?.name ? ` · ${meeting.classroom.name}` : ''}</p><h2 className="mt-2 text-2xl font-bold">{meeting.title}</h2>{meeting.description && <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-white/75">{meeting.description}</p>}</div>
       <div className="space-y-5 p-6 sm:p-8"><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">{isEnglish ? 'Start time' : 'موعد الاجتماع'}</p><p className="mt-1 text-sm font-semibold">{new Intl.DateTimeFormat(locale === 'en' ? 'en' : 'ar-SA', { dateStyle: 'full', timeStyle: 'short' }).format(new Date(meeting.scheduledAt))}</p></div><div className="rounded-xl border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">{isEnglish ? 'Invited participants' : 'المشاركون المدعوون'}</p><p className="mt-1 text-sm font-semibold">{meeting.participants.length} {isEnglish ? 'school accounts' : 'حساب مدرسي'}</p></div></div>
-        {meeting.status === 'SCHEDULED' && !isHost && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{isEnglish ? 'The meeting host has not opened the room yet.' : 'منظم الاجتماع لم يفتح الغرفة بعد.'}</div>}
+        {meeting.status === 'SCHEDULED' && !isHost && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{scheduledTimeReached ? (isEnglish ? 'The scheduled time has arrived. Join now to open the room.' : 'حلّ موعد الاجتماع. انضم الآن لفتح الغرفة.') : (isEnglish ? 'You can enter when the scheduled time arrives.' : 'يمكنك الدخول عند حلول موعد الاجتماع.')}</div>}
         {(meeting.status === 'ENDED' || meeting.status === 'CANCELLED') && <div className="rounded-xl border bg-muted p-4 text-sm text-muted-foreground">{isEnglish ? `This meeting is ${meeting.status.toLowerCase()}.` : `هذا الاجتماع ${meeting.status === 'ENDED' ? 'انتهى' : 'ملغي'}.`}</div>}
-        {meeting.status !== 'ENDED' && meeting.status !== 'CANCELLED' && (meeting.status === 'LIVE' || isHost) && <div className="flex flex-col gap-3 rounded-xl border border-[#234a65]/15 bg-[#234a65]/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{isEnglish ? 'Join with audio' : 'الدخول بالصوت'}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{isEnglish ? 'Microphone starts only after you click. Camera stays off until you enable it.' : 'سيُفعّل الميكروفون بعد اختيارك. تظل الكاميرا مغلقة حتى تشغلها.'}</p></div><button disabled={connecting} onClick={() => void connectToMeeting()} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#234a65] px-5 text-sm font-bold text-white shadow-sm disabled:opacity-60">{connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}{connecting ? (isEnglish ? 'Joining…' : 'جارٍ الدخول…') : (isEnglish ? 'Join with audio' : 'انضم بالصوت')}</button></div>}
+        {meeting.status !== 'ENDED' && meeting.status !== 'CANCELLED' && (meeting.status === 'LIVE' || (meeting.status === 'SCHEDULED' && canJoinScheduledMeeting)) && <div className="flex flex-col gap-3 rounded-xl border border-[#234a65]/15 bg-[#234a65]/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{isEnglish ? 'Join with audio' : 'الدخول بالصوت'}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{isEnglish ? 'Microphone starts only after you click. Camera stays off until you enable it.' : 'سيُفعّل الميكروفون بعد اختيارك. تظل الكاميرا مغلقة حتى تشغلها.'}</p></div><button disabled={connecting} onClick={() => void connectToMeeting()} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#234a65] px-5 text-sm font-bold text-white shadow-sm disabled:opacity-60">{connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}{connecting ? (isEnglish ? 'Joining…' : 'جارٍ الدخول…') : (isEnglish ? 'Join with audio' : (meeting.status === 'SCHEDULED' && !isHost ? 'انضم لفتح الغرفة' : 'انضم بالصوت'))}</button></div>}
         <div className="flex items-start gap-2 rounded-xl bg-muted/50 p-3 text-xs leading-5 text-muted-foreground"><Shield className="mt-0.5 h-4 w-4 shrink-0" />{isEnglish ? 'Only the invited active platform account can enter. The displayed name comes from that account; guest names are not accepted. Meetings are not recorded.' : 'الدخول للحساب المدرسي النشط المدعو فقط، والاسم من ملفه في المنصة ولا يوجد دخول باسم ضيف. لا يتم تسجيل الاجتماع.'}</div>
       </div>
     </section> : <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
