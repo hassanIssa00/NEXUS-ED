@@ -58,13 +58,18 @@ export function JitsiRoom({
         domain={domain}
         roomName={roomName}
         configOverwrite={{
+          prejoinConfig: {
+            enabled: false,
+          },
+          prejoinPageEnabled: false,
+          skipPrejoin: true,
+          requireDisplayName: false,
           startWithAudioMuted: false,
           startWithVideoMuted: false,
           disableModeratorIndicator: false,
           startScreenSharing: false,
           enableEmailInStats: false,
           defaultLanguage: 'ar',
-          prejoinPageEnabled: false,
           disableDeepLinking: true,
           toolbarButtons: [
             'camera',
@@ -101,6 +106,7 @@ export function JitsiRoom({
             node.style.height = height
             node.style.width = '100%'
             node.style.border = 'none'
+            node.setAttribute('allow', 'camera; microphone; display-capture; autoplay; clipboard-write; hid')
           }
         }}
         onApiReady={(externalApi) => {
