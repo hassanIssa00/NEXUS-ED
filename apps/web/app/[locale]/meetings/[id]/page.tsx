@@ -161,9 +161,25 @@ export default function NexusMeetingRoomPage() {
     if (!meeting || connecting || connected) return
     setConnecting(true)
     setError('')
-    setConnectionLabel(isEnglish ? 'Connecting to the private room…' : 'جارٍ الاتصال بغرفة الاجتماع الخاصة…')
+    setConnectionLabel(isEnglish ? 'Requesting camera and microphone access…' : 'جارٍ طلب إذن الكاميرا والمايكروفون…')
     let room: Room | null = null
     try {
+      // 1. Explicitly request camera & microphone permissions from the browser before opening meeting
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+          stream.getTracks().forEach((t) => t.stop())
+        } catch {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            stream.getTracks().forEach((t) => t.stop())
+          } catch {
+            // Permission denied or devices missing - continue to join anyway
+          }
+        }
+      }
+
+      setConnectionLabel(isEnglish ? 'Connecting to the private room…' : 'جارٍ الاتصال بغرفة الاجتماع الخاصة…')
       const { data } = await apiClient.post<JoinResponse>(`/meetings/${meeting.id}/join`)
       setMeeting((current) => current ? { ...current, status: data.meeting.status } : current)
 

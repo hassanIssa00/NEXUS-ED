@@ -64,6 +64,7 @@ export function JitsiRoom({
           prejoinPageEnabled: false,
           skipPrejoin: true,
           requireDisplayName: false,
+          enableLobby: false,
           startWithAudioMuted: false,
           startWithVideoMuted: false,
           disableModeratorIndicator: false,
@@ -106,7 +107,7 @@ export function JitsiRoom({
             node.style.height = height
             node.style.width = '100%'
             node.style.border = 'none'
-            node.setAttribute('allow', 'camera; microphone; display-capture; autoplay; clipboard-write; hid')
+            node.setAttribute('allow', 'camera *; microphone *; display-capture *; autoplay *; clipboard-write *')
           }
         }}
         onApiReady={(externalApi) => {
