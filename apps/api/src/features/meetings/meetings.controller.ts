@@ -6,6 +6,7 @@ import { Role } from '../../auth/role.enum';
 import { Roles } from '../../auth/roles.decorator';
 import { RolesGuard } from '../../auth/roles.guard';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
+import { MeetingChatDto, MeetingHeartbeatDto, MeetingSignalDto } from './dto/meeting-webrtc.dto';
 import { MEETING_ACCOUNT_ROLES, MEETING_SCHOOL_MANAGER_ROLES, MeetingActor, MeetingsService } from './meetings.service';
 
 @ApiTags('Nexus Meetings')
@@ -44,6 +45,30 @@ export class MeetingsController {
     return this.meetings.join(this.actor(req), id);
   }
 
+  @Post(':id/heartbeat')
+  @Throttle({ long: { limit: 120, ttl: 60_000 } })
+  heartbeat(@Req() req: any, @Param('id') id: string, @Body() body: MeetingHeartbeatDto) {
+    return this.meetings.heartbeat(this.actor(req), id, body);
+  }
+
+  @Post(':id/signal')
+  @Throttle({ long: { limit: 200, ttl: 60_000 } })
+  sendSignal(@Req() req: any, @Param('id') id: string, @Body() body: MeetingSignalDto) {
+    return this.meetings.sendSignal(this.actor(req), id, body);
+  }
+
+  @Get(':id/signals')
+  @Throttle({ long: { limit: 200, ttl: 60_000 } })
+  getSignals(@Req() req: any, @Param('id') id: string) {
+    return this.meetings.getSignals(this.actor(req), id);
+  }
+
+  @Post(':id/chat')
+  @Throttle({ long: { limit: 60, ttl: 60_000 } })
+  sendChat(@Req() req: any, @Param('id') id: string, @Body() body: MeetingChatDto) {
+    return this.meetings.sendChat(this.actor(req), id, body);
+  }
+
   @Post(':id/leave')
   leave(@Req() req: any, @Param('id') id: string) {
     return this.meetings.leave(this.actor(req), id);
@@ -62,6 +87,11 @@ export class MeetingsController {
   @Post(':id/participants/:participantId/remove')
   removeParticipant(@Req() req: any, @Param('id') id: string, @Param('participantId') participantId: string) {
     return this.meetings.removeParticipant(this.actor(req), id, participantId);
+  }
+
+  @Post(':id/participants/:participantId/mute')
+  muteParticipant(@Req() req: any, @Param('id') id: string, @Param('participantId') participantId: string) {
+    return this.meetings.muteParticipant(this.actor(req), id, participantId);
   }
 
   private actor(req: any): MeetingActor {

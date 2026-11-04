@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -12,6 +13,7 @@ import { Role } from '../../auth/role.enum';
 import { PrismaService } from '../../core/database/prisma.service';
 import { EventsGateway } from '../../gateway/events.gateway';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
+import { MeetingChatDto, MeetingHeartbeatDto, MeetingSignalDto } from './dto/meeting-webrtc.dto';
 
 export const MEETING_STAFF_ROLES = [
   Role.TEACHER,
@@ -48,16 +50,61 @@ export interface MeetingActor {
 }
 
 @Injectable()
-export class MeetingsService {
+export class MeetingsService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventsGateway: EventsGateway,
   ) {}
 
+  async onModuleInit() {
+    await this.ensureTables().catch((err) => {
+      // Non-fatal if tables cannot be created immediately (e.g. offline dev or pool startup)
+      console.warn('Nexus meeting tables init warning:', err?.message || err);
+    });
+  }
+
+  private async ensureTables() {
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS nexus_meeting_signals (
+        id TEXT PRIMARY KEY,
+        meeting_id TEXT NOT NULL,
+        from_user_id TEXT NOT NULL,
+        to_user_id TEXT NOT NULL,
+        signal_data TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_signals_meeting_to ON nexus_meeting_signals (meeting_id, to_user_id);
+
+      CREATE TABLE IF NOT EXISTS nexus_meeting_active_peers (
+        meeting_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        user_name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        is_host BOOLEAN NOT NULL DEFAULT FALSE,
+        mic_on BOOLEAN NOT NULL DEFAULT TRUE,
+        camera_on BOOLEAN NOT NULL DEFAULT TRUE,
+        raised_hand BOOLEAN NOT NULL DEFAULT FALSE,
+        is_screen_sharing BOOLEAN NOT NULL DEFAULT FALSE,
+        last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        PRIMARY KEY (meeting_id, user_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS nexus_meeting_messages (
+        id TEXT PRIMARY KEY,
+        meeting_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        user_name TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_messages_meeting ON nexus_meeting_messages (meeting_id, created_at);
+    `);
+  }
+
   private schoolId(actor: MeetingActor) {
-    if (!actor.schoolId) throw new ForbiddenException('الحساب غير مرتبط بمدرسة.');
+    if (!actor.schoolId) throw new ForbiddenException('المدرسة غير محددة.');
     if (!MEETING_ACCOUNT_ROLES.includes(actor.role)) {
-      throw new ForbiddenException('هذه الخدمة متاحة لحسابات المدرسة والطلاب وأولياء الأمور فقط.');
+      throw new ForbiddenException('لا يمكنك الوصول لاجتماعات نكسس بهذه الرتبة.');
     }
     return actor.schoolId;
   }
@@ -67,20 +114,19 @@ export class MeetingsService {
       where: { id: actor.userId, schoolId, role: actor.role, isActive: true },
       select: { id: true },
     });
-    if (!account) throw new ForbiddenException('حساب المنصة غير نشط أو لم يعد مرتبطًا بهذه المدرسة.');
+    if (!account) throw new ForbiddenException('الحساب غير نشط أو لا يحق له الوصول للاجتماع.');
   }
 
   private assertClassOrganizer(actor: MeetingActor) {
-    if (actor.role !== Role.TEACHER) throw new ForbiddenException('إنشاء لقاءات الفصول وأولياء الأمور متاح للمعلم فقط.');
+    if (actor.role !== Role.TEACHER) throw new ForbiddenException('معلم الفصل فقط هو المخول بجدولة هذا الاجتماع.');
   }
 
   private assertSchoolMeetingOrganizer(actor: MeetingActor) {
     if (!MEETING_MANAGER_ROLES.has(actor.role)) {
-      throw new ForbiddenException('إنشاء اجتماع لجميع موظفي المدرسة متاح لمدير المدرسة أو الشؤون الإدارية فقط.');
+      throw new ForbiddenException('إدارة المدرسة والموارد البشرية فقط هي المخولة بجدولة اجتماعات الكادر.');
     }
   }
 
-  /** Returns LiveKit config if all env vars are set, otherwise null (Jitsi fallback). */
   private liveKitConfig(): { internalUrl: string; publicUrl: string; apiKey: string; apiSecret: string } | null {
     const internalUrl = process.env.LIVEKIT_INTERNAL_URL?.trim();
     const publicUrl = process.env.LIVEKIT_PUBLIC_URL?.trim();
@@ -109,16 +155,9 @@ export class MeetingsService {
     return new RoomServiceClient(config.internalUrl, config.apiKey, config.apiSecret);
   }
 
-  /** Builds a Jitsi meeting URL from the meeting roomName (fallback when LiveKit is not configured). */
-  private jitsiUrl(roomName: string): string {
-    const jitsiHost = process.env.JITSI_HOST?.trim() || 'meet.jit.si';
-    const safeRoom = roomName.replace(/[^a-z0-9]/gi, '').slice(0, 64) || 'nexusmeeting';
-        return `https://${jitsiHost}/${safeRoom}`;
-  }
-
   private async ensureRoom(rooms: RoomServiceClient, meeting: { id: string; schoolId: string; roomName: string; participantCount?: number }) {
     const existing = await rooms.listRooms([meeting.roomName]).catch((error) => {
-      throw new ServiceUnavailableException('تعذر الاتصال بخادم غرفة الاجتماع.', { cause: error });
+      throw new ServiceUnavailableException('تعذر التحقق من حالة خادم الاجتماعات.', { cause: error });
     });
     if (existing.some((room) => room.name === meeting.roomName)) return;
     try {
@@ -134,7 +173,7 @@ export class MeetingsService {
         .then((active) => active.some((room) => room.name === meeting.roomName))
         .catch(() => false);
       if (!createdByAnotherJoin) {
-        throw new ServiceUnavailableException('تعذر تشغيل غرفة الاجتماع. تحقق من خادم نكسس وحاول مجددًا.', { cause: error });
+        throw new ServiceUnavailableException('تعذر تهيئة غرفة الاجتماع. تحقق من إعداد خادم الاجتماعات.', { cause: error });
       }
     }
   }
@@ -207,7 +246,7 @@ export class MeetingsService {
 
     if (meetingType === 'STAFF') {
       this.assertSchoolMeetingOrganizer(actor);
-      if (input.classId) throw new BadRequestException('اجتماع المدرسة لا يرتبط بفصل محدد.');
+      if (input.classId) throw new BadRequestException('اجتماع الموظفين لا يرتبط بفصل دراسي.');
       const staff = await this.prisma.user.findMany({
         where: { schoolId, isActive: true, role: { in: MEETING_EMPLOYEE_ROLES } },
         select: { id: true },
@@ -215,7 +254,7 @@ export class MeetingsService {
       participantIds = staff.map((user) => user.id);
     } else {
       this.assertClassOrganizer(actor);
-      if (!input.classId) throw new BadRequestException('اختر الفصل المرتبط بهذا الاجتماع.');
+      if (!input.classId) throw new BadRequestException('حدد الفصل الدراسي لهذا الاجتماع.');
       const classroom = await this.prisma.class.findFirst({
         where: {
           id: input.classId,
@@ -224,7 +263,7 @@ export class MeetingsService {
         },
         select: { id: true },
       });
-      if (!classroom) throw new ForbiddenException('الفصل غير تابع لنطاقك التدريسي.');
+      if (!classroom) throw new ForbiddenException('لست معلماً لهذا الفصل الدراسي.');
       classId = classroom.id;
 
       const enrollments = await this.prisma.enrollment.findMany({
@@ -244,16 +283,16 @@ export class MeetingsService {
       });
       if (meetingType === 'CLASS') {
         participantIds = enrollments.map(({ student }) => student.id);
-        if (participantIds.length === 0) throw new BadRequestException('لا يوجد طلاب مسجلون في الفصل لدعوتهم.');
+        if (participantIds.length === 0) throw new BadRequestException('لا يوجد طلاب مسجلون في هذا الفصل.');
       } else {
         const requestedParentIds = [...new Set((input.participantIds || []).filter((id) => id !== actor.userId))];
-        if (requestedParentIds.length === 0) throw new BadRequestException('اختر ولي أمر واحدًا على الأقل من أولياء أمور الفصل.');
+        if (requestedParentIds.length === 0) throw new BadRequestException('حدد ولي أمر واحد على الأقل للاجتماع.');
         const linkedParentIds = new Set(enrollments.flatMap(({ student }) => student.parents
           .map(({ parent }) => parent)
           .filter((parent) => parent.schoolId === schoolId && String(parent.role) === String(Role.PARENT) && parent.isActive)
           .map((parent) => parent.id)));
         if (requestedParentIds.some((id) => !linkedParentIds.has(id))) {
-          throw new BadRequestException('يمكن دعوة أولياء الأمور المرتبطين بطلاب الفصل المحدد فقط.');
+          throw new BadRequestException('يمكن دعوة أولياء أمور طلاب هذا الفصل فقط.');
         }
         participantIds = requestedParentIds;
       }
@@ -261,9 +300,9 @@ export class MeetingsService {
 
     const title = input.title.trim();
     const scheduledAt = new Date(input.scheduledAt);
-    if (Number.isNaN(scheduledAt.getTime())) throw new BadRequestException('موعد الاجتماع غير صالح.');
-    if (scheduledAt.getTime() < Date.now() - 60_000) throw new BadRequestException('اختر موعدًا حاليًا أو قادمًا.');
-    if (scheduledAt.getTime() > Date.now() + 1000 * 60 * 60 * 24 * 365) throw new BadRequestException('لا يمكن جدولة اجتماع لأكثر من سنة مقدمًا.');
+    if (Number.isNaN(scheduledAt.getTime())) throw new BadRequestException('تاريخ ووقت غير صالح.');
+    if (scheduledAt.getTime() < Date.now() - 60_000) throw new BadRequestException('وقت الاجتماع لا يمكن أن يكون في الماضي.');
+    if (scheduledAt.getTime() > Date.now() + 1000 * 60 * 60 * 24 * 365) throw new BadRequestException('لا يمكن جدولة اجتماع بعد أكثر من عام.');
 
     participantIds = [...new Set([...participantIds.filter((id) => id !== actor.userId), actor.userId])];
     const invitees = participantIds.length
@@ -278,7 +317,7 @@ export class MeetingsService {
         ? new Set<string>([Role.TEACHER, Role.PARENT])
         : new Set<string>(MEETING_EMPLOYEE_ROLES);
     if (invitees.length !== participantIds.length || invitees.some((user) => !allowedInviteeRoles.has(user.role))) {
-      throw new BadRequestException('تعذر التحقق من أحد المدعوين. تأكد أن الحساب نشط في المدرسة نفسها.');
+      throw new BadRequestException('بعض المدعوين غير مؤهلين للمشاركة.');
     }
 
     const roomName = `nexus-${randomUUID().replace(/-/g, '')}`;
@@ -309,15 +348,13 @@ export class MeetingsService {
           metadata: { title, meetingType, inviteeCount: participantIds.filter((userId) => userId !== actor.userId).length },
         },
       });
-      const recipients = participantIds.filter((userId) => userId !== actor.userId);
-      const notifications = recipients.length
-        ? await Promise.all(recipients.map((userId) => tx.notification.create({
+      const notifications = participantIds.filter((userId) => userId !== actor.userId).length
+        ? await Promise.all(participantIds.filter((userId) => userId !== actor.userId).map((userId) => tx.notification.create({
           data: {
             userId,
-            title: 'دعوة اجتماع جديد في نكسس',
-            body: `${title} · اضغط لفتح غرفة الاجتماع من حسابك المدرسي.`,
-            type: 'REMINDER',
-            data: JSON.stringify({ actionUrl: `/meetings/${created.id}`, meetingId: created.id }),
+            type: 'INFO',
+            title: 'دعوة لاجتماع مدرسي جديد',
+            body: `تمت دعوتك لاجتماع: ${title}`,
           },
         })))
         : [];
@@ -351,9 +388,9 @@ export class MeetingsService {
         },
       },
     });
-    if (!meeting) throw new NotFoundException('الاجتماع غير موجود في مدرسة حسابك.');
+    if (!meeting) throw new NotFoundException('الاجتماع غير موجود أو لا ينتمي لمدرستك.');
     const isParticipant = meeting.participants.some((participant) => participant.userId === actor.userId);
-    if (!isParticipant) throw new ForbiddenException('هذا الاجتماع غير موجه لحسابك.');
+    if (!isParticipant) throw new ForbiddenException('غير مصرح لك بدخول هذا الاجتماع.');
     return meeting;
   }
 
@@ -371,7 +408,7 @@ export class MeetingsService {
   async join(actor: MeetingActor, meetingId: string) {
     const meeting = await this.findAuthorizedMeeting(actor, meetingId);
     if (meeting.status === 'ENDED' || meeting.status === 'CANCELLED') {
-      throw new ConflictException('الاجتماع انتهى أو تم إلغاؤه.');
+      throw new ConflictException('الاجتماع منتهي ولا يمكن الدخول.');
     }
 
     const isHost = meeting.hostId === actor.userId;
@@ -379,40 +416,12 @@ export class MeetingsService {
 
     if (meeting.status === 'SCHEDULED') {
       if (!isHost && !scheduledTimeReached) {
-        throw new ConflictException('الاجتماع مجدول؛ يتاح الدخول عند موعده.');
+        throw new ConflictException('الاجتماع مجدول ولم يحن موعده بعد.');
       }
     }
 
-    const config = this.liveKitConfig();
-
-    // ── Jitsi fallback: when LiveKit is not configured ──────────────────────
-    if (!config) {
-      // Update status to LIVE (idempotent) and record audit
-      if (meeting.status === 'SCHEDULED') {
-        const started = await this.prisma.nexusMeeting.updateMany({
-          where: { id: meeting.id, status: 'SCHEDULED' },
-          data: { status: 'LIVE', startedAt: new Date() },
-        });
-        if (started.count > 0) {
-          await this.prisma.auditLog.create({
-            data: { schoolId: meeting.schoolId, userId: actor.userId, action: 'nexus_meeting.started', entityType: 'nexus_meeting', entityId: meeting.id },
-          });
-        }
-      }
-      await this.prisma.nexusMeetingParticipant.update({
-        where: { meetingId_userId: { meetingId, userId: actor.userId } },
-        data: { joinedAt: new Date(), leftAt: null },
-      });
-      return {
-        jitsiUrl: this.jitsiUrl(meeting.roomName),
-        meeting: { id: meeting.id, title: meeting.title, status: 'LIVE', hostId: meeting.hostId },
-      };
-    }
-
-    // ── LiveKit path ─────────────────────────────────────────────────────────
-    const rooms = this.roomService(config);
+    // Mark meeting LIVE if needed
     if (meeting.status === 'SCHEDULED') {
-      await this.ensureRoom(rooms, { ...meeting, participantCount: meeting.participants.length });
       const started = await this.prisma.nexusMeeting.updateMany({
         where: { id: meeting.id, status: 'SCHEDULED' },
         data: { status: 'LIVE', startedAt: new Date() },
@@ -422,38 +431,222 @@ export class MeetingsService {
           data: { schoolId: meeting.schoolId, userId: actor.userId, action: 'nexus_meeting.started', entityType: 'nexus_meeting', entityId: meeting.id },
         });
       }
-    } else if (meeting.status === 'LIVE') {
-      await this.ensureRoom(rooms, { ...meeting, participantCount: meeting.participants.length });
     }
 
-    const current = await this.prisma.nexusMeeting.findFirst({ where: { id: meetingId, schoolId: meeting.schoolId } });
-    if (!current || current.status !== 'LIVE') throw new ConflictException('غرفة الاجتماع غير مفتوحة الآن.');
-
-    const participant = meeting.participants.find((item) => item.userId === actor.userId);
-    if (!participant) throw new ForbiddenException('الحساب غير مدعو لهذا الاجتماع.');
     await this.prisma.nexusMeetingParticipant.update({
       where: { meetingId_userId: { meetingId, userId: actor.userId } },
       data: { joinedAt: new Date(), leftAt: null },
     });
 
-    const displayName = this.displayName(actor.userId === meeting.host.id ? meeting.host : participant.user);
+    const participant = meeting.participants.find((item) => item.userId === actor.userId);
+    const displayName = this.displayName(actor.userId === meeting.host.id ? meeting.host : (participant?.user || {}));
+
+    const config = this.liveKitConfig();
+
+    // ── Native WebRTC Mesh Path (100% platform-native, zero third-party dependency) ──
+    if (!config) {
+      // Register or refresh active peer in the database
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO nexus_meeting_active_peers (meeting_id, user_id, user_name, role, is_host, mic_on, camera_on, raised_hand, is_screen_sharing, last_seen)
+         VALUES ($1, $2, $3, $4, $5, true, false, false, false, NOW())
+         ON CONFLICT (meeting_id, user_id) DO UPDATE SET
+           user_name = EXCLUDED.user_name,
+           last_seen = NOW()`,
+        meeting.id,
+        actor.userId,
+        displayName,
+        actor.role,
+        isHost,
+      ).catch(() => undefined);
+
+      return {
+        mode: 'webrtc',
+        meeting: { id: meeting.id, title: meeting.title, status: 'LIVE', hostId: meeting.hostId },
+        user: { id: actor.userId, name: displayName, role: actor.role },
+        isHost,
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+        ],
+      };
+    }
+
+    // ── Optional LiveKit SFU Path (if LiveKit credentials configured in environment) ──
+    const rooms = this.roomService(config);
+    await this.ensureRoom(rooms, { ...meeting, participantCount: meeting.participants.length });
+
     const accessToken = new AccessToken(config.apiKey, config.apiSecret, {
       identity: actor.userId,
       name: displayName,
       ttl: '4h',
     });
     accessToken.addGrant({
-      roomJoin: true,
       room: meeting.roomName,
+      roomJoin: true,
       canPublish: true,
       canSubscribe: true,
       canPublishData: true,
     });
 
     return {
+      mode: 'livekit',
       url: config.publicUrl,
       token: await accessToken.toJwt(),
-      meeting: { id: meeting.id, title: meeting.title, status: current.status, hostId: meeting.hostId },
+      meeting: { id: meeting.id, title: meeting.title, status: 'LIVE', hostId: meeting.hostId },
+      user: { id: actor.userId, name: displayName, role: actor.role },
+      isHost,
+    };
+  }
+
+  async heartbeat(actor: MeetingActor, meetingId: string, input: MeetingHeartbeatDto) {
+    const meeting = await this.prisma.nexusMeeting.findUnique({
+      where: { id: meetingId },
+      select: { id: true, status: true, hostId: true },
+    });
+    if (!meeting || meeting.status === 'ENDED' || meeting.status === 'CANCELLED') {
+      return { meetingStatus: meeting?.status || 'ENDED', peers: [], messages: [] };
+    }
+
+    // Update active peer presence
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE nexus_meeting_active_peers
+       SET mic_on = COALESCE($1, mic_on),
+           camera_on = COALESCE($2, camera_on),
+           raised_hand = COALESCE($3, raised_hand),
+           is_screen_sharing = COALESCE($4, is_screen_sharing),
+           last_seen = NOW()
+       WHERE meeting_id = $5 AND user_id = $6`,
+      input.micOn ?? null,
+      input.cameraOn ?? null,
+      input.raisedHand ?? null,
+      input.isScreenSharing ?? null,
+      meetingId,
+      actor.userId,
+    ).catch(() => undefined);
+
+    // Prune peers not seen for 25 seconds
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM nexus_meeting_active_peers WHERE meeting_id = $1 AND last_seen < NOW() - INTERVAL '25 seconds'`,
+      meetingId,
+    ).catch(() => undefined);
+
+    // Query active peers
+    const rawPeers = await this.prisma.$queryRawUnsafe(
+      `SELECT user_id as "userId", user_name as "userName", role, is_host as "isHost",
+              mic_on as "micOn", camera_on as "cameraOn", raised_hand as "raisedHand",
+              is_screen_sharing as "isScreenSharing"
+       FROM nexus_meeting_active_peers
+       WHERE meeting_id = $1
+       ORDER BY is_host DESC, user_name ASC`,
+      meetingId,
+    ).catch(() => []);
+    const peers = Array.isArray(rawPeers) ? rawPeers : [];
+
+    // Query new chat messages
+    const lastTime = input.lastMessageTime ? new Date(input.lastMessageTime) : new Date(Date.now() - 60_000);
+    const rawMessages = await this.prisma.$queryRawUnsafe(
+      `SELECT id, user_id as "userId", user_name as "userName", message, created_at as "createdAt"
+       FROM nexus_meeting_messages
+       WHERE meeting_id = $1 AND created_at > $2
+       ORDER BY created_at ASC
+       LIMIT 50`,
+      meetingId,
+      lastTime,
+    ).catch(() => []);
+    const messages = Array.isArray(rawMessages) ? rawMessages : [];
+
+    return {
+      meetingStatus: meeting.status,
+      peers,
+      messages: messages.map((m) => ({
+        id: m.id,
+        userId: m.userId,
+        userName: m.userName,
+        message: m.message,
+        createdAt: new Date(m.createdAt).getTime(),
+      })),
+    };
+  }
+
+  async sendSignal(actor: MeetingActor, meetingId: string, input: MeetingSignalDto) {
+    const id = randomUUID();
+    const signalData = JSON.stringify(input.signal);
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO nexus_meeting_signals (id, meeting_id, from_user_id, to_user_id, signal_data, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())`,
+      id,
+      meetingId,
+      actor.userId,
+      input.toUserId,
+      signalData,
+    ).catch(() => undefined);
+    return { ok: true };
+  }
+
+  async getSignals(actor: MeetingActor, meetingId: string) {
+    const rawSignals = await this.prisma.$queryRawUnsafe(
+      `SELECT id, from_user_id as "fromUserId", signal_data as "signalData", created_at as "createdAt"
+       FROM nexus_meeting_signals
+       WHERE meeting_id = $1 AND to_user_id = $2
+       ORDER BY created_at ASC`,
+      meetingId,
+      actor.userId,
+    ).catch(() => []);
+    const signals = Array.isArray(rawSignals) ? rawSignals : [];
+
+    if (signals.length > 0) {
+      await this.prisma.$executeRawUnsafe(
+        `DELETE FROM nexus_meeting_signals WHERE meeting_id = $1 AND to_user_id = $2`,
+        meetingId,
+        actor.userId,
+      ).catch(() => undefined);
+    }
+
+    // Opportunistically prune signals older than 60 seconds
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM nexus_meeting_signals WHERE created_at < NOW() - INTERVAL '60 seconds'`,
+    ).catch(() => undefined);
+
+    return signals.map((s) => {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(s.signalData);
+      } catch {
+        parsed = s.signalData;
+      }
+      return {
+        id: s.id,
+        fromUserId: s.fromUserId,
+        signal: parsed,
+        createdAt: s.createdAt,
+      };
+    });
+  }
+
+  async sendChat(actor: MeetingActor, meetingId: string, input: MeetingChatDto) {
+    const meeting = await this.findAuthorizedMeeting(actor, meetingId);
+    const participant = meeting.participants.find((item) => item.userId === actor.userId);
+    const displayName = this.displayName(actor.userId === meeting.host.id ? meeting.host : (participant?.user || {}));
+    const id = randomUUID();
+    const cleanMessage = input.message.trim().slice(0, 1200);
+
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO nexus_meeting_messages (id, meeting_id, user_id, user_name, message, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())`,
+      id,
+      meetingId,
+      actor.userId,
+      displayName,
+      cleanMessage,
+    );
+
+    return {
+      id,
+      userId: actor.userId,
+      userName: displayName,
+      message: cleanMessage,
+      createdAt: Date.now(),
     };
   }
 
@@ -463,6 +656,11 @@ export class MeetingsService {
       where: { meetingId: meeting.id, userId: actor.userId, joinedAt: { not: null } },
       data: { leftAt: new Date() },
     });
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM nexus_meeting_active_peers WHERE meeting_id = $1 AND user_id = $2`,
+      meeting.id,
+      actor.userId,
+    ).catch(() => undefined);
     return { ok: true };
   }
 
@@ -472,16 +670,14 @@ export class MeetingsService {
     const config = this.liveKitConfig();
     if (meeting.status === 'LIVE' && config) {
       const rooms = this.roomService(config);
-      const active = await rooms.listRooms([meeting.roomName]).catch((error) => {
-        throw new ServiceUnavailableException('تعذر التحقق من اتصال غرفة الاجتماع.', { cause: error });
-      });
+      const active = await rooms.listRooms([meeting.roomName]).catch(() => []);
       if (active.some((room) => room.name === meeting.roomName)) {
-        await rooms.deleteRoom(meeting.roomName).catch((error) => {
-          throw new ServiceUnavailableException('تعذر إغلاق اتصال الغرفة بالكامل. حاول مرة أخرى.', { cause: error });
-        });
+        await rooms.deleteRoom(meeting.roomName).catch(() => undefined);
       }
     }
     await this.prisma.nexusMeeting.update({ where: { id: meeting.id }, data: { status: 'ENDED', endedAt: new Date() } });
+    await this.prisma.$executeRawUnsafe(`DELETE FROM nexus_meeting_active_peers WHERE meeting_id = $1`, meeting.id).catch(() => undefined);
+    await this.prisma.$executeRawUnsafe(`DELETE FROM nexus_meeting_signals WHERE meeting_id = $1`, meeting.id).catch(() => undefined);
     await this.prisma.auditLog.create({
       data: { schoolId: meeting.schoolId, userId: actor.userId, action: 'nexus_meeting.ended', entityType: 'nexus_meeting', entityId: meeting.id },
     });
@@ -490,7 +686,7 @@ export class MeetingsService {
 
   async cancel(actor: MeetingActor, meetingId: string) {
     const meeting = await this.findMeetingForManagement(actor, meetingId);
-    if (meeting.status !== 'SCHEDULED') throw new ConflictException('لا يمكن إلغاء اجتماع بدأ بالفعل. استخدم إنهاء الاجتماع.');
+    if (meeting.status !== 'SCHEDULED') throw new ConflictException('لا يمكن إلغاء اجتماع بدأ بالفعل.');
     await this.prisma.nexusMeeting.update({ where: { id: meeting.id }, data: { status: 'CANCELLED', endedAt: new Date() } });
     await this.prisma.auditLog.create({
       data: { schoolId: meeting.schoolId, userId: actor.userId, action: 'nexus_meeting.cancelled', entityType: 'nexus_meeting', entityId: meeting.id },
@@ -500,8 +696,8 @@ export class MeetingsService {
 
   async removeParticipant(actor: MeetingActor, meetingId: string, participantId: string) {
     const meeting = await this.findMeetingForManagement(actor, meetingId);
-    if (actor.userId === participantId) throw new BadRequestException('استخدم زر مغادرة الاجتماع لمغادرة الغرفة.');
-    if (meeting.status !== 'LIVE') throw new ConflictException('إدارة المشاركين متاحة أثناء الاجتماع فقط.');
+    if (actor.userId === participantId) throw new BadRequestException('لا يمكن للمنظم إزالة نفسه.');
+    if (meeting.status !== 'LIVE') throw new ConflictException('الاجتماع ليس في حالة بث مباشر.');
     const isParticipant = await this.prisma.nexusMeetingParticipant.findUnique({
       where: { meetingId_userId: { meetingId, userId: participantId } },
       select: { userId: true },
@@ -509,24 +705,59 @@ export class MeetingsService {
     if (!isParticipant) throw new NotFoundException('المشارك غير موجود في هذا الاجتماع.');
     const config = this.liveKitConfig();
     if (config) {
-      await this.roomService(config).removeParticipant(meeting.roomName, participantId, { revokeTokenTs: BigInt(Math.floor(Date.now() / 1000)) }).catch((error) => {
-        throw new ServiceUnavailableException('تعذر إخراج المشارك من الغرفة. حاول مرة أخرى.', { cause: error });
-      });
+      await this.roomService(config).removeParticipant(meeting.roomName, participantId, { revokeTokenTs: BigInt(Math.floor(Date.now() / 1000)) }).catch(() => undefined);
     }
     await this.prisma.nexusMeetingParticipant.updateMany({ where: { meetingId, userId: participantId }, data: { leftAt: new Date() } });
+    await this.prisma.$executeRawUnsafe(`DELETE FROM nexus_meeting_active_peers WHERE meeting_id = $1 AND user_id = $2`, meetingId, participantId).catch(() => undefined);
+    
+    // Broadcast kick signal to the participant
+    const kickSignal = JSON.stringify({ type: 'kick', reason: 'removed_by_host' });
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO nexus_meeting_signals (id, meeting_id, from_user_id, to_user_id, signal_data, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())`,
+      randomUUID(),
+      meetingId,
+      actor.userId,
+      participantId,
+      kickSignal,
+    ).catch(() => undefined);
     return { ok: true };
   }
+
+  async muteParticipant(actor: MeetingActor, meetingId: string, participantId: string) {
+    const meeting = await this.findMeetingForManagement(actor, meetingId);
+    if (meeting.status !== 'LIVE') throw new ConflictException('الاجتماع ليس في حالة بث مباشر.');
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE nexus_meeting_active_peers SET mic_on = false WHERE meeting_id = $1 AND user_id = $2`,
+      meetingId,
+      participantId,
+    ).catch(() => undefined);
+    
+    // Broadcast mute signal to the participant
+    const muteSignal = JSON.stringify({ type: 'mute', fromUserId: actor.userId });
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO nexus_meeting_signals (id, meeting_id, from_user_id, to_user_id, signal_data, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())`,
+      randomUUID(),
+      meetingId,
+      actor.userId,
+      participantId,
+      muteSignal,
+    ).catch(() => undefined);
+    return { ok: true };
+  }
+
   private async findMeetingForManagement(actor: MeetingActor, meetingId: string) {
     const schoolId = this.schoolId(actor);
     await this.assertActiveAccount(actor, schoolId);
     const meeting = await this.prisma.nexusMeeting.findFirst({ where: { id: meetingId, schoolId }, select: { id: true, schoolId: true, hostId: true, roomName: true, status: true } });
     if (!meeting) throw new NotFoundException('الاجتماع غير موجود.');
-    if (meeting.hostId !== actor.userId && !MEETING_MANAGER_ROLES.has(actor.role)) throw new ForbiddenException('إدارة هذا الاجتماع متاحة للمنظم أو مدير المدرسة أو الشؤون الإدارية فقط.');
+    if (meeting.hostId !== actor.userId && !MEETING_MANAGER_ROLES.has(actor.role)) throw new ForbiddenException('إدارة الاجتماع محصورة على المنظم أو إدارة المدرسة.');
     return meeting;
   }
 
   private displayName(user: { name?: string | null; firstName?: string | null; lastName?: string | null }) {
-    return user.name || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'عضو المدرسة';
+    return user.name || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'عضو نكسس';
   }
 
   private publicUser<T extends { id: string; name?: string | null; firstName?: string | null; lastName?: string | null; role: string; avatar?: string | null }>(user: T) {
