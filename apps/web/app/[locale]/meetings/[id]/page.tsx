@@ -364,7 +364,7 @@ export default function NexusMeetingRoomPage() {
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map())
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map())
   const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
-  const [, setStreamVersion] = useState(0)
+  const [streamVersion, setStreamVersion] = useState(0)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   const isHost = meeting?.host.id === profile?.id
@@ -505,6 +505,21 @@ export default function NexusMeetingRoomPage() {
         remoteStreamsRef.current.delete(remoteUserId)
         pendingCandidatesRef.current.delete(remoteUserId)
         setStreamVersion((v) => v + 1)
+      }
+    }
+
+    // Auto renegotiate when new tracks are added after connection is established
+    pc.onnegotiationneeded = async () => {
+      if (pc.signalingState === 'closed') return
+      try {
+        const offer = await pc.createOffer()
+        await pc.setLocalDescription(offer)
+        await apiClient.post(`/meetings/${meetingId}/signal`, {
+          toUserId: remoteUserId,
+          signal: { type: 'offer', sdp: offer },
+        })
+      } catch {
+        // Ignore negotiation error
       }
     }
 
@@ -742,20 +757,48 @@ export default function NexusMeetingRoomPage() {
           })
           setMicrophoneOn(true)
           setCameraOn(true)
-        } catch {
-          // Fallback to audio only
-          try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-            })
-            setMicrophoneOn(true)
-            setCameraOn(false)
-            setNotice(isEnglish ? 'Connected with audio only (camera unavailable).' : 'تم الدخول بالصوت (الكاميرا غير متوفرة أو معطلة في المتصفح).')
-          } catch {
-            localStream = null
-            setMicrophoneOn(false)
-            setCameraOn(false)
-            setNotice(isEnglish ? 'Connected in listen-only mode.' : 'تم الدخول كـ مستمع. يمكنك الضغط على المايكروفون لمنح الإذن في أي وقت.')
+        } catch (camErr: any) {
+          if (camErr?.name === 'NotReadableError') {
+            // Webcam locked by other window (same PC testing) - use virtual canvas stream + try audio separately
+            try {
+              const audioStream = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+              })
+              const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User')
+              const combined = new MediaStream([
+                ...audioStream.getAudioTracks(),
+                ...virtualVid.getVideoTracks(),
+              ])
+              localStream = combined
+              setMicrophoneOn(true)
+              setCameraOn(true)
+              setNotice(isEnglish
+                ? 'Сamera is locked by your other window. A live virtual camera stream was started automatically!'
+                : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى. تم تشغيل كاميرا افتراضية حية تلقائياً!')
+            } catch {
+              const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User')
+              localStream = virtualVid
+              setCameraOn(true)
+              setMicrophoneOn(false)
+              setNotice(isEnglish
+                ? 'Camera locked by other window. Virtual stream started. Microphone unavailable.'
+                : 'الكاميرا محجوزة وتشغيل كاميرا افتراضية.')
+            }
+          } else {
+            // Fallback to audio only
+            try {
+              localStream = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+              })
+              setMicrophoneOn(true)
+              setCameraOn(false)
+              setNotice(isEnglish ? 'Connected with audio only (camera unavailable).' : 'تم الدخول بالصوت (الكاميرا غير متوفرة أو معطلة في المتصفح).')
+            } catch {
+              localStream = null
+              setMicrophoneOn(false)
+              setCameraOn(false)
+              setNotice(isEnglish ? 'Connected in listen-only mode.' : 'تم الدخول كـ مستمع. يمكنك الضغط على المايكروفون لمنح الإذن في أي وقت.')
+            }
           }
         }
       }
@@ -854,6 +897,7 @@ export default function NexusMeetingRoomPage() {
           })
         })
         setStreamVersion((v) => v + 1)
+        await renegotiateAll()
         return
       } catch (err: any) {
         if (err?.name === 'NotReadableError') {
@@ -876,6 +920,7 @@ export default function NexusMeetingRoomPage() {
             ? 'Webcam is locked by your other tab. Started a live virtual camera stream for testing on this device!'
             : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى لأنك على نفس الجهاز. تم تشغيل كاميرا افتراضية حية لتجربة الشاشتين معاً!')
           setStreamVersion((v) => v + 1)
+          await renegotiateAll()
           return
         } else if (err?.name === 'NotAllowedError') {
           setNotice(isEnglish ? 'Camera permission was denied in browser settings.' : 'تم رفض إذن الكاميرا. اضغط على أيقونة القفل بجانب الرابط للسماح.')
@@ -905,6 +950,7 @@ export default function NexusMeetingRoomPage() {
         })
         setCameraOn(true)
         setStreamVersion((v) => v + 1)
+        await renegotiateAll()
         return
       } catch (err: any) {
         if (err?.name === 'NotReadableError') {
@@ -926,6 +972,7 @@ export default function NexusMeetingRoomPage() {
             ? 'Webcam is locked by your other tab. Started a live virtual camera stream for testing on this device!'
             : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى لأنك على نفس الجهاز. تم تشغيل كاميرا افتراضية حية لتجربة الشاشتين معاً!')
           setStreamVersion((v) => v + 1)
+          await renegotiateAll()
           return
         } else if (err?.name === 'NotAllowedError') {
           setNotice(isEnglish ? 'Camera permission was denied in browser settings.' : 'يرجى السماح بالكاميرا من إعدادات المتصفح.')
@@ -1097,6 +1144,23 @@ export default function NexusMeetingRoomPage() {
       setNotice(isEnglish ? 'Could not remove participant.' : 'تعذر استبعاد المشارك.')
     }
   }
+
+  // Force renegotiation on all peer connections after track changes
+  const renegotiateAll = useCallback(async () => {
+    for (const [remoteUserId, pc] of peerConnectionsRef.current.entries()) {
+      if (pc.signalingState === 'closed') continue
+      try {
+        const offer = await pc.createOffer()
+        await pc.setLocalDescription(offer)
+        await apiClient.post(`/meetings/${meetingId}/signal`, {
+          toUserId: remoteUserId,
+          signal: { type: 'offer', sdp: offer },
+        })
+      } catch {
+        // Ignore renegotiation error for this peer
+      }
+    }
+  }, [meetingId])
 
   const copyInviteLink = async () => {
     try {
@@ -1350,6 +1414,7 @@ export default function NexusMeetingRoomPage() {
                 {isHost ? (
                   /* Current user is the teacher -> Large Hero Stage */
                   <StreamTile
+                    key={`local-spotlight-${streamVersion}`}
                     stream={screenStreamRef.current || localStreamRef.current}
                     name={profile?.full_name || 'أنت'}
                     isLocal
@@ -1365,6 +1430,7 @@ export default function NexusMeetingRoomPage() {
                   /* Current user is a student -> Teacher is in Large Hero Stage */
                   <div className="h-full w-full">
                     <StreamTile
+                      key={`remote-host-${remoteHostPeer.userId}-${streamVersion}`}
                       stream={remoteStreamsRef.current.get(remoteHostPeer.userId)}
                       name={remoteHostPeer.userName}
                       isLocal={false}
@@ -1418,6 +1484,7 @@ export default function NexusMeetingRoomPage() {
                   {!isHost && (
                     <div className="shrink-0">
                       <StreamTile
+                        key={`local-strip-${streamVersion}`}
                         stream={screenStreamRef.current || localStreamRef.current}
                         name={profile?.full_name || 'أنت'}
                         isLocal
