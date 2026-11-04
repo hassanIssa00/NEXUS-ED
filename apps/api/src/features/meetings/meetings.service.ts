@@ -214,7 +214,11 @@ export class MeetingsService implements OnModuleInit {
     const items = await this.prisma.nexusMeeting.findMany({
       where: {
         schoolId,
-        OR: [{ hostId: actor.userId }, { participants: { some: { userId: actor.userId } } }],
+        OR: [
+          { hostId: actor.userId },
+          { participants: { some: { userId: actor.userId } } },
+          { status: 'LIVE' },
+        ],
         scheduledAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30) },
       },
       select: {
@@ -389,8 +393,34 @@ export class MeetingsService implements OnModuleInit {
       },
     });
     if (!meeting) throw new NotFoundException('الاجتماع غير موجود أو لا ينتمي لمدرستك.');
-    const isParticipant = meeting.participants.some((participant) => participant.userId === actor.userId);
-    if (!isParticipant) throw new ForbiddenException('غير مصرح لك بدخول هذا الاجتماع.');
+    let isParticipant = meeting.participants.some((participant) => participant.userId === actor.userId);
+    if (!isParticipant) {
+      if (meeting.schoolId === schoolId) {
+        // Auto-enroll participant so any school student/teacher with the link can join!
+        await this.prisma.nexusMeetingParticipant.create({
+          data: {
+            meetingId: meeting.id,
+            userId: actor.userId,
+            invitedById: meeting.hostId,
+          },
+        }).catch(() => undefined);
+        const meUser = await this.prisma.user.findUnique({
+          where: { id: actor.userId },
+          select: { id: true, name: true, firstName: true, lastName: true, role: true, avatar: true },
+        });
+        if (meUser) {
+          meeting.participants.push({
+            userId: actor.userId,
+            joinedAt: null,
+            leftAt: null,
+            user: meUser,
+          });
+        }
+        isParticipant = true;
+      } else {
+        throw new ForbiddenException('غير مصرح لك بدخول هذا الاجتماع.');
+      }
+    }
     return meeting;
   }
 
