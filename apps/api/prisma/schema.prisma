@@ -1227,3 +1227,44 @@ model StudentSkillMastery {
 
   @@unique([studentId, skillNodeId])
 }
+
+
+model NexusMeetingSignal {
+  id         String   @id @default(uuid())
+  meetingId  String   @map("meeting_id")
+  fromUserId String   @map("from_user_id")
+  toUserId   String   @map("to_user_id")
+  signalData String   @map("signal_data")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([meetingId, toUserId], map: "idx_signals_meeting_to")
+  @@map("nexus_meeting_signals")
+}
+
+model NexusMeetingActivePeer {
+  meetingId       String   @map("meeting_id")
+  userId          String   @map("user_id")
+  userName        String   @map("user_name")
+  role            String
+  isHost          Boolean  @default(false) @map("is_host")
+  micOn           Boolean  @default(true) @map("mic_on")
+  cameraOn        Boolean  @default(true) @map("camera_on")
+  raisedHand      Boolean  @default(false) @map("raised_hand")
+  isScreenSharing Boolean  @default(false) @map("is_screen_sharing")
+  lastSeen        DateTime @default(now()) @map("last_seen")
+
+  @@id([meetingId, userId])
+  @@map("nexus_meeting_active_peers")
+}
+
+model NexusMeetingMessage {
+  id        String   @id @default(uuid())
+  meetingId String   @map("meeting_id")
+  userId    String   @map("user_id")
+  userName  String   @map("user_name")
+  message   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([meetingId, createdAt], map: "idx_messages_meeting")
+  @@map("nexus_meeting_messages")
+}

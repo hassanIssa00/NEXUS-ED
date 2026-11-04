@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  OnModuleInit,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -50,56 +49,11 @@ export interface MeetingActor {
 }
 
 @Injectable()
-export class MeetingsService implements OnModuleInit {
+export class MeetingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventsGateway: EventsGateway,
   ) {}
-
-  async onModuleInit() {
-    await this.ensureTables().catch((err) => {
-      // Non-fatal if tables cannot be created immediately (e.g. offline dev or pool startup)
-      console.warn('Nexus meeting tables init warning:', err?.message || err);
-    });
-  }
-
-  private async ensureTables() {
-    await this.prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS nexus_meeting_signals (
-        id TEXT PRIMARY KEY,
-        meeting_id TEXT NOT NULL,
-        from_user_id TEXT NOT NULL,
-        to_user_id TEXT NOT NULL,
-        signal_data TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_signals_meeting_to ON nexus_meeting_signals (meeting_id, to_user_id);
-
-      CREATE TABLE IF NOT EXISTS nexus_meeting_active_peers (
-        meeting_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        user_name TEXT NOT NULL,
-        role TEXT NOT NULL,
-        is_host BOOLEAN NOT NULL DEFAULT FALSE,
-        mic_on BOOLEAN NOT NULL DEFAULT TRUE,
-        camera_on BOOLEAN NOT NULL DEFAULT TRUE,
-        raised_hand BOOLEAN NOT NULL DEFAULT FALSE,
-        is_screen_sharing BOOLEAN NOT NULL DEFAULT FALSE,
-        last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        PRIMARY KEY (meeting_id, user_id)
-      );
-
-      CREATE TABLE IF NOT EXISTS nexus_meeting_messages (
-        id TEXT PRIMARY KEY,
-        meeting_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        user_name TEXT NOT NULL,
-        message TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_messages_meeting ON nexus_meeting_messages (meeting_id, created_at);
-    `);
-  }
 
   private schoolId(actor: MeetingActor) {
     if (!actor.schoolId) throw new ForbiddenException('المدرسة غير محددة.');
@@ -475,19 +429,25 @@ export class MeetingsService implements OnModuleInit {
 
     // ── Native WebRTC Mesh Path (100% platform-native, zero third-party dependency) ──
     if (!config) {
-      // Register or refresh active peer in the database
-      await this.prisma.$executeRawUnsafe(
-        `INSERT INTO nexus_meeting_active_peers (meeting_id, user_id, user_name, role, is_host, mic_on, camera_on, raised_hand, is_screen_sharing, last_seen)
-         VALUES ($1, $2, $3, $4, $5, true, false, false, false, NOW())
-         ON CONFLICT (meeting_id, user_id) DO UPDATE SET
-           user_name = EXCLUDED.user_name,
-           last_seen = NOW()`,
-        meeting.id,
-        actor.userId,
-        displayName,
-        actor.role,
-        isHost,
-      ).catch(() => undefined);
+      await this.prisma.nexusMeetingActivePeer.upsert({
+        where: { meetingId_userId: { meetingId: meeting.id, userId: actor.userId } },
+        create: {
+          meetingId: meeting.id,
+          userId: actor.userId,
+          userName: displayName,
+          role: actor.role,
+          isHost,
+          micOn: true,
+          cameraOn: true,
+          raisedHand: false,
+          isScreenSharing: false,
+          lastSeen: new Date(),
+        },
+        update: {
+          userName: displayName,
+          lastSeen: new Date(),
+        },
+      });
 
       return {
         mode: 'webrtc',
@@ -538,105 +498,108 @@ export class MeetingsService implements OnModuleInit {
       return { meetingStatus: meeting?.status || 'ENDED', peers: [], messages: [] };
     }
 
-    // Update active peer presence
-    await this.prisma.$executeRawUnsafe(
-      `UPDATE nexus_meeting_active_peers
-       SET mic_on = COALESCE($1, mic_on),
-           camera_on = COALESCE($2, camera_on),
-           raised_hand = COALESCE($3, raised_hand),
-           is_screen_sharing = COALESCE($4, is_screen_sharing),
-           last_seen = NOW()
-       WHERE meeting_id = $5 AND user_id = $6`,
-      input.micOn ?? null,
-      input.cameraOn ?? null,
-      input.raisedHand ?? null,
-      input.isScreenSharing ?? null,
-      meetingId,
-      actor.userId,
-    ).catch(() => undefined);
+    const isHost = meeting.hostId === actor.userId;
+    const participant = await this.prisma.user.findUnique({
+      where: { id: actor.userId },
+      select: { name: true, firstName: true, lastName: true },
+    });
+    const displayName = this.displayName(participant || {});
 
-    // Prune peers not seen for 25 seconds
-    await this.prisma.$executeRawUnsafe(
-      `DELETE FROM nexus_meeting_active_peers WHERE meeting_id = $1 AND last_seen < NOW() - INTERVAL '25 seconds'`,
-      meetingId,
-    ).catch(() => undefined);
+    // Upsert peer presence with latest heartbeat state
+    await this.prisma.nexusMeetingActivePeer.upsert({
+      where: { meetingId_userId: { meetingId, userId: actor.userId } },
+      create: {
+        meetingId,
+        userId: actor.userId,
+        userName: displayName,
+        role: actor.role,
+        isHost,
+        micOn: input.micOn ?? true,
+        cameraOn: input.cameraOn ?? false,
+        raisedHand: input.raisedHand ?? false,
+        isScreenSharing: input.isScreenSharing ?? false,
+        lastSeen: new Date(),
+      },
+      update: {
+        micOn: input.micOn !== undefined ? input.micOn : undefined,
+        cameraOn: input.cameraOn !== undefined ? input.cameraOn : undefined,
+        raisedHand: input.raisedHand !== undefined ? input.raisedHand : undefined,
+        isScreenSharing: input.isScreenSharing !== undefined ? input.isScreenSharing : undefined,
+        lastSeen: new Date(),
+      },
+    });
+
+    // Prune stale peers not seen in last 25 seconds
+    const staleThreshold = new Date(Date.now() - 25_000);
+    await this.prisma.nexusMeetingActivePeer.deleteMany({
+      where: { meetingId, lastSeen: { lt: staleThreshold } },
+    });
 
     // Query active peers
-    const rawPeers = await this.prisma.$queryRawUnsafe(
-      `SELECT user_id as "userId", user_name as "userName", role, is_host as "isHost",
-              mic_on as "micOn", camera_on as "cameraOn", raised_hand as "raisedHand",
-              is_screen_sharing as "isScreenSharing"
-       FROM nexus_meeting_active_peers
-       WHERE meeting_id = $1
-       ORDER BY is_host DESC, user_name ASC`,
-      meetingId,
-    ).catch(() => []);
-    const peers = Array.isArray(rawPeers) ? rawPeers : [];
+    const peers = await this.prisma.nexusMeetingActivePeer.findMany({
+      where: { meetingId },
+      orderBy: [{ isHost: 'desc' }, { userName: 'asc' }],
+    });
 
-    // Query new chat messages
+    // Query new messages
     const lastTime = input.lastMessageTime ? new Date(input.lastMessageTime) : new Date(Date.now() - 60_000);
-    const rawMessages = await this.prisma.$queryRawUnsafe(
-      `SELECT id, user_id as "userId", user_name as "userName", message, created_at as "createdAt"
-       FROM nexus_meeting_messages
-       WHERE meeting_id = $1 AND created_at > $2
-       ORDER BY created_at ASC
-       LIMIT 50`,
-      meetingId,
-      lastTime,
-    ).catch(() => []);
-    const messages = Array.isArray(rawMessages) ? rawMessages : [];
+    const messages = await this.prisma.nexusMeetingMessage.findMany({
+      where: { meetingId, createdAt: { gt: lastTime } },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    });
 
     return {
       meetingStatus: meeting.status,
-      peers,
+      peers: peers.map((p) => ({
+        userId: p.userId,
+        userName: p.userName,
+        role: p.role,
+        isHost: p.isHost,
+        micOn: p.micOn,
+        cameraOn: p.cameraOn,
+        raisedHand: p.raisedHand,
+        isScreenSharing: p.isScreenSharing,
+      })),
       messages: messages.map((m) => ({
         id: m.id,
         userId: m.userId,
         userName: m.userName,
         message: m.message,
-        createdAt: new Date(m.createdAt).getTime(),
+        createdAt: m.createdAt.getTime(),
       })),
     };
   }
 
   async sendSignal(actor: MeetingActor, meetingId: string, input: MeetingSignalDto) {
-    const id = randomUUID();
-    const signalData = JSON.stringify(input.signal);
-    await this.prisma.$executeRawUnsafe(
-      `INSERT INTO nexus_meeting_signals (id, meeting_id, from_user_id, to_user_id, signal_data, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())`,
-      id,
-      meetingId,
-      actor.userId,
-      input.toUserId,
-      signalData,
-    ).catch(() => undefined);
+    await this.prisma.nexusMeetingSignal.create({
+      data: {
+        meetingId,
+        fromUserId: actor.userId,
+        toUserId: input.toUserId,
+        signalData: JSON.stringify(input.signal),
+      },
+    });
     return { ok: true };
   }
 
   async getSignals(actor: MeetingActor, meetingId: string) {
-    const rawSignals = await this.prisma.$queryRawUnsafe(
-      `SELECT id, from_user_id as "fromUserId", signal_data as "signalData", created_at as "createdAt"
-       FROM nexus_meeting_signals
-       WHERE meeting_id = $1 AND to_user_id = $2
-       ORDER BY created_at ASC`,
-      meetingId,
-      actor.userId,
-    ).catch(() => []);
-    const signals = Array.isArray(rawSignals) ? rawSignals : [];
+    const signals = await this.prisma.nexusMeetingSignal.findMany({
+      where: { meetingId, toUserId: actor.userId },
+      orderBy: { createdAt: 'asc' },
+    });
 
     if (signals.length > 0) {
-      await this.prisma.$executeRawUnsafe(
-        `DELETE FROM nexus_meeting_signals WHERE meeting_id = $1 AND to_user_id = $2`,
-        meetingId,
-        actor.userId,
-      ).catch(() => undefined);
+      await this.prisma.nexusMeetingSignal.deleteMany({
+        where: { id: { in: signals.map((s) => s.id) } },
+      });
     }
 
     // Opportunistically prune signals older than 60 seconds
-    await this.prisma.$executeRawUnsafe(
-      `DELETE FROM nexus_meeting_signals WHERE created_at < NOW() - INTERVAL '60 seconds'`,
-    ).catch(() => undefined);
+    const oldThreshold = new Date(Date.now() - 60_000);
+    await this.prisma.nexusMeetingSignal.deleteMany({
+      where: { createdAt: { lt: oldThreshold } },
+    });
 
     return signals.map((s) => {
       let parsed = null;
@@ -649,7 +612,7 @@ export class MeetingsService implements OnModuleInit {
         id: s.id,
         fromUserId: s.fromUserId,
         signal: parsed,
-        createdAt: s.createdAt,
+        createdAt: s.createdAt.toISOString(),
       };
     });
   }
@@ -658,25 +621,23 @@ export class MeetingsService implements OnModuleInit {
     const meeting = await this.findAuthorizedMeeting(actor, meetingId);
     const participant = meeting.participants.find((item) => item.userId === actor.userId);
     const displayName = this.displayName(actor.userId === meeting.host.id ? meeting.host : (participant?.user || {}));
-    const id = randomUUID();
     const cleanMessage = input.message.trim().slice(0, 1200);
 
-    await this.prisma.$executeRawUnsafe(
-      `INSERT INTO nexus_meeting_messages (id, meeting_id, user_id, user_name, message, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())`,
-      id,
-      meetingId,
-      actor.userId,
-      displayName,
-      cleanMessage,
-    );
+    const msg = await this.prisma.nexusMeetingMessage.create({
+      data: {
+        meetingId,
+        userId: actor.userId,
+        userName: displayName,
+        message: cleanMessage,
+      },
+    });
 
     return {
-      id,
-      userId: actor.userId,
-      userName: displayName,
-      message: cleanMessage,
-      createdAt: Date.now(),
+      id: msg.id,
+      userId: msg.userId,
+      userName: msg.userName,
+      message: msg.message,
+      createdAt: msg.createdAt.getTime(),
     };
   }
 
@@ -686,11 +647,9 @@ export class MeetingsService implements OnModuleInit {
       where: { meetingId: meeting.id, userId: actor.userId, joinedAt: { not: null } },
       data: { leftAt: new Date() },
     });
-    await this.prisma.$executeRawUnsafe(
-      `DELETE FROM nexus_meeting_active_peers WHERE meeting_id = $1 AND user_id = $2`,
-      meeting.id,
-      actor.userId,
-    ).catch(() => undefined);
+    await this.prisma.nexusMeetingActivePeer.deleteMany({
+      where: { meetingId: meeting.id, userId: actor.userId },
+    });
     return { ok: true };
   }
 
@@ -706,8 +665,8 @@ export class MeetingsService implements OnModuleInit {
       }
     }
     await this.prisma.nexusMeeting.update({ where: { id: meeting.id }, data: { status: 'ENDED', endedAt: new Date() } });
-    await this.prisma.$executeRawUnsafe(`DELETE FROM nexus_meeting_active_peers WHERE meeting_id = $1`, meeting.id).catch(() => undefined);
-    await this.prisma.$executeRawUnsafe(`DELETE FROM nexus_meeting_signals WHERE meeting_id = $1`, meeting.id).catch(() => undefined);
+    await this.prisma.nexusMeetingActivePeer.deleteMany({ where: { meetingId: meeting.id } });
+    await this.prisma.nexusMeetingSignal.deleteMany({ where: { meetingId: meeting.id } });
     await this.prisma.auditLog.create({
       data: { schoolId: meeting.schoolId, userId: actor.userId, action: 'nexus_meeting.ended', entityType: 'nexus_meeting', entityId: meeting.id },
     });
@@ -738,42 +697,37 @@ export class MeetingsService implements OnModuleInit {
       await this.roomService(config).removeParticipant(meeting.roomName, participantId, { revokeTokenTs: BigInt(Math.floor(Date.now() / 1000)) }).catch(() => undefined);
     }
     await this.prisma.nexusMeetingParticipant.updateMany({ where: { meetingId, userId: participantId }, data: { leftAt: new Date() } });
-    await this.prisma.$executeRawUnsafe(`DELETE FROM nexus_meeting_active_peers WHERE meeting_id = $1 AND user_id = $2`, meetingId, participantId).catch(() => undefined);
+    await this.prisma.nexusMeetingActivePeer.deleteMany({ where: { meetingId, userId: participantId } });
     
     // Broadcast kick signal to the participant
-    const kickSignal = JSON.stringify({ type: 'kick', reason: 'removed_by_host' });
-    await this.prisma.$executeRawUnsafe(
-      `INSERT INTO nexus_meeting_signals (id, meeting_id, from_user_id, to_user_id, signal_data, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())`,
-      randomUUID(),
-      meetingId,
-      actor.userId,
-      participantId,
-      kickSignal,
-    ).catch(() => undefined);
+    await this.prisma.nexusMeetingSignal.create({
+      data: {
+        meetingId,
+        fromUserId: actor.userId,
+        toUserId: participantId,
+        signalData: JSON.stringify({ type: 'kick', reason: 'removed_by_host' }),
+      },
+    });
     return { ok: true };
   }
 
   async muteParticipant(actor: MeetingActor, meetingId: string, participantId: string) {
     const meeting = await this.findMeetingForManagement(actor, meetingId);
     if (meeting.status !== 'LIVE') throw new ConflictException('الاجتماع ليس في حالة بث مباشر.');
-    await this.prisma.$executeRawUnsafe(
-      `UPDATE nexus_meeting_active_peers SET mic_on = false WHERE meeting_id = $1 AND user_id = $2`,
-      meetingId,
-      participantId,
-    ).catch(() => undefined);
+    await this.prisma.nexusMeetingActivePeer.updateMany({
+      where: { meetingId, userId: participantId },
+      data: { micOn: false },
+    });
     
     // Broadcast mute signal to the participant
-    const muteSignal = JSON.stringify({ type: 'mute', fromUserId: actor.userId });
-    await this.prisma.$executeRawUnsafe(
-      `INSERT INTO nexus_meeting_signals (id, meeting_id, from_user_id, to_user_id, signal_data, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())`,
-      randomUUID(),
-      meetingId,
-      actor.userId,
-      participantId,
-      muteSignal,
-    ).catch(() => undefined);
+    await this.prisma.nexusMeetingSignal.create({
+      data: {
+        meetingId,
+        fromUserId: actor.userId,
+        toUserId: participantId,
+        signalData: JSON.stringify({ type: 'mute', fromUserId: actor.userId }),
+      },
+    });
     return { ok: true };
   }
 
