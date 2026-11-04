@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { apiClient } from '@/lib/api-client'
 import {
   AlertCircle, ArrowLeft, Check, Copy, Hand, Info, Loader2, Maximize2, MessageCircle, Mic, MicOff,
-  MonitorUp, PhoneOff, Send, Shield, Users, Video, VideoOff, Volume2, VolumeX, X,
+  MonitorUp, PhoneOff, Send, Shield, Users, Video, VideoOff, Volume2, VolumeX, X, Radio, Sparkles
 } from 'lucide-react'
 
 type StaffMember = { id: string; name: string; role: string; avatar?: string | null }
@@ -61,18 +61,21 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun4.l.google.com:19302' },
 ]
 
+/** Stage or Strip Participant Video Card */
 function StreamTile({
   stream,
   name,
   isLocal,
   isHost,
+  isSpotlight,
   cameraOn,
   micOn,
   speaking,
   raisedHand,
   isScreenSharing,
   canManage,
-  onMute,
+  onMuteToggle,
+  onCameraToggle,
   onKick,
   isEnglish,
 }: {
@@ -80,23 +83,24 @@ function StreamTile({
   name: string
   isLocal?: boolean
   isHost?: boolean
+  isSpotlight?: boolean
   cameraOn?: boolean
   micOn?: boolean
   speaking?: boolean
   raisedHand?: boolean
   isScreenSharing?: boolean
   canManage?: boolean
-  onMute?: () => void
+  onMuteToggle?: () => void
+  onCameraToggle?: () => void
   onKick?: () => void
   isEnglish: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
-  // Stream detection: video is visible whenever an active video track exists
   const hasActiveVideoTrack = Boolean(
     stream && stream.getVideoTracks().some((t) => t.enabled && t.readyState === 'live')
   )
-  const isVideoVisible = isLocal ? Boolean(cameraOn && hasActiveVideoTrack) : hasActiveVideoTrack
+  const isVideoVisible = Boolean(isScreenSharing || ((cameraOn ?? true) && hasActiveVideoTrack))
 
   useEffect(() => {
     if (!videoRef.current) return
@@ -105,37 +109,47 @@ function StreamTile({
     } else {
       videoRef.current.srcObject = null
     }
-  }, [stream, isVideoVisible])
+  }, [stream, isVideoVisible, cameraOn])
 
   const initials = name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('') || 'ن'
 
   return (
-    <article className={`group relative min-h-56 overflow-hidden rounded-2xl border bg-[#112b3a] shadow-md transition-all sm:min-h-72 ${speaking ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-[#0f2633]' : 'border-white/10'}`}>
+    <article
+      className={`group relative overflow-hidden rounded-2xl border bg-[#112b3a] shadow-lg transition-all ${
+        isSpotlight
+          ? 'h-full min-h-[420px] sm:min-h-[520px] xl:min-h-[580px] w-full border-amber-400/30'
+          : 'h-44 sm:h-52 min-w-[200px] sm:min-w-[240px] border-white/10'
+      } ${speaking ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-[#0f2633]' : ''}`}
+    >
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted={isLocal}
-        className={`h-full w-full object-cover ${isVideoVisible ? 'block' : 'hidden'}`}
+        className={`h-full w-full ${isSpotlight ? 'object-contain sm:object-cover' : 'object-cover'} ${isVideoVisible ? 'block' : 'hidden'}`}
       />
       {!isVideoVisible && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-[#1c3f56] to-[#0c1f2b] text-white">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/20 bg-white/10 text-2xl font-bold uppercase shadow-inner">
+          <div
+            className={`flex items-center justify-center rounded-full border border-white/20 bg-white/10 font-bold uppercase shadow-inner ${
+              isSpotlight ? 'h-24 w-24 text-4xl' : 'h-14 w-14 text-xl'
+            }`}
+          >
             {initials}
           </div>
-          <span className="text-xs text-white/70">
+          <span className={`${isSpotlight ? 'text-sm' : 'text-xs'} text-white/70 font-medium`}>
             {isEnglish ? 'Camera off' : 'الكاميرا مغلقة'}
           </span>
         </div>
       )}
 
-      {/* Floating Badges */}
+      {/* Floating Badges (Top) */}
       <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 pointer-events-none">
         <div className="flex items-center gap-1.5 flex-wrap">
           {isHost && (
-            <span className="inline-flex items-center gap-1 rounded-lg bg-amber-500/90 px-2 py-0.5 text-[11px] font-bold text-white shadow">
-              <Shield className="h-3 w-3" />
-              {isEnglish ? 'Host' : 'المعلم / المنظم'}
+            <span className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-md">
+              <Shield className="h-3.5 w-3.5" />
+              {isEnglish ? 'Teacher / Host' : 'المعلم / مقدم الدرس'}
             </span>
           )}
           {raisedHand && (
@@ -144,30 +158,39 @@ function StreamTile({
             </span>
           )}
           {isScreenSharing && (
-            <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-600/90 px-2 py-0.5 text-[11px] font-bold text-white shadow">
-              <MonitorUp className="h-3 w-3" />
+            <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-0.5 text-[11px] font-bold text-white shadow">
+              <MonitorUp className="h-3.5 w-3.5" />
               {isEnglish ? 'Screen' : 'مشاركة الشاشة'}
             </span>
           )}
         </div>
 
-        {/* Host controls on student tile */}
+        {/* Teacher Moderation Controls on Student Card */}
         {canManage && !isLocal && (
-          <div className="pointer-events-auto opacity-0 transition-opacity group-hover:opacity-100 flex items-center gap-1 bg-black/75 rounded-xl p-1 backdrop-blur-sm shadow">
-            {onMute && (
+          <div className="pointer-events-auto flex items-center gap-1.5 bg-black/80 rounded-xl p-1.5 backdrop-blur-md shadow-lg border border-white/10 opacity-95 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+            {onMuteToggle && (
               <button
-                onClick={onMute}
-                title={isEnglish ? 'Mute microphone' : 'كتم صوت المشارك'}
-                className="rounded-lg p-1.5 text-white hover:bg-white/20 transition-colors"
+                onClick={onMuteToggle}
+                title={micOn ? (isEnglish ? 'Mute microphone' : 'كتم المايكروفون') : (isEnglish ? 'Request microphone' : 'طلب فتح المايكروفون')}
+                className={`rounded-lg p-1.5 text-white transition-colors ${micOn ? 'hover:bg-rose-600 bg-rose-600/30' : 'hover:bg-emerald-600 bg-emerald-600/30'}`}
               >
-                <MicOff className="h-3.5 w-3.5 text-amber-300" />
+                {micOn ? <MicOff className="h-3.5 w-3.5 text-rose-300" /> : <Mic className="h-3.5 w-3.5 text-emerald-300" />}
+              </button>
+            )}
+            {onCameraToggle && (
+              <button
+                onClick={onCameraToggle}
+                title={cameraOn ? (isEnglish ? 'Close camera' : 'إغلاق الكاميرا') : (isEnglish ? 'Request camera' : 'طلب فتح الكاميرا')}
+                className={`rounded-lg p-1.5 text-white transition-colors ${cameraOn ? 'hover:bg-rose-600 bg-rose-600/30' : 'hover:bg-blue-600 bg-blue-600/30'}`}
+              >
+                {cameraOn ? <VideoOff className="h-3.5 w-3.5 text-rose-300" /> : <Video className="h-3.5 w-3.5 text-blue-300" />}
               </button>
             )}
             {onKick && (
               <button
                 onClick={onKick}
-                title={isEnglish ? 'Remove participant' : 'طرد من الاجتماع'}
-                className="rounded-lg p-1.5 text-white hover:bg-rose-600 transition-colors"
+                title={isEnglish ? 'Remove from room' : 'طرد من القاعة'}
+                className="rounded-lg p-1.5 text-white hover:bg-rose-600 transition-colors bg-white/10"
               >
                 <X className="h-3.5 w-3.5 text-rose-300" />
               </button>
@@ -178,11 +201,11 @@ function StreamTile({
 
       {/* Bottom Info Bar */}
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pb-3 pt-8 text-white">
-        <span className="max-w-[75%] truncate text-sm font-semibold">
+        <span className={`truncate font-semibold ${isSpotlight ? 'text-base sm:text-lg max-w-[80%]' : 'text-xs sm:text-sm max-w-[75%]'}`}>
           {name}{isLocal ? (isEnglish ? ' (You)' : ' (أنت)') : ''}
         </span>
         <span
-          className={`rounded-lg p-1.5 ${micOn ? 'bg-emerald-600/80' : 'bg-rose-600/80'}`}
+          className={`rounded-lg p-1.5 ${micOn ? 'bg-emerald-600/90' : 'bg-rose-600/90'}`}
           aria-label={micOn ? 'Microphone on' : 'Microphone muted'}
         >
           {micOn ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5 text-white" />}
@@ -197,7 +220,8 @@ function RemoteAudioMount({ stream }: { stream: MediaStream }) {
   useEffect(() => {
     if (audioRef.current && stream) {
       audioRef.current.srcObject = stream
-      audioRef.current.play().catch(() => undefined)
+      const playPromise = audioRef.current.play()
+      if (playPromise) playPromise.catch(() => undefined)
     }
   }, [stream])
   return (
@@ -229,6 +253,13 @@ export default function NexusMeetingRoomPage() {
   const [handRaised, setHandRaised] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [interactivePrompt, setInteractivePrompt] = useState<{
+    type: 'unmute' | 'camera'
+    title: string
+    actionText: string
+    action: () => void
+  } | null>(null)
+
   const [chat, setChat] = useState<MeetingChatItem[]>([])
   const [chatDraft, setChatDraft] = useState('')
   const [chatOpen, setChatOpen] = useState(false)
@@ -358,7 +389,6 @@ export default function NexusMeetingRoomPage() {
 
     pc.ontrack = (event) => {
       const incomingStream = event.streams[0] || new MediaStream([event.track])
-      // Merge track if stream already exists
       const existing = remoteStreamsRef.current.get(remoteUserId)
       if (existing) {
         if (!existing.getTracks().some((t) => t.id === event.track.id)) {
@@ -389,7 +419,6 @@ export default function NexusMeetingRoomPage() {
     }
 
     if (isInitiator) {
-      // Create data channel to ensure handshake completes cleanly
       try { pc.createDataChannel('nexus-control') } catch {}
 
       void (async () => {
@@ -443,7 +472,6 @@ export default function NexusMeetingRoomPage() {
         data.peers.forEach((peer) => {
           if (peer.userId === profile?.id) return
           if (!peerConnectionsRef.current.has(peer.userId)) {
-            // Deterministic initiator: user with higher ID initiates the call
             const isInitiator = (profile?.id || '') > peer.userId
             getOrCreatePeerConnection(peer.userId, isInitiator)
           }
@@ -490,7 +518,7 @@ export default function NexusMeetingRoomPage() {
     }
   }, [connected, meeting, microphoneOn, cameraOn, handRaised, screenShareOn, profile?.id, getOrCreatePeerConnection, cleanupMedia, isEnglish, router])
 
-  // Signal polling loop: fetches SDP offers/answers/ICE candidates addressed to me
+  // Signal polling loop: fetches SDP offers/answers/ICE candidates and Teacher moderation commands
   useEffect(() => {
     if (!connected || !meeting) return
 
@@ -508,7 +536,7 @@ export default function NexusMeetingRoomPage() {
           const { fromUserId, signal } = item
           if (!signal || !fromUserId) continue
 
-          // Handle special control signals
+          // ── Teacher Moderation Actions ──
           if (signal.type === 'kick') {
             cleanupMedia()
             setError(isEnglish ? 'You were removed from this meeting by the teacher.' : 'تم استبعادك من هذا الاجتماع من قِبل المعلم.')
@@ -516,7 +544,7 @@ export default function NexusMeetingRoomPage() {
             return
           }
 
-          if (signal.type === 'mute') {
+          if (signal.type === 'force_mute') {
             if (localStreamRef.current) {
               localStreamRef.current.getAudioTracks().forEach((track) => {
                 track.enabled = false
@@ -527,7 +555,44 @@ export default function NexusMeetingRoomPage() {
             continue
           }
 
-          // Handle WebRTC handshake signals
+          if (signal.type === 'force_camera_off') {
+            if (localStreamRef.current) {
+              localStreamRef.current.getVideoTracks().forEach((track) => {
+                track.enabled = false
+              })
+            }
+            setCameraOn(false)
+            setNotice(isEnglish ? 'The teacher turned off your camera.' : 'قام المعلم بإغلاق الكاميرا الخاصة بك.')
+            continue
+          }
+
+          if (signal.type === 'request_unmute') {
+            setInteractivePrompt({
+              type: 'unmute',
+              title: isEnglish ? 'The teacher requested you to speak.' : 'طلب منك المعلم التحدث (فتح المايكروفون).',
+              actionText: isEnglish ? 'Unmute microphone' : 'تشغيل المايكروفون الآن',
+              action: () => {
+                void toggleMicrophone()
+                setInteractivePrompt(null)
+              },
+            })
+            continue
+          }
+
+          if (signal.type === 'request_camera_on') {
+            setInteractivePrompt({
+              type: 'camera',
+              title: isEnglish ? 'The teacher requested you to turn on your camera.' : 'طلب منك المعلم تشغيل الكاميرا الخاصة بك.',
+              actionText: isEnglish ? 'Turn on camera' : 'تشغيل الكاميرا الآن',
+              action: () => {
+                void toggleCamera()
+                setInteractivePrompt(null)
+              },
+            })
+            continue
+          }
+
+          // ── WebRTC Handshake Signals ──
           const pc = getOrCreatePeerConnection(fromUserId, false)
 
           if (signal.type === 'offer' && signal.sdp) {
@@ -552,7 +617,7 @@ export default function NexusMeetingRoomPage() {
               try {
                 await pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
               } catch {
-                // Ignore late/invalid candidate
+                // Ignore late candidate
               }
             }
           }
@@ -583,21 +648,20 @@ export default function NexusMeetingRoomPage() {
         try {
           localStream = await navigator.mediaDevices.getUserMedia({
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-            video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { max: 20 } },
+            video: true,
           })
           setMicrophoneOn(true)
           setCameraOn(true)
         } catch {
-          // If video failed (e.g. no camera attached on desktop), fallback to audio only
+          // Fallback to audio only
           try {
             localStream = await navigator.mediaDevices.getUserMedia({
               audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
             })
             setMicrophoneOn(true)
             setCameraOn(false)
-            setNotice(isEnglish ? 'Connected with audio (camera unavailable on this device).' : 'تم الدخول بالصوت (الكاميرا غير متوفرة أو معطلة في المتصفح).')
+            setNotice(isEnglish ? 'Connected with audio only (camera unavailable).' : 'تم الدخول بالصوت (الكاميرا غير متوفرة أو معطلة في المتصفح).')
           } catch {
-            // Join as listener without media tracks
             localStream = null
             setMicrophoneOn(false)
             setCameraOn(false)
@@ -609,7 +673,6 @@ export default function NexusMeetingRoomPage() {
 
       setConnectionLabel(isEnglish ? 'Entering classroom...' : 'الدخول لقاعة الاجتماع...')
 
-      // 2. Register join in API
       await apiClient.post<{
         mode?: string
         meeting: { id: string; title: string; status: string; hostId: string }
@@ -636,10 +699,10 @@ export default function NexusMeetingRoomPage() {
         setMicrophoneOn(true)
         stream.getAudioTracks().forEach((track) => {
           peerConnectionsRef.current.forEach((pc) => {
-            const senders = pc.getSenders()
-            const audioSender = senders.find((s) => s.track?.kind === 'audio')
-            if (audioSender) {
-              void audioSender.replaceTrack(track)
+            const audioTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'audio' || t.sender.track?.kind === 'audio')
+            if (audioTransceiver?.sender) {
+              void audioTransceiver.sender.replaceTrack(track)
+              audioTransceiver.direction = 'sendrecv'
             } else {
               pc.addTrack(track, stream)
             }
@@ -652,17 +715,17 @@ export default function NexusMeetingRoomPage() {
         return
       }
     }
-    const audioTracks = localStreamRef.current.getAudioTracks()
-    if (audioTracks.length === 0) {
+    const liveAudioTrack = localStreamRef.current.getAudioTracks().find((t) => t.readyState === 'live')
+    if (!liveAudioTrack) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
         const track = stream.getAudioTracks()[0]
         localStreamRef.current.addTrack(track)
         peerConnectionsRef.current.forEach((pc) => {
-          const senders = pc.getSenders()
-          const audioSender = senders.find((s) => s.track?.kind === 'audio')
-          if (audioSender) {
-            void audioSender.replaceTrack(track)
+          const audioTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'audio' || t.sender.track?.kind === 'audio')
+          if (audioTransceiver?.sender) {
+            void audioTransceiver.sender.replaceTrack(track)
+            audioTransceiver.direction = 'sendrecv'
           } else {
             pc.addTrack(track, localStreamRef.current!)
           }
@@ -676,12 +739,13 @@ export default function NexusMeetingRoomPage() {
       }
     }
     const nextState = !microphoneOn
-    audioTracks.forEach((t) => { t.enabled = nextState })
+    liveAudioTrack.enabled = nextState
     setMicrophoneOn(nextState)
   }
 
-  // Toggle camera
+  // Toggle camera (with robust transceiver track replacement)
   const toggleCamera = async () => {
+    // If no stream exists yet, request camera
     if (!localStreamRef.current) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
@@ -690,10 +754,10 @@ export default function NexusMeetingRoomPage() {
         setMicrophoneOn(true)
         stream.getTracks().forEach((track) => {
           peerConnectionsRef.current.forEach((pc) => {
-            const senders = pc.getSenders()
-            const sender = senders.find((s) => s.track?.kind === track.kind)
-            if (sender) {
-              void sender.replaceTrack(track)
+            const transceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === track.kind || t.sender.track?.kind === track.kind)
+            if (transceiver?.sender) {
+              void transceiver.sender.replaceTrack(track)
+              transceiver.direction = 'sendrecv'
             } else {
               pc.addTrack(track, stream)
             }
@@ -701,22 +765,31 @@ export default function NexusMeetingRoomPage() {
         })
         setStreamVersion((v) => v + 1)
         return
-      } catch {
-        setNotice(isEnglish ? 'Camera is unavailable or blocked in this browser.' : 'الكاميرا غير متوفرة أو معطلة في المتصفح.')
+      } catch (err: any) {
+        if (err?.name === 'NotReadableError') {
+          setNotice(isEnglish ? 'Camera is currently in use by another tab or program.' : 'الكاميرا قيد الاستخدام حالياً في نافذة أخرى (أو برنامج آخر).')
+        } else if (err?.name === 'NotAllowedError') {
+          setNotice(isEnglish ? 'Camera permission was denied in browser settings.' : 'تم رفض إذن الكاميرا. اضغط على أيقونة القفل بجانب الرابط للسماح.')
+        } else if (err?.name === 'NotFoundError') {
+          setNotice(isEnglish ? 'No camera device found.' : 'لم يتم العثور على كاميرا في هذا الجهاز.')
+        } else {
+          setNotice(isEnglish ? 'Could not open camera.' : `تعذر تشغيل الكاميرا (${err?.name || 'خطأ'})`)
+        }
         return
       }
     }
-    const videoTracks = localStreamRef.current.getVideoTracks()
-    if (videoTracks.length === 0) {
+
+    const liveVideoTrack = localStreamRef.current.getVideoTracks().find((t) => t.readyState === 'live')
+    if (!liveVideoTrack) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 360 } })
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true })
         const track = stream.getVideoTracks()[0]
         localStreamRef.current.addTrack(track)
         peerConnectionsRef.current.forEach((pc) => {
-          const senders = pc.getSenders()
-          const videoSender = senders.find((s) => s.track?.kind === 'video')
-          if (videoSender) {
-            void videoSender.replaceTrack(track)
+          const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
+          if (videoTransceiver?.sender) {
+            void videoTransceiver.sender.replaceTrack(track)
+            videoTransceiver.direction = 'sendrecv'
           } else {
             pc.addTrack(track, localStreamRef.current!)
           }
@@ -724,14 +797,22 @@ export default function NexusMeetingRoomPage() {
         setCameraOn(true)
         setStreamVersion((v) => v + 1)
         return
-      } catch {
-        setNotice(isEnglish ? 'Camera is unavailable or blocked in this browser.' : 'الكاميرا غير متوفرة أو معطلة في هذا الجهاز.')
+      } catch (err: any) {
+        if (err?.name === 'NotReadableError') {
+          setNotice(isEnglish ? 'Camera is currently in use by another tab.' : 'الكاميرا قيد الاستخدام حالياً في نافذة المعلم أو تطبيق آخر.')
+        } else if (err?.name === 'NotAllowedError') {
+          setNotice(isEnglish ? 'Camera permission was denied in browser settings.' : 'يرجى السماح بالكاميرا من إعدادات المتصفح.')
+        } else {
+          setNotice(isEnglish ? 'Could not access camera.' : `تعذر تشغيل الكاميرا (${err?.name || 'غير متوفرة'})`)
+        }
         return
       }
     }
+
     const nextState = !cameraOn
-    videoTracks.forEach((t) => { t.enabled = nextState })
+    liveVideoTrack.enabled = nextState
     setCameraOn(nextState)
+    setStreamVersion((v) => v + 1)
   }
 
   // Toggle screen share
@@ -744,10 +825,9 @@ export default function NexusMeetingRoomPage() {
       setScreenShareOn(false)
       const cameraTrack = localStreamRef.current?.getVideoTracks()[0] || null
       peerConnectionsRef.current.forEach((pc) => {
-        const senders = pc.getSenders()
-        const videoSender = senders.find((s) => s.track?.kind === 'video')
-        if (videoSender && cameraTrack) {
-          void videoSender.replaceTrack(cameraTrack)
+        const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
+        if (videoTransceiver?.sender && cameraTrack) {
+          void videoTransceiver.sender.replaceTrack(cameraTrack)
         }
       })
       setStreamVersion((v) => v + 1)
@@ -768,10 +848,9 @@ export default function NexusMeetingRoomPage() {
       }
 
       peerConnectionsRef.current.forEach((pc) => {
-        const senders = pc.getSenders()
-        const videoSender = senders.find((s) => s.track?.kind === 'video')
-        if (videoSender) {
-          void videoSender.replaceTrack(screenTrack)
+        const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
+        if (videoTransceiver?.sender) {
+          void videoTransceiver.sender.replaceTrack(screenTrack)
         } else {
           pc.addTrack(screenTrack, stream)
         }
@@ -817,13 +896,59 @@ export default function NexusMeetingRoomPage() {
     }
   }
 
-  // Host: Mute a student
-  const muteStudent = async (studentId: string) => {
+  // Host: Toggle Student Mic (Mute or Request Unmute)
+  const handleTeacherMicToggle = async (studentId: string, currentlyMicOn: boolean) => {
     if (!meeting) return
     try {
-      await apiClient.post(`/meetings/${meeting.id}/participants/${studentId}/mute`)
+      if (currentlyMicOn) {
+        // Force mute
+        await apiClient.post(`/meetings/${meeting.id}/participants/${studentId}/mute`)
+        setNotice(isEnglish ? 'Student microphone muted.' : 'تم كتم مايكروفون الطالب.')
+      } else {
+        // Request unmute
+        await apiClient.post(`/meetings/${meeting.id}/signal`, {
+          toUserId: studentId,
+          signal: { type: 'request_unmute' },
+        })
+        setNotice(isEnglish ? 'Sent unmute request to student.' : 'تم إرسال طلب فتح المايكروفون للطالب.')
+      }
     } catch {
-      setNotice(isEnglish ? 'Could not mute participant.' : 'تعذر كتم صوت المشارك.')
+      setNotice(isEnglish ? 'Could not control student microphone.' : 'تعذر التحكم في مايكروفون الطالب.')
+    }
+  }
+
+  // Host: Toggle Student Camera (Force off or Request on)
+  const handleTeacherCameraToggle = async (studentId: string, currentlyCameraOn: boolean) => {
+    if (!meeting) return
+    try {
+      if (currentlyCameraOn) {
+        // Force camera off
+        await apiClient.post(`/meetings/${meeting.id}/signal`, {
+          toUserId: studentId,
+          signal: { type: 'force_camera_off' },
+        })
+        setNotice(isEnglish ? 'Student camera turned off.' : 'تم إغلاق كاميرا الطالب.')
+      } else {
+        // Request camera on
+        await apiClient.post(`/meetings/${meeting.id}/signal`, {
+          toUserId: studentId,
+          signal: { type: 'request_camera_on' },
+        })
+        setNotice(isEnglish ? 'Sent camera request to student.' : 'تم إرسال طلب تشغيل الكاميرا للطالب.')
+      }
+    } catch {
+      setNotice(isEnglish ? 'Could not control student camera.' : 'تعذر التحكم في كاميرا الطالب.')
+    }
+  }
+
+  // Host: Mute All Students
+  const handleMuteAll = async () => {
+    if (!meeting) return
+    try {
+      await apiClient.post(`/meetings/${meeting.id}/mute-all`)
+      setNotice(isEnglish ? 'All students muted.' : 'تم كتم صوت جميع الطلاب بالقاعة.')
+    } catch {
+      setNotice(isEnglish ? 'Could not mute all students.' : 'تعذر كتم صوت الجميع.')
     }
   }
 
@@ -840,6 +965,7 @@ export default function NexusMeetingRoomPage() {
         pendingCandidatesRef.current.delete(studentId)
         setStreamVersion((v) => v + 1)
       }
+      setNotice(isEnglish ? 'Student removed from room.' : 'تم استبعاد الطالب من القاعة.')
     } catch {
       setNotice(isEnglish ? 'Could not remove participant.' : 'تعذر استبعاد المشارك.')
     }
@@ -883,8 +1009,14 @@ export default function NexusMeetingRoomPage() {
 
   const otherPeers = activePeers.filter((p) => p.userId !== profile?.id)
 
+  // ── Spotlight Role Mapping ──
+  // If current user is host -> Current user is Spotlight Presenter.
+  // If current user is student -> Teacher peer (if in room) is Spotlight Presenter.
+  const remoteHostPeer = otherPeers.find((p) => p.isHost)
+  const isTeacherOnStage = isHost || Boolean(remoteHostPeer)
+
   return (
-    <main className="mx-auto w-full max-w-[1550px] space-y-4" dir={isEnglish ? 'ltr' : 'rtl'}>
+    <main className="mx-auto w-full max-w-[1600px] space-y-4" dir={isEnglish ? 'ltr' : 'rtl'}>
       {/* Top Header */}
       <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-3 shadow-sm sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
@@ -944,7 +1076,7 @@ export default function NexusMeetingRoomPage() {
                   className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-rose-600 px-3 text-xs font-bold text-white shadow-sm hover:bg-rose-700 disabled:opacity-60"
                 >
                   {pendingEnd ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PhoneOff className="h-3.5 w-3.5" />}
-                  {isEnglish ? 'End meeting' : 'إنهاء الاجتماع للجميع'}
+                  {isEnglish ? 'End meeting' : 'إنهاء للجميع'}
                 </button>
               )}
 
@@ -961,6 +1093,30 @@ export default function NexusMeetingRoomPage() {
           )}
         </div>
       </header>
+
+      {/* Interactive Teacher Action Prompt (e.g. Unmute request, Camera request) */}
+      {interactivePrompt && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-md animate-in slide-in-from-top">
+          <div className="flex items-center gap-2">
+            <Radio className="h-5 w-5 text-amber-600 animate-pulse" />
+            <span className="font-bold">{interactivePrompt.title}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={interactivePrompt.action}
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-1.5 text-xs font-bold text-white shadow"
+            >
+              {interactivePrompt.actionText}
+            </button>
+            <button
+              onClick={() => setInteractivePrompt(null)}
+              className="rounded-xl border bg-white px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted"
+            >
+              {isEnglish ? 'Dismiss' : 'تجاهل'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Global Error Banner */}
       {error && (
@@ -979,7 +1135,7 @@ export default function NexusMeetingRoomPage() {
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600" />
           <p className="flex-1 font-medium">{notice}</p>
           <button onClick={() => setNotice('')} aria-label={isEnglish ? 'Dismiss' : 'إغلاق'} className="ms-auto text-blue-600 hover:text-blue-900">
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
       )}
@@ -1032,7 +1188,7 @@ export default function NexusMeetingRoomPage() {
                 <div>
                   <p className="font-bold text-base">{isEnglish ? 'Enter Meeting Room' : 'الدخول المباشر للقاعة'}</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {isEnglish ? 'Instant join using your platform account. No Google or external login required.' : 'دخول فوري بحسابك المسجل في المنصة بدون الحاجة لأي تسجيل خارجي أو جيميل.'}
+                    {isEnglish ? 'Instant join with full teacher control and platform account.' : 'دخول فوري بحسابك المسجل في المنصة بدون الحاجة لأي تسجيل خارجي.'}
                   </p>
                 </div>
                 <button
@@ -1051,78 +1207,141 @@ export default function NexusMeetingRoomPage() {
             <div className="flex items-start gap-2.5 rounded-xl bg-muted/60 p-3.5 text-xs leading-5 text-muted-foreground">
               <Shield className="mt-0.5 h-4 w-4 shrink-0 text-[#234a65]" />
               {isEnglish
-                ? 'Only invited school members can access. The display name is linked to your platform profile.'
-                : 'الدخول للحساب المدرسي في المنصة. الاسم يظهر مباشرة من حسابك بدون أي حساب خارجي.'}
+                ? 'Only school members can enter. Teacher has full moderation authority.'
+                : 'الدخول للحساب المدرسي في المنصة. المعلم يمتلك كامل صلاحيات إدارة القاعة.'}
             </div>
           </div>
         </section>
       ) : (
-        /* ── CONNECTED: Native WebRTC Video Conferencing Room ── */
+        /* ── CONNECTED: Spotlight Stage Classroom Layout ── */
         <div className={`grid gap-4 ${chatOpen || participantsOpen ? 'xl:grid-cols-[minmax(0,1fr)_340px]' : 'grid-cols-1'}`}>
-          <section className="flex flex-col overflow-hidden rounded-2xl border bg-[#0f2633] shadow-lg">
-            {/* Main Video Tiles Grid */}
-            <div className="grid min-h-[55vh] flex-1 grid-cols-1 gap-3 p-3 sm:grid-cols-2 sm:p-4 xl:min-h-[70vh] xl:grid-cols-3">
-              {/* Local User Tile */}
-              <StreamTile
-                stream={screenStreamRef.current || localStreamRef.current}
-                name={profile?.full_name || (isEnglish ? 'You' : 'أنت')}
-                isLocal
-                isHost={isHost}
-                cameraOn={cameraOn}
-                micOn={microphoneOn}
-                raisedHand={handRaised}
-                isScreenSharing={screenShareOn}
-                isEnglish={isEnglish}
-              />
-
-              {/* Remote Peer Tiles */}
-              {otherPeers.map((peer) => {
-                const remoteStream = remoteStreamsRef.current.get(peer.userId)
-                return (
-                  <div key={peer.userId}>
+          <section className="flex flex-col overflow-hidden rounded-2xl border bg-[#0f2633] shadow-lg p-3 sm:p-4 gap-3">
+            {/* ── STAGE VIEW (Main Hero Area for Teacher) ── */}
+            <div className="flex-1 flex flex-col gap-3 min-h-0">
+              {/* LARGE SPOTLIGHT: Teacher / Presenter */}
+              <div className="w-full flex-1 min-h-[380px] sm:min-h-[480px] xl:min-h-[540px]">
+                {isHost ? (
+                  /* Current user is the teacher -> Large Hero Stage */
+                  <StreamTile
+                    stream={screenStreamRef.current || localStreamRef.current}
+                    name={profile?.full_name || 'أنت'}
+                    isLocal
+                    isHost
+                    isSpotlight
+                    cameraOn={cameraOn}
+                    micOn={microphoneOn}
+                    raisedHand={handRaised}
+                    isScreenSharing={screenShareOn}
+                    isEnglish={isEnglish}
+                  />
+                ) : remoteHostPeer ? (
+                  /* Current user is a student -> Teacher is in Large Hero Stage */
+                  <div className="h-full w-full">
                     <StreamTile
-                      stream={remoteStream}
-                      name={peer.userName}
+                      stream={remoteStreamsRef.current.get(remoteHostPeer.userId)}
+                      name={remoteHostPeer.userName}
                       isLocal={false}
-                      isHost={peer.isHost}
-                      cameraOn={peer.cameraOn}
-                      micOn={peer.micOn}
-                      raisedHand={peer.raisedHand}
-                      isScreenSharing={peer.isScreenSharing}
-                      canManage={canManage}
-                      onMute={() => void muteStudent(peer.userId)}
-                      onKick={() => void kickStudent(peer.userId)}
+                      isHost
+                      isSpotlight
+                      cameraOn={remoteHostPeer.cameraOn}
+                      micOn={remoteHostPeer.micOn}
+                      raisedHand={remoteHostPeer.raisedHand}
+                      isScreenSharing={remoteHostPeer.isScreenSharing}
                       isEnglish={isEnglish}
                     />
-                    {remoteStream && <RemoteAudioMount stream={remoteStream} />}
+                    {remoteStreamsRef.current.get(remoteHostPeer.userId) && (
+                      <RemoteAudioMount stream={remoteStreamsRef.current.get(remoteHostPeer.userId)!} />
+                    )}
                   </div>
-                )
-              })}
+                ) : (
+                  /* Waiting for teacher to enter */
+                  <div className="h-full min-h-[380px] sm:min-h-[480px] rounded-2xl border border-white/10 bg-[#112b3a] flex flex-col items-center justify-center p-6 text-center text-white/70 gap-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
+                    <div>
+                      <p className="font-bold text-lg text-white">{isEnglish ? 'Waiting for Teacher to start stage...' : 'في انتظار اعتلاء المعلم المنصة...'}</p>
+                      <p className="text-xs text-white/50 mt-1">{isEnglish ? 'You are in the classroom. Teacher will appear here.' : 'أنت متواجد بالقاعة، وستظهر شاشة المعلم هنا فور دخوله.'}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-              {otherPeers.length === 0 && (
-                <div className="col-span-full flex min-h-64 flex-col items-center justify-center gap-3 text-sm text-white/70 p-6 text-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-white/60" />
-                  <div>
-                    <p className="font-semibold text-white/90 text-base">{isEnglish ? 'Waiting for others to join...' : 'في انتظار انضمام المشاركين الآخرين للقاعة...'}</p>
-                    <p className="text-xs text-white/50 mt-1">
-                      {isEnglish
-                        ? 'Share the meeting link with invited attendees or students to join the same room.'
-                        : 'يمكنك الضغط على «نسخ الرابط» بالأعلى ومشاركته مع الطرف الآخر ليدخل نفس القاعة فوراً.'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => void copyInviteLink()}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 px-3.5 py-1.5 text-xs font-semibold text-white transition-colors"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    {copied ? (isEnglish ? 'Link copied!' : 'تم نسخ الرابط!') : (isEnglish ? 'Copy meeting link' : 'نسخ رابط هذه القاعة')}
-                  </button>
+              {/* ── SECONDARY STRIP: Students & Classmates ── */}
+              <div className="w-full pt-1">
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <span className="text-xs font-bold text-white/80 flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-amber-400" />
+                    {isEnglish ? 'Classroom Participants' : 'طلاب ومشاركو القاعة'}
+                    <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] text-white">
+                      {isHost ? otherPeers.length : otherPeers.filter((p) => !p.isHost).length + 1}
+                    </span>
+                  </span>
+                  {canManage && otherPeers.length > 0 && (
+                    <button
+                      onClick={handleMuteAll}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 hover:text-amber-200 transition-colors bg-white/10 hover:bg-white/15 rounded-lg px-2.5 py-1"
+                    >
+                      <MicOff className="h-3 w-3" />
+                      {isEnglish ? 'Mute All Students' : 'كتم صوت الجميع'}
+                    </button>
+                  )}
                 </div>
-              )}
+
+                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/20">
+                  {/* If user is student, render local student tile in the secondary strip */}
+                  {!isHost && (
+                    <div className="shrink-0">
+                      <StreamTile
+                        stream={screenStreamRef.current || localStreamRef.current}
+                        name={profile?.full_name || 'أنت'}
+                        isLocal
+                        isHost={false}
+                        cameraOn={cameraOn}
+                        micOn={microphoneOn}
+                        raisedHand={handRaised}
+                        isScreenSharing={screenShareOn}
+                        isEnglish={isEnglish}
+                      />
+                    </div>
+                  )}
+
+                  {/* Render other students */}
+                  {otherPeers
+                    .filter((p) => isHost || !p.isHost) // If student, don't duplicate teacher in strip
+                    .map((peer) => {
+                      const peerStream = remoteStreamsRef.current.get(peer.userId)
+                      return (
+                        <div key={peer.userId} className="shrink-0">
+                          <StreamTile
+                            stream={peerStream}
+                            name={peer.userName}
+                            isLocal={false}
+                            isHost={peer.isHost}
+                            cameraOn={peer.cameraOn}
+                            micOn={peer.micOn}
+                            raisedHand={peer.raisedHand}
+                            isScreenSharing={peer.isScreenSharing}
+                            canManage={canManage}
+                            onMuteToggle={() => void handleTeacherMicToggle(peer.userId, peer.micOn)}
+                            onCameraToggle={() => void handleTeacherCameraToggle(peer.userId, peer.cameraOn)}
+                            onKick={() => void kickStudent(peer.userId)}
+                            isEnglish={isEnglish}
+                          />
+                          {peerStream && <RemoteAudioMount stream={peerStream} />}
+                        </div>
+                      )
+                    })}
+
+                  {otherPeers.length === 0 && isHost && (
+                    <div className="flex h-44 w-full items-center justify-center rounded-2xl border border-dashed border-white/20 bg-white/5 p-4 text-xs text-white/50 text-center">
+                      {isEnglish ? 'No students have joined yet. Share the invite link.' : 'لم ينضم أي طالب بعد. انسخ الرابط وشاركه مع طلابك.'}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Bottom Controls Bar */}
-            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-white/10 bg-[#132f3e] p-3 sm:gap-3">
+            {/* ── Bottom Controls Bar ── */}
+            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-white/10 bg-[#132f3e] p-3 sm:gap-3 rounded-xl mt-1">
               {/* Microphone Toggle */}
               <button
                 title={microphoneOn ? (isEnglish ? 'Turn microphone off' : 'كتم المايكروفون') : (isEnglish ? 'Turn microphone on' : 'تشغيل المايكروفون')}
@@ -1197,7 +1416,7 @@ export default function NexusMeetingRoomPage() {
 
           {/* ── SIDE DRAWER: Live Chat & Attendees ── */}
           {(chatOpen || participantsOpen) && (
-            <aside className="flex max-h-[78vh] min-h-[480px] flex-col overflow-hidden rounded-2xl border bg-card shadow-md">
+            <aside className="flex max-h-[82vh] min-h-[480px] flex-col overflow-hidden rounded-2xl border bg-card shadow-md">
               <div className="flex items-center justify-between border-b px-4 py-3">
                 <div className="flex items-center gap-2">
                   {chatOpen ? <MessageCircle className="h-4 w-4 text-[#234a65]" /> : <Users className="h-4 w-4 text-[#234a65]" />}
@@ -1231,9 +1450,20 @@ export default function NexusMeetingRoomPage() {
               {/* Attendee Roster View */}
               {participantsOpen && (
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">
-                    {isEnglish ? `In room (${activePeers.length || 1})` : `المتواجدون في القاعة (${activePeers.length || 1})`}
-                  </p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      {isEnglish ? `In room (${activePeers.length || 1})` : `المتواجدون في القاعة (${activePeers.length || 1})`}
+                    </p>
+                    {canManage && otherPeers.length > 0 && (
+                      <button
+                        onClick={handleMuteAll}
+                        className="text-[11px] font-bold text-rose-600 hover:underline"
+                      >
+                        {isEnglish ? 'Mute all' : 'كتم الجميع'}
+                      </button>
+                    )}
+                  </div>
+
                   {/* Current user */}
                   <div className="flex items-center justify-between rounded-xl border bg-muted/40 p-2.5 text-xs">
                     <span className="font-semibold">{profile?.full_name || 'أنت'} (أنت){isHost ? ' • المعلم' : ''}</span>
@@ -1242,26 +1472,38 @@ export default function NexusMeetingRoomPage() {
 
                   {/* Remote peers */}
                   {otherPeers.map((peer) => (
-                    <div key={peer.userId} className="flex items-center justify-between rounded-xl border bg-card p-2.5 text-xs">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold">{peer.userName}{peer.isHost ? ' • المنظم' : ''}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {peer.micOn ? 'المايكروفون يعمل' : 'المايكروفون مغلق'}{peer.raisedHand ? ' • ✋ يرفع يده' : ''}
+                    <div key={peer.userId} className="flex items-center justify-between rounded-xl border bg-card p-2.5 text-xs gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold">{peer.userName}{peer.isHost ? ' • المعلم' : ''}</p>
+                        <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                          <span>{peer.micOn ? 'المايك يعمل' : 'المايك مغلق'}</span>
+                          <span>•</span>
+                          <span>{peer.cameraOn ? 'الكاميرا تعمل' : 'الكاميرا مغلقة'}</span>
+                          {peer.raisedHand && <span className="text-amber-500 font-bold">• ✋</span>}
                         </p>
                       </div>
+
+                      {/* Teacher moderation buttons */}
                       {canManage && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0">
                           <button
-                            onClick={() => void muteStudent(peer.userId)}
-                            className="rounded-lg p-1 text-amber-700 hover:bg-amber-50"
-                            title={isEnglish ? 'Mute' : 'كتم الصوت'}
+                            onClick={() => void handleTeacherMicToggle(peer.userId, peer.micOn)}
+                            className={`rounded-lg p-1.5 transition-colors ${peer.micOn ? 'text-amber-700 hover:bg-amber-100 bg-amber-50' : 'text-emerald-700 hover:bg-emerald-100 bg-emerald-50'}`}
+                            title={peer.micOn ? (isEnglish ? 'Mute microphone' : 'كتم المايكروفون') : (isEnglish ? 'Request microphone' : 'طلب فتح المايكروفون')}
                           >
-                            <MicOff className="h-3.5 w-3.5" />
+                            {peer.micOn ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                          </button>
+                          <button
+                            onClick={() => void handleTeacherCameraToggle(peer.userId, peer.cameraOn)}
+                            className={`rounded-lg p-1.5 transition-colors ${peer.cameraOn ? 'text-rose-700 hover:bg-rose-100 bg-rose-50' : 'text-blue-700 hover:bg-blue-100 bg-blue-50'}`}
+                            title={peer.cameraOn ? (isEnglish ? 'Turn off camera' : 'إغلاق الكاميرا') : (isEnglish ? 'Request camera' : 'طلب فتح الكاميرا')}
+                          >
+                            {peer.cameraOn ? <VideoOff className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
                           </button>
                           <button
                             onClick={() => void kickStudent(peer.userId)}
-                            className="rounded-lg p-1 text-rose-700 hover:bg-rose-50"
-                            title={isEnglish ? 'Remove' : 'طرد'}
+                            className="rounded-lg p-1.5 text-rose-700 hover:bg-rose-100 bg-rose-50 transition-colors"
+                            title={isEnglish ? 'Remove from room' : 'طرد من القاعة'}
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>

@@ -94,6 +94,11 @@ export class MeetingsController {
     return this.meetings.muteParticipant(this.actor(req), id, participantId);
   }
 
+  @Post(':id/mute-all')
+  muteAll(@Req() req: any, @Param('id') id: string) {
+    return this.meetings.muteAll(this.actor(req), id);
+  }
+
   private actor(req: any): MeetingActor {
     return {
       userId: req.user.userId || req.user.sub || req.user.id,

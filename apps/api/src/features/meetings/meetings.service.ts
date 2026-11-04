@@ -725,10 +725,33 @@ export class MeetingsService {
         meetingId,
         fromUserId: actor.userId,
         toUserId: participantId,
-        signalData: JSON.stringify({ type: 'mute', fromUserId: actor.userId }),
+        signalData: JSON.stringify({ type: 'force_mute', track: 'audio' }),
       },
     });
     return { ok: true };
+  }
+
+  async muteAll(actor: MeetingActor, meetingId: string) {
+    await this.findMeetingForManagement(actor, meetingId);
+    const peers = await this.prisma.nexusMeetingActivePeer.findMany({
+      where: { meetingId, userId: { not: actor.userId } },
+      select: { userId: true },
+    });
+    await this.prisma.nexusMeetingActivePeer.updateMany({
+      where: { meetingId, userId: { not: actor.userId } },
+      data: { micOn: false },
+    });
+    for (const p of peers) {
+      await this.prisma.nexusMeetingSignal.create({
+        data: {
+          meetingId,
+          fromUserId: actor.userId,
+          toUserId: p.userId,
+          signalData: JSON.stringify({ type: 'force_mute', track: 'audio' }),
+        },
+      });
+    }
+    return { ok: true, count: peers.length };
   }
 
   private async findMeetingForManagement(actor: MeetingActor, meetingId: string) {
