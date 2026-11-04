@@ -80,14 +80,13 @@ export class MeetingsService {
     }
   }
 
-  private liveKitConfig() {
+  /** Returns LiveKit config if all env vars are set, otherwise null (Jitsi fallback). */
+  private liveKitConfig(): { internalUrl: string; publicUrl: string; apiKey: string; apiSecret: string } | null {
     const internalUrl = process.env.LIVEKIT_INTERNAL_URL?.trim();
     const publicUrl = process.env.LIVEKIT_PUBLIC_URL?.trim();
     const apiKey = process.env.LIVEKIT_API_KEY?.trim();
     const apiSecret = process.env.LIVEKIT_API_SECRET?.trim();
-    if (!internalUrl || !publicUrl || !apiKey || !apiSecret) {
-      throw new ServiceUnavailableException('خادم اجتماعات نكسس غير مهيأ بعد.');
-    }
+    if (!internalUrl || !publicUrl || !apiKey || !apiSecret) return null;
 
     let parsedPublicUrl: URL;
     let parsedInternalUrl: URL;
@@ -95,19 +94,26 @@ export class MeetingsService {
       parsedPublicUrl = new URL(publicUrl);
       parsedInternalUrl = new URL(internalUrl);
     } catch {
-      throw new ServiceUnavailableException('إعداد عنوان خادم الاجتماعات غير صالح.');
+      return null;
     }
     if (parsedPublicUrl.protocol !== 'wss:' && !(parsedPublicUrl.protocol === 'ws:' && parsedPublicUrl.hostname === 'localhost')) {
-      throw new ServiceUnavailableException('يجب أن يستخدم رابط الاجتماعات العام اتصالًا آمنًا.');
+      return null;
     }
     if (!['http:', 'https:'].includes(parsedInternalUrl.protocol)) {
-      throw new ServiceUnavailableException('عنوان خادم الاجتماعات الداخلي غير صالح.');
+      return null;
     }
     return { internalUrl: parsedInternalUrl.toString().replace(/\/$/, ''), publicUrl, apiKey, apiSecret };
   }
 
-  private roomService(config = this.liveKitConfig()) {
+  private roomService(config: { internalUrl: string; apiKey: string; apiSecret: string }) {
     return new RoomServiceClient(config.internalUrl, config.apiKey, config.apiSecret);
+  }
+
+  /** Builds a Jitsi meeting URL from the meeting roomName (fallback when LiveKit is not configured). */
+  private jitsiUrl(roomName: string): string {
+    const jitsiHost = process.env.JITSI_HOST?.trim() || 'meet.jit.si';
+    const safeRoom = roomName.replace(/[^a-z0-9]/gi, '').slice(0, 64) || 'nexusmeeting';
+        return `https://${jitsiHost}/${safeRoom}`;
   }
 
   private async ensureRoom(rooms: RoomServiceClient, meeting: { id: string; schoolId: string; roomName: string; participantCount?: number }) {
@@ -364,14 +370,48 @@ export class MeetingsService {
 
   async join(actor: MeetingActor, meetingId: string) {
     const meeting = await this.findAuthorizedMeeting(actor, meetingId);
-    if (meeting.status === 'ENDED' || meeting.status === 'CANCELLED') throw new ConflictException('الاجتماع انتهى أو تم إلغاؤه.');
-    const config = this.liveKitConfig();
-    const rooms = this.roomService(config);
+    if (meeting.status === 'ENDED' || meeting.status === 'CANCELLED') {
+      throw new ConflictException('الاجتماع انتهى أو تم إلغاؤه.');
+    }
+
+    const isHost = meeting.hostId === actor.userId;
+    const scheduledTimeReached = meeting.scheduledAt.getTime() <= Date.now();
 
     if (meeting.status === 'SCHEDULED') {
-      const isHost = meeting.hostId === actor.userId;
-      const scheduledTimeReached = meeting.scheduledAt.getTime() <= Date.now();
-      if (!isHost && !scheduledTimeReached) throw new ConflictException('الاجتماع مجدول؛ يتاح الدخول عند موعده.');
+      if (!isHost && !scheduledTimeReached) {
+        throw new ConflictException('الاجتماع مجدول؛ يتاح الدخول عند موعده.');
+      }
+    }
+
+    const config = this.liveKitConfig();
+
+    // ── Jitsi fallback: when LiveKit is not configured ──────────────────────
+    if (!config) {
+      // Update status to LIVE (idempotent) and record audit
+      if (meeting.status === 'SCHEDULED') {
+        const started = await this.prisma.nexusMeeting.updateMany({
+          where: { id: meeting.id, status: 'SCHEDULED' },
+          data: { status: 'LIVE', startedAt: new Date() },
+        });
+        if (started.count > 0) {
+          await this.prisma.auditLog.create({
+            data: { schoolId: meeting.schoolId, userId: actor.userId, action: 'nexus_meeting.started', entityType: 'nexus_meeting', entityId: meeting.id },
+          });
+        }
+      }
+      await this.prisma.nexusMeetingParticipant.update({
+        where: { meetingId_userId: { meetingId, userId: actor.userId } },
+        data: { joinedAt: new Date(), leftAt: null },
+      });
+      return {
+        jitsiUrl: this.jitsiUrl(meeting.roomName),
+        meeting: { id: meeting.id, title: meeting.title, status: 'LIVE', hostId: meeting.hostId },
+      };
+    }
+
+    // ── LiveKit path ─────────────────────────────────────────────────────────
+    const rooms = this.roomService(config);
+    if (meeting.status === 'SCHEDULED') {
       await this.ensureRoom(rooms, { ...meeting, participantCount: meeting.participants.length });
       const started = await this.prisma.nexusMeeting.updateMany({
         where: { id: meeting.id, status: 'SCHEDULED' },
@@ -383,8 +423,6 @@ export class MeetingsService {
         });
       }
     } else if (meeting.status === 'LIVE') {
-      // LiveKit removes empty rooms after their timeout; recreate the same private room
-      // when an invited participant returns after that cleanup.
       await this.ensureRoom(rooms, { ...meeting, participantCount: meeting.participants.length });
     }
 
@@ -431,8 +469,9 @@ export class MeetingsService {
   async end(actor: MeetingActor, meetingId: string) {
     const meeting = await this.findMeetingForManagement(actor, meetingId);
     if (meeting.status === 'ENDED' || meeting.status === 'CANCELLED') return { ok: true, status: meeting.status };
-    if (meeting.status === 'LIVE') {
-      const rooms = this.roomService();
+    const config = this.liveKitConfig();
+    if (meeting.status === 'LIVE' && config) {
+      const rooms = this.roomService(config);
       const active = await rooms.listRooms([meeting.roomName]).catch((error) => {
         throw new ServiceUnavailableException('تعذر التحقق من اتصال غرفة الاجتماع.', { cause: error });
       });
@@ -468,13 +507,15 @@ export class MeetingsService {
       select: { userId: true },
     });
     if (!isParticipant) throw new NotFoundException('المشارك غير موجود في هذا الاجتماع.');
-    await this.roomService().removeParticipant(meeting.roomName, participantId, { revokeTokenTs: BigInt(Math.floor(Date.now() / 1000)) }).catch((error) => {
-      throw new ServiceUnavailableException('تعذر إخراج المشارك من الغرفة. حاول مرة أخرى.', { cause: error });
-    });
+    const config = this.liveKitConfig();
+    if (config) {
+      await this.roomService(config).removeParticipant(meeting.roomName, participantId, { revokeTokenTs: BigInt(Math.floor(Date.now() / 1000)) }).catch((error) => {
+        throw new ServiceUnavailableException('تعذر إخراج المشارك من الغرفة. حاول مرة أخرى.', { cause: error });
+      });
+    }
     await this.prisma.nexusMeetingParticipant.updateMany({ where: { meetingId, userId: participantId }, data: { leftAt: new Date() } });
     return { ok: true };
   }
-
   private async findMeetingForManagement(actor: MeetingActor, meetingId: string) {
     const schoolId = this.schoolId(actor);
     await this.assertActiveAccount(actor, schoolId);

@@ -6,6 +6,7 @@ export interface ClassSession {
   teacherId: string;
   title: string;
   isActive: boolean;
+  meetingUrl?: string | null;
   duration: number;
   startTime: string;
   endedAt?: string | null;
@@ -16,13 +17,13 @@ export interface ClassSession {
 }
 
 export const classSessionApi = {
-  start: (classId: string, data: { title: string; duration?: number }) =>
+  start: (classId: string, data: { title: string; duration?: number; meetingUrl?: string }) =>
     apiClient.post<ClassSession>(`/classes/${classId}/sessions/start`, data),
-    
-  end: (classId: string, sessionId: string) => 
+
+  end: (classId: string, sessionId: string) =>
     apiClient.post(`/classes/${classId}/sessions/${sessionId}/end`),
-    
-  getActive: (classId: string) => 
+
+  getActive: (classId: string) =>
     apiClient.get<ClassSession | null>(`/classes/${classId}/sessions/active`),
 
   history: (classId: string) =>
@@ -33,10 +34,16 @@ export const classSessionApi = {
 
   downloadRecording: (classId: string, sessionId: string) =>
     apiClient.get<{ url: string; expiresInSeconds: number }>(`/classes/${classId}/sessions/${sessionId}/recording`),
-    
+
   createJoinToken: (classId: string, sessionId: string) =>
     apiClient.post<{ url: string; token: string; session: ClassSession }>(`/classes/${classId}/sessions/${sessionId}/token`),
 
   checkInAfterConnect: (classId: string, sessionId: string) =>
     apiClient.post<{ status: 'PRESENT'; joinedAt: string; sessionId: string }>(`/classes/${classId}/sessions/${sessionId}/check-in`),
+
+  markAttendance: (classId: string, sessionId: string, studentId: string) =>
+    apiClient.post(`/classes/${classId}/sessions/${sessionId}/attendance`, { studentId }),
+
+  selfJoin: (classId: string, sessionId: string) =>
+    apiClient.post(`/classes/${classId}/sessions/${sessionId}/join`),
 };

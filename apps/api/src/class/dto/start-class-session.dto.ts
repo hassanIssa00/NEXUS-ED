@@ -10,4 +10,8 @@ export class StartClassSessionDto {
   @Min(1)
   @Max(240)
   duration?: number;
+
+  @IsOptional()
+  @IsString()
+  meetingUrl?: string;
 }

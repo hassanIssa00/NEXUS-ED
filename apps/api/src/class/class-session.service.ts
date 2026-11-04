@@ -48,27 +48,27 @@ export class ClassSessionService {
     return classroom;
   }
 
-  private liveKitConfig(): LiveKitConfig {
+  private liveKitConfig(): LiveKitConfig | null {
     const internalUrl = process.env.LIVEKIT_INTERNAL_URL?.trim();
     const publicUrl = process.env.LIVEKIT_PUBLIC_URL?.trim();
     const apiKey = process.env.LIVEKIT_API_KEY?.trim();
     const apiSecret = process.env.LIVEKIT_API_SECRET?.trim();
-    if (!internalUrl || !publicUrl || !apiKey || !apiSecret) {
-      throw new ServiceUnavailableException('البث الداخلي غير مهيأ. أضف إعدادات خادم LiveKit للمدرسة.');
-    }
+    if (!internalUrl || !publicUrl || !apiKey || !apiSecret) return null;
     let internal: URL;
     let publicAddress: URL;
     try { internal = new URL(internalUrl); publicAddress = new URL(publicUrl); }
-    catch { throw new ServiceUnavailableException('عنوان خادم البث غير صالح.'); }
+    catch { return null; }
     if (!['http:', 'https:'].includes(internal.protocol) ||
       (publicAddress.protocol !== 'wss:' && !(publicAddress.protocol === 'ws:' && publicAddress.hostname === 'localhost'))) {
-      throw new ServiceUnavailableException('يجب إعداد عنوان داخلي صالح واتصال بث عام آمن.');
+      return null;
     }
     return { internalUrl: internalUrl.replace(/\/$/, ''), publicUrl, apiKey, apiSecret };
   }
 
-  private roomService(config = this.liveKitConfig()) {
-    return new RoomServiceClient(config.internalUrl, config.apiKey, config.apiSecret);
+  private roomService(config?: LiveKitConfig | null): RoomServiceClient | null {
+    const activeConfig = config !== undefined ? config : this.liveKitConfig();
+    if (!activeConfig) return null;
+    return new RoomServiceClient(activeConfig.internalUrl, activeConfig.apiKey, activeConfig.apiSecret);
   }
 
   private recordingStorageConfig() {
@@ -244,7 +244,7 @@ export class ClassSessionService {
     return absentCount;
   }
 
-  async startSession(classId: string, teacherId: string, schoolId: string, title: string, duration = 60) {
+  async startSession(classId: string, teacherId: string, schoolId: string, title: string, duration = 60, meetingUrl?: string) {
     await this.authorizeClass(classId, teacherId, 'TEACHER', schoolId);
     if (!title?.trim()) throw new BadRequestException('Session title is required');
     if (!Number.isInteger(duration) || duration < 1 || duration > 240) throw new BadRequestException('Session duration must be between 1 and 240 minutes');
@@ -254,7 +254,10 @@ export class ClassSessionService {
     const activeSessions = await this.prisma.classSession.findMany({ where: { classId, isActive: true } });
     const id = randomUUID();
     const roomName = `nexus-class-${id.replace(/-/g, '')}`;
-    await this.ensureRoom(rooms, roomName, { sessionId: id, classId, schoolId });
+    const calculatedMeetingUrl = meetingUrl?.trim() || `https://${process.env.JITSI_HOST?.trim() || 'meet.jit.si'}/${roomName}`;
+    if (rooms) {
+      await this.ensureRoom(rooms, roomName, { sessionId: id, classId, schoolId });
+    }
 
     let session;
     try {
@@ -262,21 +265,21 @@ export class ClassSessionService {
         const now = new Date();
         await tx.classSession.updateMany({ where: { classId, isActive: true }, data: { isActive: false, endedAt: now } });
         const created = await tx.classSession.create({
-          data: { id, classId, teacherId, title: title.trim(), startTime: now, duration, isActive: true, roomName },
+          data: { id, classId, teacherId, title: title.trim(), startTime: now, duration, isActive: true, roomName, meetingUrl: calculatedMeetingUrl },
           include: { teacher: { select: { name: true, avatar: true } } },
         });
-        await tx.auditLog.create({ data: { schoolId, userId: teacherId, action: 'class_session.started', entityType: 'class_session', entityId: created.id, metadata: { classId, title: created.title, duration, liveKit: true } } });
+        await tx.auditLog.create({ data: { schoolId, userId: teacherId, action: 'class_session.started', entityType: 'class_session', entityId: created.id, metadata: { classId, title: created.title, duration, liveKit: !!config } } });
         return created;
       });
     } catch (error) {
-      await rooms.deleteRoom(roomName).catch(() => undefined);
+      if (rooms) await rooms.deleteRoom(roomName).catch(() => undefined);
       throw error;
     }
 
     for (const old of activeSessions) {
       await this.stopRecording(old);
       await this.recordAbsentStudents(old, schoolId);
-      if (old.roomName) await rooms.deleteRoom(old.roomName).catch(() => undefined);
+      if (rooms && old.roomName) await rooms.deleteRoom(old.roomName).catch(() => undefined);
     }
     return this.beginRecording(session, schoolId);
   }
@@ -350,12 +353,15 @@ export class ClassSessionService {
 
   async getActiveSession(classId: string, actorId: string, role: string, schoolId?: string) {
     await this.authorizeClass(classId, actorId, role, schoolId);
-    const active = await this.prisma.classSession.findFirst({ where: { classId, isActive: true, class: { schoolId } }, orderBy: { startTime: 'desc' } });
+    const active = await this.prisma.classSession.findFirst({ where: { classId, isActive: true, class: { schoolId } }, orderBy: { startTime: 'desc' }, include: { teacher: { select: { name: true, avatar: true } } } });
     if (active && await this.finishExpired(active, schoolId)) return null;
-    const session = active ? active : await this.prisma.classSession.findFirst({ where: { classId, isActive: true, class: { schoolId } }, orderBy: { startTime: 'desc' } });
+    const session = active ? active : await this.prisma.classSession.findFirst({ where: { classId, isActive: true, class: { schoolId } }, orderBy: { startTime: 'desc' }, include: { teacher: { select: { name: true, avatar: true } } } });
     if (!session) return null;
-    const { roomName: _roomName, meetingUrl: _meetingUrl, recordingEgressId: _recordingEgressId, recordingObjectKey: _recordingObjectKey, ...safeSession } = session;
-    return safeSession;
+    const { roomName: _roomName, recordingEgressId: _recordingEgressId, recordingObjectKey: _recordingObjectKey, ...safeSession } = session;
+    return {
+      ...safeSession,
+      meetingUrl: session.meetingUrl || (session.roomName ? `https://${process.env.JITSI_HOST?.trim() || 'meet.jit.si'}/${session.roomName}` : null),
+    };
   }
 
   async getSessionHistory(classId: string, actorId: string, role: string, schoolId?: string) {
@@ -379,10 +385,20 @@ export class ClassSessionService {
       if (session.isActive) await this.finishExpired(session, schoolId);
       throw new ConflictException('انتهت هذه الجلسة أو لم تعد مفتوحة.');
     }
-    if (!session.roomName) throw new ServiceUnavailableException('هذه الجلسة قديمة ولا تحتوي على غرفة بث داخلية.');
+    const meetingUrl = session.meetingUrl || (session.roomName ? `https://${process.env.JITSI_HOST?.trim() || 'meet.jit.si'}/${session.roomName}` : null);
     const config = this.liveKitConfig();
+    if (!config) {
+      return {
+        url: '',
+        token: '',
+        meetingUrl,
+        session: { id: session.id, title: session.title, classId: session.classId, teacherId: session.teacherId, startTime: session.startTime, duration: session.duration, meetingUrl },
+      };
+    }
     const rooms = this.roomService(config);
-    await this.ensureRoom(rooms, session.roomName, { sessionId: session.id, classId, schoolId: schoolId || '' });
+    if (session.roomName && rooms) {
+      await this.ensureRoom(rooms, session.roomName, { sessionId: session.id, classId, schoolId: schoolId || '' });
+    }
     const user = await this.prisma.user.findFirst({ where: { id: actorId, schoolId, isActive: true }, select: { name: true, firstName: true, lastName: true } });
     if (!user) throw new ForbiddenException('الحساب غير نشط.');
     const token = new AccessToken(config.apiKey, config.apiSecret, {
@@ -390,8 +406,13 @@ export class ClassSessionService {
       name: user.name || [user.firstName, user.lastName].filter(Boolean).join(' ') || (role === 'STUDENT' ? 'طالب' : 'معلم'),
       ttl: '2h',
     });
-    token.addGrant({ roomJoin: true, room: session.roomName, canPublish: true, canSubscribe: true, canPublishData: true });
-    return { url: config.publicUrl, token: await token.toJwt(), session: { id: session.id, title: session.title, classId: session.classId, teacherId: session.teacherId, startTime: session.startTime, duration: session.duration } };
+    token.addGrant({ roomJoin: true, room: session.roomName || `nexus-class-${session.id}`, canPublish: true, canSubscribe: true, canPublishData: true });
+    return {
+      url: config.publicUrl,
+      token: await token.toJwt(),
+      meetingUrl,
+      session: { id: session.id, title: session.title, classId: session.classId, teacherId: session.teacherId, startTime: session.startTime, duration: session.duration, meetingUrl },
+    };
   }
 
   async retryRecording(classId: string, sessionId: string, actorId: string, schoolId?: string) {
@@ -426,9 +447,15 @@ export class ClassSessionService {
     await this.prisma.enrollment.findFirstOrThrow({ where: { classId, studentId, class: { schoolId } }, select: { id: true } }).catch(() => {
       throw new ForbiddenException('الطالب غير مسجل في هذا الفصل.');
     });
-    await this.roomService().getParticipant(session.roomName, studentId).catch(() => {
-      throw new ConflictException('لم يتم رصد اتصال الطالب بالبث بعد. أعد المحاولة بعد ظهور الفيديو.');
-    });
+    const config = this.liveKitConfig();
+    if (config) {
+      const rooms = this.roomService(config);
+      if (rooms && session.roomName) {
+        await rooms.getParticipant(session.roomName, studentId).catch(() => {
+          throw new ConflictException('لم يتم رصد اتصال الطالب بالبث بعد. أعد المحاولة بعد ظهور الفيديو.');
+        });
+      }
+    }
     const now = new Date();
     const dailyDate = this.schoolDayStart(now);
     const existingDaily = await this.prisma.attendance.findUnique({ where: { studentId_classId_date: { studentId, classId, date: dailyDate } }, select: { id: true } });
@@ -446,6 +473,10 @@ export class ClassSessionService {
     ]);
     if (!existingDaily && this.gamification) await this.gamification.awardXp(studentId, 10, 'حضور حصة مباشرة', sessionId);
     return { status: 'PRESENT', joinedAt: now, sessionId };
+  }
+
+  async studentSelfJoin(classId: string, sessionId: string, studentId: string, schoolId?: string) {
+    return this.recordStudentJoin(classId, sessionId, studentId, schoolId);
   }
 
   async reconcileExpiredSessions() {

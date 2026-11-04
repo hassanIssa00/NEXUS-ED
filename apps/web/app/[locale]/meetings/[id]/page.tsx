@@ -11,6 +11,7 @@ import {
   MonitorUp, PhoneOff, Send, Shield, Users, Video, VideoOff, Volume2, VolumeX, X,
 } from 'lucide-react'
 import type { AudioTrack, Participant, Room, VideoTrack } from 'livekit-client'
+import { JitsiRoom } from '@/components/meeting/JitsiRoom'
 
 type StaffMember = { id: string; name: string; role: string; avatar?: string | null }
 type Meeting = {
@@ -27,7 +28,12 @@ type Meeting = {
   host: StaffMember
   participants: Array<{ userId: string; joinedAt?: string | null; leftAt?: string | null; user: StaffMember }>
 }
-type JoinResponse = { url: string; token: string; meeting: { id: string; title: string; status: string; hostId: string } }
+type JoinResponse = {
+  url?: string
+  token?: string
+  jitsiUrl?: string
+  meeting: { id: string; title: string; status: string; hostId: string }
+}
 type MeetingChatItem = { id: string; name: string; identity: string; message: string; createdAt: number; mine: boolean }
 type ParticipantTileState = { participant: Participant; camera?: VideoTrack; screen?: VideoTrack; microphone?: AudioTrack; speaking: boolean }
 
@@ -83,6 +89,8 @@ export default function NexusMeetingRoomPage() {
   const roomRef = useRef<Room | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [meeting, setMeeting] = useState<Meeting | null>(null)
+  const [jitsiRoomName, setJitsiRoomName] = useState<string | null>(null)
+  const [jitsiDomain, setJitsiDomain] = useState<string>('meet.jit.si')
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
   const [connected, setConnected] = useState(false)
@@ -158,6 +166,26 @@ export default function NexusMeetingRoomPage() {
     try {
       const { data } = await apiClient.post<JoinResponse>(`/meetings/${meeting.id}/join`)
       setMeeting((current) => current ? { ...current, status: data.meeting.status } : current)
+
+      if (data.jitsiUrl) {
+        try {
+          const parsed = new URL(data.jitsiUrl)
+          setJitsiDomain(parsed.host || 'meet.jit.si')
+          setJitsiRoomName(parsed.pathname.replace(/^\//, ''))
+        } catch {
+          setJitsiDomain('meet.jit.si')
+          setJitsiRoomName(`nexus-${meeting.id.slice(0, 8)}`)
+        }
+        setConnected(true)
+        setConnectionLabel(isEnglish ? 'Connected' : 'متصل')
+        setMeeting((current) => current ? { ...current, status: 'LIVE', startedAt: current.startedAt || new Date().toISOString() } : current)
+        return
+      }
+
+      if (!data.url || !data.token) {
+        throw new Error(isEnglish ? 'Meeting server configuration is incomplete.' : 'إعدادات خادم الاجتماعات غير مكتملة.')
+      }
+
       const livekit = await import('livekit-client')
       room = new livekit.Room({
         adaptiveStream: true,
@@ -230,6 +258,7 @@ export default function NexusMeetingRoomPage() {
     roomRef.current = null
     room?.disconnect()
     setConnected(false)
+    setJitsiRoomName(null)
     try { await apiClient.post(`/meetings/${meetingId}/leave`) } catch { /* Leaving media still succeeds when the API is temporarily unreachable. */ }
     if (navigate) router.push('/meetings' as never)
   }
@@ -305,6 +334,7 @@ export default function NexusMeetingRoomPage() {
       roomRef.current = null
       room?.disconnect()
       setConnected(false)
+      setJitsiRoomName(null)
       router.push('/meetings' as never)
     } catch (endError) { setError(getError(endError, isEnglish ? 'Could not end the meeting.' : 'تعذر إنهاء الاجتماع.')) }
     finally { setPendingEnd(false) }
@@ -324,7 +354,22 @@ export default function NexusMeetingRoomPage() {
   return <main className="mx-auto w-full max-w-[1500px] space-y-4" dir={isEnglish ? 'ltr' : 'rtl'}>
     <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-3 shadow-sm sm:px-5">
       <div className="flex min-w-0 items-center gap-3"><button onClick={() => void cleanupAndLeave()} aria-label={isEnglish ? 'Back to meetings' : 'العودة للاجتماعات'} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border hover:bg-muted"><ArrowLeft className="h-4 w-4" /></button><div className="min-w-0"><h1 className="truncate font-bold">{meeting.title}</h1><p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground"><span className={`h-2 w-2 rounded-full ${connected ? 'bg-emerald-500' : meeting.status === 'LIVE' ? 'bg-amber-400' : 'bg-slate-400'}`} />{connected ? connectionLabel : meeting.status === 'LIVE' ? (isEnglish ? 'Live room' : 'غرفة مباشرة') : new Intl.DateTimeFormat(locale === 'en' ? 'en' : 'ar-SA', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(meeting.scheduledAt))}</p></div></div>
-      <div className="flex items-center gap-2"><button onClick={() => void copyInviteLink()} className="inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-xs font-medium"><Copy className="h-3.5 w-3.5" />{copied ? (isEnglish ? 'Copied' : 'تم النسخ') : (isEnglish ? 'Copy link' : 'نسخ الرابط')}</button>{connected && <button onClick={() => setChatOpen((value) => !value)} className={`inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-xs font-medium ${chatOpen ? 'bg-muted' : ''}`}><MessageCircle className="h-3.5 w-3.5" />{isEnglish ? 'Chat' : 'الدردشة'}</button>}</div>
+      <div className="flex items-center gap-2">
+        <button onClick={() => void copyInviteLink()} className="inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-xs font-medium"><Copy className="h-3.5 w-3.5" />{copied ? (isEnglish ? 'Copied' : 'تم النسخ') : (isEnglish ? 'Copy link' : 'نسخ الرابط')}</button>
+        {connected && !jitsiRoomName && <button onClick={() => setChatOpen((value) => !value)} className={`inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-xs font-medium ${chatOpen ? 'bg-muted' : ''}`}><MessageCircle className="h-3.5 w-3.5" />{isEnglish ? 'Chat' : 'الدردشة'}</button>}
+        {connected && canManage && (
+          <button disabled={pendingEnd} onClick={() => void endMeeting()} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-rose-600 px-3 text-xs font-bold text-white shadow-sm hover:bg-rose-700 disabled:opacity-60">
+            {pendingEnd ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PhoneOff className="h-3.5 w-3.5" />}
+            {isEnglish ? 'End meeting' : 'إنهاء الاجتماع'}
+          </button>
+        )}
+        {connected && !canManage && (
+          <button onClick={() => void cleanupAndLeave()} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-rose-600 px-3 text-xs font-bold text-white shadow-sm hover:bg-rose-700">
+            <PhoneOff className="h-3.5 w-3.5" />
+            {isEnglish ? 'Leave' : 'مغادرة'}
+          </button>
+        )}
+      </div>
     </header>
 
     {error && <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><p>{error}</p><button onClick={() => setError('')} aria-label={isEnglish ? 'Dismiss' : 'إغلاق'} className="ms-auto"><X className="h-4 w-4" /></button></div>}
@@ -337,7 +382,17 @@ export default function NexusMeetingRoomPage() {
         {meeting.status !== 'ENDED' && meeting.status !== 'CANCELLED' && (meeting.status === 'LIVE' || (meeting.status === 'SCHEDULED' && canJoinScheduledMeeting)) && <div className="flex flex-col gap-3 rounded-xl border border-[#234a65]/15 bg-[#234a65]/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{isEnglish ? 'Join with audio' : 'الدخول بالصوت'}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{isEnglish ? 'Microphone starts only after you click. Camera stays off until you enable it.' : 'سيُفعّل الميكروفون بعد اختيارك. تظل الكاميرا مغلقة حتى تشغلها.'}</p></div><button disabled={connecting} onClick={() => void connectToMeeting()} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#234a65] px-5 text-sm font-bold text-white shadow-sm disabled:opacity-60">{connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}{connecting ? (isEnglish ? 'Joining…' : 'جارٍ الدخول…') : (isEnglish ? 'Join with audio' : (meeting.status === 'SCHEDULED' && !isHost ? 'انضم لفتح الغرفة' : 'انضم بالصوت'))}</button></div>}
         <div className="flex items-start gap-2 rounded-xl bg-muted/50 p-3 text-xs leading-5 text-muted-foreground"><Shield className="mt-0.5 h-4 w-4 shrink-0" />{isEnglish ? 'Only the invited active platform account can enter. The displayed name comes from that account; guest names are not accepted. Meetings are not recorded.' : 'الدخول للحساب المدرسي النشط المدعو فقط، والاسم من ملفه في المنصة ولا يوجد دخول باسم ضيف. لا يتم تسجيل الاجتماع.'}</div>
       </div>
-    </section> : <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+    </section> : jitsiRoomName ? (
+      <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#0f2633] p-1 shadow-lg sm:p-2">
+        <JitsiRoom
+          roomName={jitsiRoomName}
+          domain={jitsiDomain}
+          displayName={profile?.full_name || (isEnglish ? 'School Member' : 'عضو المدرسة')}
+          height="75vh"
+          onLeft={() => void cleanupAndLeave()}
+        />
+      </section>
+    ) : <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="overflow-hidden rounded-2xl border bg-[#0f2633] shadow-sm">
         <div className="grid min-h-[50vh] grid-cols-1 gap-3 p-3 sm:grid-cols-2 sm:p-4 xl:min-h-[68vh] xl:grid-cols-3">{tiles.map((tile) => <MediaTile key={tile.participant.identity} tile={tile} isEnglish={isEnglish} />)}{tiles.length === 0 && <div className="col-span-full flex min-h-64 items-center justify-center gap-2 text-sm text-white/70"><Loader2 className="h-4 w-4 animate-spin" />{isEnglish ? 'Waiting for participants…' : 'بانتظار المشاركين…'}</div>}</div>
         <div className="flex flex-wrap items-center justify-center gap-2 border-t border-white/10 bg-[#132f3e] p-3 sm:gap-3">

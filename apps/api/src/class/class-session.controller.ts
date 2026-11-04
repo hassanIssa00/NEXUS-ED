@@ -39,7 +39,20 @@ export class ClassSessionController {
       req.user.schoolId,
       body.title,
       body.duration,
+      body.meetingUrl,
     );
+  }
+
+  @Post(':sessionId/join')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Student joins a class session' })
+  async selfJoin(
+    @Param('classId') classId: string,
+    @Param('sessionId') sessionId: string,
+    @Request() req: any,
+  ) {
+    const studentId = req.user.userId || req.user.sub || req.user.id;
+    return this.sessionService.studentSelfJoin(classId, sessionId, studentId, req.user.schoolId);
   }
 
   @Post(':sessionId/token')
