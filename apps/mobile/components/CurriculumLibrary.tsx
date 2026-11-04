@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Image, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
@@ -8,6 +8,7 @@ import { mobileCurricula, type MobileCurriculum } from '@/data/curricula';
 import { ChoiceButton, EmptyState, PrimaryButton, SectionHeading, Surface } from '@/components/mobile-ui';
 
 type InkSegment = { x1: number; y1: number; x2: number; y2: number; color: string; width: number };
+type PageTurn = { from: number; to: number; direction: -1 | 1 };
 const inkColors = ['#17324B', '#167D6A', '#C33D45', '#7046A8', '#D28A20'];
 
 export function CurriculumLibrary({ feature, fail }: { feature: string; fail: (message: string) => void }) {
@@ -16,6 +17,9 @@ export function CurriculumLibrary({ feature, fail }: { feature: string; fail: (m
   const [book, setBook] = useState<MobileCurriculum | null>(null);
   const [page, setPage] = useState(1);
   const [pageDraft, setPageDraft] = useState('1');
+  const [pageTurn, setPageTurn] = useState<PageTurn | null>(null);
+  const turnProgress = useRef(new Animated.Value(0)).current;
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [zoom, setZoom] = useState(0);
   const [imageFailed, setImageFailed] = useState(false);
   const [drawing, setDrawing] = useState(false);
@@ -30,7 +34,8 @@ export function CurriculumLibrary({ feature, fail }: { feature: string; fail: (m
   const fitHeight = Math.min(availableWidth * 1.414, height * 0.62);
   const frameHeight = Math.min(760, fitHeight * (zoom === 0 ? 1 : zoom === 1 ? 1.18 : 1.35));
   const frameWidth = Math.min(availableWidth, frameHeight / 1.414);
-  const imageUrl = book ? `${WEB_URL}/resources/curricula/${book.slug}/page-${String(page).padStart(3, '0')}.jpg` : '';
+  const pageUrl = (pageNumber: number) => book ? `${WEB_URL}/resources/curricula/${book.slug}/page-${String(pageNumber).padStart(3, '0')}.jpg` : '';
+  const imageUrl = pageUrl(page);
   const activeUnit = book?.units.find((unit) => page >= unit.fromPage && page <= unit.toPage);
   const storageKey = book && !book.quran ? `nexus.book-ink.${user?.id ?? 'student'}.${book.slug}.${page}` : '';
 
@@ -85,12 +90,45 @@ export function CurriculumLibrary({ feature, fail }: { feature: string; fail: (m
     setImageFailed(false);
   };
   const changePage = (next: number) => {
-    if (!book) return;
+    if (!book || pageTurn) return;
     const safePage = Math.min(book.pageCount, Math.max(1, next));
-    setPage(safePage);
-    setPageDraft(String(safePage));
-    setImageFailed(false);
+    if (safePage === page) {
+      setPageDraft(String(safePage));
+      return;
+    }
+    const turn: PageTurn = { from: page, to: safePage, direction: safePage > page ? 1 : -1 };
+    turnProgress.setValue(0);
+    setPageTurn(turn);
+    Animated.timing(turnProgress, {
+      toValue: 1,
+      duration: 460,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      setPage(turn.to);
+      setPageDraft(String(turn.to));
+      setImageFailed(false);
+      setPageTurn(null);
+      turnProgress.setValue(0);
+    });
   };
+  const outgoingPageStyle = pageTurn ? {
+    opacity: turnProgress.interpolate({ inputRange: [0, 0.46, 0.54, 1], outputRange: [1, 1, 0, 0] }),
+    transform: [
+      { perspective: 1050 },
+      { translateX: turnProgress.interpolate({ inputRange: [0, 1], outputRange: [0, pageTurn.direction * -frameWidth * 0.1] }) },
+      { rotateY: turnProgress.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${pageTurn.direction * 150}deg`] }) },
+    ],
+  } : undefined;
+  const incomingPageStyle = pageTurn ? {
+    opacity: turnProgress.interpolate({ inputRange: [0, 0.45, 1], outputRange: [0.5, 0.82, 1] }),
+    transform: [{ translateX: turnProgress.interpolate({ inputRange: [0, 1], outputRange: [pageTurn.direction * 18, 0] }) }],
+  } : undefined;
+  const turningEdgeStyle = pageTurn ? {
+    opacity: turnProgress.interpolate({ inputRange: [0, 0.3, 0.52, 0.8, 1], outputRange: [0, 0.1, 0.68, 0.16, 0] }),
+    transform: [{ scaleX: turnProgress.interpolate({ inputRange: [0, 0.52, 1], outputRange: [0.2, 1, 0.3] }) }],
+  } : undefined;
   const goToDraft = () => {
     const next = Number.parseInt(pageDraft, 10);
     if (!Number.isInteger(next) || next < 1 || !book || next > book.pageCount) {
@@ -119,8 +157,45 @@ export function CurriculumLibrary({ feature, fail }: { feature: string; fail: (m
       {book.quran ? <PrimaryButton title="فتح نسخة المصحف كاملة PDF" icon="open-outline" tone="blue" onPress={openQuranPdf} /> : null}
 
       <Surface style={styles.readerSurface}>
-        <View style={[styles.readerFrame, { height: frameHeight, width: frameWidth }]}>
-          {!imageFailed ? <Image
+        <View
+          style={[styles.readerFrame, { height: frameHeight, width: frameWidth }]}
+          onTouchStart={(event) => {
+            if (!drawing && !pageTurn) swipeStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
+          }}
+          onTouchEnd={(event) => {
+            const start = swipeStart.current;
+            swipeStart.current = null;
+            if (!start || drawing || pageTurn) return;
+            const dx = event.nativeEvent.pageX - start.x;
+            const dy = event.nativeEvent.pageY - start.y;
+            if (Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy) * 1.2) changePage(page + (dx < 0 ? 1 : -1));
+          }}
+        >
+          {pageTurn ? <>
+            <Animated.View pointerEvents="none" style={[styles.turnPage, { height: frameHeight, width: frameWidth }, incomingPageStyle]}>
+              <Image
+                accessibilityLabel={`${book.title}، الصفحة ${pageTurn.to}`}
+                source={{ uri: pageUrl(pageTurn.to) }}
+                resizeMode="contain"
+                style={styles.pageImage}
+              />
+            </Animated.View>
+            <Animated.View pointerEvents="none" style={[styles.turnPage, { height: frameHeight, width: frameWidth }, outgoingPageStyle]}>
+              <Image
+                accessibilityLabel={`${book.title}، الصفحة ${pageTurn.from}`}
+                source={{ uri: pageUrl(pageTurn.from) }}
+                resizeMode="contain"
+                style={styles.pageImage}
+              />
+              {!book.quran && segments.length ? <View style={styles.inkLayer}>
+                {segments.map((line, index) => {
+                  const dx = line.x2 - line.x1; const dy = line.y2 - line.y1; const length = Math.hypot(dx, dy);
+                  return <View key={`${index}-${line.x1}-${line.y1}`} style={{ position: 'absolute', left: (line.x1 + line.x2 - length) / 2, top: (line.y1 + line.y2 - line.width) / 2, width: Math.max(1, length), height: line.width, borderRadius: line.width, backgroundColor: line.color, transform: [{ rotate: `${Math.atan2(dy, dx)}rad` }] }} />;
+                })}
+              </View> : null}
+              <Animated.View pointerEvents="none" style={[styles.turnEdge, pageTurn.direction > 0 ? styles.turnEdgeRight : styles.turnEdgeLeft, turningEdgeStyle]} />
+            </Animated.View>
+          </> : !imageFailed ? <Image
             key={imageUrl}
             accessibilityLabel={`${book.title}، الصفحة ${page}`}
             source={{ uri: imageUrl }}
@@ -132,7 +207,7 @@ export function CurriculumLibrary({ feature, fail }: { feature: string; fail: (m
             <Text style={styles.copy}>تعذر تحميل هذه الصفحة. تحقق من الاتصال ثم أعد المحاولة.</Text>
             <PrimaryButton title="إعادة المحاولة" icon="refresh-outline" tone="blue" onPress={() => setImageFailed(false)} />
           </View>}
-          {!imageFailed && book && !book.quran ? <View
+          {!pageTurn && !imageFailed && book && !book.quran ? <View
             pointerEvents={drawing ? 'auto' : 'none'}
             style={styles.inkLayer}
             onStartShouldSetResponder={() => drawing}
@@ -154,16 +229,17 @@ export function CurriculumLibrary({ feature, fail }: { feature: string; fail: (m
               return <View key={`${index}-${line.x1}-${line.y1}`} pointerEvents="none" style={{ position: 'absolute', left: (line.x1 + line.x2 - length) / 2, top: (line.y1 + line.y2 - line.width) / 2, width: Math.max(1, length), height: line.width, borderRadius: line.width, backgroundColor: line.color, transform: [{ rotate: `${Math.atan2(dy, dx)}rad` }] }} />;
             })}
           </View> : null}
-          {!imageFailed && !imageUrl ? <ActivityIndicator color={BRAND.teal} /> : null}
+          {!pageTurn && !imageFailed && !imageUrl ? <ActivityIndicator color={BRAND.teal} /> : null}
         </View>
 
         <View style={styles.pageControls}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="الصفحة التالية" disabled={page >= book.pageCount} onPress={() => changePage(page + 1)} style={[styles.pageArrow, page >= book.pageCount && styles.disabled]}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="الصفحة التالية" disabled={page >= book.pageCount || !!pageTurn} onPress={() => changePage(page + 1)} style={[styles.pageArrow, (page >= book.pageCount || pageTurn) && styles.disabled]}>
             <Ionicons name="chevron-forward" size={19} color={BRAND.ink} />
           </TouchableOpacity>
           <TextInput
             accessibilityLabel="رقم الصفحة"
             value={pageDraft}
+            editable={!pageTurn}
             onChangeText={setPageDraft}
             keyboardType="number-pad"
             returnKeyType="go"
@@ -171,10 +247,10 @@ export function CurriculumLibrary({ feature, fail }: { feature: string; fail: (m
             style={styles.pageInput}
           />
           <Text style={styles.pageTotal}>/ {book.pageCount}</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="انتقال إلى الصفحة" onPress={goToDraft} style={styles.goButton}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="انتقال إلى الصفحة" disabled={!!pageTurn} onPress={goToDraft} style={[styles.goButton, pageTurn && styles.disabled]}>
             <Text style={styles.goText}>انتقال</Text>
           </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="الصفحة السابقة" disabled={page <= 1} onPress={() => changePage(page - 1)} style={[styles.pageArrow, page <= 1 && styles.disabled]}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="الصفحة السابقة" disabled={page <= 1 || !!pageTurn} onPress={() => changePage(page - 1)} style={[styles.pageArrow, (page <= 1 || pageTurn) && styles.disabled]}>
             <Ionicons name="chevron-back" size={19} color={BRAND.ink} />
           </TouchableOpacity>
         </View>
@@ -250,6 +326,10 @@ const styles = StyleSheet.create({
   readerSurface: { alignItems: 'center', gap: 10, padding: 10 },
   readerFrame: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 12, backgroundColor: '#F4F6F8' },
   pageImage: { width: '100%', height: '100%' },
+  turnPage: { position: 'absolute', left: 0, top: 0, overflow: 'hidden', backfaceVisibility: 'hidden', backgroundColor: '#FFF', elevation: 5, shadowColor: '#102A43', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 9 },
+  turnEdge: { position: 'absolute', top: 0, bottom: 0, width: 9, backgroundColor: 'rgba(22, 35, 48, 0.32)' },
+  turnEdgeRight: { right: 0 },
+  turnEdgeLeft: { left: 0 },
   inkLayer: { ...StyleSheet.absoluteFill },
   imageError: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 9, padding: 18 },
   pageControls: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%' },

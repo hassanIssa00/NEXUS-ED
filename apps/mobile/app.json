@@ -2,19 +2,19 @@
   "expo": {
     "name": "Nexus EDU",
     "slug": "nexus-edu",
-    "version": "1.0.4",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/images/ikhlas-school-icon.png",
     "scheme": "nexus-edu",
     "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "org.masarplatform.nexusedu",
-      "buildNumber": "4",
+      "buildNumber": "9",
       "supportsTablet": true
     },
     "android": {
       "package": "org.masarplatform.nexusedu",
-      "versionCode": 5,
+      "versionCode": 10,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/ikhlas-adaptive-foreground.png",
