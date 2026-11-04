@@ -61,6 +61,96 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun4.l.google.com:19302' },
 ]
 
+/**
+ * Creates an animated virtual video stream (Canvas capture)
+ * Allows developers and users testing 2 tabs on the same computer to stream video simultaneously
+ * even when the physical webcam is exclusively locked by one tab.
+ */
+function createVirtualStream(name: string): MediaStream {
+  if (typeof document === 'undefined') return new MediaStream()
+  const canvas = document.createElement('canvas')
+  canvas.width = 640
+  canvas.height = 480
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return new MediaStream()
+
+  let frame = 0
+  let animId: number
+  let running = true
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('') || 'ن'
+
+  const draw = () => {
+    if (!running) return
+    frame++
+
+    // Background gradient
+    const grad = ctx.createLinearGradient(0, 0, 640, 480)
+    grad.addColorStop(0, '#112b3a')
+    grad.addColorStop(1, '#071620')
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, 640, 480)
+
+    // Pulsing circle
+    ctx.save()
+    ctx.translate(320, 210)
+    const wave = Math.sin(frame * 0.06) * 10
+    ctx.beginPath()
+    ctx.arc(0, 0, 75 + wave, 0, Math.PI * 2)
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)'
+    ctx.lineWidth = 3
+    ctx.stroke()
+
+    ctx.beginPath()
+    ctx.arc(0, 0, 64, 0, Math.PI * 2)
+    ctx.fillStyle = '#1e3e54'
+    ctx.fill()
+    ctx.strokeStyle = '#38bdf8'
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    // Initials
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 40px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(initials, 0, 0)
+    ctx.restore()
+
+    // Live Badge
+    ctx.fillStyle = '#10b981'
+    ctx.beginPath()
+    ctx.arc(245, 335, 6, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.fillStyle = '#f8fafc'
+    ctx.font = 'bold 15px sans-serif'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText('بث تجريبي حي (Virtual Stream)', 260, 340)
+
+    // Name
+    ctx.fillStyle = '#94a3b8'
+    ctx.font = '13px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(name, 320, 370)
+
+    animId = requestAnimationFrame(draw)
+  }
+  draw()
+
+  const stream = (canvas as any).captureStream(30) as MediaStream
+  const track = stream.getVideoTracks()[0]
+  if (track) {
+    const originalStop = track.stop.bind(track)
+    track.stop = () => {
+      running = false
+      if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(animId)
+      originalStop()
+    }
+  }
+  return stream
+}
+
 /** Stage or Strip Participant Video Card */
 function StreamTile({
   stream,
@@ -767,7 +857,26 @@ export default function NexusMeetingRoomPage() {
         return
       } catch (err: any) {
         if (err?.name === 'NotReadableError') {
-          setNotice(isEnglish ? 'Camera is currently in use by another tab or program.' : 'الكاميرا قيد الاستخدام حالياً في نافذة أخرى (أو برنامج آخر).')
+          // Hardware webcam is locked by another window (e.g. testing both teacher and student on 1 PC)
+          const virtualStream = createVirtualStream(profile?.full_name || 'Nexus User')
+          localStreamRef.current = virtualStream
+          setCameraOn(true)
+          virtualStream.getTracks().forEach((track) => {
+            peerConnectionsRef.current.forEach((pc) => {
+              const transceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === track.kind || t.sender.track?.kind === track.kind)
+              if (transceiver?.sender) {
+                void transceiver.sender.replaceTrack(track)
+                transceiver.direction = 'sendrecv'
+              } else {
+                pc.addTrack(track, virtualStream)
+              }
+            })
+          })
+          setNotice(isEnglish
+            ? 'Webcam is locked by your other tab. Started a live virtual camera stream for testing on this device!'
+            : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى لأنك على نفس الجهاز. تم تشغيل كاميرا افتراضية حية لتجربة الشاشتين معاً!')
+          setStreamVersion((v) => v + 1)
+          return
         } else if (err?.name === 'NotAllowedError') {
           setNotice(isEnglish ? 'Camera permission was denied in browser settings.' : 'تم رفض إذن الكاميرا. اضغط على أيقونة القفل بجانب الرابط للسماح.')
         } else if (err?.name === 'NotFoundError') {
@@ -799,7 +908,25 @@ export default function NexusMeetingRoomPage() {
         return
       } catch (err: any) {
         if (err?.name === 'NotReadableError') {
-          setNotice(isEnglish ? 'Camera is currently in use by another tab.' : 'الكاميرا قيد الاستخدام حالياً في نافذة المعلم أو تطبيق آخر.')
+          // Hardware webcam is locked by another window (e.g. testing both teacher and student on 1 PC)
+          const virtualStream = createVirtualStream(profile?.full_name || 'Nexus User')
+          const track = virtualStream.getVideoTracks()[0]
+          localStreamRef.current.addTrack(track)
+          peerConnectionsRef.current.forEach((pc) => {
+            const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
+            if (videoTransceiver?.sender) {
+              void videoTransceiver.sender.replaceTrack(track)
+              videoTransceiver.direction = 'sendrecv'
+            } else {
+              pc.addTrack(track, localStreamRef.current!)
+            }
+          })
+          setCameraOn(true)
+          setNotice(isEnglish
+            ? 'Webcam is locked by your other tab. Started a live virtual camera stream for testing on this device!'
+            : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى لأنك على نفس الجهاز. تم تشغيل كاميرا افتراضية حية لتجربة الشاشتين معاً!')
+          setStreamVersion((v) => v + 1)
+          return
         } else if (err?.name === 'NotAllowedError') {
           setNotice(isEnglish ? 'Camera permission was denied in browser settings.' : 'يرجى السماح بالكاميرا من إعدادات المتصفح.')
         } else {
