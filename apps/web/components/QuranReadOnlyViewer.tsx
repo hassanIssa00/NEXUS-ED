@@ -35,6 +35,7 @@ export default function QuranReadOnlyViewer({
   const tr = (ar: string, en: string) => isEnglish ? en : ar;
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState('1');
+  const [singlePageLayout, setSinglePageLayout] = useState(false);
   const [pageTurnDirection, setPageTurnDirection] = useState<'forward' | 'backward' | null>(null);
   const [zoom, setZoom] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -45,6 +46,19 @@ export default function QuranReadOnlyViewer({
   const totalPages = curriculum.pageCount || 72;
   const spreadStartPage = page % 2 === 0 ? page - 1 : page;
   const pageSpread = [spreadStartPage, spreadStartPage + 1].filter((pageNum) => pageNum <= totalPages);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)');
+    const updateLayout = () => setSinglePageLayout(media.matches);
+    updateLayout();
+    media.addEventListener('change', updateLayout);
+    return () => media.removeEventListener('change', updateLayout);
+  }, []);
+
+  const previousSpreadPage = singlePageLayout || pageSpread.length < 2 ? page - 1 : spreadStartPage - 2;
+  const nextSpreadPage = singlePageLayout || pageSpread.length < 2 ? page + 1 : spreadStartPage + 2;
+  const canGoToPreviousSpread = previousSpreadPage >= 1;
+  const canGoToNextSpread = nextSpreadPage <= totalPages;
   const pdfUrl = `/resources/curricula/${curriculum.slug}/juz-amma.pdf`;
 
   // Pre-rendered fast page image
@@ -98,15 +112,13 @@ export default function QuranReadOnlyViewer({
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
-        goToPage(page + 1);
-      } else if (e.key === 'ArrowRight') {
-        goToPage(page - 1);
-      }
+      if (e.target instanceof HTMLElement && e.target.closest('input, textarea, [contenteditable="true"]')) return;
+      if (e.key === 'ArrowLeft' && canGoToNextSpread) goToPage(nextSpreadPage);
+      else if (e.key === 'ArrowRight' && canGoToPreviousSpread) goToPage(previousSpreadPage);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [page, goToPage]);
+  }, [canGoToNextSpread, canGoToPreviousSpread, goToPage, nextSpreadPage, previousSpreadPage]);
 
   // Touch swipe handling
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -117,11 +129,8 @@ export default function QuranReadOnlyViewer({
     if (touchStartX.current === null) return;
     const diffX = touchStartX.current - e.changedTouches[0].clientX;
     touchStartX.current = null;
-    if (diffX > 50) {
-      goToPage(page + 1);
-    } else if (diffX < -50) {
-      goToPage(page - 1);
-    }
+    if (diffX > 50 && canGoToNextSpread) goToPage(nextSpreadPage);
+    else if (diffX < -50 && canGoToPreviousSpread) goToPage(previousSpreadPage);
   };
 
   // Active unit label
@@ -193,8 +202,8 @@ export default function QuranReadOnlyViewer({
         {/* Page navigation */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => goToPage(page - 1)}
-            disabled={page <= 1}
+            onClick={() => goToPage(previousSpreadPage)}
+            disabled={!canGoToPreviousSpread}
             className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition"
             title={tr('الصفحة السابقة (السهم الأيمن)', 'Previous page (right arrow)')}
           >
@@ -214,8 +223,8 @@ export default function QuranReadOnlyViewer({
           </div>
 
           <button
-            onClick={() => goToPage(page + 1)}
-            disabled={page >= totalPages}
+            onClick={() => goToPage(nextSpreadPage)}
+            disabled={!canGoToNextSpread}
             className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition"
             title={tr('الصفحة التالية (السهم الأيسر)', 'Next page (left arrow)')}
           >
@@ -337,8 +346,8 @@ export default function QuranReadOnlyViewer({
         {/* Bottom Fast Page Switcher Bar */}
         <div className="flex items-center justify-between p-3 border-t border-slate-200 bg-white">
           <button
-            onClick={() => goToPage(page - 1)}
-            disabled={page <= 1}
+            onClick={() => goToPage(previousSpreadPage)}
+            disabled={!canGoToPreviousSpread}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition"
           >
             <ChevronRight size={16} />
@@ -351,8 +360,8 @@ export default function QuranReadOnlyViewer({
           </span>
 
           <button
-            onClick={() => goToPage(page + 1)}
-            disabled={page >= totalPages}
+            onClick={() => goToPage(nextSpreadPage)}
+            disabled={!canGoToNextSpread}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition"
           >
             <span>{tr('الصفحة التالية', 'Next page')}</span>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocale } from 'next-intl';
 import {
   BookOpen,
@@ -71,6 +71,7 @@ export default function CurriculumInteractiveWorkbook({
 
   const [page, setPage] = useState(assignmentRange?.from ?? 1);
   const [pageInput, setPageInput] = useState(String(assignmentRange?.from ?? 1));
+  const [singlePageLayout, setSinglePageLayout] = useState(false);
   const [pageTurnDirection, setPageTurnDirection] = useState<'forward' | 'backward' | null>(null);
   const [tool, setTool] = useState<Tool>('pen');
   const [color, setColor] = useState('#0f172a');
@@ -105,6 +106,14 @@ export default function CurriculumInteractiveWorkbook({
 
   useEffect(() => () => {
     if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)');
+    const updateLayout = () => setSinglePageLayout(media.matches);
+    updateLayout();
+    media.addEventListener('change', updateLayout);
+    return () => media.removeEventListener('change', updateLayout);
   }, []);
 
   // Keep the global tutor aware of the textbook page currently open in this
@@ -292,18 +301,7 @@ export default function CurriculumInteractiveWorkbook({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
-  // Keyboard nav
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') goToPage(page + 1);
-      else if (e.key === 'ArrowRight') goToPage(page - 1);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
-
-  function goToPage(n: number) {
+  const goToPage = useCallback((n: number) => {
     const lower = assignedPageWindow?.from ?? 1;
     const upper = assignedPageWindow?.to ?? totalPages;
     const c = Math.max(lower, Math.min(upper, n));
@@ -314,7 +312,27 @@ export default function CurriculumInteractiveWorkbook({
     }
     setPage(c);
     setPageInput(String(c));
-  }
+  }, [assignedPageWindow?.from, assignedPageWindow?.to, page, totalPages]);
+
+  // The reader shows a two-page spread. Advance to the next spread instead
+  // of moving the active page by one (which kept the same pair on screen).
+  const previousSpreadPage = singlePageLayout || pageSpread.length < 2 ? page - 1 : spreadStartPage - 2;
+  const nextSpreadPage = singlePageLayout || pageSpread.length < 2 ? page + 1 : spreadStartPage + 2;
+  const pageLowerBound = assignedPageWindow?.from ?? 1;
+  const pageUpperBound = assignedPageWindow?.to ?? totalPages;
+  const canGoToPreviousSpread = previousSpreadPage >= pageLowerBound;
+  const canGoToNextSpread = nextSpreadPage <= pageUpperBound;
+
+  // Keyboard nav follows the same two-page spread behavior as the controls.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLElement && e.target.closest('input, textarea, [contenteditable="true"]')) return;
+      if (e.key === 'ArrowLeft' && canGoToNextSpread) goToPage(nextSpreadPage);
+      else if (e.key === 'ArrowRight' && canGoToPreviousSpread) goToPage(previousSpreadPage);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [canGoToNextSpread, canGoToPreviousSpread, goToPage, nextSpreadPage, previousSpreadPage]);
 
   function pageImageStyle(isCanvas = false): React.CSSProperties {
     const centered = isCanvas
@@ -557,7 +575,7 @@ export default function CurriculumInteractiveWorkbook({
 
         {/* Page navigation */}
         <div className="flex items-center gap-1.5">
-          <button onClick={() => goToPage(page - 1)} disabled={page <= (assignedPageWindow?.from ?? 1)}
+          <button onClick={() => goToPage(previousSpreadPage)} disabled={!canGoToPreviousSpread}
             className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 disabled:opacity-30 transition">
             <ChevronRight size={18} />
           </button>
@@ -569,7 +587,7 @@ export default function CurriculumInteractiveWorkbook({
             />
             <span className="text-xs font-bold text-slate-400">/ {totalPages}</span>
           </div>
-          <button onClick={() => goToPage(page + 1)} disabled={page >= (assignedPageWindow?.to ?? totalPages)}
+          <button onClick={() => goToPage(nextSpreadPage)} disabled={!canGoToNextSpread}
             className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 disabled:opacity-30 transition">
             <ChevronLeft size={18} />
           </button>
@@ -694,7 +712,7 @@ export default function CurriculumInteractiveWorkbook({
 
         {/* Bottom nav bar */}
         <div ref={pageNavRef} className="flex items-center justify-between border-t border-slate-200 bg-white p-3">
-          <button onClick={() => goToPage(page - 1)} disabled={page <= 1}
+          <button onClick={() => goToPage(previousSpreadPage)} disabled={!canGoToPreviousSpread}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition">
             <ChevronRight size={15} /> {tr('السابقة', 'Previous')}
           </button>
@@ -703,7 +721,7 @@ export default function CurriculumInteractiveWorkbook({
             <span className="book-spread-mobile-label">{tr('صفحة', 'Page')} {page}</span> {tr('من', 'of')} {totalPages}
             {activeUnit && <span className="mr-2 text-slate-400 font-bold">— {activeUnit.title}</span>}
           </span>
-          <button onClick={() => goToPage(page + 1)} disabled={page >= totalPages}
+          <button onClick={() => goToPage(nextSpreadPage)} disabled={!canGoToNextSpread}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition">
             {tr('التالية', 'Next')} <ChevronLeft size={15} />
           </button>

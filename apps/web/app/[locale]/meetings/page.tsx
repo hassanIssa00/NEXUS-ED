@@ -6,8 +6,7 @@ import { useRouter } from '@/i18n/routing'
 import { useAuth } from '@/contexts/auth-context'
 import { apiClient } from '@/lib/api-client'
 import { AlertCircle, CalendarClock, Check, ChevronLeft, Clock3, Copy, Loader2, Plus, Radio, Users, Video, X } from 'lucide-react'
-import { DatePicker, dateInputValue } from '@/components/ui/date-picker'
-import { TimeSelect } from '@/components/ui/time-select'
+import { dateInputValue } from '@/components/ui/date-picker'
 
 type Member = { id: string; name: string; role: string; avatar?: string | null }
 type ClassItem = { id: string; name: string }
@@ -62,7 +61,9 @@ export default function NexusMeetingsPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [meetingDate, setMeetingDate] = useState('')
-  const [meetingTime, setMeetingTime] = useState('')
+  const [meetingHour, setMeetingHour] = useState('9')
+  const [meetingMinute, setMeetingMinute] = useState('00')
+  const [meetingPeriod, setMeetingPeriod] = useState<'AM' | 'PM'>('AM')
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [classId, setClassId] = useState('')
   const [roster, setRoster] = useState<StudentRosterItem[]>([])
@@ -78,7 +79,26 @@ export default function NexusMeetingsPage() {
     return () => window.clearInterval(timer)
   }, [])
 
-  const earliestMeetingTime = meetingDate === dateInputValue(clockNow) ? nextMeetingSlot(clockNow) : undefined
+  const meetingTime = useMemo(() => {
+    const hour = Number(meetingHour)
+    const minute = Number(meetingMinute)
+    if (!Number.isInteger(hour) || hour < 1 || hour > 12 || !Number.isInteger(minute) || minute < 0 || minute > 59) return ''
+    const hour24 = (hour % 12) + (meetingPeriod === 'PM' ? 12 : 0)
+    return `${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+  }, [meetingHour, meetingMinute, meetingPeriod])
+
+  const setTimeFrom24Hour = (value: string) => {
+    const match = /^(\d{2}):(\d{2})$/.exec(value)
+    if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) {
+      setMeetingHour('')
+      setMeetingMinute('')
+      return
+    }
+    const hour24 = Number(match[1])
+    setMeetingHour(String(hour24 % 12 || 12))
+    setMeetingMinute(match[2])
+    setMeetingPeriod(hour24 >= 12 ? 'PM' : 'AM')
+  }
 
   const refresh = async () => {
     setLoading(true)
@@ -129,7 +149,7 @@ export default function NexusMeetingsPage() {
   }), [meetings])
 
   const resetForm = () => {
-    setTitle(''); setDescription(''); setMeetingDate(''); setMeetingTime(''); setClassId(''); setRoster([]); setSelectedParentIds([])
+    setTitle(''); setDescription(''); setMeetingDate(''); setMeetingHour('9'); setMeetingMinute('00'); setMeetingPeriod('AM'); setClassId(''); setRoster([]); setSelectedParentIds([])
     setMeetingType(isTeacher ? 'CLASS' : 'STAFF'); setShowCreate(false)
   }
 
@@ -235,7 +255,24 @@ export default function NexusMeetingsPage() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-1.5 text-sm"><span className="font-medium">{isEnglish ? 'Meeting title' : 'عنوان الاجتماع'}</span><input required minLength={3} maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} placeholder={meetingType === 'CLASS' ? (isEnglish ? 'e.g. Mathematics lesson' : 'مثال: حصة الرياضيات') : meetingType === 'PARENT' ? (isEnglish ? 'e.g. Follow-up meeting' : 'مثال: لقاء متابعة الطلاب') : (isEnglish ? 'e.g. Staff coordination' : 'مثال: اجتماع تنسيق موظفي المدرسة')} className="h-11 w-full rounded-xl border bg-background px-3 outline-none ring-offset-background focus:ring-2 focus:ring-[#356079]/30" /></label>
-          <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1.5 text-sm"><span className="font-medium">{isEnglish ? 'Date' : 'تاريخ الاجتماع'}</span><DatePicker value={meetingDate} onChange={(date) => { setMeetingDate(date); setMeetingTime(date ? defaultMeetingSlot(date, new Date()) : '') }} placeholder={isEnglish ? 'Choose a date' : 'اختر التاريخ'} locale={locale} minDate={clockNow} /></label><label className="space-y-1.5 text-sm"><span className="font-medium">{isEnglish ? 'Time (24-hour)' : 'وقت الاجتماع (بنظام 24 ساعة)'}</span><TimeSelect value={meetingTime} onChange={setMeetingTime} minValue={earliestMeetingTime} placeholder={isEnglish ? 'Choose a time' : 'اختر الوقت'} disabled={!meetingDate || earliestMeetingTime === '24:00'} /></label></div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5 text-sm">
+              <span className="font-medium">{isEnglish ? 'Date' : 'تاريخ الاجتماع'}</span>
+              <input required type="date" value={meetingDate} min={dateInputValue(clockNow)} onChange={(event) => { const date = event.target.value; setMeetingDate(date); setTimeFrom24Hour(date ? defaultMeetingSlot(date, new Date()) : '') }} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25" />
+            </label>
+            <fieldset className="space-y-1.5 text-sm">
+              <legend className="font-medium">{isEnglish ? 'Time' : 'وقت الاجتماع'}</legend>
+              <div className="flex h-11 items-center gap-2" dir="ltr">
+                <input aria-label={isEnglish ? 'Hour' : 'الساعة'} required type="number" min={1} max={12} inputMode="numeric" placeholder="hh" value={meetingHour} onChange={(event) => setMeetingHour(event.target.value)} disabled={!meetingDate} className="h-11 w-16 rounded-xl border border-input bg-background px-2 text-center text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:opacity-50" />
+                <span aria-hidden="true" className="font-bold text-muted-foreground">:</span>
+                <input aria-label={isEnglish ? 'Minute' : 'الدقيقة'} required type="number" min={0} max={59} inputMode="numeric" placeholder="mm" value={meetingMinute} onChange={(event) => setMeetingMinute(event.target.value)} disabled={!meetingDate} className="h-11 w-16 rounded-xl border border-input bg-background px-2 text-center text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:opacity-50" />
+                <select aria-label={isEnglish ? 'AM or PM' : 'صباحًا أو مساءً'} value={meetingPeriod} onChange={(event) => setMeetingPeriod(event.target.value as 'AM' | 'PM')} disabled={!meetingDate} className="h-11 min-w-20 rounded-xl border border-input bg-background px-3 text-sm font-semibold shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:opacity-50">
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
+            </fieldset>
+          </div>
         </div>
 
         {meetingType !== 'STAFF' && <label className="block space-y-1.5 text-sm"><span className="font-medium">{isEnglish ? 'Class' : 'الفصل'}</span><select required value={classId} onChange={(event) => { setClassId(event.target.value); setRoster([]); setSelectedParentIds([]) }} className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-[#356079]/30"><option value="">{isEnglish ? 'Select a class' : 'اختر الفصل الدراسي'}</option>{classes.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}</select>{!classes.length && <span className="text-xs text-amber-700">{isEnglish ? 'No classes are assigned to this teacher account.' : 'لا توجد فصول مسندة إلى حساب المعلم.'}</span>}</label>}
