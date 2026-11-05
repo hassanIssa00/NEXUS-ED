@@ -1,4 +1,4 @@
-﻿import { spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 
 const TASKS = Object.freeze({
   migrate: { command: 'npm', args: ['run', 'db:migrate'] },
@@ -42,12 +42,11 @@ if (process.env.NEXUS_STAFF_PROVISION_ON_DEPLOY === 'YES') {
   });
 }
 
-if (process.env.NEXUS_CLASS_RECONCILE_ON_DEPLOY === 'YES') {
-  run('reconcileFirstGrade');
-}
-
-// One-time: create missing student accounts (idempotent)
+// Provision & sync student accounts (students 14, 15, 16, mustChangePassword)
 run('createMissingStudents');
 
-// Fix student14 name typo: برزن → يزن
+// Fix student14 name typo
 run('fixStudentName');
+
+// Reconcile student enrollments into the first-grade class
+run('reconcileFirstGrade');
