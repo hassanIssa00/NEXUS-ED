@@ -79,7 +79,7 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
  * Allows developers and users testing 2 tabs on the same computer to stream video simultaneously
  * even when the physical webcam is exclusively locked by one tab.
  */
-function createVirtualStream(name: string): MediaStream {
+function createVirtualStream(name: string, avatarUrl?: string | null): MediaStream {
   if (typeof document === 'undefined') return new MediaStream()
   const canvas = document.createElement('canvas')
   canvas.width = 640
@@ -88,9 +88,19 @@ function createVirtualStream(name: string): MediaStream {
   if (!ctx) return new MediaStream()
 
   let frame = 0
-  let animId: number
   let running = true
   const initials = name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('') || 'ن'
+
+  let avatarImg: HTMLImageElement | null = null
+  if (avatarUrl) {
+    try {
+      avatarImg = new Image()
+      avatarImg.crossOrigin = 'anonymous'
+      avatarImg.src = avatarUrl
+    } catch {
+      avatarImg = null
+    }
+  }
 
   const draw = () => {
     if (!running) return
@@ -121,12 +131,22 @@ function createVirtualStream(name: string): MediaStream {
     ctx.lineWidth = 2
     ctx.stroke()
 
-    // Initials
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 40px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(initials, 0, 0)
+    // Draw Real Avatar Image if loaded, otherwise draw initials
+    if (avatarImg && avatarImg.complete && avatarImg.naturalWidth > 0) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(0, 0, 64, 0, Math.PI * 2)
+      ctx.closePath()
+      ctx.clip()
+      ctx.drawImage(avatarImg, -64, -64, 128, 128)
+      ctx.restore()
+    } else {
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 40px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(initials, 0, 0)
+    }
     ctx.restore()
 
     // Live Badge
@@ -168,6 +188,7 @@ function createVirtualStream(name: string): MediaStream {
 function StreamTile({
   stream,
   name,
+  avatarUrl,
   isLocal,
   isHost,
   isSpotlight,
@@ -184,6 +205,7 @@ function StreamTile({
 }: {
   stream?: MediaStream | null
   name: string
+  avatarUrl?: string | null
   isLocal?: boolean
   isHost?: boolean
   isSpotlight?: boolean
@@ -264,11 +286,15 @@ function StreamTile({
       {!isVideoVisible && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-[#1c3f56] to-[#0c1f2b] text-white">
           <div
-            className={`flex items-center justify-center rounded-full border border-white/20 bg-white/10 font-bold uppercase shadow-inner ${
-              isSpotlight ? 'h-24 w-24 text-4xl' : 'h-14 w-14 text-xl'
+            className={`flex items-center justify-center rounded-full border border-white/20 bg-white/10 font-bold uppercase shadow-inner overflow-hidden ${
+              isSpotlight ? 'h-24 w-24 text-4xl' : 'h-16 w-16 text-2xl'
             }`}
           >
-            {initials}
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
+            ) : (
+              initials
+            )}
           </div>
           <span className={`${isSpotlight ? 'text-sm' : 'text-xs'} text-white/70 font-medium`}>
             {isScreenSharing
@@ -897,7 +923,7 @@ export default function NexusMeetingRoomPage() {
             const audioStream = await navigator.mediaDevices.getUserMedia({
               audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
             }).catch(() => null)
-            const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User')
+            const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User', profile?.avatar_url || (profile as any)?.avatar || null)
             const combined = new MediaStream([
               ...(audioStream ? audioStream.getAudioTracks() : []),
               ...virtualVid.getVideoTracks(),
@@ -909,7 +935,7 @@ export default function NexusMeetingRoomPage() {
               ? 'Physical webcam was unavailable; interactive live camera stream started automatically!'
               : 'تم تشغيل كاميرا تفاعلية حية تلقائياً (تتيح تجربة شاشتين معاً أو العمل بدون كاميرا مادية).')
           } catch {
-            const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User')
+            const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User', profile?.avatar_url || (profile as any)?.avatar || null)
             localStream = virtualVid
             setCameraOn(true)
             setMicrophoneOn(false)
@@ -994,82 +1020,75 @@ export default function NexusMeetingRoomPage() {
     setMicrophoneOn(nextState)
   }
 
-  // Toggle camera
+  // Toggle camera: attempts real physical webcam first, with avatar/virtual fallback
   const toggleCamera = async () => {
-    if (!localStreamRef.current) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-        localStreamRef.current = stream
-        setCameraOn(true)
-        setMicrophoneOn(true)
-      } catch {
-        const virtualStream = createVirtualStream(profile?.full_name || 'Nexus User')
-        localStreamRef.current = virtualStream
-        setCameraOn(true)
-        setMicrophoneOn(false)
-        setNotice(isEnglish
-          ? 'Live camera started in interactive virtual mode (supports dual-window testing).'
-          : 'تم تشغيل الكاميرا التفاعلية الحية بنجاح!')
-      }
-      const vidTrack = localStreamRef.current.getVideoTracks()[0]
-      if (vidTrack) {
-        peerConnectionsRef.current.forEach((pc) => {
-          const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
-          if (videoTransceiver?.sender) {
-            void videoTransceiver.sender.replaceTrack(vidTrack)
-            videoTransceiver.direction = 'sendrecv'
-          } else {
-            pc.addTrack(vidTrack, localStreamRef.current!)
-          }
+    const userAvatar = profile?.avatar_url || (profile as any)?.avatar || null
+    const nextState = !cameraOn
+
+    if (!nextState) {
+      // Turn camera OFF
+      setCameraOn(false)
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach((t) => {
+          t.enabled = false
         })
       }
+      peerConnectionsRef.current.forEach((pc) => {
+        const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
+        if (videoTransceiver) {
+          videoTransceiver.direction = 'recvonly'
+        }
+      })
       renegotiateAll()
       setStreamVersion((v) => v + 1)
       return
     }
 
-    const liveVideoTrack = localStreamRef.current.getVideoTracks().find((t) => t.readyState === 'live')
-    if (!liveVideoTrack) {
-      let track: MediaStreamTrack | null = null
+    // Turning camera ON: Attempt to acquire real physical webcam hardware
+    let realTrack: MediaStreamTrack | null = null
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-        track = stream.getVideoTracks()[0]
-      } catch {
-        const virtualStream = createVirtualStream(profile?.full_name || 'Nexus User')
-        track = virtualStream.getVideoTracks()[0]
-        setNotice(isEnglish
-          ? 'Live camera started in interactive virtual mode.'
-          : 'تم تشغيل الكاميرا التفاعلية الحية بنجاح!')
-      }
-      if (track) {
-        localStreamRef.current.addTrack(track)
-        peerConnectionsRef.current.forEach((pc) => {
-          const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
-          if (videoTransceiver?.sender) {
-            void videoTransceiver.sender.replaceTrack(track)
-            videoTransceiver.direction = 'sendrecv'
-          } else {
-            pc.addTrack(track, localStreamRef.current!)
-          }
+        const camStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
         })
-        setCameraOn(true)
-        renegotiateAll()
-        setStreamVersion((v) => v + 1)
+        realTrack = camStream.getVideoTracks()[0] || null
+      } catch (err) {
+        console.warn('Physical camera acquisition failed, using interactive profile mode:', err)
       }
-      return
     }
 
-    const nextState = !cameraOn
-    liveVideoTrack.enabled = nextState
-    setCameraOn(nextState)
-    peerConnectionsRef.current.forEach((pc) => {
+    // If real webcam failed (busy/locked/denied), use interactive virtual stream with user avatar
+    const trackToUse = realTrack || createVirtualStream(profile?.full_name || 'Nexus User', userAvatar).getVideoTracks()[0]
+
+    if (localStreamRef.current) {
+      const oldVideoTracks = localStreamRef.current.getVideoTracks()
+      oldVideoTracks.forEach((t) => t.stop())
+      oldVideoTracks.forEach((t) => localStreamRef.current!.removeTrack(t))
+      localStreamRef.current.addTrack(trackToUse)
+    } else {
+      localStreamRef.current = new MediaStream([trackToUse])
+    }
+
+    for (const [, pc] of peerConnectionsRef.current.entries()) {
       const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
-      if (videoTransceiver) {
-        videoTransceiver.direction = nextState ? 'sendrecv' : 'recvonly'
+      if (videoTransceiver?.sender) {
+        await videoTransceiver.sender.replaceTrack(trackToUse)
+        videoTransceiver.direction = 'sendrecv'
+      } else {
+        pc.addTrack(trackToUse, localStreamRef.current!)
       }
-    })
+    }
+
+    setCameraOn(true)
     renegotiateAll()
     setStreamVersion((v) => v + 1)
+    if (realTrack) {
+      setNotice(isEnglish ? 'Physical webcam started successfully!' : 'تم تشغيل الكاميرا الحقيقية بنجاح!')
+    } else {
+      setNotice(isEnglish
+        ? 'Physical webcam is busy in another app; interactive profile stream is live!'
+        : 'الكاميرا المادية مشغولة بتطبيق آخر؛ تم تشغيل بث الصورة التفاعلي الحقيقي!')
+    }
   }
 
   // Toggle screen share
@@ -1484,6 +1503,7 @@ export default function NexusMeetingRoomPage() {
                     key={`local-spotlight-${streamVersion}`}
                     stream={screenStreamRef.current || localStreamRef.current}
                     name={profile?.full_name || 'أنت'}
+                    avatarUrl={profile?.avatar_url || (profile as any)?.avatar || null}
                     isLocal
                     isHost
                     isSpotlight
@@ -1500,6 +1520,7 @@ export default function NexusMeetingRoomPage() {
                       key={`remote-host-${remoteHostPeer.userId}-${streamVersion}`}
                       stream={remoteStreams.get(remoteHostPeer.userId)}
                       name={remoteHostPeer.userName}
+                      avatarUrl={meeting?.host.avatar || null}
                       isLocal={false}
                       isHost
                       isSpotlight
@@ -1554,6 +1575,7 @@ export default function NexusMeetingRoomPage() {
                         key={`local-strip-${streamVersion}`}
                         stream={screenStreamRef.current || localStreamRef.current}
                         name={profile?.full_name || 'أنت'}
+                        avatarUrl={profile?.avatar_url || (profile as any)?.avatar || null}
                         isLocal
                         isHost={false}
                         cameraOn={cameraOn}
@@ -1570,12 +1592,14 @@ export default function NexusMeetingRoomPage() {
                     .filter((p) => isHost || !p.isHost) // If student, don't duplicate teacher in strip
                     .map((peer) => {
                       const peerStream = remoteStreams.get(peer.userId)
+                      const peerAvatar = meeting?.participants.find((p) => p.userId === peer.userId)?.user.avatar || null
                       return (
                         <div key={peer.userId} className="shrink-0">
                           <StreamTile
                             key={`peer-tile-${peer.userId}-${streamVersion}`}
                             stream={peerStream}
                             name={peer.userName}
+                            avatarUrl={peerAvatar}
                             isLocal={false}
                             isHost={peer.isHost}
                             cameraOn={peer.cameraOn}
