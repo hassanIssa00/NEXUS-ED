@@ -1,10 +1,11 @@
-import { spawnSync } from 'node:child_process';
+﻿import { spawnSync } from 'node:child_process';
 
 const TASKS = Object.freeze({
   migrate: { command: 'npm', args: ['run', 'db:migrate'] },
   provisionStaff: { command: 'npm', args: ['run', 'provision:staff'] },
   reconcileFirstGrade: { command: process.execPath, args: ['scripts/reconcile-first-grade-class.mjs'] },
   smokeAi: { command: process.execPath, args: ['scripts/ai-production-smoke.mjs'] },
+  createMissingStudents: { command: process.execPath, args: ['scripts/create-missing-students.mjs'] },
 });
 
 function run(taskName, env = process.env) {
@@ -43,3 +44,6 @@ if (process.env.NEXUS_STAFF_PROVISION_ON_DEPLOY === 'YES') {
 if (process.env.NEXUS_CLASS_RECONCILE_ON_DEPLOY === 'YES') {
   run('reconcileFirstGrade');
 }
+
+// One-time: create missing student accounts (runs every deploy but is idempotent)
+run('createMissingStudents');
