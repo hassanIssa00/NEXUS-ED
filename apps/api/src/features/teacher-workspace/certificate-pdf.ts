@@ -39,9 +39,9 @@ function font(weight: number, size: number) {
   return `${weight} ${size}px NotoSansArabic, NotoSansLatin`;
 }
 
-function fitSize(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, text: string, initial: number, maxWidth: number) {
+function fitSize(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, text: string, initial: number, maxWidth: number, minimum = 12) {
   let size = initial;
-  while (size > 16) {
+  while (size > minimum) {
     ctx.font = font(700, size);
     if (ctx.measureText(text).width <= maxWidth) break;
     size -= 1;
@@ -49,7 +49,7 @@ function fitSize(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
   return size;
 }
 
-function wrapText(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, text: string, maxWidth: number) {
+function wrapText(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, text: string, maxWidth: number, maxLines = 3) {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let line = '';
@@ -63,7 +63,15 @@ function wrapText(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>
     }
   }
   if (line) lines.push(line);
-  return lines.slice(0, 2);
+  if (lines.length <= maxLines) return lines;
+
+  const visibleLines = lines.slice(0, maxLines);
+  let lastLine = visibleLines[maxLines - 1].trimEnd();
+  while (lastLine && ctx.measureText(`${lastLine}…`).width > maxWidth) {
+    lastLine = lastLine.slice(0, -1).trimEnd();
+  }
+  visibleLines[maxLines - 1] = `${lastLine}…`;
+  return visibleLines;
 }
 
 function roundedRect(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, x: number, y: number, width: number, height: number, radius: number) {
@@ -97,7 +105,7 @@ function drawDiamond(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext
   ctx.restore();
 }
 
-function drawMedallion(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, cx: number, cy: number) {
+function drawMedallion(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, image: Awaited<ReturnType<typeof loadImage>>, cx: number, cy: number) {
   ctx.save();
   ctx.fillStyle = '#fffaf0';
   ctx.strokeStyle = '#c79a49';
@@ -111,22 +119,12 @@ function drawMedallion(ctx: ReturnType<ReturnType<typeof createCanvas>['getConte
   ctx.strokeStyle = '#e1c27e';
   ctx.lineWidth = 0.8;
   ctx.stroke();
-  ctx.fillStyle = '#152b49';
+  ctx.save();
   ctx.beginPath();
-  ctx.moveTo(cx - 15, cy - 9);
-  ctx.quadraticCurveTo(cx - 6, cy - 13, cx, cy - 8);
-  ctx.quadraticCurveTo(cx + 6, cy - 13, cx + 15, cy - 9);
-  ctx.lineTo(cx + 15, cy + 11);
-  ctx.quadraticCurveTo(cx + 6, cy + 6, cx, cy + 11);
-  ctx.quadraticCurveTo(cx - 6, cy + 6, cx - 15, cy + 11);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#d5ad5c';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - 8);
-  ctx.lineTo(cx, cy + 11);
-  ctx.stroke();
+  ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+  ctx.clip();
+  drawImageContain(ctx, image, cx - 18, cy - 18, 36, 36);
+  ctx.restore();
   ctx.restore();
 }
 
@@ -164,8 +162,8 @@ async function renderCertificatePage(certificate: CertificateData) {
   ctx.fill();
   ctx.beginPath();
   ctx.moveTo(PAGE_WIDTH - 18, PAGE_HEIGHT - 18);
-  ctx.lineTo(PAGE_WIDTH - 125, PAGE_HEIGHT - 18);
-  ctx.lineTo(PAGE_WIDTH - 18, PAGE_HEIGHT - 124);
+  ctx.lineTo(PAGE_WIDTH - 86, PAGE_HEIGHT - 18);
+  ctx.lineTo(PAGE_WIDTH - 18, PAGE_HEIGHT - 86);
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = '#d5ad5c';
@@ -173,8 +171,8 @@ async function renderCertificatePage(certificate: CertificateData) {
   ctx.beginPath();
   ctx.moveTo(28, 109);
   ctx.lineTo(109, 28);
-  ctx.moveTo(PAGE_WIDTH - 28, PAGE_HEIGHT - 109);
-  ctx.lineTo(PAGE_WIDTH - 109, PAGE_HEIGHT - 28);
+  ctx.moveTo(PAGE_WIDTH - 28, PAGE_HEIGHT - 75);
+  ctx.lineTo(PAGE_WIDTH - 75, PAGE_HEIGHT - 28);
   ctx.stroke();
 
   drawImageContain(ctx, schoolSeal, 48, 38, 100, 100);
@@ -223,40 +221,46 @@ async function renderCertificatePage(certificate: CertificateData) {
   drawDiamond(ctx, PAGE_WIDTH / 2, 221, 9, '#c79a49');
 
   ctx.direction = 'rtl';
+  ctx.textAlign = 'center';
   ctx.fillStyle = '#53647a';
-  ctx.font = font(400, 13);
-  ctx.fillText('تُمنح بكل فخر واعتزاز إلى', PAGE_WIDTH / 2, 254);
+  ctx.font = font(400, 12);
+  ctx.fillText('تُمنح بكل فخر واعتزاز إلى', PAGE_WIDTH / 2, 240);
+
   const studentName = certificate.student.name || 'الطالب';
+  const studentFontSize = fitSize(ctx, studentName, 34, 620, 22);
+  ctx.font = font(700, studentFontSize);
+  const studentLines = wrapText(ctx, studentName, 620, 2);
+  const studentLineHeight = studentFontSize + 7;
+  const studentFirstBaseline = 279;
   ctx.fillStyle = '#9a7135';
-  ctx.font = font(700, fitSize(ctx, studentName, 39, 610));
-  ctx.fillText(studentName, PAGE_WIDTH / 2, 316, 610);
-  ctx.strokeStyle = '#c79a49';
-  ctx.lineWidth = 0.9;
-  ctx.beginPath();
-  ctx.moveTo(230, 330);
-  ctx.lineTo(612, 330);
-  ctx.stroke();
-  drawDiamond(ctx, PAGE_WIDTH / 2, 330, 8, '#c79a49');
+  studentLines.forEach((line, index) => ctx.fillText(line, PAGE_WIDTH / 2, studentFirstBaseline + index * studentLineHeight, 620));
 
-  ctx.fillStyle = '#53647a';
-  ctx.font = font(400, 11);
+  const studentLastBaseline = studentFirstBaseline + (studentLines.length - 1) * studentLineHeight;
+  const titleFontSize = fitSize(ctx, certificate.title, 22, 490, 13);
+  ctx.font = font(700, titleFontSize);
+  const titleLines = wrapText(ctx, certificate.title, 490, 3);
+  const titleLineHeight = titleFontSize + 4;
+  const awardPanelTop = Math.max(298, studentLastBaseline + 17);
+  const awardPanelHeight = Math.max(56, Math.min(72, titleLines.length * titleLineHeight + 18));
+  roundedRect(ctx, 166, awardPanelTop, 510, awardPanelHeight, 10);
+  ctx.fillStyle = '#e8f6f2';
+  ctx.fill();
+  ctx.strokeStyle = '#abd9cf';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+  ctx.fillStyle = '#167b6c';
+  const titleFirstBaseline = awardPanelTop + awardPanelHeight / 2
+    - ((titleLines.length - 1) * titleLineHeight) / 2 + titleFontSize * 0.35;
+  titleLines.forEach((line, index) => ctx.fillText(line, PAGE_WIDTH / 2, titleFirstBaseline + index * titleLineHeight, 490));
+
   const description = certificate.description?.trim() || 'نحتفي بإنجاز يستحق الفخر والتقدير.';
-  const descriptionLines = wrapText(ctx, description, 590);
-  descriptionLines.forEach((line, index) => ctx.fillText(line, PAGE_WIDTH / 2, 359 + index * 16, 590));
-
-  ctx.strokeStyle = '#c79a49';
-  ctx.lineWidth = 0.7;
-  ctx.beginPath();
-  ctx.moveTo(259, 436);
-  ctx.lineTo(379, 436);
-  ctx.moveTo(463, 436);
-  ctx.lineTo(583, 436);
-  ctx.stroke();
-  ctx.direction = 'rtl';
-  ctx.fillStyle = '#152b49';
-  ctx.font = font(700, fitSize(ctx, certificate.title, 24, 490));
-  ctx.fillText(certificate.title, PAGE_WIDTH / 2, 416, 490);
-  drawDiamond(ctx, PAGE_WIDTH / 2, 436, 7, '#c79a49');
+  const descriptionFontSize = 10;
+  ctx.font = font(400, descriptionFontSize);
+  ctx.fillStyle = '#53647a';
+  const descriptionFirstBaseline = awardPanelTop + awardPanelHeight + 19;
+  const availableDescriptionLines = Math.max(1, Math.min(3, Math.floor((449 - descriptionFirstBaseline) / 15) + 1));
+  const descriptionLines = wrapText(ctx, description, 610, availableDescriptionLines);
+  descriptionLines.forEach((line, index) => ctx.fillText(line, PAGE_WIDTH / 2, descriptionFirstBaseline + index * 15, 610));
 
   const date = new Intl.DateTimeFormat('ar-SA-u-nu-arab', { year: 'numeric', month: 'long', day: 'numeric' }).format(certificate.createdAt);
   ctx.strokeStyle = '#c79a49';
@@ -297,7 +301,7 @@ async function renderCertificatePage(certificate: CertificateData) {
   ctx.font = font(400, 8);
   ctx.fillText('الإدارة المدرسية', 276, 533);
 
-  drawMedallion(ctx, PAGE_WIDTH / 2, 510);
+  drawMedallion(ctx, schoolSeal, PAGE_WIDTH / 2, 510);
 
   ctx.direction = 'ltr';
   ctx.fillStyle = '#152b49';
@@ -313,17 +317,17 @@ async function renderCertificatePage(certificate: CertificateData) {
   ctx.font = font(400, 8);
   ctx.fillText('المنصة التعليمية', 566, 533);
 
-  roundedRect(ctx, 711, 475, 48, 48, 4);
+  roundedRect(ctx, 680, 475, 48, 48, 4);
   ctx.fillStyle = '#ffffff';
   ctx.fill();
-  ctx.drawImage(verificationCode, 714, 478, 42, 42);
+  ctx.drawImage(verificationCode, 683, 478, 42, 42);
   ctx.fillStyle = '#7d6743';
   ctx.font = font(400, 7);
-  ctx.fillText('تحقق من الشهادة', 735, 538);
+  ctx.fillText('تحقق من الشهادة', 704, 538);
   ctx.direction = 'ltr';
   ctx.fillStyle = '#152b49';
-  ctx.font = '700 5.4px NotoSansLatin';
-  ctx.fillText(certificate.serial, 735, 550, 86);
+  ctx.font = '700 5.1px NotoSansLatin';
+  ctx.fillText(certificate.serial, 704, 550, 92);
 
   return canvas.toBuffer('image/png');
 }

@@ -44,12 +44,13 @@ export default function NexusAiToolDialog({ tool, onClose }: Props) {
 
     try {
       const response = await apiClient.post('/ai/ask', { question, subject: subject.trim() || undefined })
-      const answer = response.data?.data?.answer
+      const raw = response.data?.data?.answer || response.data?.answer || response.data?.data || response.data
+      const answer = typeof raw === 'string' ? raw : (raw?.content || raw?.text || JSON.stringify(raw, null, 2))
       if (typeof answer !== 'string' || !answer.trim()) throw new Error(t('لم يرجع الذكاء الاصطناعي نتيجة قابلة للعرض.', 'The AI did not return a displayable result.'))
       setOutput(answer.trim())
     } catch (requestError: any) {
-      const message = requestError?.response?.data?.message
-      setError(t('تعذر تشغيل الأداة الذكية الآن.', 'The AI tool could not run right now.'))
+      const message = requestError?.response?.data?.message || requestError?.message
+      setError(typeof message === 'string' && message.length < 120 ? message : t('تعذر تشغيل الأداة الذكية الآن.', 'The AI tool could not run right now.'))
     } finally {
       setBusy(null)
     }
@@ -60,16 +61,39 @@ export default function NexusAiToolDialog({ tool, onClose }: Props) {
     setBusy('save')
     setError('')
     setNotice('')
+    const title = `${tool.label}${topic.trim() ? ` - ${topic.trim()}` : ''}`.slice(0, 180)
+    let savedToServer = false
     try {
       await apiClient.post('/teacher/ai-generator/templates', {
-        title: `${tool.label}${topic.trim() ? ` - ${topic.trim()}` : ''}`.slice(0, 180),
+        title,
         content: output,
         type: 'AI_TOOL',
       })
-      setNotice(t('تم حفظ النتيجة في قوالب المعلم.', 'The result was saved to your teacher templates.'))
-    } catch (requestError: any) {
-      const message = requestError?.response?.data?.message
-      setError(t('تعذر حفظ النتيجة في قوالب المعلم.', 'Could not save the result to your teacher templates.'))
+      savedToServer = true
+    } catch {
+      // Fallback to local storage if API is busy or unauthenticated
+    }
+
+    try {
+      const existing = JSON.parse(localStorage.getItem('nexus_saved_templates') || '[]')
+      existing.unshift({
+        id: Date.now().toString(),
+        title,
+        content: output,
+        toolId: tool.id,
+        createdAt: new Date().toISOString(),
+      })
+      localStorage.setItem('nexus_saved_templates', JSON.stringify(existing.slice(0, 50)))
+      setNotice(savedToServer 
+        ? t('تم حفظ النتيجة في قوالب المعلم بنجاح.', 'The result was saved to your teacher templates.')
+        : t('تم حفظ النتيجة في مسوداتك وقوالبك المحلية.', 'The result was saved to your local drafts.')
+      )
+    } catch {
+      if (savedToServer) {
+        setNotice(t('تم حفظ النتيجة في قوالب المعلم.', 'The result was saved to your teacher templates.'))
+      } else {
+        setError(t('تعذر حفظ النتيجة في قوالب المعلم.', 'Could not save the result to your teacher templates.'))
+      }
     } finally {
       setBusy(null)
     }

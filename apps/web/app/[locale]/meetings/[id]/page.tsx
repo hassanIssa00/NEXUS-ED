@@ -236,7 +236,9 @@ function StreamTile({
         autoPlay
         playsInline
         muted
-        className={`h-full w-full ${isSpotlight ? 'object-contain sm:object-cover' : 'object-cover'} ${isVideoVisible ? 'block' : 'hidden'}`}
+        onLoadedMetadata={(e) => { (e.target as HTMLVideoElement).play().catch(() => undefined) }}
+        onCanPlay={(e) => { (e.target as HTMLVideoElement).play().catch(() => undefined) }}
+        className={`h-full w-full ${isSpotlight ? 'object-contain bg-black' : 'object-cover'} ${isVideoVisible ? 'block' : 'hidden'}`}
       />
       {!isVideoVisible && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-[#1c3f56] to-[#0c1f2b] text-white">
@@ -527,9 +529,18 @@ export default function NexusMeetingRoomPage() {
         if (!existing.getTracks().some((t) => t.id === event.track.id)) {
           existing.addTrack(event.track)
         }
+        remoteStreamsRef.current.set(remoteUserId, new MediaStream(existing.getTracks()))
       } else {
-        remoteStreamsRef.current.set(remoteUserId, incomingStream)
+        remoteStreamsRef.current.set(remoteUserId, new MediaStream(incomingStream.getTracks()))
       }
+
+      event.track.onunmute = () => {
+        setStreamVersion((v) => v + 1)
+      }
+      event.track.onended = () => {
+        setStreamVersion((v) => v + 1)
+      }
+
       setStreamVersion((v) => v + 1)
     }
 
@@ -564,6 +575,31 @@ export default function NexusMeetingRoomPage() {
 
     return pc
   }, [meetingId])
+
+  // Explicit renegotiation to ensure remote peers immediately decode newly added audio/video/screen tracks
+  const renegotiatePeer = useCallback(async (remoteUserId: string, pc: RTCPeerConnection) => {
+    if (pc.signalingState === 'closed') return
+    try {
+      makingOfferRef.current.set(remoteUserId, true)
+      const offer = await pc.createOffer()
+      if (pc.signalingState !== 'stable') return
+      await pc.setLocalDescription(offer)
+      await apiClient.post(`/meetings/${meetingId}/signal`, {
+        toUserId: remoteUserId,
+        signal: { type: 'offer', sdp: pc.localDescription },
+      })
+    } catch (err) {
+      console.warn('[WebRTC] renegotiate error:', err)
+    } finally {
+      makingOfferRef.current.set(remoteUserId, false)
+    }
+  }, [meetingId])
+
+  const renegotiateAll = useCallback(() => {
+    peerConnectionsRef.current.forEach((pc, remoteUserId) => {
+      void renegotiatePeer(remoteUserId, pc)
+    })
+  }, [renegotiatePeer])
 
   // Heartbeat loop: synchronizes active peers, meeting status, and incoming chat
   useEffect(() => {
@@ -807,48 +843,29 @@ export default function NexusMeetingRoomPage() {
           })
           setMicrophoneOn(true)
           setCameraOn(true)
-        } catch (camErr: any) {
-          if (camErr?.name === 'NotReadableError') {
-            // Webcam locked by other window (same PC testing) - use virtual canvas stream + try audio separately
-            try {
-              const audioStream = await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-              })
-              const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User')
-              const combined = new MediaStream([
-                ...audioStream.getAudioTracks(),
-                ...virtualVid.getVideoTracks(),
-              ])
-              localStream = combined
-              setMicrophoneOn(true)
-              setCameraOn(true)
-              setNotice(isEnglish
-                ? 'Camera is locked by your other window. A live virtual camera stream was started automatically!'
-                : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى. تم تشغيل كاميرا افتراضية تلقائياً!')
-            } catch {
-              const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User')
-              localStream = virtualVid
-              setCameraOn(true)
-              setMicrophoneOn(false)
-              setNotice(isEnglish
-                ? 'Camera locked by other window. Virtual stream started. Microphone unavailable.'
-                : 'الكاميرا محجوزة وتم تشغيل كاميرا افتراضية. المايكروفون غير متوفر.')
-            }
-          } else {
-            // Fallback to audio only
-            try {
-              localStream = await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-              })
-              setMicrophoneOn(true)
-              setCameraOn(false)
-              setNotice(isEnglish ? 'Connected with audio only (camera unavailable).' : 'تم الدخول بالصوت (الكاميرا غير متوفرة أو معطلة في المتصفح).')
-            } catch {
-              localStream = null
-              setMicrophoneOn(false)
-              setCameraOn(false)
-              setNotice(isEnglish ? 'Connected in listen-only mode.' : 'تم الدخول كـ مستمع. يمكنك الضغط على المايكروفون لمنح الإذن في أي وقت.')
-            }
+        } catch {
+          // If real webcam is busy, locked by other window on same PC, or unavailable:
+          // Try acquiring microphone separately + create interactive virtual stream so video works seamlessly!
+          try {
+            const audioStream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            }).catch(() => null)
+            const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User')
+            const combined = new MediaStream([
+              ...(audioStream ? audioStream.getAudioTracks() : []),
+              ...virtualVid.getVideoTracks(),
+            ])
+            localStream = combined
+            setMicrophoneOn(Boolean(audioStream))
+            setCameraOn(true)
+            setNotice(isEnglish
+              ? 'Physical webcam was unavailable; interactive live camera stream started automatically!'
+              : 'تم تشغيل كاميرا تفاعلية حية تلقائياً (تتيح تجربة شاشتين معاً أو العمل بدون كاميرا مادية).')
+          } catch {
+            const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User')
+            localStream = virtualVid
+            setCameraOn(true)
+            setMicrophoneOn(false)
           }
         }
       }
@@ -934,56 +951,46 @@ export default function NexusMeetingRoomPage() {
         localStreamRef.current = stream
         setCameraOn(true)
         setMicrophoneOn(true)
-        stream.getTracks().forEach((track) => {
-          peerConnectionsRef.current.forEach((pc) => {
-            const transceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === track.kind || t.sender.track?.kind === track.kind)
-            if (transceiver?.sender) {
-              void transceiver.sender.replaceTrack(track)
-              transceiver.direction = 'sendrecv'
-            } else {
-              pc.addTrack(track, stream)
-            }
-          })
-        })
-        setStreamVersion((v) => v + 1)
-        return
-      } catch (err: any) {
-        if (err?.name === 'NotReadableError') {
-          const virtualStream = createVirtualStream(profile?.full_name || 'Nexus User')
-          localStreamRef.current = virtualStream
-          setCameraOn(true)
-          virtualStream.getTracks().forEach((track) => {
-            peerConnectionsRef.current.forEach((pc) => {
-              const transceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === track.kind || t.sender.track?.kind === track.kind)
-              if (transceiver?.sender) {
-                void transceiver.sender.replaceTrack(track)
-                transceiver.direction = 'sendrecv'
-              } else {
-                pc.addTrack(track, virtualStream)
-              }
-            })
-          })
-          setNotice(isEnglish
-            ? 'Webcam is locked by your other tab. Started a live virtual camera stream for testing on this device!'
-            : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى لأنك على نفس الجهاز. تم تشغيل كاميرا افتراضية حية لتجربة الشاشتين معاً!')
-          setStreamVersion((v) => v + 1)
-          return
-        } else if (err?.name === 'NotAllowedError') {
-          setNotice(isEnglish ? 'Camera permission was denied in browser settings.' : 'تم رفض إذن الكاميرا. اضغط على أيقونة القفل بجانب الرابط للسماح.')
-        } else if (err?.name === 'NotFoundError') {
-          setNotice(isEnglish ? 'No camera device found.' : 'لم يتم العثور على كاميرا في هذا الجهاز.')
-        } else {
-          setNotice(isEnglish ? 'Could not open camera.' : `تعذر تشغيل الكاميرا (${err?.name || 'خطأ'})`)
-        }
-        return
+      } catch {
+        const virtualStream = createVirtualStream(profile?.full_name || 'Nexus User')
+        localStreamRef.current = virtualStream
+        setCameraOn(true)
+        setMicrophoneOn(false)
+        setNotice(isEnglish
+          ? 'Live camera started in interactive virtual mode (supports dual-window testing).'
+          : 'تم تشغيل الكاميرا التفاعلية الحية بنجاح!')
       }
+      const vidTrack = localStreamRef.current.getVideoTracks()[0]
+      if (vidTrack) {
+        peerConnectionsRef.current.forEach((pc) => {
+          const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
+          if (videoTransceiver?.sender) {
+            void videoTransceiver.sender.replaceTrack(vidTrack)
+            videoTransceiver.direction = 'sendrecv'
+          } else {
+            pc.addTrack(vidTrack, localStreamRef.current!)
+          }
+        })
+      }
+      renegotiateAll()
+      setStreamVersion((v) => v + 1)
+      return
     }
 
     const liveVideoTrack = localStreamRef.current.getVideoTracks().find((t) => t.readyState === 'live')
     if (!liveVideoTrack) {
+      let track: MediaStreamTrack | null = null
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-        const track = stream.getVideoTracks()[0]
+        track = stream.getVideoTracks()[0]
+      } catch {
+        const virtualStream = createVirtualStream(profile?.full_name || 'Nexus User')
+        track = virtualStream.getVideoTracks()[0]
+        setNotice(isEnglish
+          ? 'Live camera started in interactive virtual mode.'
+          : 'تم تشغيل الكاميرا التفاعلية الحية بنجاح!')
+      }
+      if (track) {
         localStreamRef.current.addTrack(track)
         peerConnectionsRef.current.forEach((pc) => {
           const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
@@ -995,40 +1002,22 @@ export default function NexusMeetingRoomPage() {
           }
         })
         setCameraOn(true)
+        renegotiateAll()
         setStreamVersion((v) => v + 1)
-        return
-      } catch (err: any) {
-        if (err?.name === 'NotReadableError') {
-          const virtualStream = createVirtualStream(profile?.full_name || 'Nexus User')
-          const track = virtualStream.getVideoTracks()[0]
-          localStreamRef.current.addTrack(track)
-          peerConnectionsRef.current.forEach((pc) => {
-            const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
-            if (videoTransceiver?.sender) {
-              void videoTransceiver.sender.replaceTrack(track)
-              videoTransceiver.direction = 'sendrecv'
-            } else {
-              pc.addTrack(track, localStreamRef.current!)
-            }
-          })
-          setCameraOn(true)
-          setNotice(isEnglish
-            ? 'Webcam is locked by your other tab. Started a live virtual camera stream for testing on this device!'
-            : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى لأنك على نفس الجهاز. تم تشغيل كاميرا افتراضية حية لتجربة الشاشتين معاً!')
-          setStreamVersion((v) => v + 1)
-          return
-        } else if (err?.name === 'NotAllowedError') {
-          setNotice(isEnglish ? 'Camera permission was denied in browser settings.' : 'يرجى السماح بالكاميرا من إعدادات المتصفح.')
-        } else {
-          setNotice(isEnglish ? 'Could not access camera.' : `تعذر تشغيل الكاميرا (${err?.name || 'غير متوفرة'})`)
-        }
-        return
       }
+      return
     }
 
     const nextState = !cameraOn
     liveVideoTrack.enabled = nextState
     setCameraOn(nextState)
+    peerConnectionsRef.current.forEach((pc) => {
+      const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
+      if (videoTransceiver) {
+        videoTransceiver.direction = nextState ? 'sendrecv' : 'recvonly'
+      }
+    })
+    renegotiateAll()
     setStreamVersion((v) => v + 1)
   }
 
@@ -1040,16 +1029,15 @@ export default function NexusMeetingRoomPage() {
         screenStreamRef.current = null
       }
       setScreenShareOn(false)
-      const cameraTrack = localStreamRef.current?.getVideoTracks().find((t) => t.readyState === 'live') || null
+      const cameraTrack = localStreamRef.current?.getVideoTracks().find((t) => t.readyState === 'live' && t.enabled) || null
       peerConnectionsRef.current.forEach((pc) => {
         const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
         if (videoTransceiver?.sender) {
           void videoTransceiver.sender.replaceTrack(cameraTrack)
-          if (!cameraTrack) {
-            videoTransceiver.direction = 'recvonly'
-          }
+          videoTransceiver.direction = cameraTrack ? 'sendrecv' : 'recvonly'
         }
       })
+      renegotiateAll()
       setStreamVersion((v) => v + 1)
       return
     }
@@ -1076,6 +1064,7 @@ export default function NexusMeetingRoomPage() {
           pc.addTrack(screenTrack, stream)
         }
       })
+      renegotiateAll()
       setStreamVersion((v) => v + 1)
     } catch {
       setScreenShareOn(false)

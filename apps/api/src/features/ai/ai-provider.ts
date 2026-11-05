@@ -23,8 +23,8 @@ export function createAiProvider(config?: ConfigReader): AiProvider | null {
   if (groqKey) {
     return {
       client: new OpenAI({ apiKey: groqKey, baseURL: 'https://api.groq.com/openai/v1' }),
-      model: configuredValue(config, 'GROQ_MODEL') || 'qwen/qwen3.8-27b',
-      visionModel: configuredValue(config, 'GROQ_VISION_MODEL') || 'qwen/qwen3.8-27b',
+      model: configuredValue(config, 'GROQ_MODEL') || 'llama-3.3-70b-versatile',
+      visionModel: configuredValue(config, 'GROQ_VISION_MODEL') || 'llama-3.2-11b-vision-preview',
       name: 'Groq',
     };
   }

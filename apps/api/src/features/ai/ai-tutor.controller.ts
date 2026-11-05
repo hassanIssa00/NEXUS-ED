@@ -67,9 +67,9 @@ export class AiTutorController {
     if (
       typeof body?.question !== 'string' ||
       !body.question.trim() ||
-      body.question.length > 2000
+      body.question.length > 15000
     ) {
-      throw new BadRequestException('يجب إدخال سؤال لا يتجاوز 2000 حرف');
+      throw new BadRequestException('يجب إدخال سؤال لا يتجاوز 15000 حرف');
     }
     if (
       body.history !== undefined &&
@@ -454,7 +454,7 @@ export class AiTutorController {
       throw new BadRequestException('معرف الطالب مطلوب');
     if (
       body.question !== undefined &&
-      (typeof body.question !== 'string' || body.question.length > 2000)
+      (typeof body.question !== 'string' || body.question.length > 15000)
     ) {
       throw new BadRequestException('السؤال غير صالح أو أطول من المسموح');
     }

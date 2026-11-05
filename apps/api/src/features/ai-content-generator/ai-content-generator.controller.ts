@@ -13,35 +13,35 @@ export class AiContentGeneratorController {
 
   @Get('templates')
   async getTemplates(@Req() req: any) {
-    const teacherId = req.user.sub || req.user.id;
+    const teacherId = req.user.id || req.user.userId || req.user.sub;
     const data = await this.generatorService.getMyTemplates(teacherId);
     return { success: true, data };
   }
 
   @Post('templates')
   async saveTemplate(@Req() req: any, @Body() body: any) {
-    const teacherId = req.user.sub || req.user.id;
+    const teacherId = req.user.id || req.user.userId || req.user.sub;
     const data = await this.generatorService.saveTemplate(teacherId, body);
     return { success: true, message: 'Template saved successfully', data };
   }
 
   @Delete('templates/:id')
   async deleteTemplate(@Req() req: any, @Param('id') id: string) {
-    const teacherId = req.user.sub || req.user.id;
+    const teacherId = req.user.id || req.user.userId || req.user.sub;
     await this.generatorService.deleteTemplate(teacherId, id);
     return { success: true, message: 'Template deleted' };
   }
 
   @Get('question-banks')
   async getQuestionBanks(@Req() req: any, @Query('subjectId') subjectId?: string) {
-    const teacherId = req.user.sub || req.user.id;
+    const teacherId = req.user.id || req.user.userId || req.user.sub;
     const data = await this.generatorService.getQuestionBanks(teacherId, subjectId);
     return { success: true, data };
   }
 
   @Post('question-banks')
   async saveQuestionBank(@Req() req: any, @Body() body: { subjectId: string; topic: string; questions: any[] }) {
-    const teacherId = req.user.sub || req.user.id;
+    const teacherId = req.user.id || req.user.userId || req.user.sub;
     const data = await this.generatorService.saveQuestionBank(teacherId, body.subjectId, body.topic, body.questions);
     return { success: true, message: 'Question bank saved', data };
   }
