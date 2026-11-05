@@ -61,13 +61,13 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  { urls: 'stun:stun.nextcloud.com:3478' },
+  { urls: 'stun:relay.metered.ca:80' },
   {
     urls: [
-      'turn:openrelay.metered.ca:80',
-      'turn:openrelay.metered.ca:443',
-      'turns:openrelay.metered.ca:443',
-      'turn:openrelay.metered.ca:80?transport=tcp',
-      'turn:openrelay.metered.ca:443?transport=tcp',
+      'turn:relay.metered.ca:80',
+      'turn:relay.metered.ca:80?transport=tcp',
     ],
     username: 'openrelayproject',
     credential: 'openrelayproject',
@@ -147,17 +147,17 @@ function createVirtualStream(name: string): MediaStream {
     ctx.textAlign = 'center'
     ctx.fillText(name, 320, 370)
 
-    animId = requestAnimationFrame(draw)
   }
-  draw()
+  // Use setInterval so video stream keeps running even when the tab is in background (e.g. while sharing screen or switching windows)
+  const timer = setInterval(draw, 1000 / 25)
 
-  const stream = (canvas as any).captureStream(30) as MediaStream
+  const stream = (canvas as any).captureStream(25) as MediaStream
   const track = stream.getVideoTracks()[0]
   if (track) {
     const originalStop = track.stop.bind(track)
     track.stop = () => {
       running = false
-      if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(animId)
+      clearInterval(timer)
       originalStop()
     }
   }
@@ -211,14 +211,35 @@ function StreamTile({
     const video = videoRef.current
     if (!video) return
     if (stream && stream.getVideoTracks().length > 0) {
+      video.muted = true
+      video.defaultMuted = true
+      video.playsInline = true
       if (video.srcObject !== stream) {
         video.srcObject = stream
       }
-      video.play().catch(() => undefined)
+      const p = video.play()
+      if (p) {
+        p.catch(() => {
+          setTimeout(() => video?.play().catch(() => undefined), 250)
+        })
+      }
     } else {
       video.srcObject = null
     }
   }, [stream, isVideoVisible, cameraOn, isScreenSharing])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !stream) return
+    const vTracks = stream.getVideoTracks()
+    const onUnmute = () => {
+      video.play().catch(() => undefined)
+    }
+    vTracks.forEach((t) => t.addEventListener('unmute', onUnmute))
+    return () => {
+      vTracks.forEach((t) => t.removeEventListener('unmute', onUnmute))
+    }
+  }, [stream])
 
   const initials = name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('') || 'ن'
 
@@ -386,7 +407,10 @@ export default function NexusMeetingRoomPage() {
   const localStreamRef = useRef<MediaStream | null>(null)
   const screenStreamRef = useRef<MediaStream | null>(null)
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map())
+  // remoteStreamsRef: low-latency ref for WebRTC callbacks
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map())
+  // remoteStreams: React state mirror of remoteStreamsRef so JSX always reads latest streams
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map())
   const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
   const makingOfferRef = useRef<Map<string, boolean>>(new Map())
   const [streamVersion, setStreamVersion] = useState(0)
@@ -437,6 +461,7 @@ export default function NexusMeetingRoomPage() {
     remoteStreamsRef.current.clear()
     pendingCandidatesRef.current.clear()
     makingOfferRef.current.clear()
+    setRemoteStreams(new Map())
     setConnected(false)
     setMicrophoneOn(false)
     setCameraOn(false)
@@ -535,12 +560,17 @@ export default function NexusMeetingRoomPage() {
       }
 
       event.track.onunmute = () => {
+        // Mirror updated ref into React state so JSX re-renders with new stream
+        setRemoteStreams(new Map(remoteStreamsRef.current))
         setStreamVersion((v) => v + 1)
       }
       event.track.onended = () => {
+        setRemoteStreams(new Map(remoteStreamsRef.current))
         setStreamVersion((v) => v + 1)
       }
 
+      // Mirror updated ref into React state so JSX re-renders with new stream
+      setRemoteStreams(new Map(remoteStreamsRef.current))
       setStreamVersion((v) => v + 1)
     }
 
@@ -562,6 +592,7 @@ export default function NexusMeetingRoomPage() {
           remoteStreamsRef.current.delete(remoteUserId)
           pendingCandidatesRef.current.delete(remoteUserId)
           makingOfferRef.current.delete(remoteUserId)
+          setRemoteStreams(new Map(remoteStreamsRef.current))
           setStreamVersion((v) => v + 1)
         }
       } else if (pc?.connectionState === 'closed') {
@@ -569,12 +600,28 @@ export default function NexusMeetingRoomPage() {
         remoteStreamsRef.current.delete(remoteUserId)
         pendingCandidatesRef.current.delete(remoteUserId)
         makingOfferRef.current.delete(remoteUserId)
+        setRemoteStreams(new Map(remoteStreamsRef.current))
         setStreamVersion((v) => v + 1)
       }
     }
 
     return pc
   }, [meetingId])
+
+  // Synchronize remote tracks from RTCPeerConnection into remoteStreams state
+  const syncRemoteTracks = useCallback((remoteUserId: string, pc: RTCPeerConnection) => {
+    const receivers = pc.getReceivers()
+    const liveTracks = receivers
+      .map((r) => r.track)
+      .filter((t): t is MediaStreamTrack => Boolean(t && t.readyState === 'live'))
+
+    if (liveTracks.length > 0) {
+      const freshStream = new MediaStream(liveTracks)
+      remoteStreamsRef.current.set(remoteUserId, freshStream)
+      setRemoteStreams(new Map(remoteStreamsRef.current))
+      setStreamVersion((v) => v + 1)
+    }
+  }, [])
 
   // Explicit renegotiation to ensure remote peers immediately decode newly added audio/video/screen tracks
   const renegotiatePeer = useCallback(async (remoteUserId: string, pc: RTCPeerConnection) => {
@@ -648,6 +695,7 @@ export default function NexusMeetingRoomPage() {
             remoteStreamsRef.current.delete(peerId)
             pendingCandidatesRef.current.delete(peerId)
             makingOfferRef.current.delete(peerId)
+            setRemoteStreams(new Map(remoteStreamsRef.current))
             setStreamVersion((v) => v + 1)
           }
         })
@@ -787,6 +835,8 @@ export default function NexusMeetingRoomPage() {
                 toUserId: fromUserId,
                 signal: { type: 'answer', sdp: answer },
               })
+              // Synchronize fresh tracks for remote stream (crucial when host replaces track for screen sharing)
+              syncRemoteTracks(fromUserId, pc)
             } catch (err) {
               console.error('[WebRTC] offer handling error:', err)
             }
@@ -795,6 +845,7 @@ export default function NexusMeetingRoomPage() {
               if (pc.signalingState === 'have-local-offer') {
                 await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
                 await flushPendingCandidates(fromUserId, pc)
+                syncRemoteTracks(fromUserId, pc)
               }
             } catch (err) {
               console.error('[WebRTC] answer handling error:', err)
@@ -1030,13 +1081,13 @@ export default function NexusMeetingRoomPage() {
       }
       setScreenShareOn(false)
       const cameraTrack = localStreamRef.current?.getVideoTracks().find((t) => t.readyState === 'live' && t.enabled) || null
-      peerConnectionsRef.current.forEach((pc) => {
+      for (const [, pc] of peerConnectionsRef.current.entries()) {
         const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
         if (videoTransceiver?.sender) {
-          void videoTransceiver.sender.replaceTrack(cameraTrack)
+          await videoTransceiver.sender.replaceTrack(cameraTrack)
           videoTransceiver.direction = cameraTrack ? 'sendrecv' : 'recvonly'
         }
-      })
+      }
       renegotiateAll()
       setStreamVersion((v) => v + 1)
       return
@@ -1055,15 +1106,15 @@ export default function NexusMeetingRoomPage() {
         void toggleScreenShare()
       }
 
-      peerConnectionsRef.current.forEach((pc) => {
+      for (const [, pc] of peerConnectionsRef.current.entries()) {
         const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
         if (videoTransceiver?.sender) {
-          void videoTransceiver.sender.replaceTrack(screenTrack)
+          await videoTransceiver.sender.replaceTrack(screenTrack)
           videoTransceiver.direction = 'sendrecv'
         } else {
           pc.addTrack(screenTrack, stream)
         }
-      })
+      }
       renegotiateAll()
       setStreamVersion((v) => v + 1)
     } catch {
@@ -1170,6 +1221,7 @@ export default function NexusMeetingRoomPage() {
         remoteStreamsRef.current.delete(studentId)
         pendingCandidatesRef.current.delete(studentId)
         makingOfferRef.current.delete(studentId)
+        setRemoteStreams(new Map(remoteStreamsRef.current))
         setStreamVersion((v) => v + 1)
       }
       setNotice(isEnglish ? 'Student removed from room.' : 'تم استبعاد الطالب من القاعة.')
@@ -1446,7 +1498,7 @@ export default function NexusMeetingRoomPage() {
                   <div className="h-full w-full">
                     <StreamTile
                       key={`remote-host-${remoteHostPeer.userId}-${streamVersion}`}
-                      stream={remoteStreamsRef.current.get(remoteHostPeer.userId)}
+                      stream={remoteStreams.get(remoteHostPeer.userId)}
                       name={remoteHostPeer.userName}
                       isLocal={false}
                       isHost
@@ -1457,8 +1509,8 @@ export default function NexusMeetingRoomPage() {
                       isScreenSharing={remoteHostPeer.isScreenSharing}
                       isEnglish={isEnglish}
                     />
-                    {remoteStreamsRef.current.get(remoteHostPeer.userId) && (
-                      <RemoteAudioMount stream={remoteStreamsRef.current.get(remoteHostPeer.userId)!} />
+                    {remoteStreams.get(remoteHostPeer.userId) && (
+                      <RemoteAudioMount stream={remoteStreams.get(remoteHostPeer.userId)!} />
                     )}
                   </div>
                 ) : (
@@ -1517,7 +1569,7 @@ export default function NexusMeetingRoomPage() {
                   {otherPeers
                     .filter((p) => isHost || !p.isHost) // If student, don't duplicate teacher in strip
                     .map((peer) => {
-                      const peerStream = remoteStreamsRef.current.get(peer.userId)
+                      const peerStream = remoteStreams.get(peer.userId)
                       return (
                         <div key={peer.userId} className="shrink-0">
                           <StreamTile
