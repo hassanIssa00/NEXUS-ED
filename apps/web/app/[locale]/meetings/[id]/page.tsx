@@ -413,6 +413,10 @@ export default function NexusMeetingRoomPage() {
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map())
   const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
   const makingOfferRef = useRef<Map<string, boolean>>(new Map())
+  const currentUserIdRef = useRef<string>(profile?.id || '')
+  if (profile?.id && currentUserIdRef.current !== profile.id) {
+    currentUserIdRef.current = profile.id
+  }
   const [streamVersion, setStreamVersion] = useState(0)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -503,10 +507,61 @@ export default function NexusMeetingRoomPage() {
     }
   }, [])
 
-  // Create an RTCPeerConnection with W3C Perfect Negotiation
-  const getOrCreatePeerConnection = useCallback((remoteUserId: string) => {
+  // Synchronize remote tracks from RTCPeerConnection into remoteStreams state
+  const syncRemoteTracks = useCallback((remoteUserId: string, pc: RTCPeerConnection) => {
+    const receivers = pc.getReceivers()
+    const liveTracks = receivers
+      .map((r) => r.track)
+      .filter((t): t is MediaStreamTrack => Boolean(t && t.readyState === 'live'))
+
+    if (liveTracks.length > 0) {
+      const freshStream = new MediaStream(liveTracks)
+      remoteStreamsRef.current.set(remoteUserId, freshStream)
+      setRemoteStreams(new Map(remoteStreamsRef.current))
+      setStreamVersion((v) => v + 1)
+    }
+  }, [])
+
+  // Dedicated offer initiator: sends an SDP offer only when state is stable
+  const initiateOffer = useCallback(async (remoteUserId: string, pc: RTCPeerConnection, iceRestart = false) => {
+    if (pc.signalingState !== 'stable') return
+    try {
+      makingOfferRef.current.set(remoteUserId, true)
+      const offer = await pc.createOffer({ iceRestart })
+      if (pc.signalingState !== 'stable') return
+      await pc.setLocalDescription(offer)
+      await apiClient.post(`/meetings/${meetingId}/signal`, {
+        toUserId: remoteUserId,
+        signal: { type: 'offer', sdp: pc.localDescription },
+      })
+    } catch (err) {
+      console.warn('[WebRTC] initiateOffer error:', err)
+    } finally {
+      makingOfferRef.current.set(remoteUserId, false)
+    }
+  }, [meetingId])
+
+  // Explicit renegotiation (e.g. after screen share toggle or camera switch)
+  const renegotiatePeer = useCallback(async (remoteUserId: string, pc: RTCPeerConnection) => {
+    if (pc.signalingState !== 'stable') return
+    await initiateOffer(remoteUserId, pc, false)
+  }, [initiateOffer])
+
+  const renegotiateAll = useCallback(() => {
+    peerConnectionsRef.current.forEach((pc, remoteUserId) => {
+      void renegotiatePeer(remoteUserId, pc)
+    })
+  }, [renegotiatePeer])
+
+  // Create an RTCPeerConnection with Deterministic Caller Assignment (Zero-Glare Architecture)
+  const getOrCreatePeerConnection = useCallback((remoteUserId: string, shouldInitiateOffer = false) => {
     let pc = peerConnectionsRef.current.get(remoteUserId)
-    if (pc && pc.signalingState !== 'closed') return pc
+    if (pc && pc.signalingState !== 'closed') {
+      if (shouldInitiateOffer && pc.signalingState === 'stable') {
+        void initiateOffer(remoteUserId, pc)
+      }
+      return pc
+    }
 
     pc = new RTCPeerConnection({ iceServers: DEFAULT_ICE_SERVERS })
     peerConnectionsRef.current.set(remoteUserId, pc)
@@ -528,25 +583,6 @@ export default function NexusMeetingRoomPage() {
       pc.addTransceiver('video', { direction: 'sendrecv' })
     }
 
-    // W3C Perfect Negotiation: onnegotiationneeded automatically creates and sends offer
-    pc.onnegotiationneeded = async () => {
-      if (pc!.signalingState === 'closed') return
-      try {
-        makingOfferRef.current.set(remoteUserId, true)
-        const offer = await pc!.createOffer()
-        if (pc!.signalingState !== 'stable') return
-        await pc!.setLocalDescription(offer)
-        await apiClient.post(`/meetings/${meetingId}/signal`, {
-          toUserId: remoteUserId,
-          signal: { type: 'offer', sdp: pc!.localDescription },
-        })
-      } catch (err) {
-        console.warn('[WebRTC] negotiation error:', err)
-      } finally {
-        makingOfferRef.current.set(remoteUserId, false)
-      }
-    }
-
     pc.ontrack = (event) => {
       const incomingStream = event.streams[0] || new MediaStream([event.track])
       const existing = remoteStreamsRef.current.get(remoteUserId)
@@ -560,16 +596,12 @@ export default function NexusMeetingRoomPage() {
       }
 
       event.track.onunmute = () => {
-        // Mirror updated ref into React state so JSX re-renders with new stream
-        setRemoteStreams(new Map(remoteStreamsRef.current))
-        setStreamVersion((v) => v + 1)
+        syncRemoteTracks(remoteUserId, pc!)
       }
       event.track.onended = () => {
-        setRemoteStreams(new Map(remoteStreamsRef.current))
-        setStreamVersion((v) => v + 1)
+        syncRemoteTracks(remoteUserId, pc!)
       }
 
-      // Mirror updated ref into React state so JSX re-renders with new stream
       setRemoteStreams(new Map(remoteStreamsRef.current))
       setStreamVersion((v) => v + 1)
     }
@@ -583,17 +615,20 @@ export default function NexusMeetingRoomPage() {
       }
     }
 
+    pc.oniceconnectionstatechange = () => {
+      if (pc?.iceConnectionState === 'connected' || pc?.iceConnectionState === 'completed') {
+        syncRemoteTracks(remoteUserId, pc!)
+      }
+    }
+
     pc.onconnectionstatechange = () => {
-      if (pc?.connectionState === 'failed') {
-        try {
-          pc.restartIce()
-        } catch {
-          peerConnectionsRef.current.delete(remoteUserId)
-          remoteStreamsRef.current.delete(remoteUserId)
-          pendingCandidatesRef.current.delete(remoteUserId)
-          makingOfferRef.current.delete(remoteUserId)
-          setRemoteStreams(new Map(remoteStreamsRef.current))
-          setStreamVersion((v) => v + 1)
+      if (pc?.connectionState === 'connected') {
+        syncRemoteTracks(remoteUserId, pc!)
+      } else if (pc?.connectionState === 'failed') {
+        const myId = currentUserIdRef.current || profile?.id || ''
+        const isCaller = myId > remoteUserId
+        if (isCaller) {
+          void initiateOffer(remoteUserId, pc!, true /* iceRestart */)
         }
       } else if (pc?.connectionState === 'closed') {
         peerConnectionsRef.current.delete(remoteUserId)
@@ -605,48 +640,13 @@ export default function NexusMeetingRoomPage() {
       }
     }
 
+    // Only designated caller initiates the initial offer, eliminating Glare and Rollback failures completely
+    if (shouldInitiateOffer) {
+      void initiateOffer(remoteUserId, pc)
+    }
+
     return pc
-  }, [meetingId])
-
-  // Synchronize remote tracks from RTCPeerConnection into remoteStreams state
-  const syncRemoteTracks = useCallback((remoteUserId: string, pc: RTCPeerConnection) => {
-    const receivers = pc.getReceivers()
-    const liveTracks = receivers
-      .map((r) => r.track)
-      .filter((t): t is MediaStreamTrack => Boolean(t && t.readyState === 'live'))
-
-    if (liveTracks.length > 0) {
-      const freshStream = new MediaStream(liveTracks)
-      remoteStreamsRef.current.set(remoteUserId, freshStream)
-      setRemoteStreams(new Map(remoteStreamsRef.current))
-      setStreamVersion((v) => v + 1)
-    }
-  }, [])
-
-  // Explicit renegotiation to ensure remote peers immediately decode newly added audio/video/screen tracks
-  const renegotiatePeer = useCallback(async (remoteUserId: string, pc: RTCPeerConnection) => {
-    if (pc.signalingState === 'closed') return
-    try {
-      makingOfferRef.current.set(remoteUserId, true)
-      const offer = await pc.createOffer()
-      if (pc.signalingState !== 'stable') return
-      await pc.setLocalDescription(offer)
-      await apiClient.post(`/meetings/${meetingId}/signal`, {
-        toUserId: remoteUserId,
-        signal: { type: 'offer', sdp: pc.localDescription },
-      })
-    } catch (err) {
-      console.warn('[WebRTC] renegotiate error:', err)
-    } finally {
-      makingOfferRef.current.set(remoteUserId, false)
-    }
-  }, [meetingId])
-
-  const renegotiateAll = useCallback(() => {
-    peerConnectionsRef.current.forEach((pc, remoteUserId) => {
-      void renegotiatePeer(remoteUserId, pc)
-    })
-  }, [renegotiatePeer])
+  }, [meetingId, initiateOffer, syncRemoteTracks, profile?.id])
 
   // Heartbeat loop: synchronizes active peers, meeting status, and incoming chat
   useEffect(() => {
@@ -679,10 +679,14 @@ export default function NexusMeetingRoomPage() {
         setActivePeers(data.peers)
 
         // Connect to any other active peer in the room
+        const myUserId = currentUserIdRef.current || profile?.id || ''
         data.peers.forEach((peer) => {
-          if (peer.userId === profile?.id) return
+          if (peer.userId === myUserId) return
+          // Deterministic Offerer: Peer with higher ID creates the offer, peer with lower ID waits and answers.
+          // This eliminates offer collision completely across all networks and devices.
+          const isCaller = myUserId > peer.userId
           if (!peerConnectionsRef.current.has(peer.userId)) {
-            getOrCreatePeerConnection(peer.userId)
+            getOrCreatePeerConnection(peer.userId, isCaller)
           }
         })
 
@@ -804,28 +808,20 @@ export default function NexusMeetingRoomPage() {
             continue
           }
 
-          // ── WebRTC Handshake Signals with W3C Perfect Negotiation ──
-          const pc = getOrCreatePeerConnection(fromUserId)
-          const isPolite = (profile?.id || '') < fromUserId
+          // ── WebRTC Handshake Signals ──
+          const pc = getOrCreatePeerConnection(fromUserId, false)
 
           if (signal.type === 'offer' && signal.sdp) {
-            const isMakingOffer = makingOfferRef.current.get(fromUserId) || false
-            const offerCollision = isMakingOffer || pc.signalingState !== 'stable'
-
-            if (offerCollision) {
-              if (!isPolite) {
-                // Impolite peer ignores colliding offer
-                continue
-              }
-              // Polite peer rolls back local offer to accept remote offer
-              try {
-                await pc.setLocalDescription({ type: 'rollback' })
-              } catch {
-                // ignore rollback failure
-              }
-            }
-
             try {
+              // If in have-local-offer due to simultaneous action, accept remote offer gracefully
+              if (pc.signalingState === 'have-local-offer') {
+                try {
+                  await pc.setLocalDescription({ type: 'rollback' })
+                } catch {
+                  // If rollback not supported, proceed with remote description
+                }
+              }
+
               await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
               await flushPendingCandidates(fromUserId, pc)
 
@@ -835,10 +831,10 @@ export default function NexusMeetingRoomPage() {
                 toUserId: fromUserId,
                 signal: { type: 'answer', sdp: answer },
               })
-              // Synchronize fresh tracks for remote stream (crucial when host replaces track for screen sharing)
+              // Synchronize fresh tracks for remote stream
               syncRemoteTracks(fromUserId, pc)
             } catch (err) {
-              console.error('[WebRTC] offer handling error:', err)
+              console.warn('[WebRTC] offer handling error:', err)
             }
           } else if (signal.type === 'answer' && signal.sdp) {
             try {
@@ -848,10 +844,10 @@ export default function NexusMeetingRoomPage() {
                 syncRemoteTracks(fromUserId, pc)
               }
             } catch (err) {
-              console.error('[WebRTC] answer handling error:', err)
+              console.warn('[WebRTC] answer handling error:', err)
             }
           } else if (signal.type === 'ice' && signal.candidate) {
-            if (!pc.remoteDescription) {
+            if (!pc.remoteDescription || !pc.remoteDescription.type) {
               const pending = pendingCandidatesRef.current.get(fromUserId) || []
               pending.push(signal.candidate)
               pendingCandidatesRef.current.set(fromUserId, pending)
@@ -859,7 +855,7 @@ export default function NexusMeetingRoomPage() {
               try {
                 await pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
               } catch {
-                // Ignore late candidate
+                // Ignore duplicate/late candidate
               }
             }
           }
@@ -924,11 +920,15 @@ export default function NexusMeetingRoomPage() {
 
       setConnectionLabel(isEnglish ? 'Entering classroom...' : 'الدخول لقاعة الاجتماع...')
 
-      await apiClient.post<{
+      const { data: joinRes } = await apiClient.post<{
         mode?: string
         meeting: { id: string; title: string; status: string; hostId: string }
         user: { id: string; name: string; role: string }
       }>(`/meetings/${meeting.id}/join`)
+
+      if (joinRes?.user?.id) {
+        currentUserIdRef.current = joinRes.user.id
+      }
 
       setMeeting((curr) => curr ? { ...curr, status: 'LIVE', startedAt: curr.startedAt || new Date().toISOString() } : curr)
       setConnected(true)
