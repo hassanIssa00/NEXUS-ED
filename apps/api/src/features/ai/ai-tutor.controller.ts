@@ -438,6 +438,77 @@ export class AiTutorController {
     return { success: true, data: insights };
   }
 
+  @Get('predict/:id')
+  @Roles(...STUDENT_DATA_ROLES)
+  async getStudentPrediction(@Param('id') id: string, @Request() req: any) {
+    const studentId = id === 'me' ? this.userId(req) : id;
+    await this.studentAnalytics.assertCanAccessStudent(
+      this.userId(req),
+      req.user.role,
+      studentId,
+    );
+    const student = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      include: {
+        studentGrades: {
+          include: { subject: true },
+          take: 50,
+          orderBy: { createdAt: 'desc' },
+        },
+        attendance: { take: 50, orderBy: { date: 'desc' } },
+      },
+    });
+    if (!student) throw new BadRequestException('Student not found');
+
+    const totalAttendance = student.attendance.length;
+    const presentAttendance = student.attendance.filter(
+      (record) => record.status === 'PRESENT',
+    ).length;
+    const attendanceRate = totalAttendance
+      ? Math.round((presentAttendance / totalAttendance) * 100)
+      : null;
+
+    const grades = student.studentGrades.map((g) => {
+      const max = g.maxScore || 100;
+      return max > 0 ? (g.score / max) * 100 : g.score;
+    });
+
+    const averageGrade = grades.length
+      ? Math.round(grades.reduce((a, b) => a + b, 0) / grades.length)
+      : 85;
+
+    const riskFactors: string[] = [];
+    const recommendations: string[] = [];
+
+    if (attendanceRate !== null && attendanceRate < 85) {
+      riskFactors.push(`نسبة الحضور الحالية (${attendanceRate}%) تحتاج لتحسين.`);
+    }
+    if (averageGrade < 70) {
+      riskFactors.push(`المعدل التراكمي للدرجات (${averageGrade}%) أقل من المستوى المستهدف.`);
+    }
+
+    if (averageGrade >= 90) {
+      recommendations.push('أداء أكاديمي متميز! يُنصح بالتسجيل في مسارات التفوق والمنافسات.');
+    } else if (averageGrade >= 75) {
+      recommendations.push('مستوى جيد جداً، واصل المراجعة المنتظمة لرفع التقييمات.');
+    } else {
+      recommendations.push('يُنصح بمراجعة المعلم والالتحاق بجلسات التقوية لتعزيز المفاهيم الأساسية.');
+    }
+
+    if (attendanceRate !== null && attendanceRate >= 95) {
+      recommendations.push('انضباط والتزام ممتاز بالحضور اليومي.');
+    }
+
+    return {
+      averageGrade,
+      gradeRecordCount: student.studentGrades.length,
+      attendanceRate,
+      attendanceRecordCount: totalAttendance,
+      riskFactors,
+      recommendations,
+    };
+  }
+
   @Post('parent-advice')
   @Roles(
     Role.PARENT,

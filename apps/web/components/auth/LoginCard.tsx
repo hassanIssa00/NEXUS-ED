@@ -209,7 +209,7 @@ export default function LoginCard({ onSubmit, isLoading = false }: LoginCardProp
                     {/* Sign Up Link */}
                     <p className="text-center text-sm text-slate-600 dark:text-slate-400">
                         ليس لديك حساب؟{' '}
-                        <a href="/signup" className="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">
+                        <a href="/register" className="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">
                             سجل الآن
                         </a>
                     </p>

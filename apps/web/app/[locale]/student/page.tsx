@@ -6,6 +6,7 @@ import { useLocale } from 'next-intl'
 import { dashboardApi, type StudentDashboardResponse } from '@/lib/api/dashboard'
 import Image from 'next/image'
 import CurrentScheduleCard from '@/components/schedule/CurrentScheduleCard'
+import { AiInsightCard } from '@/components/ai/ai-insight-card'
 import ParentLinkCodeButton from '@/components/student/parent-link-code-button'
 import { useRealtimeAssignments, useRealtimeNotifications } from '@/lib/providers/socket-provider'
 import { motion } from 'framer-motion'
@@ -190,6 +191,8 @@ export default function StudentDashboardPage() {
           </div>
         </div>
       </section>
+
+      <AiInsightCard />
 
       <CurrentScheduleCard />
 

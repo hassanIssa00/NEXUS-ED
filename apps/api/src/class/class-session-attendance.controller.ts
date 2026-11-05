@@ -1,4 +1,4 @@
-import { Controller, Post, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Param, Body, UseGuards, Request } from '@nestjs/common';
 import { ClassSessionService } from './class-session.service';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -23,6 +23,20 @@ export class ClassSessionAttendanceController {
   ) {
     return this.sessionService.recordStudentJoin(
       classId, sessionId, req.user.userId || req.user.sub || req.user.id, req.user.schoolId,
+    );
+  }
+
+  @Post(':sessionId/attendance')
+  @Roles(Role.TEACHER, Role.ADMIN, Role.PRINCIPAL, Role.VICE_PRINCIPAL)
+  @ApiOperation({ summary: 'Teacher manually marks student attendance for session' })
+  async markAttendance(
+    @Param('classId') classId: string,
+    @Param('sessionId') sessionId: string,
+    @Body('studentId') studentId: string,
+    @Request() req: any,
+  ) {
+    return this.sessionService.recordStudentJoin(
+      classId, sessionId, studentId, req.user.schoolId,
     );
   }
 }

@@ -13,6 +13,7 @@ import { StudentProgressChart } from '@/components/analytics/student-progress-ch
 import { ClassComparisonCard } from '@/components/analytics/class-comparison-card';
 import { ParentReportView } from '@/components/analytics/parent-report-view';
 import { StudentGamificationCard } from '@/components/gamification/student-stats-card';
+import { AiInsightCard } from '@/components/ai/ai-insight-card';
 
 function LoadingCard() {
     return (
@@ -43,6 +44,8 @@ export default function StudentAnalyticsPage() {
                     <p className="text-blue-100 text-lg">{t('تابع تقدمك وقارن مستواك بزملائك', 'Track your progress and compare your performance with classmates')}</p>
                 </div>
             </motion.div>
+
+            <AiInsightCard />
 
             {/* Tabs */}
             <Tabs defaultValue="progress" className="w-full">

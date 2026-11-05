@@ -126,7 +126,7 @@ export function EmailPreferencesPanel() {
           <p className="text-sm text-blue-800 dark:text-blue-200">
             <strong>ملاحظة:</strong> سيتم إرسال الإشعارات المُفعّلة إلى البريد الإلكتروني المسجل في حسابك.
             تأكد من صحة بريدك الإلكتروني في{' '}
-            <a href="/settings/profile" className="underline">
+            <a href="/student/profile" className="underline">
               إعدادات الملف الشخصي
             </a>
             .
