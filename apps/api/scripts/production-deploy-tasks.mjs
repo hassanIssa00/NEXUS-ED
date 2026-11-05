@@ -6,6 +6,7 @@ const TASKS = Object.freeze({
   reconcileFirstGrade: { command: process.execPath, args: ['scripts/reconcile-first-grade-class.mjs'] },
   smokeAi: { command: process.execPath, args: ['scripts/ai-production-smoke.mjs'] },
   createMissingStudents: { command: process.execPath, args: ['scripts/create-missing-students.mjs'] },
+  fixStudentName: { command: process.execPath, args: ['scripts/fix-student-name.mjs'] },
 });
 
 function run(taskName, env = process.env) {
@@ -45,5 +46,8 @@ if (process.env.NEXUS_CLASS_RECONCILE_ON_DEPLOY === 'YES') {
   run('reconcileFirstGrade');
 }
 
-// One-time: create missing student accounts (runs every deploy but is idempotent)
+// One-time: create missing student accounts (idempotent)
 run('createMissingStudents');
+
+// Fix student14 name typo: برزن → يزن
+run('fixStudentName');
