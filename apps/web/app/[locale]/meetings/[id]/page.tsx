@@ -53,12 +53,25 @@ function getError(error: unknown, fallback: string) {
   return Array.isArray(message) ? message.join(' • ') : message || candidate?.message || fallback
 }
 
+// STUN + FREE TURN RELAY SERVERS (Open Relay Project)
+// Essential for WebRTC connection across NAT, firewalls, and different networks
 const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun4.l.google.com:19302' },
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turns:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:80?transport=tcp',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
 ]
 
 /**
@@ -188,18 +201,24 @@ function StreamTile({
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const hasActiveVideoTrack = Boolean(
-    stream && stream.getVideoTracks().some((t) => t.enabled && t.readyState === 'live')
+    stream && stream.getVideoTracks().some((t) => t.readyState === 'live')
   )
-  const isVideoVisible = Boolean(isScreenSharing || ((cameraOn ?? true) && hasActiveVideoTrack))
+  const isVideoVisible = Boolean(
+    hasActiveVideoTrack && (isScreenSharing || (cameraOn ?? true) || isLocal)
+  )
 
   useEffect(() => {
-    if (!videoRef.current) return
+    const video = videoRef.current
+    if (!video) return
     if (stream && stream.getVideoTracks().length > 0) {
-      videoRef.current.srcObject = stream
+      if (video.srcObject !== stream) {
+        video.srcObject = stream
+      }
+      video.play().catch(() => undefined)
     } else {
-      videoRef.current.srcObject = null
+      video.srcObject = null
     }
-  }, [stream, isVideoVisible, cameraOn])
+  }, [stream, isVideoVisible, cameraOn, isScreenSharing])
 
   const initials = name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('') || 'ن'
 
@@ -211,11 +230,12 @@ function StreamTile({
           : 'h-44 sm:h-52 min-w-[200px] sm:min-w-[240px] border-white/10'
       } ${speaking ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-[#0f2633]' : ''}`}
     >
+      {/* Video is ALWAYS muted so browser never blocks autoplay due to audio policies. Remote audio is played via RemoteAudioMount */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
-        muted={isLocal}
+        muted
         className={`h-full w-full ${isSpotlight ? 'object-contain sm:object-cover' : 'object-cover'} ${isVideoVisible ? 'block' : 'hidden'}`}
       />
       {!isVideoVisible && (
@@ -228,7 +248,9 @@ function StreamTile({
             {initials}
           </div>
           <span className={`${isSpotlight ? 'text-sm' : 'text-xs'} text-white/70 font-medium`}>
-            {isEnglish ? 'Camera off' : 'الكاميرا مغلقة'}
+            {isScreenSharing
+              ? (isEnglish ? 'Connecting screen share...' : 'جاري استقبال مشاركة الشاشة...')
+              : (isEnglish ? 'Camera off' : 'الكاميرا مغلقة')}
           </span>
         </div>
       )}
@@ -364,6 +386,7 @@ export default function NexusMeetingRoomPage() {
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map())
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map())
   const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
+  const makingOfferRef = useRef<Map<string, boolean>>(new Map())
   const [streamVersion, setStreamVersion] = useState(0)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -411,6 +434,7 @@ export default function NexusMeetingRoomPage() {
     peerConnectionsRef.current.clear()
     remoteStreamsRef.current.clear()
     pendingCandidatesRef.current.clear()
+    makingOfferRef.current.clear()
     setConnected(false)
     setMicrophoneOn(false)
     setCameraOn(false)
@@ -452,8 +476,8 @@ export default function NexusMeetingRoomPage() {
     }
   }, [])
 
-  // Create an RTCPeerConnection for a remote peer with bidirectional transceivers
-  const getOrCreatePeerConnection = useCallback((remoteUserId: string, isInitiator: boolean) => {
+  // Create an RTCPeerConnection with W3C Perfect Negotiation
+  const getOrCreatePeerConnection = useCallback((remoteUserId: string) => {
     let pc = peerConnectionsRef.current.get(remoteUserId)
     if (pc && pc.signalingState !== 'closed') return pc
 
@@ -468,13 +492,32 @@ export default function NexusMeetingRoomPage() {
       })
     }
 
-    // Ensure audio and video transceivers exist so we can receive even if local camera is off
+    // Ensure audio and video transceivers exist so we can receive even if local camera/mic is off
     const existingKinds = pc.getTransceivers().map((t) => t.receiver.track?.kind)
     if (!existingKinds.includes('audio')) {
       pc.addTransceiver('audio', { direction: 'sendrecv' })
     }
     if (!existingKinds.includes('video')) {
       pc.addTransceiver('video', { direction: 'sendrecv' })
+    }
+
+    // W3C Perfect Negotiation: onnegotiationneeded automatically creates and sends offer
+    pc.onnegotiationneeded = async () => {
+      if (pc!.signalingState === 'closed') return
+      try {
+        makingOfferRef.current.set(remoteUserId, true)
+        const offer = await pc!.createOffer()
+        if (pc!.signalingState !== 'stable') return
+        await pc!.setLocalDescription(offer)
+        await apiClient.post(`/meetings/${meetingId}/signal`, {
+          toUserId: remoteUserId,
+          signal: { type: 'offer', sdp: pc!.localDescription },
+        })
+      } catch (err) {
+        console.warn('[WebRTC] negotiation error:', err)
+      } finally {
+        makingOfferRef.current.set(remoteUserId, false)
+      }
     }
 
     pc.ontrack = (event) => {
@@ -500,44 +543,23 @@ export default function NexusMeetingRoomPage() {
     }
 
     pc.onconnectionstatechange = () => {
-      if (pc?.connectionState === 'failed' || pc?.connectionState === 'closed') {
+      if (pc?.connectionState === 'failed') {
+        try {
+          pc.restartIce()
+        } catch {
+          peerConnectionsRef.current.delete(remoteUserId)
+          remoteStreamsRef.current.delete(remoteUserId)
+          pendingCandidatesRef.current.delete(remoteUserId)
+          makingOfferRef.current.delete(remoteUserId)
+          setStreamVersion((v) => v + 1)
+        }
+      } else if (pc?.connectionState === 'closed') {
         peerConnectionsRef.current.delete(remoteUserId)
         remoteStreamsRef.current.delete(remoteUserId)
         pendingCandidatesRef.current.delete(remoteUserId)
+        makingOfferRef.current.delete(remoteUserId)
         setStreamVersion((v) => v + 1)
       }
-    }
-
-    // Auto renegotiate when new tracks are added after connection is established
-    pc.onnegotiationneeded = async () => {
-      if (pc.signalingState === 'closed') return
-      try {
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        await apiClient.post(`/meetings/${meetingId}/signal`, {
-          toUserId: remoteUserId,
-          signal: { type: 'offer', sdp: offer },
-        })
-      } catch {
-        // Ignore negotiation error
-      }
-    }
-
-    if (isInitiator) {
-      try { pc.createDataChannel('nexus-control') } catch {}
-
-      void (async () => {
-        try {
-          const offer = await pc.createOffer()
-          await pc.setLocalDescription(offer)
-          await apiClient.post(`/meetings/${meetingId}/signal`, {
-            toUserId: remoteUserId,
-            signal: { type: 'offer', sdp: offer },
-          })
-        } catch {
-          // Ignore transient negotiation error
-        }
-      })()
     }
 
     return pc
@@ -577,8 +599,7 @@ export default function NexusMeetingRoomPage() {
         data.peers.forEach((peer) => {
           if (peer.userId === profile?.id) return
           if (!peerConnectionsRef.current.has(peer.userId)) {
-            const isInitiator = (profile?.id || '') > peer.userId
-            getOrCreatePeerConnection(peer.userId, isInitiator)
+            getOrCreatePeerConnection(peer.userId)
           }
         })
 
@@ -590,6 +611,7 @@ export default function NexusMeetingRoomPage() {
             peerConnectionsRef.current.delete(peerId)
             remoteStreamsRef.current.delete(peerId)
             pendingCandidatesRef.current.delete(peerId)
+            makingOfferRef.current.delete(peerId)
             setStreamVersion((v) => v + 1)
           }
         })
@@ -624,6 +646,7 @@ export default function NexusMeetingRoomPage() {
   }, [connected, meeting, microphoneOn, cameraOn, handRaised, screenShareOn, profile?.id, getOrCreatePeerConnection, cleanupMedia, isEnglish, router])
 
   // Signal polling loop: fetches SDP offers/answers/ICE candidates and Teacher moderation commands
+  // Fast 800ms polling for quick WebRTC connection establishment
   useEffect(() => {
     if (!connected || !meeting) return
 
@@ -697,22 +720,49 @@ export default function NexusMeetingRoomPage() {
             continue
           }
 
-          // ── WebRTC Handshake Signals ──
-          const pc = getOrCreatePeerConnection(fromUserId, false)
+          // ── WebRTC Handshake Signals with W3C Perfect Negotiation ──
+          const pc = getOrCreatePeerConnection(fromUserId)
+          const isPolite = (profile?.id || '') < fromUserId
 
           if (signal.type === 'offer' && signal.sdp) {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
-            await flushPendingCandidates(fromUserId, pc)
+            const isMakingOffer = makingOfferRef.current.get(fromUserId) || false
+            const offerCollision = isMakingOffer || pc.signalingState !== 'stable'
 
-            const answer = await pc.createAnswer()
-            await pc.setLocalDescription(answer)
-            await apiClient.post(`/meetings/${meeting.id}/signal`, {
-              toUserId: fromUserId,
-              signal: { type: 'answer', sdp: answer },
-            })
+            if (offerCollision) {
+              if (!isPolite) {
+                // Impolite peer ignores colliding offer
+                continue
+              }
+              // Polite peer rolls back local offer to accept remote offer
+              try {
+                await pc.setLocalDescription({ type: 'rollback' })
+              } catch {
+                // ignore rollback failure
+              }
+            }
+
+            try {
+              await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
+              await flushPendingCandidates(fromUserId, pc)
+
+              const answer = await pc.createAnswer()
+              await pc.setLocalDescription(answer)
+              await apiClient.post(`/meetings/${meeting.id}/signal`, {
+                toUserId: fromUserId,
+                signal: { type: 'answer', sdp: answer },
+              })
+            } catch (err) {
+              console.error('[WebRTC] offer handling error:', err)
+            }
           } else if (signal.type === 'answer' && signal.sdp) {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
-            await flushPendingCandidates(fromUserId, pc)
+            try {
+              if (pc.signalingState === 'have-local-offer') {
+                await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
+                await flushPendingCandidates(fromUserId, pc)
+              }
+            } catch (err) {
+              console.error('[WebRTC] answer handling error:', err)
+            }
           } else if (signal.type === 'ice' && signal.candidate) {
             if (!pc.remoteDescription) {
               const pending = pendingCandidatesRef.current.get(fromUserId) || []
@@ -730,13 +780,13 @@ export default function NexusMeetingRoomPage() {
       } catch {
         // Suppress signal poll network failure
       }
-    }, 1200)
+    }, 800)
 
     return () => {
       cancelled = true
       window.clearInterval(signalInterval)
     }
-  }, [connected, meeting, getOrCreatePeerConnection, flushPendingCandidates, cleanupMedia, isEnglish, router])
+  }, [connected, meeting, getOrCreatePeerConnection, flushPendingCandidates, cleanupMedia, isEnglish, profile?.id, router])
 
   // Join meeting handler
   const connectToMeeting = async () => {
@@ -773,8 +823,8 @@ export default function NexusMeetingRoomPage() {
               setMicrophoneOn(true)
               setCameraOn(true)
               setNotice(isEnglish
-                ? 'Сamera is locked by your other window. A live virtual camera stream was started automatically!'
-                : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى. تم تشغيل كاميرا افتراضية حية تلقائياً!')
+                ? 'Camera is locked by your other window. A live virtual camera stream was started automatically!'
+                : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى. تم تشغيل كاميرا افتراضية تلقائياً!')
             } catch {
               const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User')
               localStream = virtualVid
@@ -782,7 +832,7 @@ export default function NexusMeetingRoomPage() {
               setMicrophoneOn(false)
               setNotice(isEnglish
                 ? 'Camera locked by other window. Virtual stream started. Microphone unavailable.'
-                : 'الكاميرا محجوزة وتشغيل كاميرا افتراضية.')
+                : 'الكاميرا محجوزة وتم تشغيل كاميرا افتراضية. المايكروفون غير متوفر.')
             }
           } else {
             // Fallback to audio only
@@ -876,9 +926,8 @@ export default function NexusMeetingRoomPage() {
     setMicrophoneOn(nextState)
   }
 
-  // Toggle camera (with robust transceiver track replacement)
+  // Toggle camera
   const toggleCamera = async () => {
-    // If no stream exists yet, request camera
     if (!localStreamRef.current) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
@@ -897,11 +946,9 @@ export default function NexusMeetingRoomPage() {
           })
         })
         setStreamVersion((v) => v + 1)
-        await renegotiateAll()
         return
       } catch (err: any) {
         if (err?.name === 'NotReadableError') {
-          // Hardware webcam is locked by another window (e.g. testing both teacher and student on 1 PC)
           const virtualStream = createVirtualStream(profile?.full_name || 'Nexus User')
           localStreamRef.current = virtualStream
           setCameraOn(true)
@@ -920,7 +967,6 @@ export default function NexusMeetingRoomPage() {
             ? 'Webcam is locked by your other tab. Started a live virtual camera stream for testing on this device!'
             : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى لأنك على نفس الجهاز. تم تشغيل كاميرا افتراضية حية لتجربة الشاشتين معاً!')
           setStreamVersion((v) => v + 1)
-          await renegotiateAll()
           return
         } else if (err?.name === 'NotAllowedError') {
           setNotice(isEnglish ? 'Camera permission was denied in browser settings.' : 'تم رفض إذن الكاميرا. اضغط على أيقونة القفل بجانب الرابط للسماح.')
@@ -950,11 +996,9 @@ export default function NexusMeetingRoomPage() {
         })
         setCameraOn(true)
         setStreamVersion((v) => v + 1)
-        await renegotiateAll()
         return
       } catch (err: any) {
         if (err?.name === 'NotReadableError') {
-          // Hardware webcam is locked by another window (e.g. testing both teacher and student on 1 PC)
           const virtualStream = createVirtualStream(profile?.full_name || 'Nexus User')
           const track = virtualStream.getVideoTracks()[0]
           localStreamRef.current.addTrack(track)
@@ -972,7 +1016,6 @@ export default function NexusMeetingRoomPage() {
             ? 'Webcam is locked by your other tab. Started a live virtual camera stream for testing on this device!'
             : 'الكاميرا الحقيقية محجوزة في نافذتك الأخرى لأنك على نفس الجهاز. تم تشغيل كاميرا افتراضية حية لتجربة الشاشتين معاً!')
           setStreamVersion((v) => v + 1)
-          await renegotiateAll()
           return
         } else if (err?.name === 'NotAllowedError') {
           setNotice(isEnglish ? 'Camera permission was denied in browser settings.' : 'يرجى السماح بالكاميرا من إعدادات المتصفح.')
@@ -997,11 +1040,14 @@ export default function NexusMeetingRoomPage() {
         screenStreamRef.current = null
       }
       setScreenShareOn(false)
-      const cameraTrack = localStreamRef.current?.getVideoTracks()[0] || null
+      const cameraTrack = localStreamRef.current?.getVideoTracks().find((t) => t.readyState === 'live') || null
       peerConnectionsRef.current.forEach((pc) => {
         const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
-        if (videoTransceiver?.sender && cameraTrack) {
+        if (videoTransceiver?.sender) {
           void videoTransceiver.sender.replaceTrack(cameraTrack)
+          if (!cameraTrack) {
+            videoTransceiver.direction = 'recvonly'
+          }
         }
       })
       setStreamVersion((v) => v + 1)
@@ -1025,6 +1071,7 @@ export default function NexusMeetingRoomPage() {
         const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
         if (videoTransceiver?.sender) {
           void videoTransceiver.sender.replaceTrack(screenTrack)
+          videoTransceiver.direction = 'sendrecv'
         } else {
           pc.addTrack(screenTrack, stream)
         }
@@ -1075,11 +1122,9 @@ export default function NexusMeetingRoomPage() {
     if (!meeting) return
     try {
       if (currentlyMicOn) {
-        // Force mute
         await apiClient.post(`/meetings/${meeting.id}/participants/${studentId}/mute`)
         setNotice(isEnglish ? 'Student microphone muted.' : 'تم كتم مايكروفون الطالب.')
       } else {
-        // Request unmute
         await apiClient.post(`/meetings/${meeting.id}/signal`, {
           toUserId: studentId,
           signal: { type: 'request_unmute' },
@@ -1096,14 +1141,12 @@ export default function NexusMeetingRoomPage() {
     if (!meeting) return
     try {
       if (currentlyCameraOn) {
-        // Force camera off
         await apiClient.post(`/meetings/${meeting.id}/signal`, {
           toUserId: studentId,
           signal: { type: 'force_camera_off' },
         })
         setNotice(isEnglish ? 'Student camera turned off.' : 'تم إغلاق كاميرا الطالب.')
       } else {
-        // Request camera on
         await apiClient.post(`/meetings/${meeting.id}/signal`, {
           toUserId: studentId,
           signal: { type: 'request_camera_on' },
@@ -1137,6 +1180,7 @@ export default function NexusMeetingRoomPage() {
         peerConnectionsRef.current.delete(studentId)
         remoteStreamsRef.current.delete(studentId)
         pendingCandidatesRef.current.delete(studentId)
+        makingOfferRef.current.delete(studentId)
         setStreamVersion((v) => v + 1)
       }
       setNotice(isEnglish ? 'Student removed from room.' : 'تم استبعاد الطالب من القاعة.')
@@ -1144,23 +1188,6 @@ export default function NexusMeetingRoomPage() {
       setNotice(isEnglish ? 'Could not remove participant.' : 'تعذر استبعاد المشارك.')
     }
   }
-
-  // Force renegotiation on all peer connections after track changes
-  const renegotiateAll = useCallback(async () => {
-    for (const [remoteUserId, pc] of peerConnectionsRef.current.entries()) {
-      if (pc.signalingState === 'closed') continue
-      try {
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        await apiClient.post(`/meetings/${meetingId}/signal`, {
-          toUserId: remoteUserId,
-          signal: { type: 'offer', sdp: offer },
-        })
-      } catch {
-        // Ignore renegotiation error for this peer
-      }
-    }
-  }, [meetingId])
 
   const copyInviteLink = async () => {
     try {
@@ -1204,7 +1231,6 @@ export default function NexusMeetingRoomPage() {
   // If current user is host -> Current user is Spotlight Presenter.
   // If current user is student -> Teacher peer (if in room) is Spotlight Presenter.
   const remoteHostPeer = otherPeers.find((p) => p.isHost)
-  const isTeacherOnStage = isHost || Boolean(remoteHostPeer)
 
   return (
     <main className="mx-auto w-full max-w-[1600px] space-y-4" dir={isEnglish ? 'ltr' : 'rtl'}>
@@ -1506,6 +1532,7 @@ export default function NexusMeetingRoomPage() {
                       return (
                         <div key={peer.userId} className="shrink-0">
                           <StreamTile
+                            key={`peer-tile-${peer.userId}-${streamVersion}`}
                             stream={peerStream}
                             name={peer.userName}
                             isLocal={false}
