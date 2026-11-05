@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+﻿import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateUserDto, UpdateUserDto, UserFilterDto } from './dto/user.dto';
@@ -7,21 +7,21 @@ import { createHash, randomBytes } from 'crypto';
 import { UploadService } from '../upload/upload.service';
 
 const PARENT_SURVEY_OPTIONS: Record<string, readonly string[]> = {
-  q1: ['أقل من 6 سنوات', '6 إلى 10 سنوات', '11 إلى 15 سنة', 'أكثر من 15 سنة'],
-  q2: ['لا توجد', 'حساسية طعام', 'حالة صحية تحتاج متابعة'],
-  q3: ['9 إلى 10 ساعات', '7 إلى 8 ساعات', 'أقل من 7 ساعات'],
-  q4: ['أقل من ساعة', 'ساعة إلى ساعتين', 'أكثر من ساعتين'],
-  q5: ['بطلاقة', 'يحتاج إلى تشجيع', 'يواجه صعوبة أحياناً'],
-  q6: ['اهتمام كبير', 'اهتمام متوسط', 'يفضل أنشطة أخرى'],
-  q7: ['لا توجد', 'أحياناً', 'توجد صعوبة ملحوظة'],
-  q8: ['يندمج بسهولة', 'يحتاج وقتاً للاندماج', 'يفضل الأنشطة الفردية'],
-  q9: ['بمرونة غالباً', 'يحتاج إلى تذكير', 'يحتاج إلى متابعة إضافية'],
-  q10: ['بهدوء', 'يحتاج تذكيراً بسيطاً', 'يجد صعوبة في الانتظار'],
-  q11: ['يركز باستمرار', 'يتشتت أحياناً', 'يحتاج فواصل حركة'],
-  q12: ['يحاول مرة أخرى', 'يطلب المساعدة', 'ينزعج ويحتاج تشجيعاً'],
-  q13: ['ملتزم غالباً', 'يحتاج تذكيراً', 'يحتاج متابعة مستمرة'],
-  q14: ['الأب والأم معاً', 'الأم غالباً', 'الأب غالباً', 'شخص آخر'],
-  q15: ['التحصيل الدراسي', 'بناء الشخصية والثقة', 'تنمية المهارات الأساسية', 'جميع ما سبق'],
+  q1: ['ط£ظ‚ظ„ ظ…ظ† 6 ط³ظ†ظˆط§طھ', '6 ط¥ظ„ظ‰ 10 ط³ظ†ظˆط§طھ', '11 ط¥ظ„ظ‰ 15 ط³ظ†ط©', 'ط£ظƒط«ط± ظ…ظ† 15 ط³ظ†ط©'],
+  q2: ['ظ„ط§ طھظˆط¬ط¯', 'ط­ط³ط§ط³ظٹط© ط·ط¹ط§ظ…', 'ط­ط§ظ„ط© طµط­ظٹط© طھط­طھط§ط¬ ظ…طھط§ط¨ط¹ط©'],
+  q3: ['9 ط¥ظ„ظ‰ 10 ط³ط§ط¹ط§طھ', '7 ط¥ظ„ظ‰ 8 ط³ط§ط¹ط§طھ', 'ط£ظ‚ظ„ ظ…ظ† 7 ط³ط§ط¹ط§طھ'],
+  q4: ['ط£ظ‚ظ„ ظ…ظ† ط³ط§ط¹ط©', 'ط³ط§ط¹ط© ط¥ظ„ظ‰ ط³ط§ط¹طھظٹظ†', 'ط£ظƒط«ط± ظ…ظ† ط³ط§ط¹طھظٹظ†'],
+  q5: ['ط¨ط·ظ„ط§ظ‚ط©', 'ظٹط­طھط§ط¬ ط¥ظ„ظ‰ طھط´ط¬ظٹط¹', 'ظٹظˆط§ط¬ظ‡ طµط¹ظˆط¨ط© ط£ط­ظٹط§ظ†ط§ظ‹'],
+  q6: ['ط§ظ‡طھظ…ط§ظ… ظƒط¨ظٹط±', 'ط§ظ‡طھظ…ط§ظ… ظ…طھظˆط³ط·', 'ظٹظپط¶ظ„ ط£ظ†ط´ط·ط© ط£ط®ط±ظ‰'],
+  q7: ['ظ„ط§ طھظˆط¬ط¯', 'ط£ط­ظٹط§ظ†ط§ظ‹', 'طھظˆط¬ط¯ طµط¹ظˆط¨ط© ظ…ظ„ط­ظˆط¸ط©'],
+  q8: ['ظٹظ†ط¯ظ…ط¬ ط¨ط³ظ‡ظˆظ„ط©', 'ظٹط­طھط§ط¬ ظˆظ‚طھط§ظ‹ ظ„ظ„ط§ظ†ط¯ظ…ط§ط¬', 'ظٹظپط¶ظ„ ط§ظ„ط£ظ†ط´ط·ط© ط§ظ„ظپط±ط¯ظٹط©'],
+  q9: ['ط¨ظ…ط±ظˆظ†ط© ط؛ط§ظ„ط¨ط§ظ‹', 'ظٹط­طھط§ط¬ ط¥ظ„ظ‰ طھط°ظƒظٹط±', 'ظٹط­طھط§ط¬ ط¥ظ„ظ‰ ظ…طھط§ط¨ط¹ط© ط¥ط¶ط§ظپظٹط©'],
+  q10: ['ط¨ظ‡ط¯ظˆط،', 'ظٹط­طھط§ط¬ طھط°ظƒظٹط±ط§ظ‹ ط¨ط³ظٹط·ط§ظ‹', 'ظٹط¬ط¯ طµط¹ظˆط¨ط© ظپظٹ ط§ظ„ط§ظ†طھط¸ط§ط±'],
+  q11: ['ظٹط±ظƒط² ط¨ط§ط³طھظ…ط±ط§ط±', 'ظٹطھط´طھطھ ط£ط­ظٹط§ظ†ط§ظ‹', 'ظٹط­طھط§ط¬ ظپظˆط§طµظ„ ط­ط±ظƒط©'],
+  q12: ['ظٹط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰', 'ظٹط·ظ„ط¨ ط§ظ„ظ…ط³ط§ط¹ط¯ط©', 'ظٹظ†ط²ط¹ط¬ ظˆظٹط­طھط§ط¬ طھط´ط¬ظٹط¹ط§ظ‹'],
+  q13: ['ظ…ظ„طھط²ظ… ط؛ط§ظ„ط¨ط§ظ‹', 'ظٹط­طھط§ط¬ طھط°ظƒظٹط±ط§ظ‹', 'ظٹط­طھط§ط¬ ظ…طھط§ط¨ط¹ط© ظ…ط³طھظ…ط±ط©'],
+  q14: ['ط§ظ„ط£ط¨ ظˆط§ظ„ط£ظ… ظ…ط¹ط§ظ‹', 'ط§ظ„ط£ظ… ط؛ط§ظ„ط¨ط§ظ‹', 'ط§ظ„ط£ط¨ ط؛ط§ظ„ط¨ط§ظ‹', 'ط´ط®طµ ط¢ط®ط±'],
+  q15: ['ط§ظ„طھط­طµظٹظ„ ط§ظ„ط¯ط±ط§ط³ظٹ', 'ط¨ظ†ط§ط، ط§ظ„ط´ط®طµظٹط© ظˆط§ظ„ط«ظ‚ط©', 'طھظ†ظ…ظٹط© ط§ظ„ظ…ظ‡ط§ط±ط§طھ ط§ظ„ط£ط³ط§ط³ظٹط©', 'ط¬ظ…ظٹط¹ ظ…ط§ ط³ط¨ظ‚'],
 };
 
 @Injectable()
@@ -280,7 +280,7 @@ export class UserService {
       }>;
       const detailedAnswers = questions.map((question) => ({
         id: question.id,
-        category: question.category ?? 'عام',
+        category: question.category ?? 'ط¹ط§ظ…',
         prompt: question.prompt ?? '',
         selectedAnswer: answers[question.id] ?? null,
         correctAnswer: question.correctAnswer ?? null,
@@ -393,18 +393,25 @@ export class UserService {
     const scopedSchoolId = this.requireSchool(schoolId);
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
+    // Accounts provisioned by an admin are pre-verified (no Firebase flow needed)
+    // and must change their temporary password on first sign-in.
+    const isProvisionedRole = data.role === Role.STUDENT || data.role === Role.TEACHER || data.role === Role.PARENT;
+
     return this.prisma.user.create({
       data: {
         ...data,
         schoolId: scopedSchoolId,
         name: data.name || (data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : data.email.split('@')[0]),
         password: hashedPassword,
+        emailVerified: true,
+        mustChangePassword: isProvisionedRole,
       },
       select: {
         id: true,
         email: true,
         firstName: true,
         lastName: true,
+        name: true,
         role: true,
         phone: true,
         createdAt: true,
@@ -427,7 +434,7 @@ export class UserService {
         || (data.firstName !== undefined && normalizeName(data.firstName ?? '') !== normalizeName(existing.firstName ?? ''))
         || (data.lastName !== undefined && normalizeName(data.lastName ?? '') !== normalizeName(existing.lastName ?? ''));
       if (attemptedRename) {
-        throw new BadRequestException('لا يمكن تغيير الاسم المسجل في حسابك');
+        throw new BadRequestException('ظ„ط§ ظٹظ…ظƒظ† طھط؛ظٹظٹط± ط§ظ„ط§ط³ظ… ط§ظ„ظ…ط³ط¬ظ„ ظپظٹ ط­ط³ط§ط¨ظƒ');
       }
     }
     const updateData: any = { ...data };
@@ -461,7 +468,7 @@ export class UserService {
     if (!existing) throw new NotFoundException('User not found');
 
     if (data.firstName !== undefined || data.lastName !== undefined) {
-      throw new BadRequestException('لا يمكن تعديل الاسم المسجل من إعدادات الحساب');
+      throw new BadRequestException('ظ„ط§ ظٹظ…ظƒظ† طھط¹ط¯ظٹظ„ ط§ظ„ط§ط³ظ… ط§ظ„ظ…ط³ط¬ظ„ ظ…ظ† ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ط­ط³ط§ط¨');
     }
 
     const existingName = existing.name?.trim()
@@ -470,10 +477,10 @@ export class UserService {
     const normalized = (value: string) => value.normalize('NFKC').replace(/\s+/g, ' ').toLocaleLowerCase('ar');
 
     if (requestedName && existingName && normalized(requestedName) !== normalized(existingName)) {
-      throw new BadRequestException('الاسم مرتبط بسجل المدرسة ولا يمكن تغييره من الحساب');
+      throw new BadRequestException('ط§ظ„ط§ط³ظ… ظ…ط±طھط¨ط· ط¨ط³ط¬ظ„ ط§ظ„ظ…ط¯ط±ط³ط© ظˆظ„ط§ ظٹظ…ظƒظ† طھط؛ظٹظٹط±ظ‡ ظ…ظ† ط§ظ„ط­ط³ط§ط¨');
     }
     if (requestedName && !existingName && requestedName.length < 2) {
-      throw new BadRequestException('أدخل الاسم الكامل');
+      throw new BadRequestException('ط£ط¯ط®ظ„ ط§ظ„ط§ط³ظ… ط§ظ„ظƒط§ظ…ظ„');
     }
 
     const editableData: UpdateUserDto = {};
@@ -545,7 +552,7 @@ export class UserService {
         where: { nationalId, userId: { not: userId } },
         select: { userId: true },
       });
-      if (duplicate) throw new ConflictException('رقم الهوية مرتبط بحساب طالب آخر');
+      if (duplicate) throw new ConflictException('ط±ظ‚ظ… ط§ظ„ظ‡ظˆظٹط© ظ…ط±طھط¨ط· ط¨ط­ط³ط§ط¨ ط·ط§ظ„ط¨ ط¢ط®ط±');
     }
 
     if (dateOfBirth) {
@@ -572,7 +579,7 @@ export class UserService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('رقم الهوية مرتبط بحساب طالب آخر');
+        throw new ConflictException('ط±ظ‚ظ… ط§ظ„ظ‡ظˆظٹط© ظ…ط±طھط¨ط· ط¨ط­ط³ط§ط¨ ط·ط§ظ„ط¨ ط¢ط®ط±');
       }
       throw error;
     }
@@ -590,7 +597,7 @@ export class UserService {
     });
     if (!student?.schoolId) throw new ForbiddenException('Student account is not assigned to an active school');
     if (student.studentProfile?.gradeLevel == null || !student.studentProfile.nationalId || !student.avatar) {
-      throw new BadRequestException('أكمل الصف ورقم الهوية وصورة الطالب قبل إصدار رمز ولي الأمر');
+      throw new BadRequestException('ط£ظƒظ…ظ„ ط§ظ„طµظپ ظˆط±ظ‚ظ… ط§ظ„ظ‡ظˆظٹط© ظˆطµظˆط±ط© ط§ظ„ط·ط§ظ„ط¨ ظ‚ط¨ظ„ ط¥طµط¯ط§ط± ط±ظ…ط² ظˆظ„ظٹ ط§ظ„ط£ظ…ط±');
     }
 
     const code = randomBytes(8).toString('hex').toUpperCase();
@@ -630,7 +637,7 @@ export class UserService {
       });
       if (!parent?.schoolId) throw new ForbiddenException('Parent account is not assigned to an active school');
       if (!parent.name?.trim() || !parent.phone?.trim()) {
-        throw new BadRequestException('أكمل اسم ولي الأمر ورقم الجوال قبل ربط حساب الطالب');
+        throw new BadRequestException('ط£ظƒظ…ظ„ ط§ط³ظ… ظˆظ„ظٹ ط§ظ„ط£ظ…ط± ظˆط±ظ‚ظ… ط§ظ„ط¬ظˆط§ظ„ ظ‚ط¨ظ„ ط±ط¨ط· ط­ط³ط§ط¨ ط§ظ„ط·ط§ظ„ط¨');
       }
 
       const linkCode = await tx.studentLinkCode.findFirst({
@@ -638,23 +645,23 @@ export class UserService {
         include: { student: { select: { id: true, name: true, email: true, role: true, schoolId: true, isActive: true } } },
       });
       if (!linkCode || !linkCode.student.isActive || linkCode.student.role !== Role.STUDENT) {
-        throw new BadRequestException('رمز الربط غير صالح أو منتهي الصلاحية');
+        throw new BadRequestException('ط±ظ…ط² ط§ظ„ط±ط¨ط· ط؛ظٹط± طµط§ظ„ط­ ط£ظˆ ظ…ظ†طھظ‡ظٹ ط§ظ„طµظ„ط§ط­ظٹط©');
       }
       if (linkCode.student.schoolId !== parent.schoolId) {
-        throw new ForbiddenException('رمز الربط لا يخص حساباً في مدرستك');
+        throw new ForbiddenException('ط±ظ…ط² ط§ظ„ط±ط¨ط· ظ„ط§ ظٹط®طµ ط­ط³ط§ط¨ط§ظ‹ ظپظٹ ظ…ط¯ط±ط³طھظƒ');
       }
 
       const existingLink = await tx.parentStudent.findUnique({
         where: { parentId_studentId: { parentId, studentId: linkCode.student.id } },
         select: { id: true },
       });
-      if (existingLink) throw new ConflictException('هذا الطالب مرتبط بحسابك بالفعل');
+      if (existingLink) throw new ConflictException('ظ‡ط°ط§ ط§ظ„ط·ط§ظ„ط¨ ظ…ط±طھط¨ط· ط¨ط­ط³ط§ط¨ظƒ ط¨ط§ظ„ظپط¹ظ„');
 
       const claimed = await tx.studentLinkCode.updateMany({
         where: { id: linkCode.id, redeemedAt: null, expiresAt: { gt: now } },
         data: { redeemedAt: now, redeemedById: parentId },
       });
-      if (claimed.count !== 1) throw new ConflictException('رمز الربط استُخدم بالفعل');
+      if (claimed.count !== 1) throw new ConflictException('ط±ظ…ط² ط§ظ„ط±ط¨ط· ط§ط³طھظڈط®ط¯ظ… ط¨ط§ظ„ظپط¹ظ„');
 
       await tx.parentStudent.create({ data: { parentId, studentId: linkCode.student.id, relationship } });
       await tx.auditLog.create({
@@ -676,38 +683,38 @@ export class UserService {
   }
 
   async submitParentSurvey(respondentId: string, respondentRole: string, studentId: string, answers: Record<string, string>, consent: boolean) {
-    if (consent !== true) throw new BadRequestException('يلزم الموافقة على استخدام بيانات الاستبيان');
+    if (consent !== true) throw new BadRequestException('ظٹظ„ط²ظ… ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط§ط³طھط®ط¯ط§ظ… ط¨ظٹط§ظ†ط§طھ ط§ظ„ط§ط³طھط¨ظٹط§ظ†');
     const keys = Object.keys(answers ?? {});
     if (keys.length !== Object.keys(PARENT_SURVEY_OPTIONS).length || keys.some((key) => !PARENT_SURVEY_OPTIONS[key])) {
-      throw new BadRequestException('يرجى الإجابة عن جميع أسئلة الاستبيان');
+      throw new BadRequestException('ظٹط±ط¬ظ‰ ط§ظ„ط¥ط¬ط§ط¨ط© ط¹ظ† ط¬ظ…ظٹط¹ ط£ط³ط¦ظ„ط© ط§ظ„ط§ط³طھط¨ظٹط§ظ†');
     }
     for (const [questionId, answer] of Object.entries(answers)) {
       if (typeof answer !== 'string' || !PARENT_SURVEY_OPTIONS[questionId].includes(answer)) {
-        throw new BadRequestException('تحتوي الإجابات على قيمة غير صالحة');
+        throw new BadRequestException('طھط­طھظˆظٹ ط§ظ„ط¥ط¬ط§ط¨ط§طھ ط¹ظ„ظ‰ ظ‚ظٹظ…ط© ط؛ظٹط± طµط§ظ„ط­ط©');
       }
     }
 
     const role = String(respondentRole).toUpperCase();
-    if (role !== Role.PARENT && role !== Role.STUDENT) throw new ForbiddenException('هذا الاستبيان متاح للطالب أو ولي أمره فقط');
+    if (role !== Role.PARENT && role !== Role.STUDENT) throw new ForbiddenException('ظ‡ط°ط§ ط§ظ„ط§ط³طھط¨ظٹط§ظ† ظ…طھط§ط­ ظ„ظ„ط·ط§ظ„ط¨ ط£ظˆ ظˆظ„ظٹ ط£ظ…ط±ظ‡ ظپظ‚ط·');
     const respondent = await this.prisma.user.findFirst({
       where: { id: respondentId, role, isActive: true, schoolId: { not: null } },
       select: { id: true, schoolId: true },
     });
-    if (!respondent?.schoolId) throw new ForbiddenException('الحساب غير مرتبط بمدرسة');
+    if (!respondent?.schoolId) throw new ForbiddenException('ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ط±طھط¨ط· ط¨ظ…ط¯ط±ط³ط©');
     if (role === Role.STUDENT && studentId !== respondentId) {
-      throw new ForbiddenException('يمكن للطالب تعبئة استبيان ملفه فقط');
+      throw new ForbiddenException('ظٹظ…ظƒظ† ظ„ظ„ط·ط§ظ„ط¨ طھط¹ط¨ط¦ط© ط§ط³طھط¨ظٹط§ظ† ظ…ظ„ظپظ‡ ظپظ‚ط·');
     }
     const student = await this.prisma.user.findFirst({
       where: { id: studentId, role: Role.STUDENT, isActive: true, schoolId: respondent.schoolId },
       select: { id: true },
     });
-    if (!student) throw new ForbiddenException('الطالب لا يتبع المدرسة المرتبطة بهذا الحساب');
+    if (!student) throw new ForbiddenException('ط§ظ„ط·ط§ظ„ط¨ ظ„ط§ ظٹطھط¨ط¹ ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ظ…ط±طھط¨ط·ط© ط¨ظ‡ط°ط§ ط§ظ„ط­ط³ط§ط¨');
     if (role === Role.PARENT) {
       const linkedStudent = await this.prisma.parentStudent.findFirst({
         where: { parentId: respondentId, studentId },
         select: { id: true },
       });
-      if (!linkedStudent) throw new ForbiddenException('يمكن إرسال الاستبيان للطلاب المرتبطين بحسابك فقط');
+      if (!linkedStudent) throw new ForbiddenException('ظٹظ…ظƒظ† ط¥ط±ط³ط§ظ„ ط§ظ„ط§ط³طھط¨ظٹط§ظ† ظ„ظ„ط·ظ„ط§ط¨ ط§ظ„ظ…ط±طھط¨ط·ظٹظ† ط¨ط­ط³ط§ط¨ظƒ ظپظ‚ط·');
     }
 
     return this.prisma.$transaction(async (tx) => {
