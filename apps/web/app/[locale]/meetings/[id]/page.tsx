@@ -74,116 +74,6 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   },
 ]
 
-/**
- * Creates an animated virtual video stream (Canvas capture)
- * Allows developers and users testing 2 tabs on the same computer to stream video simultaneously
- * even when the physical webcam is exclusively locked by one tab.
- */
-function createVirtualStream(name: string, avatarUrl?: string | null): MediaStream {
-  if (typeof document === 'undefined') return new MediaStream()
-  const canvas = document.createElement('canvas')
-  canvas.width = 640
-  canvas.height = 480
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return new MediaStream()
-
-  let frame = 0
-  let running = true
-  const initials = name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('') || 'ن'
-
-  let avatarImg: HTMLImageElement | null = null
-  if (avatarUrl) {
-    try {
-      avatarImg = new Image()
-      avatarImg.crossOrigin = 'anonymous'
-      avatarImg.src = avatarUrl
-    } catch {
-      avatarImg = null
-    }
-  }
-
-  const draw = () => {
-    if (!running) return
-    frame++
-
-    // Background gradient
-    const grad = ctx.createLinearGradient(0, 0, 640, 480)
-    grad.addColorStop(0, '#112b3a')
-    grad.addColorStop(1, '#071620')
-    ctx.fillStyle = grad
-    ctx.fillRect(0, 0, 640, 480)
-
-    // Pulsing circle
-    ctx.save()
-    ctx.translate(320, 210)
-    const wave = Math.sin(frame * 0.06) * 10
-    ctx.beginPath()
-    ctx.arc(0, 0, 75 + wave, 0, Math.PI * 2)
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)'
-    ctx.lineWidth = 3
-    ctx.stroke()
-
-    ctx.beginPath()
-    ctx.arc(0, 0, 64, 0, Math.PI * 2)
-    ctx.fillStyle = '#1e3e54'
-    ctx.fill()
-    ctx.strokeStyle = '#38bdf8'
-    ctx.lineWidth = 2
-    ctx.stroke()
-
-    // Draw Real Avatar Image if loaded, otherwise draw initials
-    if (avatarImg && avatarImg.complete && avatarImg.naturalWidth > 0) {
-      ctx.save()
-      ctx.beginPath()
-      ctx.arc(0, 0, 64, 0, Math.PI * 2)
-      ctx.closePath()
-      ctx.clip()
-      ctx.drawImage(avatarImg, -64, -64, 128, 128)
-      ctx.restore()
-    } else {
-      ctx.fillStyle = '#ffffff'
-      ctx.font = 'bold 40px sans-serif'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(initials, 0, 0)
-    }
-    ctx.restore()
-
-    // Live Badge
-    ctx.fillStyle = '#10b981'
-    ctx.beginPath()
-    ctx.arc(245, 335, 6, 0, Math.PI * 2)
-    ctx.fill()
-
-    ctx.fillStyle = '#f8fafc'
-    ctx.font = 'bold 15px sans-serif'
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'alphabetic'
-    ctx.fillText('بث تجريبي حي (Virtual Stream)', 260, 340)
-
-    // Name
-    ctx.fillStyle = '#94a3b8'
-    ctx.font = '13px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText(name, 320, 370)
-
-  }
-  // Use setInterval so video stream keeps running even when the tab is in background (e.g. while sharing screen or switching windows)
-  const timer = setInterval(draw, 1000 / 25)
-
-  const stream = (canvas as any).captureStream(25) as MediaStream
-  const track = stream.getVideoTracks()[0]
-  if (track) {
-    const originalStop = track.stop.bind(track)
-    track.stop = () => {
-      running = false
-      clearInterval(timer)
-      originalStop()
-    }
-  }
-  return stream
-}
-
 /** Stage or Strip Participant Video Card */
 function StreamTile({
   stream,
@@ -286,8 +176,8 @@ function StreamTile({
       {!isVideoVisible && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-[#1c3f56] to-[#0c1f2b] text-white">
           <div
-            className={`flex items-center justify-center rounded-full border border-white/20 bg-white/10 font-bold uppercase shadow-inner overflow-hidden ${
-              isSpotlight ? 'h-24 w-24 text-4xl' : 'h-16 w-16 text-2xl'
+            className={`flex items-center justify-center rounded-full border-2 border-white/20 bg-white/10 font-bold uppercase shadow-xl overflow-hidden ${
+              isSpotlight ? 'h-32 w-32 text-5xl' : 'h-16 w-16 text-2xl'
             }`}
           >
             {avatarUrl ? (
@@ -296,10 +186,8 @@ function StreamTile({
               initials
             )}
           </div>
-          <span className={`${isSpotlight ? 'text-sm' : 'text-xs'} text-white/70 font-medium`}>
-            {isScreenSharing
-              ? (isEnglish ? 'Connecting screen share...' : 'جاري استقبال مشاركة الشاشة...')
-              : (isEnglish ? 'Camera off' : 'الكاميرا مغلقة')}
+          <span className={`${isSpotlight ? 'text-base font-semibold' : 'text-xs'} text-white/80`}>
+            {name}
           </span>
         </div>
       )}
@@ -908,41 +796,35 @@ export default function NexusMeetingRoomPage() {
     try {
       // 1. Request camera and microphone access
       let localStream: MediaStream | null = null
+      let camActive = false
+      let micActive = false
+
       if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
         try {
           localStream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-            video: true,
+            audio: { echoCancellation: true, noiseSuppression: true },
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
           })
-          setMicrophoneOn(true)
-          setCameraOn(true)
+          camActive = true
+          micActive = true
         } catch {
-          // If real webcam is busy, locked by other window on same PC, or unavailable:
-          // Try acquiring microphone separately + create interactive virtual stream so video works seamlessly!
+          // If camera fails or is unavailable, acquire microphone only
           try {
-            const audioStream = await navigator.mediaDevices.getUserMedia({
-              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-            }).catch(() => null)
-            const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User', profile?.avatar_url || (profile as any)?.avatar || null)
-            const combined = new MediaStream([
-              ...(audioStream ? audioStream.getAudioTracks() : []),
-              ...virtualVid.getVideoTracks(),
-            ])
-            localStream = combined
-            setMicrophoneOn(Boolean(audioStream))
-            setCameraOn(true)
-            setNotice(isEnglish
-              ? 'Physical webcam was unavailable; interactive live camera stream started automatically!'
-              : 'تم تشغيل كاميرا تفاعلية حية تلقائياً (تتيح تجربة شاشتين معاً أو العمل بدون كاميرا مادية).')
+            localStream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: true, noiseSuppression: true },
+            })
+            micActive = true
+            camActive = false
           } catch {
-            const virtualVid = createVirtualStream(profile?.full_name || 'Nexus User', profile?.avatar_url || (profile as any)?.avatar || null)
-            localStream = virtualVid
-            setCameraOn(true)
-            setMicrophoneOn(false)
+            localStream = null
+            micActive = false
+            camActive = false
           }
         }
       }
       localStreamRef.current = localStream
+      setMicrophoneOn(micActive)
+      setCameraOn(camActive)
 
       setConnectionLabel(isEnglish ? 'Entering classroom...' : 'الدخول لقاعة الاجتماع...')
 
@@ -1020,9 +902,8 @@ export default function NexusMeetingRoomPage() {
     setMicrophoneOn(nextState)
   }
 
-  // Toggle camera: attempts real physical webcam first, with avatar/virtual fallback
+  // Toggle camera: controls real physical webcam hardware
   const toggleCamera = async () => {
-    const userAvatar = profile?.avatar_url || (profile as any)?.avatar || null
     const nextState = !cameraOn
 
     if (!nextState) {
@@ -1030,64 +911,60 @@ export default function NexusMeetingRoomPage() {
       setCameraOn(false)
       if (localStreamRef.current) {
         localStreamRef.current.getVideoTracks().forEach((t) => {
-          t.enabled = false
+          t.stop()
+          localStreamRef.current!.removeTrack(t)
         })
       }
-      peerConnectionsRef.current.forEach((pc) => {
+      for (const [, pc] of peerConnectionsRef.current.entries()) {
         const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
-        if (videoTransceiver) {
+        if (videoTransceiver?.sender) {
+          await videoTransceiver.sender.replaceTrack(null)
           videoTransceiver.direction = 'recvonly'
         }
-      })
+      }
       renegotiateAll()
       setStreamVersion((v) => v + 1)
       return
     }
 
-    // Turning camera ON: Attempt to acquire real physical webcam hardware
-    let realTrack: MediaStreamTrack | null = null
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-      try {
-        const camStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+    // Turn camera ON: Acquire real physical webcam hardware
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('getUserMedia not supported')
+      }
+      const camStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+      })
+      const newTrack = camStream.getVideoTracks()[0]
+      if (!newTrack) throw new Error('No video track returned')
+
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach((t) => {
+          t.stop()
+          localStreamRef.current!.removeTrack(t)
         })
-        realTrack = camStream.getVideoTracks()[0] || null
-      } catch (err) {
-        console.warn('Physical camera acquisition failed, using interactive profile mode:', err)
-      }
-    }
-
-    // If real webcam failed (busy/locked/denied), use interactive virtual stream with user avatar
-    const trackToUse = realTrack || createVirtualStream(profile?.full_name || 'Nexus User', userAvatar).getVideoTracks()[0]
-
-    if (localStreamRef.current) {
-      const oldVideoTracks = localStreamRef.current.getVideoTracks()
-      oldVideoTracks.forEach((t) => t.stop())
-      oldVideoTracks.forEach((t) => localStreamRef.current!.removeTrack(t))
-      localStreamRef.current.addTrack(trackToUse)
-    } else {
-      localStreamRef.current = new MediaStream([trackToUse])
-    }
-
-    for (const [, pc] of peerConnectionsRef.current.entries()) {
-      const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
-      if (videoTransceiver?.sender) {
-        await videoTransceiver.sender.replaceTrack(trackToUse)
-        videoTransceiver.direction = 'sendrecv'
+        localStreamRef.current.addTrack(newTrack)
       } else {
-        pc.addTrack(trackToUse, localStreamRef.current!)
+        localStreamRef.current = camStream
       }
-    }
 
-    setCameraOn(true)
-    renegotiateAll()
-    setStreamVersion((v) => v + 1)
-    if (realTrack) {
-      setNotice(isEnglish ? 'Physical webcam started successfully!' : 'تم تشغيل الكاميرا الحقيقية بنجاح!')
-    } else {
+      for (const [, pc] of peerConnectionsRef.current.entries()) {
+        const videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track?.kind === 'video' || t.sender.track?.kind === 'video')
+        if (videoTransceiver?.sender) {
+          await videoTransceiver.sender.replaceTrack(newTrack)
+          videoTransceiver.direction = 'sendrecv'
+        } else {
+          pc.addTrack(newTrack, localStreamRef.current!)
+        }
+      }
+
+      setCameraOn(true)
+      renegotiateAll()
+      setStreamVersion((v) => v + 1)
+    } catch {
       setNotice(isEnglish
-        ? 'Physical webcam is busy in another app; interactive profile stream is live!'
-        : 'الكاميرا المادية مشغولة بتطبيق آخر؛ تم تشغيل بث الصورة التفاعلي الحقيقي!')
+        ? 'Could not access physical camera. Please check browser permissions.'
+        : 'تعذر تشغيل الكاميرا. يرجى التأكد من توصيل الكاميرا ومنح الإذن للمتصفح.')
     }
   }
 
